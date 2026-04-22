@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+# Governance prepare-commit-msg hook — stamps agent token-accounting trailers
+# and appends a row to COSTS.md when an agent-runtime wrapper has exported
+# AGENT_* environment variables.
+#
+# Generic across runtimes. Any wrapper (Codex, Claude Code, or other) that
+# exports these env vars before invoking `git commit` gets its commits
+# accounted for:
+#
+#   AGENT_NAME           required — free-form runtime id (e.g. "codex", "claude-code")
+#   AGENT_SESSION_ID     required — the runtime's session / thread id
+#   AGENT_TOKEN_INPUT    required — non-negative integer
+#   AGENT_TOKEN_OUTPUT   required — non-negative integer
+#   AGENT_ISSUE          optional — "#123"; parsed from subject if omitted
+#   AGENT_COST_KEY       optional — custom cost-key; auto-generated otherwise
+#
+# If AGENT_NAME is unset this hook is a silent no-op — human commits pass
+# through untouched.
+#
+# Escape hatches:
+#   SKIP_GOVERNANCE=1 git commit ...
+#   git commit --no-verify
+
+set -u
+
+if [[ "${SKIP_GOVERNANCE:-0}" == "1" ]]; then
+    exit 0
+fi
+if [[ -z "${AGENT_NAME:-}" ]]; then
+    exit 0
+fi
+
+MSG_FILE="$1"
+COMMIT_SOURCE="${2:-}"
+
+# Don't stamp on merges, squashes, or message templates — trailers would be
+# inherited from somewhere else and double-stamp.
+case "$COMMIT_SOURCE" in
+    merge|squash|commit) exit 0 ;;
+esac
+
+require_var() {
+    local name="$1"
+    if [[ -z "${!name:-}" ]]; then
+        cat >&2 <<EOF
+
+────────────────────────────────────────
+✗ Agent commit blocked by governance.
+
+AGENT_NAME is set to '$AGENT_NAME' but \$${name} is not set.
+
+When a runtime wrapper declares an agent commit it must export the full
+set of token-accounting variables:
+  AGENT_NAME, AGENT_SESSION_ID, AGENT_TOKEN_INPUT, AGENT_TOKEN_OUTPUT
+
+See: governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md
+
+Bypass (CI will still enforce on PR):
+    SKIP_GOVERNANCE=1 git commit ...
+    git commit --no-verify
+────────────────────────────────────────
+EOF
+        exit 1
+    fi
+}
+
+require_var AGENT_SESSION_ID
+require_var AGENT_TOKEN_INPUT
+require_var AGENT_TOKEN_OUTPUT
+
+if ! [[ "$AGENT_TOKEN_INPUT" =~ ^[0-9]+$ && "$AGENT_TOKEN_OUTPUT" =~ ^[0-9]+$ ]]; then
+    echo "✗ AGENT_TOKEN_INPUT and AGENT_TOKEN_OUTPUT must be non-negative integers" >&2
+    exit 1
+fi
+
+TOKEN_TOTAL=$(( AGENT_TOKEN_INPUT + AGENT_TOKEN_OUTPUT ))
+
+# Parse issue from the subject line if not explicitly provided.
+SUBJECT=$(grep -vE '^[[:space:]]*($|#)' "$MSG_FILE" | head -n1)
+ISSUE="${AGENT_ISSUE:-}"
+if [[ -z "$ISSUE" ]]; then
+    if [[ "$SUBJECT" =~ \(#([1-9][0-9]*)\) ]]; then
+        ISSUE="#${BASH_REMATCH[1]}"
+    fi
+fi
+if [[ -z "$ISSUE" ]]; then
+    echo "✗ Could not infer AGENT_ISSUE from subject '$SUBJECT' — set AGENT_ISSUE='#123' or include '(#N)' in the subject" >&2
+    exit 1
+fi
+
+# Cost-key: <agent>-<session-short>-<epoch>. Deterministic-ish, stable across
+# the commit lifecycle, unique in practice. Strip trailing dash/dot/underscore
+# from the truncated session id so the key doesn't grow a double-dash.
+SESSION_SHORT="${AGENT_SESSION_ID:0:12}"
+SESSION_SHORT="${SESSION_SHORT%%[-._]}"
+COST_KEY="${AGENT_COST_KEY:-${AGENT_NAME}-${SESSION_SHORT}-$(date +%s)}"
+
+# Skip stamping if trailers are already present (idempotent on amends/retries).
+if grep -qE '^Agent:[[:space:]]' "$MSG_FILE"; then
+    exit 0
+fi
+
+# Append trailers to the commit message. Git trailer convention: blank line
+# separating body from trailers; `git interpret-trailers` handles this cleanly.
+{
+    cat "$MSG_FILE"
+    # Ensure a trailing newline + blank line before trailer block.
+    printf '\n'
+    printf 'Agent: %s\n' "$AGENT_NAME"
+    printf 'Issue: %s\n' "$ISSUE"
+    printf 'Session: %s\n' "$AGENT_SESSION_ID"
+    printf 'Token-Input: %s\n' "$AGENT_TOKEN_INPUT"
+    printf 'Token-Output: %s\n' "$AGENT_TOKEN_OUTPUT"
+    printf 'Token-Total: %s\n' "$TOKEN_TOTAL"
+    printf 'Cost-Key: %s\n' "$COST_KEY"
+} > "$MSG_FILE.new"
+mv "$MSG_FILE.new" "$MSG_FILE"
+
+# Append to COSTS.md and stage it. Creates the file with a header row if missing.
+ROOT="$(git rev-parse --show-toplevel)"
+LEDGER="$ROOT/COSTS.md"
+
+if [[ ! -f "$LEDGER" ]]; then
+    cat > "$LEDGER" <<'EOF'
+<!-- COSTS.md — append-only agent token-accounting ledger -->
+<!-- governance: allow-plan-captured -->
+
+# COSTS.md
+
+Append-only ledger of token consumption for agent-authored commits. Rows are
+keyed by `Cost-Key`, which survives squash merges. Do not rewrite or reorder
+rows; this file is auditable history.
+
+## Ledger
+
+| cost-key | agent | session | issue | input | output | total | note |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+EOF
+fi
+
+# Strip the subject of leading whitespace and pipes; keep it to the first 80
+# chars so the table stays readable.
+NOTE=$(printf '%s' "$SUBJECT" | tr -d '|' | cut -c 1-80)
+
+printf '| %s | %s | %s | %s | %s | %s | %s | %s |\n' \
+    "$COST_KEY" "$AGENT_NAME" "$AGENT_SESSION_ID" "$ISSUE" \
+    "$AGENT_TOKEN_INPUT" "$AGENT_TOKEN_OUTPUT" "$TOKEN_TOTAL" "$NOTE" \
+    >> "$LEDGER"
+
+git add "$LEDGER"
+
+exit 0
