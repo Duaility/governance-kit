@@ -56,6 +56,7 @@ Rules we've built but kept out of the default menu. The skill will install any o
 
 | Rule | What it checks | Why it's not a default |
 |---|---|---|
+| `agent-token-accounting` | Agent-authored commits (those carrying an `Agent:` trailer) declare the full trailer set (`Issue`, `Session`, `Token-Input`, `Token-Output`, `Token-Total`, `Cost-Key`), satisfy `Total = Input + Output`, and have exactly one matching append-only row in `COSTS.md`. Ships a `prepare-commit-msg` hook that stamps trailers when `AGENT_*` env vars are set. Runtime-agnostic — see [AGENT_TOKEN_ACCOUNTING.md](AGENT_TOKEN_ACCOUNTING.md) for Codex / Claude Code wiring. | Most repos don't track agent token cost; opt-in. |
 | `env-example-current` | Every key in a local `.env` is declared in `.env.example`. | Only helps teams that keep a `.env` locally; niche. |
 | `docs-dir-minimum`    | A configured list of required docs exists under `docs/`. | The list varies too much per project to default. *(Not yet shipped — write as needed via the template below.)* |
 | `no-curl-bash-pipe`   | No `curl … \| bash` or `curl … \| sh` in tracked scripts. | Real attack vector, but niche — opt-in. *(Not yet shipped.)* |
