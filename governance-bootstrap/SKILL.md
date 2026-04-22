@@ -98,7 +98,7 @@ For each selected rule, copy `assets/tests-bash/rules/<rule>.sh` into `tests/gov
 
 If the user selects `conventional-commits`, remember that `commit-msg` will also be installed in Step 6.
 
-If the user selects `doc-freshness`, also copy `assets/freshness.conf` to `tests/governance/freshness.conf`. The seed file is commented — every path is opt-in by uncommenting. The companion `doc-gardener` skill also checks a built-in baseline set of well-known docs (AGENTS.md, README.md, SECURITY.md, docs/**, plans/**, adrs/**) on top of this config, so the seed only lists paths the baseline might miss.
+If the user selects `doc-freshness`, also copy `assets/freshness.conf` to `tests/governance/freshness.conf`. The seed file is commented — every path is opt-in by uncommenting. The companion `governance-gardener` skill also checks a built-in baseline set of well-known docs (AGENTS.md, README.md, SECURITY.md, docs/**, plans/**) on top of this config when it walks the Alignment axis, so the seed only lists paths the baseline might miss.
 
 If the user asks for rules that exist in `references/RULES_CATALOG.md` under "Also available" (e.g. `env-example-current`, `no-curl-bash-pipe`, `docs-dir-minimum`), copy those too — they are supported, just not in the default menu.
 

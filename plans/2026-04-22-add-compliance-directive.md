@@ -8,7 +8,7 @@ Make the obligation to follow the constitution **prescriptive** rather than desc
 2. AGENTS.md gets a "Rules to follow" directive at the top that points to the Compliance section. Stale "currently 10 invariants" phrase is removed (we have 12 now and it'll rot again).
 3. The `governance-bootstrap` skill's CONSTITUTION template is updated so every bootstrapped repo inherits the Compliance section automatically.
 
-Also: add `<!-- last-verified: 2026-04-22 -->` stamps to AGENTS.md and CONSTITUTION.md so `doc-gardener` can detect drift on these critical docs (both are already in its baseline).
+Also: add `<!-- last-verified: 2026-04-22 -->` stamps to AGENTS.md and CONSTITUTION.md so the gardener can detect drift on these critical docs (both are already in its baseline).
 
 ## Steps
 
@@ -26,5 +26,5 @@ Also: add `<!-- last-verified: 2026-04-22 -->` stamps to AGENTS.md and CONSTITUT
 ## Notes
 
 - Compliance is intentionally **not** a new invariant. It can't be mechanically checked ("did the agent actually follow the rules?" requires inspecting the diff against intent). It's a meta-statement, like the existing Principles section. Per the constitution itself: "If a rule cannot be mechanically checked, it does not belong [in Invariants]."
-- doc-gardener watches AGENTS.md and CONSTITUTION.md via its built-in baseline — no `freshness.conf` change needed. Adding the stamp gives it something to compare against.
-- QUALITY.md is **not** in the doc-gardener baseline. Adding it is a candidate follow-up (would need a `freshness.conf` entry).
+- The gardener watches AGENTS.md and CONSTITUTION.md via its built-in baseline — no `freshness.conf` change needed. Adding the stamp gives it something to compare against.
+- QUALITY.md is **not** in the gardener's baseline. Adding it is a candidate follow-up (would need a `freshness.conf` entry).
