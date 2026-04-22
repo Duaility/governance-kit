@@ -97,33 +97,42 @@ export AGENT_TOKEN_INPUT AGENT_TOKEN_OUTPUT
 exec git commit "$@"
 ```
 
-### Claude Code wrapper example
+### Claude Code wrapper
 
-Claude Code exposes session state through environment variables at agent
-launch. Have the session wrap `git commit` in a Bash tool invocation that
-first exports the contract:
+Claude Code does **not** currently export a session id or token tallies as
+environment variables — the Bash tool sees `CLAUDECODE=1` and a few harness
+vars but nothing usage-related. The session transcript on disk carries both,
+so `governance-kit` ships a ready-to-use wrapper that reads from it:
 
 ```sh
-#!/usr/bin/env bash
-set -euo pipefail
-
-# These are populated by your Claude Code integration — either via a Stop
-# hook that records the tallies before the session ends, or by querying the
-# Agent SDK's usage accumulator. Adjust to your wiring.
-: "${CLAUDE_SESSION_ID:?CLAUDE_SESSION_ID must be set by the session harness}"
-: "${CLAUDE_TOKEN_INPUT:?CLAUDE_TOKEN_INPUT must be set}"
-: "${CLAUDE_TOKEN_OUTPUT:?CLAUDE_TOKEN_OUTPUT must be set}"
-
-export AGENT_NAME=claude-code
-export AGENT_SESSION_ID="$CLAUDE_SESSION_ID"
-export AGENT_TOKEN_INPUT="$CLAUDE_TOKEN_INPUT"
-export AGENT_TOKEN_OUTPUT="$CLAUDE_TOKEN_OUTPUT"
-
-exec git commit "$@"
+scripts/claude-code-commit.sh -m "feat: add foo (#13)"
 ```
 
-Any other runtime (Cursor, Aider, a homegrown agent) follows the same
-pattern — populate the four `AGENT_*` vars and invoke `git commit`.
+The wrapper (see `scripts/claude-code-commit.sh` in this repo):
+
+1. Finds the session JSONL under `~/.claude/projects/<encoded-cwd>/` where the
+   encoding replaces every `/` and `.` in the absolute path with `-`. Override
+   with `CLAUDE_TRANSCRIPT_PATH` if needed.
+2. Sums every `assistant` entry's `.message.usage` fields, matched by
+   `sessionId`:
+   - `input = input_tokens + cache_creation_input_tokens + cache_read_input_tokens`
+   - `output = output_tokens`
+3. Subtracts the sum of existing `COSTS.md` rows whose `session` column equals
+   this session id, so each commit's ledger row is a **delta** and
+   `sum(rows for session) = session total spend`.
+4. Exports `AGENT_NAME=claude-code`, `AGENT_SESSION_ID`, `AGENT_TOKEN_INPUT`,
+   `AGENT_TOKEN_OUTPUT`, and `exec`s `git commit`. The `prepare-commit-msg`
+   hook then stamps the trailers and appends the ledger row.
+
+If Claude Code later exports `CLAUDE_SESSION_ID` and/or a running usage
+accumulator natively, the wrapper simplifies but the `AGENT_*` contract
+downstream stays identical.
+
+### Other runtimes
+
+Any runtime (Cursor, Aider, a homegrown agent) follows the same pattern —
+populate the four `AGENT_*` vars and invoke `git commit`. If the runtime
+writes a transcript, adapt the Claude Code wrapper to its schema.
 
 ## What gets enforced where
 
