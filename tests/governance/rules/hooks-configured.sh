@@ -32,12 +32,17 @@ fi
 
 # 3. core.hooksPath must point at .githooks. This is per-clone config; the
 # rule's whole job is to nag until it's set.
-configured="$(git config --get core.hooksPath 2>/dev/null || true)"
-if [[ "$configured" != ".githooks" ]]; then
-    if [[ -z "$configured" ]]; then
-        violation "core.hooksPath is not set — run: git config core.hooksPath .githooks"
-    else
-        violation "core.hooksPath is '$configured' — expected '.githooks' (run: git config core.hooksPath .githooks)"
+# Skip in CI: runners clone fresh and invoke the suite directly (not via the
+# hook), so checking their core.hooksPath is meaningless. The tracked +
+# executable checks above still run there.
+if [[ -z "${CI:-}" && -z "${GITHUB_ACTIONS:-}" ]]; then
+    configured="$(git config --get core.hooksPath 2>/dev/null || true)"
+    if [[ "$configured" != ".githooks" ]]; then
+        if [[ -z "$configured" ]]; then
+            violation "core.hooksPath is not set — run: git config core.hooksPath .githooks"
+        else
+            violation "core.hooksPath is '$configured' — expected '.githooks' (run: git config core.hooksPath .githooks)"
+        fi
     fi
 fi
 
