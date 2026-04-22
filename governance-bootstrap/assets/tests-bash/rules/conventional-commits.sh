@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Rule: Commit messages follow Conventional Commits.
-#   <type>(<optional-scope>)!?: <subject>
+# Rule: Commit messages follow Conventional Commits and end with a GitHub issue suffix.
+#   <type>(<optional-scope>)!?: <subject> (#123)
 # Allowed types: feat, fix, chore, docs, refactor, test, perf, build, ci, revert, style.
 # Extend via GOVERNANCE_CC_EXTRA_TYPES="foo bar baz".
 #
@@ -20,8 +20,8 @@ EXTRA_TYPES="${GOVERNANCE_CC_EXTRA_TYPES:-}"
 ALL_TYPES="$DEFAULT_TYPES $EXTRA_TYPES"
 # Build an alternation for the regex.
 types_alt=$(echo "$ALL_TYPES" | tr -s ' ' '|' | sed 's/^|//;s/|$//')
-# Conventional Commits header regex (first line only).
-HEADER_RE="^(${types_alt})(\([^)]+\))?!?: .+"
+# Conventional Commits header regex (first line only) plus a required GitHub issue suffix.
+HEADER_RE="^(${types_alt})(\([^)]+\))?!?: .+ \(#[1-9][0-9]*\)$"
 
 validate_subject() {
     local subject="$1"
@@ -34,7 +34,7 @@ validate_subject() {
     [[ "$subject" == fixup!\ * || "$subject" == squash!\ * || "$subject" == amend!\ * ]] && return 0
 
     if [[ ! "$subject" =~ $HEADER_RE ]]; then
-        violation "$label — '$subject' does not match Conventional Commits (<type>(scope)?: <subject>)"
+        violation "$label — '$subject' does not match Conventional Commits with an issue suffix (<type>(scope)?: <subject> (#123))"
         return 1
     fi
     # Subject ≤ 100 chars keeps PR titles and log output readable.

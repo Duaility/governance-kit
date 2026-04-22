@@ -121,7 +121,7 @@ After the preset choice, present the rule catalog across **two `AskUserQuestion`
 - `ci-workflow-exists` — At least one non-governance workflow exists under `.github/workflows/`.
 
 **Q4 — "Which commit-hygiene rules should the constitution enforce?"** (header: `CommitHygiene`)
-- `conventional-commits` — Commit messages match `<type>(scope)?!?: subject`. *(Recommended — installs a `commit-msg` hook)*
+- `conventional-commits` — Commit messages match `<type>(scope)?!?: subject (#123)`. *(Recommended — installs a `commit-msg` hook)*
 - `no-orphan-todos` — Every `TODO` / `FIXME` references `#123` or `ABC-123`.
 
 *(This question has only 2 options; that's valid. Do not pad with filler.)*

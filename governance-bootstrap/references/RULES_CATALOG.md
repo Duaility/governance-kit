@@ -33,7 +33,7 @@ The skill presents these via `AskUserQuestion` across two calls (five categories
 ### Commit hygiene
 | Rule | What it checks |
 |---|---|
-| `conventional-commits` | Commit subjects match `<type>(scope)?!?: subject`. Supported types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `build`, `ci`, `revert`, `style`. Extend via `GOVERNANCE_CC_EXTRA_TYPES`. Installs a `commit-msg` git hook. |
+| `conventional-commits` | Commit subjects match `<type>(scope)?!?: subject (#123)` so every commit carries a GitHub issue reference. Supported types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `build`, `ci`, `revert`, `style`. Extend via `GOVERNANCE_CC_EXTRA_TYPES`. Installs a `commit-msg` git hook. |
 | `no-orphan-todos`      | Every `TODO` / `FIXME` on a line references `#123` or `ABC-123`. |
 
 ### Quality
