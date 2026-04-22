@@ -23,3 +23,4 @@ for wiring instructions.
 | claude-code-b8c3537c-03c-1776874721 | claude-code | b8c3537c-03c3-4ba3-8e42-ceb02b2da58b | #13 | 12138876 | 117281 | 12256157 | feat(governance): move ledger append from hook to wrapper (#13) |
 | claude-code-b8c3537c-03c-1776875141 | claude-code | b8c3537c-03c3-4ba3-8e42-ceb02b2da58b | #13 | 3032147 | 34287 | 3066434 | refactor(governance): split commit wrapper into runtime-agnostic helper + per-ru |
 | claude-code-b8c3537c-03c-1776876126 | claude-code | b8c3537c-03c3-4ba3-8e42-ceb02b2da58b | #13 | 8579217 | 118905 | 8698122 | refactor(governance): make git commit the baseline for agent accounting (#13) |
+| claude-code-b8c3537c-03c-1776876354 | claude-code | b8c3537c-03c3-4ba3-8e42-ceb02b2da58b | #13 | 2327249 | 22683 | 2349932 | docs(plans): consolidate six #13 plans into one (#13) |
