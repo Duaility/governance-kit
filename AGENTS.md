@@ -24,7 +24,7 @@ The three skills:
 |---|---|
 | [governance-bootstrap](governance-bootstrap/SKILL.md) | Scaffolds CONSTITUTION.md, `tests/governance/`, pre-commit + commit-msg hooks, and a CI workflow. |
 | [governance-amend](governance-amend/SKILL.md) | Adds or modifies a rule atomically across test + constitution + evolution log. |
-| [doc-gardener](doc-gardener/SKILL.md) | Detects stale docs (time-based or drift-against-code) and opens a remediation PR. |
+| [governance-gardener](governance-gardener/SKILL.md) | Walks the governance surface and produces a Governance Health Report flagging blind spots, dead rules, escape-hatch friction, and doc drift. Optional follow-up actions open PRs. |
 
 ## How governance works here
 
@@ -52,7 +52,7 @@ governance-kit/
 ├── governance-amend/            # Skill 2 — adds/modifies a rule atomically.
 │   ├── SKILL.md
 │   └── ...
-├── doc-gardener/                # Skill 3 — scans + remediates stale docs.
+├── governance-gardener/         # Skill 3 — walks governance, emits a health report.
 │   ├── SKILL.md
 │   └── ...
 ├── tests/governance/            # Rule tests for THIS repo (dogfood).
@@ -92,7 +92,7 @@ This repo's skills are made available to local agent runtimes via symlinks:
 ```sh
 ln -s $(pwd)/governance-bootstrap ~/.claude/skills/governance-bootstrap
 ln -s $(pwd)/governance-bootstrap ~/.codex/skills/governance-bootstrap
-# ...and the same for governance-amend and doc-gardener.
+# ...and the same for governance-amend and governance-gardener.
 ```
 
 Edits to source files flow to both runtimes live.
