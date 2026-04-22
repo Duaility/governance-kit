@@ -4,6 +4,7 @@
 
 Entry point for humans and agents working in this repo. Skim top-to-bottom, then jump to the doc you need.
 
+<!-- governance: rules-to-follow -->
 ## Rules to follow
 
 If you are an agent — or a human — working in this repo, **read [CONSTITUTION.md](CONSTITUTION.md) and follow it**. It defines the principles, guidelines, and invariants that every change in this repo must satisfy.

@@ -53,6 +53,9 @@ while IFS= read -r file; do
     [[ -z "$file" ]] && continue
     # Skip files inside governance rules — they contain regex strings that look like links.
     [[ "$file" == tests/governance/rules/* ]] && continue
+    # Skip skill asset templates — their links resolve relative to the TARGET repo
+    # they're injected into, not to the asset's own location.
+    [[ "$file" == */assets/*.md ]] && continue
     # grep -noE gives "line_no:match" per match, one per line.
     while IFS=: read -r line_no match; do
         [[ -z "$line_no" || -z "$match" ]] && continue

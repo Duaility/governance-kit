@@ -117,6 +117,22 @@ Copy `assets/CONSTITUTION.template.md` to `<repo-root>/CONSTITUTION.md`. Then ta
 
 Do not invent principles the user did not pick. It is better to ship a short constitution than a bloated one.
 
+### Step 4b — Inject the Compliance directive into AGENTS.md
+
+The constitution's **Compliance** section is the rule; the AGENTS.md directive is the routing pointer that tells agents to *read* the rule. Without it, agents may never reach the constitution. Inject `assets/AGENTS.directive.md` into the target repo's `AGENTS.md`.
+
+The snippet leads with an HTML marker comment `<!-- governance: rules-to-follow -->` so this step is **idempotent** — always grep for the marker before inserting. If it's already present, skip silently.
+
+Three cases:
+
+1. **`AGENTS.md` exists and lacks the marker.** Insert the snippet near the top of the file. The right insertion point is **after the H1 heading and the first intro paragraph (or any frontmatter), and before the first `##` heading**. Use `Edit` — preserve everything else verbatim.
+
+2. **`AGENTS.md` is missing AND the user picked the `agents-md-exists` rule.** Create a stub at `<repo-root>/AGENTS.md` containing: `# AGENTS.md`, a one-line intro, the directive snippet, and a `## What this repo is` placeholder. Tell the user the stub is intentionally minimal — they need to flesh it out (the rule requires 30–250 lines and ≥ 3 internal doc links).
+
+3. **`AGENTS.md` is missing AND the user did NOT pick `agents-md-exists`.** Skip silently. Do not nag — the user opted out of the rule, and creating a file they didn't ask for is presumptuous.
+
+After injecting, run `bash tests/governance/rules/agents-md-exists.sh` once if the rule is installed, so the user knows whether the file still needs more content.
+
 ### Step 5 — Install the test runner
 
 Copy `assets/tests-bash/run.sh` to `tests/governance/run.sh` and mark it executable (`chmod +x`). This is the entrypoint — it discovers and runs every `*.sh` in `tests/governance/rules/`, prints a summary, and exits non-zero on any failure.
