@@ -10,8 +10,8 @@ survives squash merges that strip the original commit history.
 **Do not** rewrite or reorder rows. This file is the durable system-of-record
 that the `agent-token-accounting` governance rule validates.
 
-The `prepare-commit-msg` hook appends a row automatically when an agent
-runtime wrapper exports the `AGENT_*` environment variables. See
+The per-runtime commit wrapper appends a row before invoking `git commit`;
+the `prepare-commit-msg` hook stamps the matching trailers. See
 [governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md](governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md)
 for wiring instructions.
 
@@ -19,3 +19,5 @@ for wiring instructions.
 
 | cost-key | agent | session | issue | input | output | total | note |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| claude-code-b8c3537c-03c-1776873692 | claude-code | b8c3537c-03c3-4ba3-8e42-ceb02b2da58b | #13 | 13748948 | 148354 | 13897302 | docs(governance): note worktree-local hooksPath requirement (#13) |
+| claude-code-b8c3537c-03c-1776874721 | claude-code | b8c3537c-03c3-4ba3-8e42-ceb02b2da58b | #13 | 12138876 | 117281 | 12256157 | feat(governance): move ledger append from hook to wrapper (#13) |

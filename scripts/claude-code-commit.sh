@@ -99,8 +99,10 @@ LEDGER="$REPO_ROOT/COSTS.md"
 PREV_INPUT=0
 PREV_OUTPUT=0
 if [[ -f "$LEDGER" ]]; then
-    # Match rows whose `session` (column 3) equals this session id.
-    # Awk sums columns 5 (input) and 6 (output).
+    # Column layout under `awk -F'|'` for "| a | b | c | d | e | f | g | h |":
+    #   $1 empty | $2 cost-key | $3 agent | $4 session | $5 issue |
+    #   $6 input | $7 output   | $8 total | $9 note    | $10 empty
+    # Match rows whose `session` equals this session id; sum input + output.
     read -r PREV_INPUT PREV_OUTPUT < <(
         awk -F'|' -v sid="$SESSION_ID" '
             /^[[:space:]]*\|/ {
@@ -108,9 +110,9 @@ if [[ -f "$LEDGER" ]]; then
                 if (n < 9) next
                 for (i = 2; i <= 8; i++) gsub(/^[[:space:]]+|[[:space:]]+$/, "", c[i])
                 if (c[2] == "cost-key" || c[2] ~ /^-+$/ || c[2] == "") next
-                if (c[3] != sid) next
-                tin  += c[5] + 0
-                tout += c[6] + 0
+                if (c[4] != sid) next
+                tin  += c[6] + 0
+                tout += c[7] + 0
             }
             END { print (tin+0) " " (tout+0) }
         ' "$LEDGER"
@@ -126,13 +128,83 @@ TOKEN_OUTPUT=$(( CUM_OUTPUT - PREV_OUTPUT ))
 (( TOKEN_INPUT  < 0 )) && TOKEN_INPUT=0
 (( TOKEN_OUTPUT < 0 )) && TOKEN_OUTPUT=0
 
-export AGENT_NAME="${AGENT_NAME:-claude-code}"
+TOKEN_TOTAL=$(( TOKEN_INPUT + TOKEN_OUTPUT ))
+
+AGENT_NAME="${AGENT_NAME:-claude-code}"
+
+# ── Infer issue from the -m / --message / -F arg ───────────────
+# The ledger row needs the issue field up front (before `git commit`), since
+# the row must be staged and included in THIS commit's tree. Editor-mode
+# commits (no -m) don't give us the subject here — in that case the wrapper
+# requires AGENT_ISSUE to be set explicitly.
+ISSUE="${AGENT_ISSUE:-}"
+SUBJECT=""
+if [[ -z "$ISSUE" || -z "$SUBJECT" ]]; then
+    prev=""
+    for arg in "$@"; do
+        case "$prev" in
+            -m|--message) SUBJECT="$arg"; break ;;
+            -F|--file)
+                [[ -f "$arg" ]] && SUBJECT="$(grep -vE '^[[:space:]]*($|#)' "$arg" | head -n1)"
+                break ;;
+        esac
+        case "$arg" in
+            -m*)         [[ "$arg" != "-m" ]] && SUBJECT="${arg#-m}" ;;
+            --message=*) SUBJECT="${arg#--message=}"; break ;;
+        esac
+        prev="$arg"
+    done
+    if [[ -z "$ISSUE" && "$SUBJECT" =~ \(#([1-9][0-9]*)\) ]]; then
+        ISSUE="#${BASH_REMATCH[1]}"
+    fi
+fi
+if [[ -z "$ISSUE" ]]; then
+    echo "✗ claude-code-commit: could not infer issue — pass -m 'subject (#N)' or set AGENT_ISSUE='#N'" >&2
+    exit 1
+fi
+
+# ── Compute cost-key and append the ledger row ─────────────────
+# MUST happen before `exec git commit`: files modified during
+# prepare-commit-msg don't make it into the current commit's tree, so the
+# wrapper owns the append + stage. Strip trailing dash/dot/underscore from
+# the truncated session id so the key doesn't grow a double-dash.
+SESSION_SHORT="${SESSION_ID:0:12}"
+SESSION_SHORT="${SESSION_SHORT%%[-._]}"
+COST_KEY="${AGENT_COST_KEY:-${AGENT_NAME}-${SESSION_SHORT}-$(date +%s)}"
+
+if [[ ! -f "$LEDGER" ]]; then
+    cat > "$LEDGER" <<'LEDGER_EOF'
+<!-- COSTS.md — append-only agent token-accounting ledger -->
+<!-- governance: allow-plan-captured -->
+
+# COSTS.md
+
+Append-only ledger of token consumption for agent-authored commits. Rows are
+keyed by `Cost-Key`, which survives squash merges. Do not rewrite or reorder
+rows; this file is auditable history.
+
+## Ledger
+
+| cost-key | agent | session | issue | input | output | total | note |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+LEDGER_EOF
+fi
+
+NOTE=$(printf '%s' "$SUBJECT" | tr -d '|' | cut -c 1-80)
+printf '| %s | %s | %s | %s | %s | %s | %s | %s |\n' \
+    "$COST_KEY" "$AGENT_NAME" "$SESSION_ID" "$ISSUE" \
+    "$TOKEN_INPUT" "$TOKEN_OUTPUT" "$TOKEN_TOTAL" "$NOTE" \
+    >> "$LEDGER"
+git add "$LEDGER"
+
+export AGENT_NAME
 export AGENT_SESSION_ID="$SESSION_ID"
 export AGENT_TOKEN_INPUT="$TOKEN_INPUT"
 export AGENT_TOKEN_OUTPUT="$TOKEN_OUTPUT"
-[[ -n "${AGENT_ISSUE:-}" ]] && export AGENT_ISSUE
+export AGENT_COST_KEY="$COST_KEY"
+export AGENT_ISSUE="$ISSUE"
 
-printf 'claude-code-commit: session=%s input=+%d output=+%d (cumulative %d/%d)\n' \
-    "$SESSION_ID" "$TOKEN_INPUT" "$TOKEN_OUTPUT" "$CUM_INPUT" "$CUM_OUTPUT" >&2
+printf 'claude-code-commit: session=%s input=+%d output=+%d (cumulative %d/%d) cost-key=%s\n' \
+    "$SESSION_ID" "$TOKEN_INPUT" "$TOKEN_OUTPUT" "$CUM_INPUT" "$CUM_OUTPUT" "$COST_KEY" >&2
 
 exec git commit "$@"

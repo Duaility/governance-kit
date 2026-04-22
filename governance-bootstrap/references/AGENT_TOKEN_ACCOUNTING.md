@@ -72,10 +72,19 @@ actually run.
 
 ## Wiring runtimes
 
-The `prepare-commit-msg` hook is **runtime-agnostic**. It reads four generic
-environment variables and writes the trailers + ledger row. Each runtime's
-wrapper is responsible for populating those variables before invoking
-`git commit`.
+The contract splits cleanly in two:
+
+- **The wrapper** (one per runtime) computes tokens, computes the `Cost-Key`,
+  **appends the ledger row to `COSTS.md` and stages it**, exports the
+  `AGENT_*` env vars, and `exec`s `git commit`.
+- **The `prepare-commit-msg` hook** (runtime-agnostic) reads those env vars
+  and stamps the trailers. It does not touch `COSTS.md`.
+
+The ledger append has to happen **before** `git commit` starts. Files
+modified or staged during `prepare-commit-msg` land in the *next* commit's
+index, not the tree git has already snapshotted for this commit — a CI
+failure of the form "Cost-Key X should have exactly 1 row in COSTS.md, found
+0" is the tell. Keeping the write in the wrapper avoids that.
 
 | Env var | Required | Meaning |
 |---|---|---|
@@ -83,31 +92,64 @@ wrapper is responsible for populating those variables before invoking
 | `AGENT_SESSION_ID` | yes | The runtime's session / thread id. |
 | `AGENT_TOKEN_INPUT` | yes | Input tokens consumed for the work that produced this commit. |
 | `AGENT_TOKEN_OUTPUT` | yes | Output tokens. |
-| `AGENT_ISSUE` | optional | `#123`. Parsed from the commit subject if omitted. |
-| `AGENT_COST_KEY` | optional | Override the auto-generated `<agent>-<session-short>-<epoch>`. |
+| `AGENT_COST_KEY` | yes | The wrapper-computed cost key. Must be present as exactly one row in the staged `COSTS.md`. Convention: `<agent>-<session-short>-<epoch>`. |
+| `AGENT_ISSUE` | optional | `#123`. Parsed from the commit subject by the hook if omitted. |
 
 ### Codex wrapper example
 
 ```sh
 #!/usr/bin/env bash
 # Wrap `git commit` for Codex sessions. Reads usage from the local session
-# transcript and exports the AGENT_* contract.
+# transcript, appends a row to COSTS.md, exports the AGENT_* contract, and
+# exec's git commit.
 set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+LEDGER="$ROOT/COSTS.md"
 
 SESSION_FILE="$HOME/.codex/sessions/${CODEX_THREAD_ID}.jsonl"
 if [[ -f "$SESSION_FILE" ]]; then
     # Sum token usage across events in this thread. Replace with whatever
     # query matches your Codex version's JSONL schema.
-    AGENT_TOKEN_INPUT=$(jq -s '[.[] | .usage.input_tokens // 0] | add' "$SESSION_FILE")
+    AGENT_TOKEN_INPUT=$(jq -s  '[.[] | .usage.input_tokens  // 0] | add' "$SESSION_FILE")
     AGENT_TOKEN_OUTPUT=$(jq -s '[.[] | .usage.output_tokens // 0] | add' "$SESSION_FILE")
 else
     AGENT_TOKEN_INPUT=0
     AGENT_TOKEN_OUTPUT=0
 fi
+TOKEN_TOTAL=$(( AGENT_TOKEN_INPUT + AGENT_TOKEN_OUTPUT ))
+
+# Pull the subject out of -m / --message / --message=... so we can parse the
+# issue anchor and write a readable note cell.
+SUBJECT=""
+prev=""
+for arg in "$@"; do
+    case "$prev" in -m|--message) SUBJECT="$arg"; break ;; esac
+    case "$arg"  in --message=*)  SUBJECT="${arg#--message=}"; break ;; esac
+    prev="$arg"
+done
+ISSUE="${AGENT_ISSUE:-}"
+if [[ -z "$ISSUE" && "$SUBJECT" =~ \(#([1-9][0-9]*)\) ]]; then
+    ISSUE="#${BASH_REMATCH[1]}"
+fi
+[[ -z "$ISSUE" ]] && { echo "✗ no issue — pass -m 'subject (#N)' or set AGENT_ISSUE" >&2; exit 1; }
+
+SESSION_SHORT="${CODEX_THREAD_ID:0:12}"
+SESSION_SHORT="${SESSION_SHORT%%[-._]}"
+COST_KEY="codex-${SESSION_SHORT}-$(date +%s)"
+NOTE=$(printf '%s' "$SUBJECT" | tr -d '|' | cut -c 1-80)
+
+printf '| %s | %s | %s | %s | %s | %s | %s | %s |\n' \
+    "$COST_KEY" "codex" "$CODEX_THREAD_ID" "$ISSUE" \
+    "$AGENT_TOKEN_INPUT" "$AGENT_TOKEN_OUTPUT" "$TOKEN_TOTAL" "$NOTE" \
+    >> "$LEDGER"
+git add "$LEDGER"
 
 export AGENT_NAME=codex
 export AGENT_SESSION_ID="$CODEX_THREAD_ID"
 export AGENT_TOKEN_INPUT AGENT_TOKEN_OUTPUT
+export AGENT_COST_KEY="$COST_KEY"
+export AGENT_ISSUE="$ISSUE"
 
 exec git commit "$@"
 ```
@@ -135,9 +177,9 @@ The wrapper (see `scripts/claude-code-commit.sh` in this repo):
 3. Subtracts the sum of existing `COSTS.md` rows whose `session` column equals
    this session id, so each commit's ledger row is a **delta** and
    `sum(rows for session) = session total spend`.
-4. Exports `AGENT_NAME=claude-code`, `AGENT_SESSION_ID`, `AGENT_TOKEN_INPUT`,
-   `AGENT_TOKEN_OUTPUT`, and `exec`s `git commit`. The `prepare-commit-msg`
-   hook then stamps the trailers and appends the ledger row.
+4. Appends the row to `COSTS.md`, `git add`s it, exports the `AGENT_*`
+   contract, and `exec`s `git commit`. The `prepare-commit-msg` hook then
+   stamps the trailers from those env vars.
 
 If Claude Code later exports `CLAUDE_SESSION_ID` and/or a running usage
 accumulator natively, the wrapper simplifies but the `AGENT_*` contract
@@ -146,14 +188,16 @@ downstream stays identical.
 ### Other runtimes
 
 Any runtime (Cursor, Aider, a homegrown agent) follows the same pattern —
-populate the four `AGENT_*` vars and invoke `git commit`. If the runtime
-writes a transcript, adapt the Claude Code wrapper to its schema.
+populate the `AGENT_*` vars, append the ledger row before `git commit`, and
+invoke `git commit`. If the runtime writes a transcript, adapt the Claude
+Code wrapper to its schema.
 
 ## What gets enforced where
 
 | Layer | What it checks |
 |---|---|
-| `prepare-commit-msg` hook | When `AGENT_NAME` is set, stamps all seven trailers and appends a row to `COSTS.md`. Fails closed if required env vars are missing or non-integer. |
+| Wrapper (per runtime) | Appends the `COSTS.md` row and `git add`s it **before** `exec git commit`. |
+| `prepare-commit-msg` hook | When `AGENT_NAME` is set, stamps all seven trailers from env vars. Fails closed if required env vars are missing or non-integer. Does not touch `COSTS.md`. |
 | `agent-token-accounting` rule (`run.sh` / CI) | Walks `base..HEAD`. For each commit with an `Agent:` trailer: requires the full trailer set, checks `Total = Input + Output`, requires exactly one matching `Cost-Key` row in `COSTS.md`, and verifies the row's numbers agree with the trailers. Independently validates `COSTS.md` row shape and `Cost-Key` uniqueness so the ledger stays clean even after branch commits are squashed away. |
 
 ## What it doesn't try to do
