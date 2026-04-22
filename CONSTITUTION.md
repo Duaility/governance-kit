@@ -97,10 +97,10 @@ If a specific change cannot satisfy a rule, document the deviation in the PR des
 
 ### plan-captured
 
-- **Rule**: The repo maintains a `plans/` directory with at least one tracked `.md` file, and every `plans/*.md` has a top-level `# ` heading, a `## Goal` section, and a `## Steps` section.
+- **Rule**: The repo maintains a `plans/` directory with at least one tracked `.md` file, every `plans/*.md` has a top-level `# ` heading, a `## Goal` section, and a `## Steps` section, and every substantive tracked change outside `plans/` or `governance-health/` adds or modifies at least one `plans/*.md` file in the same change set.
 - **Rationale**: The diff shows *what* changed; the plan shows *why it took this shape*. Without the plan on disk, reviewers and future agents reconstruct intent from code and get it wrong.
 - **Enforced by**: `tests/governance/rules/plan-captured.sh`
-- **Exceptions**: Per-file waiver — a line matching `governance: allow-plan-captured` (bare or inside an HTML comment) anywhere in the file exempts that plan.
+- **Exceptions**: Per-file waiver — a line matching `governance: allow-plan-captured` (bare or inside an HTML comment) anywhere in the file exempts that plan from the structure check. Changes limited to `plans/` or `governance-health/` are exempt from the same-change requirement.
 
 ### issues-tracked
 
@@ -132,6 +132,7 @@ If a specific change cannot satisfy a rule, document the deviation in the PR des
 - 2026-04-22 — @srikanth — Add `issues-tracked`: require `QUALITY.md` with Open + Resolved sections so bugs live in the system of record, not Slack.
 - 2026-04-22 — @srikanth — Add **Compliance** section: explicit directive that humans, agents, and automation must satisfy every principle, guideline, and invariant — not just the mechanically enforced ones. Mirrored into the bootstrap template.
 - 2026-04-22 — @srikanth — Add `hooks-configured`: move local hook scripts to tracked `.githooks/` and require `core.hooksPath=.githooks`, so a fresh clone gets the same local enforcement as every other contributor. Bootstrap skill updated to install hooks under `.githooks/` (not `.git/hooks/`).
+- 2026-04-22 — @srikanth — Strengthen `plan-captured`: require substantive tracked changes to touch `plans/*.md` in the same change set, so missing plans fail mechanically instead of relying on repo memory.
 
 ## Escape hatches
 

@@ -22,6 +22,8 @@ The constitution is only as strong as the rules inside it. A bad rule — one th
 
 **Rules that lie.** A check that claims to enforce X but actually enforces a weak proxy for X is worse than no check — it creates false confidence. If you can only enforce an approximation, say so in the rationale, and name the gap.
 
+**Repo-state checks for change-set obligations.** If the real intent is "every substantive change must do X", a check that only proves "the repo has one X file somewhere" is not governance, it's theater. Prefer inspecting the staged diff in hooks and the branch diff in CI.
+
 **Checks that double as documentation.** If a rule's failure message is "see docs/SECURITY.md for why this matters", fine — but the message must *first* say what's wrong and where. Never make the developer read documentation to understand which line failed.
 
 **Non-idempotent logic.** A rule that modifies the repo while checking is a bug. Governance reads; remediation writes. Keep them separate. (If the rule needs writable scratch space, use `mktemp -d`.)
@@ -30,11 +32,34 @@ The constitution is only as strong as the rules inside it. A bad rule — one th
 
 ## Patterns by rule class
 
+### Change-set-aware checks
+
+Use these when the rule is about what must accompany a given substantive change, not just what must exist in the repo.
+
+Good fits:
+
+- every substantive change must update a plan
+- code changes affecting auth must update a specific doc or test suite
+- changes under a sensitive path must touch an approval or metadata file
+
+Implementation guidance:
+
+- In pre-commit or local runs, inspect `git diff --cached --name-only`.
+- In CI or branch validation, inspect the merge-base diff against the default branch.
+- Exempt non-substantive paths explicitly, rather than pretending they never happen.
+- Report the missing companion artifact and a few example changed files so the failure is obvious.
+
+Bad fit:
+
+- "repo contains at least one plan file" when the real intent is "this change must add or update a plan"
+- "QUALITY.md exists" when the real intent is "newly discovered issues must be recorded before merge"
+
 ### Existence / content checks (`*-exists`)
 
 - Check at the repo root, or in a small known set of locations (`X.md`, `docs/X.md`, `.github/X.md`).
 - Validate a minimum size or a minimum content signal (e.g., "contains an email address").
 - Fail fast on the first missing condition — no reason to keep checking if the file is absent.
+- Use this class only when repo-level presence is the true policy intent. If the real intent is per-change compliance, do not hide behind an existence check.
 
 ### Pattern-scan checks (`no-*`)
 
@@ -66,6 +91,47 @@ done < <(ls)
 ```
 
 Wrong on five axes: no rationale, non-specific rule statement, uses `ls` (includes gitignored files and directories), violation message has no location, pattern is meaningless.
+
+Another common anti-pattern:
+
+Bad rule statement:
+
+> Every substantive change must update `plans/`.
+
+Bad implementation:
+
+```bash
+[[ -d plans ]] || violation "plans/ missing"
+git ls-files -- 'plans/*.md' | grep -q . || violation "no plan files"
+```
+
+Why it's bad: it proves only that the repo once had a plan file. It does not fail the exact thing the rule claims to prevent: a new substantive change landing without a plan update.
+
+Better implementation shape:
+
+```bash
+changed_files=()
+while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
+    changed_files+=("$f")
+done < <(git diff --cached --name-only --diff-filter=ACMRD -- 2>/dev/null || true)
+
+plan_touched=0
+substantive=0
+for f in "${changed_files[@]}"; do
+    case "$f" in
+        plans/*.md) plan_touched=1 ;;
+        governance-health/*) ;;
+        *) substantive=1 ;;
+    esac
+done
+
+if [[ $substantive -eq 1 && $plan_touched -eq 0 ]]; then
+    violation "substantive change set has no accompanying plan update"
+fi
+```
+
+Now the check matches the policy claim.
 
 Good:
 

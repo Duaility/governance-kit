@@ -182,6 +182,8 @@ Every successful run should include:
 - **Iterate on the check when it is ambiguous.** A staged half-baked rule is worse than no rule — if the rule shape is unclear, slow down and clarify before staging.
 - **Never invent rationale.** If the user didn't give a reason, ask. "Because it's best practice" is not a rationale — governance derives authority from *named* incidents and *real* constraints. A rule without one is a speed bump nobody respects.
 - **Preserve policy intent on updates.** Threshold tweaks and mechanical refinements should not silently rewrite the rationale.
+- **Strengthen weak proxies, do not preserve them by default.** If an existing rule claims to enforce per-change behavior but only checks repo-level existence or file shape, treat that mismatch as drift worth fixing, not a quirk to copy forward.
+- **Choose the check shape by failure mode.** Ask what bad merge this rule is meant to block. If the answer is "a future change that forgot to do X", the test should inspect the staged diff or branch diff rather than only the repo at rest.
 - **Respect existing formatting.** The constitution is a living document. Match the indent style, list marker, and heading level conventions already in the file. Don't rewrite prose the user has been tending to.
 - **State material assumptions explicitly.** If you inferred the rule name, summary line, or author handle, surface that in the summary.
 - **Don't commit.** The skill ends at `git add`, not `git commit`. The user's review is the final gate.

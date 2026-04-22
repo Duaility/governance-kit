@@ -250,6 +250,8 @@ Every successful run should leave the user with a summary that includes:
 - **Respect the repo's existing hook framework.** `.githooks/` is the default only when no tracked hook framework already exists. Do not force repos off husky or `pre-commit`.
 - **Start with a preset, then let the user customize.** Presets reduce setup fatigue; the category menu keeps the result intentional.
 - **State material assumptions explicitly.** If you had to infer the preset, stack, or hook strategy, surface that in the summary.
+- **Match the enforcement surface to the real intent.** If a rule is meant to govern each substantive change, do not implement it as a repo-exists or file-count check. Prefer change-set-aware enforcement where the hook/CI can actually fail the missing behavior.
+- **Reject weak proxies when they create false confidence.** A rule that says "every change must do X" but only checks "the repo contains one X somewhere" is a bad bootstrap output, not a partial success.
 - **No invented rules.** When writing the constitution, only include rules the user selected. Governance loses authority the moment it contains rules nobody signed off on.
 
 ## References
