@@ -55,6 +55,21 @@ Then add an `agent-token-accounting` Invariants subsection to `CONSTITUTION.md`
 via the `governance-amend` skill (the rule and the constitutional entry must
 land in one commit — that's the cardinal rule).
 
+### Worktrees
+
+If you commit from a git worktree, `core.hooksPath` is shared with the main
+repository by default, which means `prepare-commit-msg` fires from the main
+checkout's `.githooks/` and can silently miss updates on branches. Pin the
+worktree to its own hook directory:
+
+```sh
+git config --worktree core.hooksPath .githooks
+```
+
+The `hooks-configured` rule accepts both forms; the worktree-local override
+just ensures the hooks you are editing in the worktree are the ones that
+actually run.
+
 ## Wiring runtimes
 
 The `prepare-commit-msg` hook is **runtime-agnostic**. It reads four generic

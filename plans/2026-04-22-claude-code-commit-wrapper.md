@@ -23,6 +23,10 @@ The `prepare-commit-msg` hook shipped in [#14](https://github.com/Duaility/gover
 3. Expand `governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md` to point the Claude Code section at the concrete wrapper instead of the placeholder example.
 4. Run the suite to confirm no regressions.
 
+## Worktree caveat (added during dogfooding)
+
+First attempt to commit via the wrapper silently skipped `prepare-commit-msg` because this worktree inherited the main repo's absolute `core.hooksPath`, pointing at the main checkout's `.githooks/` (which doesn't yet contain the new hook). Fixed by running `git config --worktree core.hooksPath .githooks` and documented in the reference doc so future worktree users don't hit the same quietly-missing-trailer failure mode.
+
 ## Non-goals
 
 - No modification to Claude Code itself. If Claude Code later exports `CLAUDE_SESSION_ID` natively, the wrapper becomes strictly simpler but the `AGENT_*` contract stays the same.
