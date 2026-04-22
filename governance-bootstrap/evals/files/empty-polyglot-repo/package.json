@@ -1,0 +1,12 @@
+{
+  "name": "fixture-polyglot",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "test": "echo 'no tests yet'"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "skill_name": "governance-gardener",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Run the governance gardener on this repo. I want a health report — don't open any PRs yet, I'll look at the report first.",
+      "expected_output": "The skill runs all three axes (Alignment, Friction, Consistency), writes a single report file at governance-health/YYYY-MM-DD.md with a Summary traffic-light table, per-axis sections with signal IDs and evidence, an Actionable queue, and (if a prior report exists) a Trend section. The report carries the <!-- governance: allow-plan-captured --> marker at the top. The skill then invokes AskUserQuestion with four options and defaults to option (4) — nothing. No branches or PRs are created.",
+      "files": ["evals/files/governed-repo-with-drift/"],
+      "assertions": [
+        "A file governance-health/<today>.md was created",
+        "The report contains sections for Alignment, Friction, and Consistency",
+        "At least one finding includes a signal ID (e.g., A1, A3, F2, C1) and concrete evidence (commit SHAs, file paths with line numbers, or counts)",
+        "Every finding carries a confidence tag of high, medium, or low",
+        "The report's first non-empty line contains <!-- governance: allow-plan-captured -->",
+        "The skill invoked AskUserQuestion offering bump-stamps / draft doc updates / both / nothing",
+        "The default option presented was option (4) — Nothing (review the report first)",
+        "No branches matching 'governance-gardener/*' were created",
+        "No PRs were opened",
+        "The working tree is clean after the run apart from the new report file"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Run the gardener. I've got some uncommitted changes staged but just go ahead — I need the report for a meeting.",
+      "expected_output": "The skill detects the dirty working tree in preflight and refuses to run. It tells the user to commit or stash first and does not produce a report, create branches, or open PRs. It holds the rule even under pressure — the rationale (never entangle gardener output with unrelated user work) still applies.",
+      "files": ["evals/files/dirty-tree-repo/"],
+      "assertions": [
+        "The skill detected uncommitted changes or untracked files in the preflight step",
+        "The skill explicitly refused to proceed and told the user to commit or stash",
+        "No governance-health/ report file was created",
+        "No branches were created",
+        "No PRs were opened",
+        "The skill did not cave to the 'just go ahead' pressure — it held the rule because mixing gardener output with unrelated changes is never right"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Run the governance gardener please.",
+      "expected_output": "The skill's preflight detects that CONSTITUTION.md and/or tests/governance/ are missing, concludes there is nothing to garden, points the user at the governance-bootstrap skill, and exits without writing a report or creating branches.",
+      "files": ["evals/files/ungoverned-repo/"],
+      "assertions": [
+        "The skill detected the absence of CONSTITUTION.md or tests/governance/",
+        "The skill recommended running governance-bootstrap first",
+        "No governance-health/ file was created",
+        "No branches or PRs were created",
+        "The skill exited cleanly — it did not error out or half-run the axes against a non-governance repo"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Garden the governance. After you show me the report, go ahead and open the bump-stamps PR if there are any docs that only need their last-verified line touched.",
+      "expected_output": "The skill produces the health report. After AskUserQuestion, the user's answer routes to the bump-stamps follow-up. Exactly one branch named governance-gardener/stamp-bumps-<YYYY-MM-DD> is created; its diff contains only <!-- last-verified: ... --> line edits — no prose changes. The PR is opened as ready-for-review (not draft). The skill does NOT open any draft doc-update PRs, does NOT edit CONSTITUTION.md, and does NOT write new rule scripts.",
+      "files": ["evals/files/governed-repo-bump-eligible/"],
+      "assertions": [
+        "The health report was written to governance-health/<today>.md before any PR was opened",
+        "Exactly one branch named 'governance-gardener/stamp-bumps-<YYYY-MM-DD>' was created",
+        "The bump-stamps branch diff contains only changes to <!-- last-verified: --> lines — no prose edits",
+        "The bump-stamps PR was opened as ready-for-review (not draft)",
+        "No edits were made to CONSTITUTION.md",
+        "No new files were added under tests/governance/rules/",
+        "No draft doc-update PRs were opened (the user only asked for bump-stamps)",
+        "Rule-shaped candidates surfaced in the report handed off to governance-amend rather than being amended in place"
+      ]
+    }
+  ]
+}
