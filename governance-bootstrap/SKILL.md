@@ -1,6 +1,6 @@
 ---
 name: governance-bootstrap
-description: Bootstraps governance-driven development in a repository — scaffolds a CONSTITUTION.md, a test suite under tests/governance/ that enforces the constitution, pre-commit and commit-msg hooks (skippable), and a GitHub Actions workflow. Offers a menu of ready-made rules across five categories (Foundation, Security, System of record, Commit hygiene, Quality) including Conventional Commits, secret scanning, .env hygiene, GitHub Actions hardening, AGENTS.md / ARCHITECTURE.md / SECURITY.md checks, broken-link detection, doc freshness, and merge-conflict-marker detection. Use when the user wants to set up governance, add a constitution, enforce invariants, install conventional commits, harden workflows, or when they say "bootstrap governance", "set up governance tests", "governance-driven development", or reference a constitution document.
+description: Bootstraps governance-driven development in a repository that does not yet have the kit installed — scaffolds an initial CONSTITUTION.md, a test suite under tests/governance/ that enforces it, tracked git hooks, and a GitHub Actions workflow. Offers a menu of ready-made rules across five categories (Foundation, Security, System of record, Commit hygiene, Quality) including Conventional Commits, secret scanning, .env hygiene, GitHub Actions hardening, AGENTS.md / ARCHITECTURE.md / SECURITY.md checks, broken-link detection, doc freshness, and merge-conflict-marker detection. Use when the user wants initial governance setup, says "bootstrap governance", "set up governance tests", or wants to install this governance kit into a repo. Do not use for amending an existing rule set; use governance-amend for that.
 license: MIT
 metadata:
   author: governance-kit
@@ -37,6 +37,12 @@ If this is not a git repo, stop and tell the user — governance-bootstrap requi
 
 If artifacts already exist, report what's there and ask whether to **augment** (add missing pieces, preserve existing) or **overwrite** (fresh start). Default to augment.
 
+Also detect hook strategy before you offer or install hook-related rules:
+- If `.husky/` exists, `package.json` references husky, or `.pre-commit-config.yaml` exists, treat the repo as using an existing hook framework.
+- Otherwise, use the repo-local `.githooks/` strategy described below.
+
+This choice affects whether `hooks-configured` is installed. Do not present `.githooks/` as universal if the repo already has a tracked hook framework.
+
 ### Step 2 — Classify the project stack
 
 Pick exactly one primary stack from the markers:
@@ -55,11 +61,11 @@ Multiple markers → pick the one the user points to. If unclear, ask once.
 
 ### Step 3 — Offer the rule menu
 
-The rule catalog is five categories, presented across **two `AskUserQuestion` calls** (the tool caps at four questions per call). Use `multiSelect: true` for every question. "Other" appears automatically — if the user picks it and describes a rule, generate a new `.sh` file under `tests/governance/rules/` following the template in `references/RULES_CATALOG.md` and add a matching Invariants subsection to `CONSTITUTION.md`.
+The rule catalog is five categories, presented across **two `AskUserQuestion` calls** (the tool caps at four questions per call). Use `multiSelect: true` for every question. If structured question tools are unavailable, ask concise free-text questions in the same category order and proceed with the user's answers. "Other" appears automatically — if the user picks it and describes a rule, generate a new `.sh` file under `tests/governance/rules/` following the template in `references/RULES_CATALOG.md` and add a matching Invariants subsection to `CONSTITUTION.md`.
 
 **Always installed — do not put in the menu:**
 - `no-merge-conflict-markers` — no `<<<<<<<` / `=======` / `>>>>>>>` in any tracked file. Zero false positives, zero config. Install unconditionally.
-- `hooks-configured` — `.githooks/pre-commit` (and `.githooks/commit-msg`, if `conventional-commits` is installed) are tracked and executable, and `core.hooksPath` is set to `.githooks`. The meta-rule that makes every other local rule actually run; install unconditionally.
+- `hooks-configured` — `.githooks/pre-commit` (and `.githooks/commit-msg`, if `conventional-commits` is installed) are tracked and executable, and `core.hooksPath` is set to `.githooks`. Install this only when the repo is using the `.githooks/` strategy. If the repo uses husky or `pre-commit`, skip this rule entirely.
 
 **First `AskUserQuestion` call — four questions:**
 
@@ -95,7 +101,7 @@ The rule catalog is five categories, presented across **two `AskUserQuestion` ca
 - `no-large-files` — No tracked file exceeds 5 MB (configurable). *(Recommended)*
 - `no-committed-build-artifacts` — No `__pycache__`, `*.pyc`, `node_modules/`, `dist/`, `build/`, `target/`, `out/`, `.DS_Store` etc. are tracked. *(Recommended)*
 
-For each selected rule, copy `assets/tests-bash/rules/<rule>.sh` into `tests/governance/rules/` in the target repo. Also copy `assets/tests-bash/rules/no-merge-conflict-markers.sh` regardless of what the user picked.
+For each selected rule, copy `assets/tests-bash/rules/<rule>.sh` into `tests/governance/rules/` in the target repo. Also copy `assets/tests-bash/rules/no-merge-conflict-markers.sh` regardless of what the user picked. Copy `assets/tests-bash/rules/hooks-configured.sh` only when using the `.githooks/` strategy.
 
 If the user selects `conventional-commits`, remember that `commit-msg` will also be installed in Step 6.
 
@@ -142,9 +148,13 @@ Copy `assets/tests-bash/lib.sh` to `tests/governance/lib.sh` — shared helpers 
 
 If the user wants **native** tests in addition to bash, read `references/NATIVE_TESTS.md` for the port pattern for their stack (pytest / jest / go test). Generate the native test file(s) inline — do not invent a separate `run.sh` for the native side; the project's existing test runner (`pytest tests/governance`, `npx jest tests/governance`, `go test ./tests/governance/...`) is the entrypoint.
 
-### Step 6 — Install the git hooks (tracked, via `.githooks/`)
+### Step 6 — Install the git hooks
 
-Hook scripts live in a **tracked** directory `.githooks/` — not in `.git/hooks/`, which is per-clone and untracked. This way every contributor's clone gets the same hooks, and the `hooks-configured` rule (always installed) catches anyone whose `core.hooksPath` is unset.
+Choose one path based on the hook strategy detected in Step 1.
+
+**Path A — repo-local `.githooks/`**
+
+Hook scripts live in a **tracked** directory `.githooks/` — not in `.git/hooks/`, which is per-clone and untracked. This way every contributor's clone gets the same hooks, and the `hooks-configured` rule catches anyone whose `core.hooksPath` is unset.
 
 Do this:
 
@@ -153,11 +163,18 @@ Do this:
    - Runs `tests/governance/run.sh` (bash mode) and/or the native command (if native tests are installed — detect and run both if present).
    - On failure, prints the failing rule, the `SKIP_GOVERNANCE=1 git commit` escape hatch, and `git commit --no-verify` as the nuclear option.
 2. **If, and only if, the user selected `conventional-commits`**, also copy `assets/githooks/commit-msg` to `.githooks/commit-msg` and `chmod +x` it. Honors the same escape hatches.
-3. Also install `assets/tests-bash/rules/hooks-configured.sh` to `tests/governance/rules/hooks-configured.sh` (this happens automatically because `hooks-configured` is in the always-installed list above; the reminder is here so the hook + rule stay co-located in your mental model).
+3. Also install `assets/tests-bash/rules/hooks-configured.sh` to `tests/governance/rules/hooks-configured.sh`.
 4. Run `git config core.hooksPath .githooks` in the target repo. **Tell the user explicitly** that this config is per-clone — every other contributor must run the same command after their first clone. The `hooks-configured` rule will surface that requirement on every commit until they do.
 5. **Do not** create files under `.git/hooks/`. If `.git/hooks/pre-commit` (or `commit-msg`) already exists from a previous bootstrap or another tool, ask the user before deleting — it could be a husky or pre-commit.com hook (see the framework branch below).
 
-If the project uses `husky` or the `pre-commit` framework, *do not* set `core.hooksPath` and do not copy into `.githooks/` — those frameworks already have their own tracked hook-config mechanism. Instead, add a hook entry to the existing config (ask the user which framework they use). See `references/NATIVE_TESTS.md` for the husky / pre-commit.com snippets. In that case, also tell the user the `hooks-configured` rule should be removed (`rm tests/governance/rules/hooks-configured.sh`) since it asserts the `.githooks/` convention specifically.
+**Path B — existing hook framework**
+
+If the project uses `husky` or the `pre-commit` framework, *do not* set `core.hooksPath` and do not copy into `.githooks/` — those frameworks already have their own tracked hook-config mechanism. Instead, add a hook entry to the existing config (ask the user which framework they use, or infer it from the files you found). See `references/NATIVE_TESTS.md` for the husky / pre-commit.com snippets.
+
+In this path:
+- Do not install `hooks-configured.sh`.
+- Do not describe `hooks-configured` as part of the constitution.
+- Tell the user explicitly that the repo is using its existing tracked hook framework instead of `.githooks/`.
 
 ### Step 7 — Install the CI workflow
 
@@ -181,6 +198,7 @@ Do **not** commit the new files. Leave that to the user — the first commit of 
 - **The constitution and the tests evolve together.** Never add a rule to the constitution without a test. Never add a test without a rule. If the user asks to add one in isolation, push back and do both.
 - **Escape hatches are a feature, not a bug.** `SKIP_GOVERNANCE=1` exists because governance that blocks emergency hotfixes will get ripped out. CI enforces the rule even when the hook is skipped, which is the right layering.
 - **Bash-first, native as enhancement.** Bash tests work in any repo, in any CI, without install steps. Native tests (pytest etc.) are nicer DX but add friction. Default to bash; offer native.
+- **Respect the repo's existing hook framework.** `.githooks/` is the default only when no tracked hook framework already exists. Do not force repos off husky or `pre-commit`.
 - **No invented rules.** When writing the constitution, only include rules the user selected. Governance loses authority the moment it contains rules nobody signed off on.
 
 ## References

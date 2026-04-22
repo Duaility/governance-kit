@@ -1,6 +1,6 @@
 ---
 name: governance-amend
-description: Amends an existing governance-kit setup — adds a new rule (or modifies an existing one) atomically across three artifacts that must land in the same commit: a new test script under tests/governance/rules/, a new Invariants subsection in CONSTITUTION.md, and an entry in the Evolution Log. Enforces the cardinal rule of governance-driven development — a rule and its enforcing test evolve together. Use when the user says "add a governance rule", "add a new invariant", "amend the constitution", "add a rule to CONSTITUTION.md", "update governance", or "evolve governance".
+description: Amends an existing governance-kit setup by adding or modifying a specific governance rule atomically across the enforcing test and the constitution's invariant/log entries. Use when the repo already has governance-kit installed and the user wants a concrete rule change such as "add a governance rule", "add a new invariant", "amend the constitution", or "modify rule X". Do not use for initial setup; use governance-bootstrap for that. Do not use for general health reviews; use governance-gardener for that.
 license: MIT
 metadata:
   author: governance-kit
@@ -14,13 +14,13 @@ The `governance-bootstrap` skill sets up the system of record. **This skill evol
 
 Governance-driven development's cardinal rule: *the constitution and the enforcing tests evolve together, in one commit.* This skill makes obeying that rule cheap and makes breaking it harder than following it.
 
-Every amendment this skill produces is three artifacts, staged atomically:
+Every amendment this skill produces is three logical changes, staged atomically:
 
 1. A new (or updated) test script at `tests/governance/rules/<rule-name>.sh`.
 2. A new **Invariants** subsection in `CONSTITUTION.md`.
 3. A new entry in the `CONSTITUTION.md` **Evolution Log**.
 
-The skill does **not** commit. The user reviews and commits. But the three files are staged together and the skill refuses to finish with a partial amendment on disk.
+The skill does **not** commit. The user reviews and commits. But the amendment is staged together and the skill refuses to finish with a partial amendment on disk.
 
 ---
 
@@ -52,6 +52,12 @@ Most requests will already give you most of this — extract what you can from t
 
 If any field is ambiguous, **ask one question at a time** via `AskUserQuestion` or free text — don't dump a four-question form on the user. The most common blocker is "check logic" being too vague; iterate until you have something concrete enough to write bash that either passes or fails deterministically.
 
+Use two operating modes:
+- **Fast path** — if the user's request already names a concrete rule, rationale, and check shape, draft the amendment directly, smoke-test it, and then show the result.
+- **Interactive path** — if rule scope, rationale, or check logic is ambiguous, ask one concise question at a time until the rule is concrete enough to implement safely.
+
+If structured question tools are unavailable, use short free-text questions instead of stopping.
+
 **Check for collisions before you proceed:**
 - If `tests/governance/rules/<name>.sh` already exists → this is an **update**, not a new rule. Confirm with the user before overwriting, and treat the matching `CONSTITUTION.md` subsection as an update too (not a new insertion).
 - If `CONSTITUTION.md` already has a subsection whose header closely matches the proposed name → same thing, confirm.
@@ -69,9 +75,11 @@ The script must:
 - On every violation: call `violation "<file>:<line> — <specific-message>"`. A rule without a location in the message is less useful — always include one if the check is per-file or per-line.
 - Honor in-source waivers via `has_waiver "$file" "$line_no" "<rule-name>"` wherever violations are line-level, *unless* the user explicitly said no exceptions.
 
-**Before showing the draft to the user**, syntax-check it: `bash -n tests/governance/rules/<name>.sh`. If it fails, fix and re-check. Do not put syntactically broken bash in front of the user.
+Syntax-check it: `bash -n tests/governance/rules/<name>.sh`. If it fails, fix and re-check. Do not put syntactically broken bash in front of the user.
 
-Show the draft. Ask whether it's the check they want. Iterate. When the user signs off, write it to disk.
+On the **interactive path**, show the draft and ask whether it's the check they want. Iterate. When the user signs off, write it to disk.
+
+On the **fast path**, write the script once it passes syntax check, then show the user the resulting rule and any smoke-test output. Do not stop for approval unless the smoke test reveals ambiguity or the rule would require waivers or repo fixes the user did not ask for.
 
 ### Step 4 — Smoke-test the script
 
@@ -130,8 +138,8 @@ Print:
 ## Key design rules
 
 - **Three artifacts or nothing.** If you can only produce two of the three (e.g., the script is ambiguous and can't be written yet), stop and report. Do not edit `CONSTITUTION.md` for a rule whose test doesn't exist yet, and do not write a test whose invariant isn't in the constitution. That is exactly the drift this skill is built to prevent.
-
-- **Iterate on the check before staging.** The user should see the script, approve it, and see it pass a smoke test *before* anything is staged. A staged half-baked rule is worse than no rule — it invites a quick commit to "clean up git status" and ships broken governance.
+- **Fast path when the request is concrete.** Do not force an approval loop for an obvious, well-specified amendment.
+- **Iterate on the check when it is ambiguous.** A staged half-baked rule is worse than no rule — if the rule shape is unclear, slow down and clarify before staging.
 
 - **Never invent rationale.** If the user didn't give a reason, ask. "Because it's best practice" is not a rationale — governance derives authority from *named* incidents and *real* constraints. A rule without one is a speed bump nobody respects.
 

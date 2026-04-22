@@ -1,6 +1,6 @@
 ---
 name: governance-gardener
-description: Walks the repo's governance surface and produces a Governance Health Report — a dated markdown file that flags misalignment between CONSTITUTION.md, the code, and git history. Three axes — Alignment (rules vs. code — blind spots, invisible norms, doc drift), Friction (rules vs. history — dead rules, escape-hatch usage, recurring fixes), Consistency (governance vs. governance — three-legged drift, orphans, hedge language). The report is the product; follow-up actions (doc stamp bumps, drafted doc updates) are opt-in after review. Never auto-amends the constitution. Pairs with governance-bootstrap (which seeds rules) and governance-amend (which edits them). Use when the user says "garden the governance", "governance health check", "run the gardener", "check for blind spots", "find dead rules", or when debugging why the governance tooling feels noisy or out of date. Also designed for /loop or a scheduled task.
+description: Walks the repo's governance surface and produces a Governance Health Report — a dated markdown file that flags misalignment between CONSTITUTION.md, the code, and git history. Three axes — Alignment (rules vs. code — blind spots, invisible norms, doc drift), Friction (rules vs. history — dead rules, escape-hatch usage, recurring fixes), Consistency (governance vs. governance — three-legged drift, orphans, hedge language). The report is the product; follow-up actions (doc stamp bumps, drafted doc updates) are opt-in after review. Never auto-amends the constitution. Use when the user asks for a governance health check, wants to find blind spots or dead rules, or wants to understand why the governance system feels noisy or stale. Do not use for initial installation or a known one-rule amendment.
 license: MIT
 metadata:
   author: governance-kit
@@ -37,7 +37,10 @@ Full signal catalog with thresholds and evidence requirements: [references/SIGNA
 From the repo root:
 
 1. Confirm this is a git repo (`git rev-parse --show-toplevel`). If not, stop.
-2. Confirm the working tree is clean. If dirty, stop and tell the user to commit or stash — the gardener writes a report file and optionally opens branches, and must not entangle its output with unrelated work.
+2. Decide mode based on the user's request:
+   - **Report-only mode** — if the user asked only for analysis, a health check, or a report, a dirty tree is acceptable.
+   - **Follow-up mode** — if the run may open branches or PRs, require a clean tree.
+   If the tree is dirty and follow-up mode is required, stop and tell the user to commit or stash first.
 3. Confirm `CONSTITUTION.md` and `tests/governance/` exist. If not, suggest running `governance-bootstrap` first and exit.
 4. Note prior runs: `ls governance-health/*.md 2>/dev/null`. The most recent one, if any, feeds the **Trend** section.
 
@@ -67,8 +70,8 @@ Run each signal. Collect findings as structured records: `{axis, signal, severit
 - `A4` Bump-eligible — tracked doc whose `last-verified` has expired but watched paths are unchanged (low-risk follow-up available).
 
 **Friction signals** — SIGNAL_CATALOG.md §Friction:
-- `F1` Escape-hatch cluster — commits using `--no-verify` or `SKIP_GOVERNANCE=1` in the window. Groups by affected rule when inferable.
-- `F2` Dead rule — rule test whose watched paths haven't changed in ≥2× the window AND whose test script hasn't been edited since the rule was added.
+- `F1` Escape-hatch cluster — commits using `--no-verify` or `SKIP_GOVERNANCE=1` in the window. Group by affected rule only when the evidence is direct; otherwise report at repo level and lower confidence.
+- `F2` Dead rule — rule test whose watched paths haven't changed in ≥2× the window AND whose test script hasn't been edited since the rule was added. If a rule has no credible watched-path approximation, skip this signal for that rule instead of guessing.
 - `F3` Recurring-fix cluster — commit-subject clusters (`fix style`, `fix typo`, `fix lint`) with ≥ `MIN_EVIDENCE` occurrences not covered by an existing rule.
 - `F4` Revert cluster — `git log --grep=^Revert` with ≥2 hits on the same path.
 
@@ -78,7 +81,7 @@ Run each signal. Collect findings as structured records: `{axis, signal, severit
 - `C3` Evolution-log drift — a log entry whose commit touched neither `CONSTITUTION.md` nor `tests/governance/`.
 - `C4` Orphaned freshness entry — a path in `freshness.conf` that doesn't exist on disk.
 - `C5` Hedge language — an Invariants **Rule** line containing `should`, `generally`, `usually`, `typically`, `try to`. Invariants are hard rules; hedges belong in Principles.
-- `C6` Redundant rule — two rule scripts whose `grep`/`awk` patterns overlap by ≥80%. Flag for dedup.
+- `C6` Redundant rule — two rule scripts whose checks appear materially overlapping. Only surface this when the overlap is obvious from the script bodies or shared helper calls; if overlap is merely heuristic, mark confidence low or suppress it.
 
 ### Step 4 — Render the report
 
@@ -110,6 +113,8 @@ Report written to governance-health/<date>.md. What next?
 
 Default is **(4)** on the first run in a session: the user should see the report before the skill starts opening PRs. Autonomous invocations (`/loop`, scheduled tasks) also default to (4) — they produce the report and exit.
 
+If structured question tools are unavailable, ask the same question in concise free text and default to "review the report first" unless the user clearly asked for follow-up actions in the same request.
+
 If the user picks an action, delegate to the follow-up flows in [references/FOLLOWUP_ACTIONS.md](references/FOLLOWUP_ACTIONS.md). The gardener never auto-amends `CONSTITUTION.md` or `tests/governance/rules/` — rule-shaped candidates always hand off to `governance-amend`.
 
 ### Step 6 — Exit cleanly
@@ -128,8 +133,9 @@ Do not loop or recurse.
 - **Every finding carries evidence.** Commit SHAs, file paths with line numbers, occurrence counts. A finding without evidence is a guess — drop it or mark its confidence as `low`.
 - **Never auto-amend.** The gardener does not edit `CONSTITUTION.md` or write new rule scripts. Candidates are proposed; `governance-amend` does the editing.
 - **Never auto-merge.** Even the low-risk bump-stamps PR requires a human click.
-- **Refuse to run on a dirty tree.** The skill writes a report file and (if the user opts in) creates branches. Mixing with unrelated user work is never right.
+- **Separate report-only mode from follow-up mode.** Analysis can run on a dirty tree; branch-creating follow-up actions cannot.
 - **Confidence is mandatory.** Every finding is tagged `high | medium | low`. Readers calibrate their attention by it; hiding uncertainty wastes the reviewer's time.
+- **Prefer suppression to fake precision.** If a signal cannot tie its claim to concrete evidence, omit it or downgrade confidence rather than over-claiming.
 - **Diffable across runs.** Report files stay in `governance-health/`. Run N+1 can compare against run N. If you move or rewrite old reports, you lose the trend signal.
 
 ## When NOT to use this skill
