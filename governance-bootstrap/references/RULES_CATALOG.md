@@ -48,6 +48,7 @@ The skill presents these via `AskUserQuestion` across two calls (five categories
 | Rule | What it checks |
 |---|---|
 | `no-merge-conflict-markers` | No tracked file contains `<<<<<<<`, `=======`, or `>>>>>>>` at line-start. Zero false positives; always installed. |
+| `hooks-configured`          | `.githooks/pre-commit` is tracked + executable, `.githooks/commit-msg` likewise if `conventional-commits` is installed, and `core.hooksPath` is set to `.githooks`. The meta-rule that makes every other local check actually fire on a fresh clone. |
 
 ## Also available — copy on request
 

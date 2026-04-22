@@ -31,7 +31,7 @@ Before touching anything, run these in parallel:
 - `git rev-parse --show-toplevel` to confirm this is a git repo and find the root.
 - `ls -la` at the root.
 - Check for stack markers: `package.json`, `pyproject.toml`, `setup.py`, `requirements.txt`, `go.mod`, `Cargo.toml`, `pom.xml`, `build.gradle`, `Gemfile`.
-- Check for existing `CONSTITUTION.md`, `tests/governance/`, `.github/workflows/governance.yml`, `.git/hooks/pre-commit`.
+- Check for existing `CONSTITUTION.md`, `tests/governance/`, `.github/workflows/governance.yml`, `.githooks/`, and `.git/hooks/pre-commit` (legacy location — flag if present).
 
 If this is not a git repo, stop and tell the user — governance-bootstrap requires git.
 
@@ -59,6 +59,7 @@ The rule catalog is five categories, presented across **two `AskUserQuestion` ca
 
 **Always installed — do not put in the menu:**
 - `no-merge-conflict-markers` — no `<<<<<<<` / `=======` / `>>>>>>>` in any tracked file. Zero false positives, zero config. Install unconditionally.
+- `hooks-configured` — `.githooks/pre-commit` (and `.githooks/commit-msg`, if `conventional-commits` is installed) are tracked and executable, and `core.hooksPath` is set to `.githooks`. The meta-rule that makes every other local rule actually run; install unconditionally.
 
 **First `AskUserQuestion` call — four questions:**
 
@@ -141,16 +142,22 @@ Copy `assets/tests-bash/lib.sh` to `tests/governance/lib.sh` — shared helpers 
 
 If the user wants **native** tests in addition to bash, read `references/NATIVE_TESTS.md` for the port pattern for their stack (pytest / jest / go test). Generate the native test file(s) inline — do not invent a separate `run.sh` for the native side; the project's existing test runner (`pytest tests/governance`, `npx jest tests/governance`, `go test ./tests/governance/...`) is the entrypoint.
 
-### Step 6 — Install the git hooks
+### Step 6 — Install the git hooks (tracked, via `.githooks/`)
 
-Copy `assets/pre-commit` to `.git/hooks/pre-commit` and `chmod +x` it. The hook:
-- Skips if `SKIP_GOVERNANCE=1` is set.
-- Runs `tests/governance/run.sh` (bash mode) and/or the native command (if native tests are installed — detect and run both if present).
-- On failure, prints the rule that failed, the `SKIP_GOVERNANCE=1 git commit` escape hatch, and `git commit --no-verify` as the nuclear option.
+Hook scripts live in a **tracked** directory `.githooks/` — not in `.git/hooks/`, which is per-clone and untracked. This way every contributor's clone gets the same hooks, and the `hooks-configured` rule (always installed) catches anyone whose `core.hooksPath` is unset.
 
-**If, and only if, the user selected `conventional-commits`**, also copy `assets/commit-msg` to `.git/hooks/commit-msg` and `chmod +x` it. This hook validates the pending commit message against the Conventional Commits regex before the commit is finalized. It honors the same `SKIP_GOVERNANCE=1` / `--no-verify` escape hatches.
+Do this:
 
-If the project uses `husky` or the `pre-commit` framework, *do not* overwrite `.git/hooks/pre-commit`. Instead, add a hook entry to the existing config (ask the user which framework they use). See `references/NATIVE_TESTS.md` for the husky / pre-commit.com snippets. The `commit-msg` hook registers analogously (`npx husky add .husky/commit-msg '...'` for husky).
+1. Copy `assets/githooks/pre-commit` to `.githooks/pre-commit` in the target repo and `chmod +x` it. The hook:
+   - Skips if `SKIP_GOVERNANCE=1` is set.
+   - Runs `tests/governance/run.sh` (bash mode) and/or the native command (if native tests are installed — detect and run both if present).
+   - On failure, prints the failing rule, the `SKIP_GOVERNANCE=1 git commit` escape hatch, and `git commit --no-verify` as the nuclear option.
+2. **If, and only if, the user selected `conventional-commits`**, also copy `assets/githooks/commit-msg` to `.githooks/commit-msg` and `chmod +x` it. Honors the same escape hatches.
+3. Also install `assets/tests-bash/rules/hooks-configured.sh` to `tests/governance/rules/hooks-configured.sh` (this happens automatically because `hooks-configured` is in the always-installed list above; the reminder is here so the hook + rule stay co-located in your mental model).
+4. Run `git config core.hooksPath .githooks` in the target repo. **Tell the user explicitly** that this config is per-clone — every other contributor must run the same command after their first clone. The `hooks-configured` rule will surface that requirement on every commit until they do.
+5. **Do not** create files under `.git/hooks/`. If `.git/hooks/pre-commit` (or `commit-msg`) already exists from a previous bootstrap or another tool, ask the user before deleting — it could be a husky or pre-commit.com hook (see the framework branch below).
+
+If the project uses `husky` or the `pre-commit` framework, *do not* set `core.hooksPath` and do not copy into `.githooks/` — those frameworks already have their own tracked hook-config mechanism. Instead, add a hook entry to the existing config (ask the user which framework they use). See `references/NATIVE_TESTS.md` for the husky / pre-commit.com snippets. In that case, also tell the user the `hooks-configured` rule should be removed (`rm tests/governance/rules/hooks-configured.sh`) since it asserts the `.githooks/` convention specifically.
 
 ### Step 7 — Install the CI workflow
 

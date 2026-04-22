@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Governance commit-msg hook — validates the pending commit message.
+# Currently runs only the conventional-commits rule (if installed).
+#
+# Escape hatches:
+#   SKIP_GOVERNANCE=1 git commit ...   # telegraphs intent; CI still enforces
+#   git commit --no-verify             # skips all hooks
+
+set -u
+
+if [[ "${SKIP_GOVERNANCE:-0}" == "1" ]]; then
+    exit 0
+fi
+
+ROOT="$(git rev-parse --show-toplevel)"
+RULE="$ROOT/tests/governance/rules/conventional-commits.sh"
+
+if [[ ! -x "$RULE" ]]; then
+    # conventional-commits not installed; nothing to enforce at commit-msg time.
+    exit 0
+fi
+
+if ! bash "$RULE" "$1"; then
+    cat >&2 <<EOF
+
+────────────────────────────────────────
+✗ Commit message blocked by governance.
+
+Conventional Commits format:
+    <type>(<optional-scope>)!?: <subject>
+
+Types: feat, fix, chore, docs, refactor, test, perf, build, ci, revert, style.
+Example: fix(auth): reject tokens with empty 'sub' claim
+
+Bypass (CI will still enforce on PR):
+    SKIP_GOVERNANCE=1 git commit ...
+    git commit --no-verify
+────────────────────────────────────────
+EOF
+    exit 1
+fi
+
+exit 0

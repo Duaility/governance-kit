@@ -71,7 +71,7 @@ If a specific change cannot satisfy a rule, document the deviation in the PR des
 
 - **Rule**: Commit messages match `<type>(scope)?!?: subject` per the Conventional Commits spec.
 - **Rationale**: A parseable commit log feeds changelog generation, semver decisions, and future rule enforcement.
-- **Enforced by**: `tests/governance/rules/conventional-commits.sh` (checks history) and `.git/hooks/commit-msg` (checks the pending commit).
+- **Enforced by**: `tests/governance/rules/conventional-commits.sh` (checks history) and `.githooks/commit-msg` (checks the pending commit).
 - **Exceptions**: Merge commits and revert commits are exempt.
 
 ### no-large-files
@@ -109,6 +109,13 @@ If a specific change cannot satisfy a rule, document the deviation in the PR des
 - **Enforced by**: `tests/governance/rules/issues-tracked.sh`
 - **Exceptions**: none. Empty sections are allowed; the file itself is the contract.
 
+### hooks-configured
+
+- **Rule**: `.githooks/pre-commit` is tracked and executable, `.githooks/commit-msg` is tracked and executable when `conventional-commits` is installed, and `git config core.hooksPath` returns `.githooks`.
+- **Rationale**: Hook scripts under `.git/hooks/` are per-clone and untracked — a fresh clone has zero local enforcement until someone re-runs bootstrap. Shipping them in `.githooks/` and requiring `core.hooksPath` makes the local layer reproducible across clones; the rule itself catches anyone whose config drift would silently disable the hook.
+- **Enforced by**: `tests/governance/rules/hooks-configured.sh`
+- **Exceptions**: Projects using `husky` or the `pre-commit` framework should remove this rule and rely on the framework's tracked hook config instead.
+
 ## Amendment process
 
 1. Open a PR that modifies this file **and** `tests/governance/rules/` in the same commit.
@@ -124,12 +131,13 @@ If a specific change cannot satisfy a rule, document the deviation in the PR des
 - 2026-04-22 — @srikanth — Add `plan-captured`: require `plans/*.md` with Goal/Steps sections so intent is captured alongside the diff.
 - 2026-04-22 — @srikanth — Add `issues-tracked`: require `QUALITY.md` with Open + Resolved sections so bugs live in the system of record, not Slack.
 - 2026-04-22 — @srikanth — Add **Compliance** section: explicit directive that humans, agents, and automation must satisfy every principle, guideline, and invariant — not just the mechanically enforced ones. Mirrored into the bootstrap template.
+- 2026-04-22 — @srikanth — Add `hooks-configured`: move local hook scripts to tracked `.githooks/` and require `core.hooksPath=.githooks`, so a fresh clone gets the same local enforcement as every other contributor. Bootstrap skill updated to install hooks under `.githooks/` (not `.git/hooks/`).
 
 ## Escape hatches
 
 Governance is enforced at two layers:
 
-1. **Pre-commit hook** — runs `tests/governance/run.sh` before each commit. Skip with `SKIP_GOVERNANCE=1 git commit ...` or `git commit --no-verify` when a hotfix cannot wait.
+1. **Pre-commit hook** — `.githooks/pre-commit` runs `tests/governance/run.sh` before each commit (activated per-clone via `git config core.hooksPath .githooks`; the `hooks-configured` rule nags until you set it). Skip with `SKIP_GOVERNANCE=1 git commit ...` or `git commit --no-verify` when a hotfix cannot wait.
 2. **CI workflow** — `.github/workflows/governance.yml` runs the same tests on every PR and push to the default branch. CI cannot be skipped from a developer machine.
 
 The hook is for speed; CI is for enforcement. If a commit lands with the hook skipped, CI will catch it.
