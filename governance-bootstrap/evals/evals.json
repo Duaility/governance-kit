@@ -4,19 +4,20 @@
     {
       "id": 1,
       "prompt": "We're starting a new Python + TypeScript monorepo and I want to lock in some non-negotiables before the team grows. Can you set up governance for this repo? Pick a sensible default set of rules — I'll tell you what to drop.",
-      "expected_output": "A tests/governance/ directory with a runner and a tailored set of rule scripts, a pre-commit and commit-msg hook installed in .git/hooks/, a CONSTITUTION.md seeded from the template, a GitHub Actions workflow at .github/workflows/governance.yml, and a short report listing which rules were enabled and why. The skill should have presented a menu via AskUserQuestion before acting — it should not have silently chosen the rule set.",
+      "expected_output": "A tests/governance/ directory with a runner and a tailored set of rule scripts, tracked hooks installed via .githooks/ (or an explicitly preserved existing hook framework if one exists), a CONSTITUTION.md seeded from the template, a GitHub Actions workflow at .github/workflows/governance.yml, and a short report listing the chosen preset, rules enabled, rules skipped, and assumptions. The skill should have surfaced a preset choice before acting — it should not have silently chosen the rule set.",
       "files": ["evals/files/empty-polyglot-repo/"],
       "assertions": [
         "The skill detected both Python and TypeScript/JS before proposing rules (visible in its summary or in which rules it enabled)",
         "tests/governance/run.sh exists and is executable",
         "tests/governance/rules/ contains at least one rule script (.sh) per enabled category",
         "tests/governance/lib.sh exists and defines rule_start, violation, rule_end, has_waiver",
-        ".git/hooks/pre-commit exists, is executable, and honors SKIP_GOVERNANCE=1",
-        ".git/hooks/commit-msg exists and rejects messages that don't match Conventional Commits (when that rule was enabled)",
+        ".githooks/pre-commit exists, is executable, and honors SKIP_GOVERNANCE=1 when the repo uses the default hook strategy",
+        ".githooks/commit-msg exists and rejects messages that don't match Conventional Commits when that rule was enabled under the default hook strategy",
         "CONSTITUTION.md exists at the repo root with at least Principles, Invariants, and Evolution Log sections",
         ".github/workflows/governance.yml exists and pins third-party actions by SHA (not by floating tag)",
         "The .github/workflows/governance.yml file includes an explicit permissions block scoped to the minimum needed",
-        "The AskUserQuestion tool was invoked at least once during the run to present the rule menu",
+        "The run asked the user to choose or confirm a starting preset, either with AskUserQuestion or concise free text",
+        "The summary includes an Assumptions field, even if it says none",
         "Running tests/governance/run.sh in the repo exits 0 on the seeded repo (no violations on a clean baseline)"
       ]
     },
@@ -43,8 +44,31 @@
         "tests/governance/rules/dotenv-gitignored.sh exists or was explicitly skipped with a reason (Go services often don't use .env)",
         "tests/governance/rules/workflows-hardened.sh exists",
         "No rule scripts targeting Python-only or JS-only patterns (e.g., no-pdb, no-console-log) were installed",
-        "The skill's summary explicitly names the Security category as enabled",
+        "The skill's summary explicitly names the Security category or an equivalent preset-derived rule set as enabled",
         "tests/governance/run.sh exits 0 on the seeded clean Go repo"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "This repo already has governance. Can you review whether the constitution is missing anything obvious? Do not rewrite or reinstall anything.",
+      "expected_output": "The skill does not bootstrap. It recognizes that the request is for review rather than installation, leaves files untouched, and either answers directly or points the user to governance-gardener/governance-amend as the better fit.",
+      "files": ["evals/files/already-bootstrapped-repo/"],
+      "assertions": [
+        "No governance files were rewritten",
+        "The skill explicitly recognized this as a review/explanation request rather than an installation request",
+        "The skill either answered directly or redirected to governance-gardener or governance-amend",
+        "The skill did not create new hook files, a new CONSTITUTION.md, or a replacement tests/governance/ runner"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Bootstrap governance here. One of the rules I want is: every substantive code change must update a plan file. Make sure the enforcement is real, not just 'plans directory exists'.",
+      "expected_output": "The skill recognizes that this requested rule is about each change set, not just repo state. It should either install a change-set-aware rule or clearly say the rule needs diff-aware enforcement. It must not present a mere plans-directory or file-count check as sufficient enforcement for that policy intent.",
+      "files": ["evals/files/empty-polyglot-repo/"],
+      "assertions": [
+        "The skill explicitly distinguishes repo-state rules from change-set-aware rules in its reasoning or summary",
+        "The resulting enforcement for the plan rule is diff-aware, or the skill explicitly says a repo-exists check would be a weak proxy and rejects it",
+        "The skill does not claim that the presence of plans/*.md alone is enough to enforce 'every substantive change updates a plan'"
       ]
     }
   ]
