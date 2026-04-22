@@ -104,3 +104,17 @@ Every rule should be:
 - **Fast** — every rule runs on every commit. Keep it under a second when possible.
 - **Specific** — a violation message should name the file, line, and reason. `"✗ bad code somewhere"` is worthless.
 - **Waivable when warranted** — if there are legitimate exceptions, support the `governance: allow-<rule>` waiver comment so they're auditable.
+- **Matched to the real policy surface** — if the policy is about each substantive change, prefer a change-set-aware check over a repo-exists proxy.
+
+## Authoring guardrail
+
+Before you ship a new rule, ask this explicitly:
+
+> Is this rule about the state of the repository, or about what each change set must carry?
+
+Use:
+
+- **repo-state checks** for things like `README.md exists`, `SECURITY.md exists`, `workflows pin actions`
+- **change-set-aware checks** for things like `this change must update a plan`, `this sensitive code change must update a doc`, or `this path change must touch an approval file`
+
+If you pick a repo-state check for a change-set obligation, the rule will create false confidence. Do not do that.

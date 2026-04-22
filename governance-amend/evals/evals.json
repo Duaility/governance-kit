@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "We had an incident yesterday (INC-4117) — someone committed a private key file (*.pem) and we had to rotate half our credentials. Add a governance rule that blocks committing *.pem, *.key, and *.p12 files. Wire it into the constitution properly.",
-      "expected_output": "Three coordinated artifacts land together: (a) a new tests/governance/rules/<rule-name>.sh that blocks committing the listed key/cert extensions, (b) a new Invariants subsection in CONSTITUTION.md describing the rule and citing INC-4117, and (c) an Evolution Log entry with today's date summarizing the amendment. The rule is tested against a seeded repo with and without a .pem file. The skill does not commit the change without showing the three artifacts to the user.",
+      "expected_output": "Three coordinated artifacts land together: (a) a new tests/governance/rules/<rule-name>.sh that blocks committing the listed key/cert extensions, (b) a new Invariants subsection in CONSTITUTION.md describing the rule and citing INC-4117, and (c) an Evolution Log entry with today's date summarizing the amendment. The rule is tested against a seeded repo with and without a .pem file. Because the request is concrete, the skill may use its fast path, but it must still report the rule name, action type, smoke-test result, staged status, and suggested commit message.",
       "files": ["evals/files/seeded-repo/"],
       "assertions": [
         "A new rule script was created under tests/governance/rules/ with a name matching the invariant (e.g., no-key-material.sh)",
@@ -15,7 +15,7 @@
         "CONSTITUTION.md's Evolution Log gained a new entry dated today describing the amendment",
         "Running tests/governance/run.sh on a repo containing a staged *.pem file produces a violation referencing the new rule",
         "Running tests/governance/run.sh on a clean repo (no key files) exits 0 after the amendment",
-        "The skill presented the three artifacts (test, invariant section, evolution log entry) as a coordinated set before applying them — it did not apply them piecemeal"
+        "The skill reported the action type, smoke-test result, staged status, and suggested commit message in its final summary"
       ]
     },
     {
@@ -28,7 +28,8 @@
         "The new limit value (800) appears in the rule script or its env var default",
         "The CONSTITUTION.md invariant for file-size-limit references 800 (not 500)",
         "A new Evolution Log entry was added with today's date describing the limit change and citing the data-pipeline false-positive reason",
-        "No new rule script file was created"
+        "No new rule script file was created",
+        "The amendment summary reported that this was an update rather than a new rule"
       ]
     },
     {
@@ -42,6 +43,17 @@
         "A new Evolution Log entry dated today records the removal with the stated reason",
         "Running tests/governance/run.sh still exits 0 on the seeded repo after removal",
         "If the repo contains any references to the removed rule name (e.g., in a README or CI doc), the skill surfaced them to the user rather than silently leaving dangling references"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Can you run a governance health check and tell me if any of these rules look stale?",
+      "expected_output": "The skill recognizes that this is a health-check request, not a targeted amendment. It does not edit files, does not stage changes, and redirects the user to governance-gardener or answers directly.",
+      "files": ["evals/files/seeded-repo/"],
+      "assertions": [
+        "No files under tests/governance/rules/ or CONSTITUTION.md were modified",
+        "The skill explicitly identified the request as a review/health-check rather than an amendment request",
+        "The skill redirected to governance-gardener or answered directly without staging changes"
       ]
     }
   ]
