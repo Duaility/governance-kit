@@ -60,6 +60,18 @@
         "The skill either answered directly or redirected to governance-gardener or governance-amend",
         "The skill did not create new hook files, a new CONSTITUTION.md, or a replacement tests/governance/ runner"
       ]
+    },
+    {
+      "id": 5,
+      "prompt": "Bootstrap governance here and include a custom rule that says every substantive change must update a plan under plans/*.md so the reason for the change is preserved.",
+      "expected_output": "The skill identifies this custom rule as a change-set obligation and implements it accordingly instead of falling back to a repo-level existence check. The resulting constitution and rule script describe the blocked bad merge in per-change terms, and the summary makes the chosen enforcement surface explicit.",
+      "files": ["evals/files/empty-polyglot-repo/"],
+      "assertions": [
+        "The summary explicitly distinguishes the custom rule as a per-change or change-set-aware rule",
+        "The installed custom rule inspects the staged diff or branch diff rather than only checking whether plans/*.md exists",
+        "The CONSTITUTION.md invariant for the custom rule describes a substantive change landing without a companion plan update as the failure mode",
+        "The summary explains the chosen enforcement surface or why a weaker approximation was not used"
+      ]
     }
   ]
 }

@@ -142,6 +142,19 @@ If the user selects `doc-freshness`, also copy `assets/freshness.conf` to `tests
 
 If the user asks for rules that exist in `references/RULES_CATALOG.md` under "Also available" (e.g. `env-example-current`, `no-curl-bash-pipe`, `docs-dir-minimum`), copy those too — they are supported, just not in the default menu.
 
+Before you install any non-trivial or user-described rule, classify its policy surface:
+
+| Policy surface | Use when the intent is | Preferred enforcement shape |
+|---|---|---|
+| `repo-state` | "the repo must contain / must not contain X" | Existence, content, pattern, metric, or structural check over tracked files |
+| `change-set obligation` | "every substantive change must also do X" | Staged-diff check locally plus branch-diff check in CI |
+
+Ask this explicitly whenever the user requests a custom rule or a rule whose rationale sounds per-change:
+
+> What bad merge are we trying to block: a repo missing something at rest, or a substantive change landing without its required companion update?
+
+Do not accept a repo-exists proxy for a change-set obligation unless you explicitly tell the user it is only a weak approximation and they approve that tradeoff.
+
 ### Step 4 — Write the constitution
 
 Copy `assets/CONSTITUTION.template.md` to `<repo-root>/CONSTITUTION.md`. Then tailor it:
@@ -157,6 +170,7 @@ Copy `assets/CONSTITUTION.template.md` to `<repo-root>/CONSTITUTION.md`. Then ta
 
 Do not invent principles the user did not pick. It is better to ship a short constitution than a bloated one.
 If you had to infer anything material — stack, preset, or hook strategy — record it under `Assumptions:` in the final summary.
+If you install any custom or change-set-aware rule, make sure the invariant text says what merge it blocks, not just what file shape it checks.
 
 ### Step 4b — Inject the Compliance directive into AGENTS.md
 
@@ -252,6 +266,8 @@ Every successful run should leave the user with a summary that includes:
 - **State material assumptions explicitly.** If you had to infer the preset, stack, or hook strategy, surface that in the summary.
 - **Match the enforcement surface to the real intent.** If a rule is meant to govern each substantive change, do not implement it as a repo-exists or file-count check. Prefer change-set-aware enforcement where the hook/CI can actually fail the missing behavior.
 - **Reject weak proxies when they create false confidence.** A rule that says "every change must do X" but only checks "the repo contains one X somewhere" is a bad bootstrap output, not a partial success.
+- **Make the bad merge explicit before writing the rule.** For every custom or ambiguous rule, state the concrete failure mode in plain language, then choose the enforcement surface that would actually catch it.
+- **Spell intent into the invariant.** The constitution entry should encode the spirit of the rule in the Rule and Rationale lines, so future amendments do not mistake a companion-artifact obligation for a repo-exists check.
 - **No invented rules.** When writing the constitution, only include rules the user selected. Governance loses authority the moment it contains rules nobody signed off on.
 
 ## References

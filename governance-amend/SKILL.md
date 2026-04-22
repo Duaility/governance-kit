@@ -71,7 +71,18 @@ Most requests will already give you most of this — extract what you can from t
 | **Check logic** | What the script actually inspects — files, patterns, paths, size thresholds, git state, etc. |
 | **Exceptions** | How approved deviations are documented. Default: no exceptions. Otherwise: waiver comment `governance: allow-<rule-name> <ticket>` or a named config file the rule reads. |
 
+Before you draft anything, write down an explicit **intent map** for yourself:
+
+| Field | What to capture |
+|---|---|
+| **Bad merge to block** | The concrete merge or omission this rule is meant to stop. |
+| **Policy surface** | `repo-state` or `change-set obligation`. |
+| **Enforcement surface** | Repo-at-rest scan, staged diff, or branch diff in CI. |
+| **Why this surface fits** | One sentence tying the check shape back to the bad merge. |
+
 If any field is ambiguous, **ask one question at a time** via `AskUserQuestion` or free text — don't dump a four-question form on the user. The most common blocker is "check logic" being too vague; iterate until you have something concrete enough to write bash that either passes or fails deterministically.
+
+If the user's rationale says "every substantive change must...", "this kind of change must also...", "reviewers keep missing intent/approval/metadata", or anything else that describes a missing companion artifact in a change set, classify it as a **change-set obligation** unless the user explicitly says otherwise.
 
 Use two operating modes:
 - **Fast path** — if the user's request already names a concrete rule, rationale, and check shape, draft the amendment directly, smoke-test it, and then show the result.
@@ -83,6 +94,8 @@ If structured question tools are unavailable, use short free-text questions inst
 - If `tests/governance/rules/<name>.sh` already exists → this is an **update**, not a new rule. Confirm with the user before overwriting, and treat the matching `CONSTITUTION.md` subsection as an update too (not a new insertion).
 - If `CONSTITUTION.md` already has a subsection whose header closely matches the proposed name → same thing, confirm.
 - If the user asked to **remove** a rule, confirm the matching script and invariant exist before you start deleting. Also grep for dangling references in docs or CI notes before finishing.
+
+Do not proceed until the intent map is coherent. A valid amendment needs a concrete bad merge, a policy surface, and a check shape that would actually fail that bad merge.
 
 ### Step 3 — Draft the test script
 
@@ -96,6 +109,11 @@ The script must:
 - Call `require_git` if it touches `git ls-files` / `git grep`.
 - On every violation: call `violation "<file>:<line> — <specific-message>"`. A rule without a location in the message is less useful — always include one if the check is per-file or per-line.
 - Honor in-source waivers via `has_waiver "$file" "$line_no" "<rule-name>"` wherever violations are line-level, *unless* the user explicitly said no exceptions.
+
+Choose the inspection surface to match the intent map:
+- `repo-state` rules inspect the tracked tree at rest (`git ls-files`, `git grep`, known paths).
+- `change-set obligation` rules inspect the staged diff locally and the branch diff in CI. Do not collapse these into existence checks just because existence checks are easier to write.
+- If you cannot enforce the intended surface mechanically, stop and tell the user the rule is not ready yet. Do not ship a knowingly weak proxy without calling it out and getting explicit buy-in.
 
 Syntax-check it: `bash -n tests/governance/rules/<name>.sh`. If it fails, fix and re-check. Do not put syntactically broken bash in front of the user.
 
@@ -112,6 +130,8 @@ Run `bash tests/governance/rules/<name>.sh` against the current repo and capture
 - **Any other exit code / crashes** — the rule has a bug. Back to Step 3.
 
 Never ship an amendment that crashes. Exit-1 is legitimate (that's a rule detecting a violation); exit-2+ or a stack trace is a broken rule.
+
+For `change-set obligation` rules, also smoke-test the failure mode itself whenever feasible. The minimum bar is to create or identify a representative changed-path scenario and verify the rule fails when the required companion artifact is missing, not just that it passes on the current tree. If you cannot exercise the missing-companion case safely in the repo, say so explicitly in the final summary.
 
 ### Step 5 — Edit CONSTITUTION.md
 
@@ -154,6 +174,7 @@ Print:
 - The rule name.
 - The action type: added, updated, or removed.
 - The three files changed (with paths).
+- The intent map: bad merge to block, policy surface, and chosen enforcement surface.
 - Smoke-test result: pass, fail-with-real-violation, or crashed-then-fixed.
 - Staged status: confirm the intended amendment files are staged and unrelated files are not.
 - A suggested commit message in Conventional Commits format: `feat(governance): add <rule-name> — <one-line summary>`
@@ -184,6 +205,8 @@ Every successful run should include:
 - **Preserve policy intent on updates.** Threshold tweaks and mechanical refinements should not silently rewrite the rationale.
 - **Strengthen weak proxies, do not preserve them by default.** If an existing rule claims to enforce per-change behavior but only checks repo-level existence or file shape, treat that mismatch as drift worth fixing, not a quirk to copy forward.
 - **Choose the check shape by failure mode.** Ask what bad merge this rule is meant to block. If the answer is "a future change that forgot to do X", the test should inspect the staged diff or branch diff rather than only the repo at rest.
+- **Name the policy surface explicitly.** Every amendment must classify the rule as `repo-state` or `change-set obligation` before any bash is written. If you cannot make that classification, you do not understand the rule yet.
+- **A passing smoke test is not enough for change-set rules.** If the rule is supposed to fail a missing companion artifact, prove that scenario fails or say why you could not exercise it. "It passes on the current repo" is not evidence that the right merge would be blocked.
 - **Respect existing formatting.** The constitution is a living document. Match the indent style, list marker, and heading level conventions already in the file. Don't rewrite prose the user has been tending to.
 - **State material assumptions explicitly.** If you inferred the rule name, summary line, or author handle, surface that in the summary.
 - **Don't commit.** The skill ends at `git add`, not `git commit`. The user's review is the final gate.
