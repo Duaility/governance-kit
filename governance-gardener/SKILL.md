@@ -18,6 +18,26 @@ Every run produces a single markdown file: `governance-health/YYYY-MM-DD.md`. Th
 
 This matters. Anchoring on "open PRs" narrows the skill to doc-drift-shaped problems. Anchoring on "produce a health report" lets blind spots, dead rules, escape-hatch friction, and doc drift sit on equal footing, with equal accountability to evidence.
 
+## Negative triggers
+
+Do **not** use this skill for these requests:
+
+- "Set up governance here" — use `governance-bootstrap`.
+- "Add one rule" or "remove rule X" — use `governance-amend`.
+- "Explain this constitution to me" — answer directly.
+- "Just check whether the hooks are installed" — answer directly; do not generate a health report.
+
+## Interaction policy
+
+| Situation | Action |
+|---|---|
+| Governance kit is missing | Stop and redirect to `governance-bootstrap`. |
+| User asked for a known one-rule change | Do not garden. Redirect to `governance-amend`. |
+| User asked only for a report or health check | Use report-only mode; dirty trees are acceptable. |
+| User asked for report plus follow-up branches/PRs | Use follow-up mode; require a clean tree before branch creation. |
+| Signal cannot produce concrete evidence | Suppress it or downgrade confidence; do not bluff precision. |
+| Structured question tools are unavailable | Ask concise free-text follow-up and default to review-first. |
+
 ## What the report covers
 
 Three axes. Each axis compares governance artifacts against a different source of truth.
@@ -29,6 +49,7 @@ Three axes. Each axis compares governance artifacts against a different source o
 | **Consistency** | governance itself | Three-legged drift (rule↔test↔log), orphans in `freshness.conf`, hedge language in Invariants, redundant rules. |
 
 Full signal catalog with thresholds and evidence requirements: [references/SIGNAL_CATALOG.md](references/SIGNAL_CATALOG.md).
+Shared terms, including "signal", "drift", and "watched scope", live in [../GOVERNANCE_VOCABULARY.md](../GOVERNANCE_VOCABULARY.md).
 
 ## Activation flow
 
@@ -57,11 +78,11 @@ Parse these once; every axis reuses them:
 - **Tests** — list `tests/governance/rules/*.sh`.
 - **Evolution Log** — parse `## Evolution Log` entries (date, author, summary, linked PR if present).
 - **Freshness config** — `tests/governance/freshness.conf` if present.
-- **Tracked doc set** — the baseline globs + freshness.conf (see [references/WATCH_ANNOTATIONS.md](references/WATCH_ANNOTATIONS.md) for the baseline).
+- **Tracked doc set** — the baseline globs + freshness.conf (see [references/WATCH_SCOPES.md](references/WATCH_SCOPES.md) for the canonical watched-scope model).
 
 ### Step 3 — Walk the three axes
 
-Run each signal. Collect findings as structured records: `{axis, signal, severity, title, evidence, suggested_action}`. Severity is `info | watch | action`.
+Run each signal. Collect findings as structured records: `{axis, signal, severity, confidence, stability, title, evidence, suggested_action}`. Severity is `info | watch | action`. Stability is `stable | experimental | opt-in`.
 
 **Alignment signals** — see SIGNAL_CATALOG.md §Alignment:
 - `A1` Aspirational rule — Invariants row with no matching test script on disk.
@@ -88,7 +109,7 @@ Run each signal. Collect findings as structured records: `{axis, signal, severit
 Write to `governance-health/YYYY-MM-DD.md` using [assets/health-report.template.md](assets/health-report.template.md). Sections:
 
 1. **Summary** — traffic-light table per axis with the worst signal called out.
-2. **Alignment / Friction / Consistency** — one section per axis, findings grouped by severity. Every finding names: signal ID, title, evidence (commit SHAs, file paths with line numbers, counts), suggested action, confidence.
+2. **Alignment / Friction / Consistency** — one section per axis, findings grouped by severity. Every finding names: signal ID, title, evidence (commit SHAs, file paths with line numbers, counts), suggested action, confidence, and stability.
 3. **Actionable queue** — the short list of things the user can do right now. Each item is a shell command or a pointer to another skill:
    - `governance-gardener --bump-stamps` (low-risk, batched PR).
    - `governance-gardener --draft-doc-updates` (draft PRs per doc).
@@ -123,9 +144,21 @@ Print a one-screen summary:
 - Path to the report.
 - Count of findings by axis and severity.
 - The follow-up the user chose (if any) and the PR URLs it produced.
+- Assumptions made. If none, say `Assumptions: none`.
 - What to run next: `governance-amend <name>` for each action-severity rule candidate.
 
 Do not loop or recurse.
+
+## Required final output
+
+Every successful run should leave the user with:
+
+- `Report:` path
+- `Mode:` report-only or follow-up
+- `Findings:` counts by axis and severity
+- `Follow-up:` action taken or `review first`
+- `Assumptions:` any material assumptions, or `none`
+- `Next:` candidate `governance-amend` commands when relevant
 
 ## Key design rules
 
@@ -135,7 +168,9 @@ Do not loop or recurse.
 - **Never auto-merge.** Even the low-risk bump-stamps PR requires a human click.
 - **Separate report-only mode from follow-up mode.** Analysis can run on a dirty tree; branch-creating follow-up actions cannot.
 - **Confidence is mandatory.** Every finding is tagged `high | medium | low`. Readers calibrate their attention by it; hiding uncertainty wastes the reviewer's time.
+- **Signal stability is mandatory.** Experimental or opt-in signals should be labeled as such so the reader knows how hard to lean on them.
 - **Prefer suppression to fake precision.** If a signal cannot tie its claim to concrete evidence, omit it or downgrade confidence rather than over-claiming.
+- **State material assumptions explicitly.** Inferred watched scopes and inferred rule groupings should be surfaced as assumptions when they materially shaped the report.
 - **Diffable across runs.** Report files stay in `governance-health/`. Run N+1 can compare against run N. If you move or rewrite old reports, you lose the trend signal.
 
 ## When NOT to use this skill
@@ -147,6 +182,7 @@ Do not loop or recurse.
 ## References
 
 - [references/SIGNAL_CATALOG.md](references/SIGNAL_CATALOG.md) — every signal, its threshold, and what evidence it requires.
+- [references/WATCH_SCOPES.md](references/WATCH_SCOPES.md) — canonical watched-scope resolution for docs and rules.
 - [references/WATCH_ANNOTATIONS.md](references/WATCH_ANNOTATIONS.md) — the `<!-- gardener-watches: ... -->` annotation format for doc-drift detection.
 - [references/FOLLOWUP_ACTIONS.md](references/FOLLOWUP_ACTIONS.md) — how `--bump-stamps` and `--draft-doc-updates` are executed after the user opts in.
 - [assets/health-report.template.md](assets/health-report.template.md) — the report skeleton.

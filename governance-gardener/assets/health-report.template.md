@@ -42,6 +42,7 @@ _Scan not run (set `GARDENER_NORM_SCAN=1` to enable)._
 - **`docs/example.md`** — stamp 2025-11-01 (172 days old); 4 commits on watched paths since.
   - Evidence: `git log --since=2025-11-01 -- <watches>` → `abc1234`, `def5678`, `9012345`, `6789abc`.
   - Confidence: high.
+  - Stability: stable.
   - Suggested: `governance-gardener --draft-doc-updates` will open a draft PR with a proposed edit.
 
 ### A4 · Bump-eligible
@@ -50,6 +51,7 @@ _Scan not run (set `GARDENER_NORM_SCAN=1` to enable)._
 - **`docs/stable.md`** — stamp 2025-10-15, 189 days old; watched paths unchanged.
   - Evidence: `git log --since=2025-10-15 -- <watches>` → empty.
   - Confidence: high.
+  - Stability: stable.
   - Suggested: `governance-gardener --bump-stamps`.
 
 ---
@@ -72,6 +74,7 @@ _No findings._
 - **"fix typo" cluster** — 7 commits in the last 180 days, no rule named.
   - Evidence: `abc1234`, `def5678`, … (see full list in collapsed block below)
   - Confidence: medium — could be a spellcheck rule, could be natural churn.
+  - Stability: experimental.
   - Suggested: consider `governance-amend spellcheck-docs` or similar.
 
 ### F4 · Revert cluster
@@ -103,6 +106,7 @@ _No findings._
 - **`agents-md-exists`** — rule says "generally 30–250 lines".
   - Evidence: CONSTITUTION.md:37.
   - Confidence: high — "generally" is a hedge in a hard rule.
+  - Stability: stable.
   - Suggested: tighten the wording or move to Principles; run `governance-amend agents-md-exists`.
 
 ### C6 · Redundant rule

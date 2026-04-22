@@ -14,6 +14,12 @@ Confidence levels (independent of severity):
 - **`medium`** — the signal is statistical (cluster size crossed threshold).
 - **`low`** — the signal is heuristic (pattern-match on naming or commit subjects).
 
+Stability levels:
+
+- **`stable`** — deterministic enough to trust as a default report signal.
+- **`experimental`** — useful, but more inference-heavy; include only with clear evidence.
+- **`opt-in`** — noisy enough that it should run only when explicitly enabled.
+
 ---
 
 ## §Alignment — governance vs. code
@@ -26,7 +32,7 @@ Confidence levels (independent of severity):
 
 **Threshold:** none — one missing test is enough.
 
-**Severity:** `action`. **Confidence:** `high`.
+**Severity:** `action`. **Confidence:** `high`. **Stability:** `stable`.
 
 ---
 
@@ -45,7 +51,7 @@ Built-in patterns scanned (extend in `references/NORM_PATTERNS.md` if you add mo
 
 **Threshold:** ≥80% match rate AND ≥5 files in the sample AND no existing Invariants rule mentions the pattern.
 
-**Severity:** `watch`. **Confidence:** `medium`.
+**Severity:** `watch`. **Confidence:** `medium`. **Stability:** `opt-in`.
 
 ---
 
@@ -53,13 +59,13 @@ Built-in patterns scanned (extend in `references/NORM_PATTERNS.md` if you add mo
 
 **Checks:** for each tracked doc with a `<!-- last-verified: YYYY-MM-DD -->` stamp older than `GARDENER_FRESHNESS_DAYS` (default 90), run `git log --since=<stamp> -- <watch-paths>`. If the log has commits, the watched code drifted since the stamp.
 
-Watch-set resolution order: explicit `<!-- gardener-watches: ... -->` annotation, then inference (fenced code blocks, inline path refs, directory sibling), then well-known-file defaults. See [WATCH_ANNOTATIONS.md](WATCH_ANNOTATIONS.md).
+Watch-set resolution order is canonicalized in [WATCH_SCOPES.md](WATCH_SCOPES.md). Use explicit annotations when possible.
 
 **Evidence:** doc path, stamp date, list of commit SHAs on watched paths.
 
 **Threshold:** ≥1 commit on a watched path since the stamp.
 
-**Severity:** `action`. **Confidence:** `high` if explicit annotation, `medium` if inferred.
+**Severity:** `action`. **Confidence:** `high` if explicit annotation, `medium` if inferred. **Stability:** `stable`.
 
 ---
 
@@ -71,7 +77,7 @@ Watch-set resolution order: explicit `<!-- gardener-watches: ... -->` annotation
 
 **Threshold:** stamp age > `GARDENER_FRESHNESS_DAYS` AND watched-path log is empty.
 
-**Severity:** `info` (follow-up available). **Confidence:** `high`.
+**Severity:** `info` (follow-up available). **Confidence:** `high`. **Stability:** `stable`.
 
 ---
 
@@ -84,7 +90,7 @@ Watch-set resolution order: explicit `<!-- gardener-watches: ... -->` annotation
 - Commits with `SKIP_GOVERNANCE=1` in the reflog / author note / commit trailer (if surfaced by the user's workflow).
 - Commits that `--no-verify` is inferable from: CI run for that commit's PR ran governance and failed, but the commit was merged anyway. (Requires `gh` + CI logs; otherwise skip.)
 
-Group by the rule that would have fired. If grouping isn't inferable, emit one cluster titled "unknown rule".
+Group by the rule that would have fired only when the evidence is direct. If grouping isn't inferable, emit one repo-level cluster titled "unknown rule" and lower confidence.
 
 **Evidence:** list of commit SHAs, grouped by rule. Count per group.
 
@@ -92,7 +98,7 @@ Group by the rule that would have fired. If grouping isn't inferable, emit one c
 
 **Severity:** `watch` at 3–5, `action` at >5 in a single cluster.
 
-**Confidence:** `high` when grouping is known, `medium` when it's unknown.
+**Confidence:** `high` when grouping is known, `medium` when it's unknown. **Stability:** `experimental`.
 
 **Interpretation:** a loud F1 cluster usually means a rule is wrong, not that the team is undisciplined. Investigate the rule before investigating the people.
 
@@ -102,17 +108,17 @@ Group by the rule that would have fired. If grouping isn't inferable, emit one c
 
 **Checks:** for each `tests/governance/rules/*.sh`:
 
-1. Determine its watched scope — grep the script for path literals.
+1. Determine its watched scope using [WATCH_SCOPES.md](WATCH_SCOPES.md).
 2. Run `git log --since=<2× window>` on those paths.
 3. Run `git log -- <test-script-path>` to see when the test was last edited.
 
-A rule is *dead* if its watched scope has had no activity in 2× the window AND the test script itself hasn't been edited since the rule was added (i.e., it's frozen).
+A rule is *dead* if its watched scope has had no activity in 2× the window AND the test script itself hasn't been edited since the rule was added (i.e., it's frozen). If no credible watched scope can be resolved, skip this signal for that rule.
 
 **Evidence:** rule name, last activity date on watched paths, last edit date of the test script.
 
 **Threshold:** watched-path quiet period ≥ 2× `GARDENER_WINDOW_DAYS`.
 
-**Severity:** `watch`. **Confidence:** `low` — dead rules might be dormant, not dead; surface them for human judgment, don't recommend deletion automatically.
+**Severity:** `watch`. **Confidence:** `low` — dead rules might be dormant, not dead; surface them for human judgment, don't recommend deletion automatically. **Stability:** `experimental`.
 
 ---
 
@@ -131,7 +137,7 @@ Drop clusters that match an existing Invariants rule (e.g., "fix conventional-co
 
 **Threshold:** ≥ `GARDENER_MIN_EVIDENCE` commits per cluster.
 
-**Severity:** `watch`. **Confidence:** `medium`.
+**Severity:** `watch`. **Confidence:** `medium`. **Stability:** `experimental`.
 
 **Interpretation:** a recurring-fix cluster usually means either (a) a rule is missing or (b) automation is missing. Both are valid amendments — either a new `tests/governance/rules/<name>.sh` or a pre-commit formatter/linter.
 
@@ -145,7 +151,7 @@ Drop clusters that match an existing Invariants rule (e.g., "fix conventional-co
 
 **Threshold:** ≥2 reverts on the same path.
 
-**Severity:** `watch`. **Confidence:** `high`.
+**Severity:** `watch`. **Confidence:** `high`. **Stability:** `stable`.
 
 **Interpretation:** the path is unstable. Could be a missing test, a missing rule, or a deeper design issue. Not necessarily a governance amendment — sometimes the right fix is in the code, not the rules.
 
@@ -161,7 +167,7 @@ These are mechanical lints. They have no thresholds — any violation is surface
 
 **Evidence:** rule name, line number, expected path.
 
-**Severity:** `action`. **Confidence:** `high`.
+**Severity:** `action`. **Confidence:** `high`. **Stability:** `stable`.
 
 Overlaps with A1 — A1 is the symptom ("your rule is aspirational"), C1 is the lint ("the three-legged invariant broke"). Same evidence, surfaced under both axes because the reader looking for alignment issues and the reader looking for consistency issues are different.
 
@@ -173,7 +179,7 @@ Overlaps with A1 — A1 is the symptom ("your rule is aspirational"), C1 is the 
 
 **Evidence:** script path, derived rule name.
 
-**Severity:** `action`. **Confidence:** `high`.
+**Severity:** `action`. **Confidence:** `high`. **Stability:** `stable`.
 
 ---
 
@@ -188,7 +194,7 @@ Entries that don't reference a PR or SHA are skipped (can't verify).
 
 **Evidence:** log line, referenced commit SHA, files touched.
 
-**Severity:** `watch`. **Confidence:** `high`.
+**Severity:** `watch`. **Confidence:** `high`. **Stability:** `stable`.
 
 ---
 
@@ -198,7 +204,7 @@ Entries that don't reference a PR or SHA are skipped (can't verify).
 
 **Evidence:** missing path, line number in the config.
 
-**Severity:** `action`. **Confidence:** `high`.
+**Severity:** `action`. **Confidence:** `high`. **Stability:** `stable`.
 
 ---
 
@@ -210,7 +216,7 @@ Exception: the word "should" is allowed when followed directly by "not" or "neve
 
 **Evidence:** rule name, line number, matched token.
 
-**Severity:** `watch`. **Confidence:** `high`.
+**Severity:** `watch`. **Confidence:** `high`. **Stability:** `stable`.
 
 ---
 
@@ -220,7 +226,7 @@ Exception: the word "should" is allowed when followed directly by "not" or "neve
 
 **Evidence:** both rule names, overlap ratio, shared tokens (top 5).
 
-**Severity:** `watch`. **Confidence:** `low` — pattern overlap is not the same as semantic overlap; this is a starting point for human review.
+**Severity:** `watch`. **Confidence:** `low` — pattern overlap is not the same as semantic overlap; this is a starting point for human review. **Stability:** `experimental`.
 
 ---
 

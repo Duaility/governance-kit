@@ -1,5 +1,7 @@
 # Watch annotations
 
+This file defines the annotation syntax. The canonical watched-scope resolution model lives in [WATCH_SCOPES.md](WATCH_SCOPES.md).
+
 When the `governance-gardener` checks doc drift (signals A3 and A4), it needs to know *which code* each doc is describing. The most reliable way to tell it: an explicit annotation in the doc.
 
 ## Syntax
@@ -101,7 +103,7 @@ If a doc has no `gardener-watches` annotation, the gardener tries in order:
 | `CONSTITUTION.md` | `tests/governance/rules/`, `tests/governance/lib.sh` |
 | `CONTRIBUTING.md` | `.github/`, `tests/` (if present) |
 
-Inference is best-effort. Docs that matter should have explicit annotations — it's one line, it's permanent, it makes the gardener's findings predictable.
+Inference is best-effort. Docs that matter should have explicit annotations — it's one line, it's permanent, it makes the gardener's findings predictable. Confidence and resolution order are defined in [WATCH_SCOPES.md](WATCH_SCOPES.md).
 
 ## Unwatched-stale
 

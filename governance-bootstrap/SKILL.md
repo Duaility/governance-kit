@@ -18,6 +18,26 @@ This skill sets up **governance-driven development** in the current repository:
 
 Governance evolves: new rules get added to `CONSTITUTION.md` *and* to `tests/governance/` together. The constitution without the tests is just a wishlist.
 
+## Negative triggers
+
+Do **not** use this skill for these requests:
+
+- "Review our constitution" or "is this governance any good?" — answer the question directly or use `governance-gardener`.
+- "Add one new rule" or "change the file-size limit" — use `governance-amend`.
+- "Run a governance health check" or "find dead rules" — use `governance-gardener`.
+- "What does this invariant mean?" — explain the current setup; do not bootstrap.
+
+## Interaction policy
+
+| Situation | Action |
+|---|---|
+| Repo is not a git repo | Stop and tell the user bootstrap requires git. |
+| Repo already has governance artifacts and the user asked for setup | Continue in augment/overwrite mode; default to augment. |
+| Repo already has governance artifacts and the user asked for review, explanation, or one targeted change | Do not bootstrap. Answer directly or redirect to `governance-amend` / `governance-gardener`. |
+| Multiple plausible primary stacks exist | Ask once. If no answer is available, fall back to bash-first generic setup and label it as an assumption. |
+| Hook framework is unclear | Infer from tracked files. If still unclear, assume `.githooks/` and label that as an assumption. |
+| Structured question tools are unavailable | Ask concise free-text questions, then proceed with defaults if the user does not provide more detail. |
+
 ---
 
 ## Activation flow
@@ -59,9 +79,22 @@ Multiple markers → pick the one the user points to. If unclear, ask once.
 
 **Default** for every stack: also install the universal **bash** test runner from `assets/tests-bash/`. Bash tests are language-agnostic (grep/find/wc based) and work anywhere. The native test runner is a second, stack-idiomatic copy that lets governance rules integrate with the project's normal test command. The user picks in Step 3 whether to install native tests, bash tests, or both.
 
-### Step 3 — Offer the rule menu
+### Step 3 — Choose a preset, then customize
 
-The rule catalog is five categories, presented across **two `AskUserQuestion` calls** (the tool caps at four questions per call). Use `multiSelect: true` for every question. If structured question tools are unavailable, ask concise free-text questions in the same category order and proceed with the user's answers. "Other" appears automatically — if the user picks it and describes a rule, generate a new `.sh` file under `tests/governance/rules/` following the template in `references/RULES_CATALOG.md` and add a matching Invariants subsection to `CONSTITUTION.md`.
+Before presenting the full rule menu, ask the user for a starting preset. The preset is a starting point, not a lock-in. The user can always add or remove rules in the next step.
+
+Preset choices:
+
+| Preset | Intent | Default starting rules |
+|---|---|---|
+| `minimal` | Smallest credible governance baseline | `constitution-exists`, `no-secrets`, `dotenv-gitignored`, `workflows-hardened`, `no-broken-internal-doc-links`, `no-large-files`, `no-committed-build-artifacts`, `no-merge-conflict-markers`, and `hooks-configured` when using `.githooks/` |
+| `standard` | Recommended default for most repos | `minimal` plus `agents-md-exists`, `conventional-commits`, `doc-freshness` |
+| `strict` | Broad governance coverage for teams that want more structure | `standard` plus `readme-exists`, `security-md-exists`, `architecture-doc-exists`, `ci-workflow-exists`, `no-orphan-todos`, `file-size-limit`, `no-debug-statements` |
+| `custom` | Start from a blank slate | no preselected rules beyond the always-installed set |
+
+Use `standard` as the recommended preset. If the user does not answer and you must proceed, assume `standard` and label it in the final summary as a material assumption.
+
+After the preset choice, present the rule catalog across **two `AskUserQuestion` calls** (the tool caps at four questions per call). Use `multiSelect: true` for every question. If structured question tools are unavailable, ask concise free-text questions in the same category order and proceed with the user's answers. "Other" appears automatically — if the user picks it and describes a rule, generate a new `.sh` file under `tests/governance/rules/` following the template in `references/RULES_CATALOG.md` and add a matching Invariants subsection to `CONSTITUTION.md`.
 
 **Always installed — do not put in the menu:**
 - `no-merge-conflict-markers` — no `<<<<<<<` / `=======` / `>>>>>>>` in any tracked file. Zero false positives, zero config. Install unconditionally.
@@ -123,6 +156,7 @@ Copy `assets/CONSTITUTION.template.md` to `<repo-root>/CONSTITUTION.md`. Then ta
 - Leave the **Evolution Log** section with a template entry and a note that each amendment needs a commit.
 
 Do not invent principles the user did not pick. It is better to ship a short constitution than a bloated one.
+If you had to infer anything material — stack, preset, or hook strategy — record it under `Assumptions:` in the final summary.
 
 ### Step 4b — Inject the Compliance directive into AGENTS.md
 
@@ -183,13 +217,28 @@ Copy `assets/governance.yml` to `.github/workflows/governance.yml`. Adjust the t
 ### Step 8 — Report to the user
 
 Print a concise summary:
+- Preset chosen and whether it was explicit or assumed.
+- Hook strategy chosen (`.githooks/`, husky, or `pre-commit`).
 - Stack detected.
 - Rules installed (with file paths).
+- Rules deliberately skipped (with reasons) when that matters.
 - How to run locally: `bash tests/governance/run.sh`.
 - How to skip the hook: `SKIP_GOVERNANCE=1 git commit ...` or `git commit --no-verify`.
+- Assumptions made. If none, say `Assumptions: none`.
 - Reminder: **constitution amendments must land with their test.** Point to `references/RULES_CATALOG.md` for the template.
 
 Do **not** commit the new files. Leave that to the user — the first commit of their governance system should be intentional, and the pre-commit hook is now active.
+
+## Required final output
+
+Every successful run should leave the user with a summary that includes:
+
+- `Preset:` chosen preset and whether it was explicit or assumed.
+- `Hook strategy:` `.githooks/`, husky, or `pre-commit`.
+- `Rules installed:` file-backed list or grouped summary.
+- `Rules skipped:` only when the omission is meaningful.
+- `Assumptions:` any material assumptions, or `none`.
+- `Next command:` `bash tests/governance/run.sh`
 
 ---
 
@@ -199,9 +248,12 @@ Do **not** commit the new files. Leave that to the user — the first commit of 
 - **Escape hatches are a feature, not a bug.** `SKIP_GOVERNANCE=1` exists because governance that blocks emergency hotfixes will get ripped out. CI enforces the rule even when the hook is skipped, which is the right layering.
 - **Bash-first, native as enhancement.** Bash tests work in any repo, in any CI, without install steps. Native tests (pytest etc.) are nicer DX but add friction. Default to bash; offer native.
 - **Respect the repo's existing hook framework.** `.githooks/` is the default only when no tracked hook framework already exists. Do not force repos off husky or `pre-commit`.
+- **Start with a preset, then let the user customize.** Presets reduce setup fatigue; the category menu keeps the result intentional.
+- **State material assumptions explicitly.** If you had to infer the preset, stack, or hook strategy, surface that in the summary.
 - **No invented rules.** When writing the constitution, only include rules the user selected. Governance loses authority the moment it contains rules nobody signed off on.
 
 ## References
 
+- `../GOVERNANCE_VOCABULARY.md` — shared terms used across the three governance skills.
 - `references/RULES_CATALOG.md` — full list of ready-made rules with descriptions, and the template for adding new ones.
 - `references/NATIVE_TESTS.md` — how to port bash rules to pytest / jest / go test, and husky / pre-commit-framework snippets.
