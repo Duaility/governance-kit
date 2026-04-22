@@ -91,6 +91,13 @@ This document is the source of truth for the rules, guidelines, and invariants t
 - **Enforced by**: `tests/governance/rules/plan-captured.sh`
 - **Exceptions**: Per-file waiver — a line matching `governance: allow-plan-captured` (bare or inside an HTML comment) anywhere in the file exempts that plan.
 
+### issues-tracked
+
+- **Rule**: `QUALITY.md` exists at the repo root with a top-level `# ` heading and contains `## Open` and `## Resolved` sections.
+- **Rationale**: Bugs and quality observations discovered between releases rot in Slack and memory. Tracking them in a file keeps them in the system of record, diff-auditable, and greppable by agents and humans alike.
+- **Enforced by**: `tests/governance/rules/issues-tracked.sh`
+- **Exceptions**: none. Empty sections are allowed; the file itself is the contract.
+
 ## Amendment process
 
 1. Open a PR that modifies this file **and** `tests/governance/rules/` in the same commit.
@@ -104,6 +111,7 @@ This document is the source of truth for the rules, guidelines, and invariants t
 
 - 2026-04-22 — @srikanth — Initial constitution bootstrapped via governance-bootstrap.
 - 2026-04-22 — @srikanth — Add `plan-captured`: require `plans/*.md` with Goal/Steps sections so intent is captured alongside the diff.
+- 2026-04-22 — @srikanth — Add `issues-tracked`: require `QUALITY.md` with Open + Resolved sections so bugs live in the system of record, not Slack.
 
 ## Escape hatches
 
