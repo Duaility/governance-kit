@@ -84,6 +84,13 @@ This document is the source of truth for the rules, guidelines, and invariants t
 - **Enforced by**: `tests/governance/rules/no-merge-conflict-markers.sh`
 - **Exceptions**: none.
 
+### plan-captured
+
+- **Rule**: The repo maintains a `plans/` directory with at least one tracked `.md` file, and every `plans/*.md` has a top-level `# ` heading, a `## Goal` section, and a `## Steps` section.
+- **Rationale**: The diff shows *what* changed; the plan shows *why it took this shape*. Without the plan on disk, reviewers and future agents reconstruct intent from code and get it wrong.
+- **Enforced by**: `tests/governance/rules/plan-captured.sh`
+- **Exceptions**: Per-file waiver — a line matching `governance: allow-plan-captured` (bare or inside an HTML comment) anywhere in the file exempts that plan.
+
 ## Amendment process
 
 1. Open a PR that modifies this file **and** `tests/governance/rules/` in the same commit.
@@ -96,6 +103,7 @@ This document is the source of truth for the rules, guidelines, and invariants t
 <!-- Append, do not rewrite history. Format: YYYY-MM-DD — <author> — <one-line summary>. Link the PR. -->
 
 - 2026-04-22 — @srikanth — Initial constitution bootstrapped via governance-bootstrap.
+- 2026-04-22 — @srikanth — Add `plan-captured`: require `plans/*.md` with Goal/Steps sections so intent is captured alongside the diff.
 
 ## Escape hatches
 
