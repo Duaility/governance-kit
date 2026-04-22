@@ -1,6 +1,18 @@
+<!-- last-verified: 2026-04-22 -->
+
 # AGENTS.md
 
 Entry point for humans and agents working in this repo. Skim top-to-bottom, then jump to the doc you need.
+
+<!-- governance: rules-to-follow -->
+## Rules to follow
+
+If you are an agent — or a human — working in this repo, **read [CONSTITUTION.md](CONSTITUTION.md) and follow it**. It defines the principles, guidelines, and invariants that every change in this repo must satisfy.
+
+- The mechanical invariants are enforced by `tests/governance/run.sh` (run via the pre-commit hook locally and the [governance.yml](.github/workflows/governance.yml) workflow in CI).
+- The principles and guidelines cannot be mechanically checked — you are expected to read them and apply judgment. A change that defies a principle without explanation will block the PR.
+
+See the **Compliance** section at the top of [CONSTITUTION.md](CONSTITUTION.md) for the full directive, including how to document approved deviations.
 
 ## What this repo is
 
@@ -16,18 +28,15 @@ The three skills:
 
 ## How governance works here
 
-This repo dogfoods its own tooling. See [CONSTITUTION.md](CONSTITUTION.md) for the live rule set — currently 10 invariants covering constitution existence, agent entry point, secret scanning, .env hygiene, workflow hardening, doc-link integrity, Conventional Commits, large-file limits, committed-artifact prevention, and merge-conflict markers.
+This repo dogfoods its own tooling. The live rule set lives in [CONSTITUTION.md](CONSTITUTION.md); rule scripts live under [tests/governance/rules/](tests/governance/rules/).
 
-The enforcement layering:
-
-1. **Pre-commit hook** (`.git/hooks/pre-commit`) — runs `tests/governance/run.sh` before each commit. Skippable with `SKIP_GOVERNANCE=1` or `git commit --no-verify` for hotfixes.
-2. **CI workflow** ([.github/workflows/governance.yml](.github/workflows/governance.yml)) — runs the same tests on every PR and push to `main`. Cannot be skipped.
-
-Run governance locally:
+Run the suite locally:
 
 ```sh
 bash tests/governance/run.sh
 ```
+
+Escape hatches: `SKIP_GOVERNANCE=1 git commit ...` or `git commit --no-verify` skip the local hook for hotfixes. CI re-enforces every rule on every PR — there is no developer-side bypass for CI.
 
 ## Repo layout
 

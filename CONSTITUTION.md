@@ -1,8 +1,19 @@
+<!-- last-verified: 2026-04-22 -->
+
 # Constitution
 
 This document is the source of truth for the rules, guidelines, and invariants that govern development in this repository. Every rule here is enforced by an executable test under `tests/governance/`. A rule with no enforcing test is not a rule — it is a wish.
 
 > **The cardinal rule:** Amendments to this constitution must land in the same commit as the change to its enforcing test. No exceptions.
+
+## Compliance
+
+Anyone working in this repo — humans, agents, scripted automation — must satisfy every principle, guideline, and invariant in this document.
+
+- **Mechanical rules** (the **Invariants** section below) are enforced by `tests/governance/` via the pre-commit hook and CI. A violating commit is blocked locally and re-blocked in CI if the hook is bypassed.
+- **Principles and guidelines** (the **Principles** section above the Invariants) cannot be checked mechanically. They depend on judgment and reviewer discipline. A change that defies a principle without explanation is grounds to block the PR.
+
+If a specific change cannot satisfy a rule, document the deviation in the PR description and use the rule's stated waiver mechanism if one exists. Drive-by violations without explanation will block the merge.
 
 ## Principles
 
@@ -91,6 +102,13 @@ This document is the source of truth for the rules, guidelines, and invariants t
 - **Enforced by**: `tests/governance/rules/plan-captured.sh`
 - **Exceptions**: Per-file waiver — a line matching `governance: allow-plan-captured` (bare or inside an HTML comment) anywhere in the file exempts that plan.
 
+### issues-tracked
+
+- **Rule**: `QUALITY.md` exists at the repo root with a top-level `# ` heading and contains `## Open` and `## Resolved` sections.
+- **Rationale**: Bugs and quality observations discovered between releases rot in Slack and memory. Tracking them in a file keeps them in the system of record, diff-auditable, and greppable by agents and humans alike.
+- **Enforced by**: `tests/governance/rules/issues-tracked.sh`
+- **Exceptions**: none. Empty sections are allowed; the file itself is the contract.
+
 ## Amendment process
 
 1. Open a PR that modifies this file **and** `tests/governance/rules/` in the same commit.
@@ -104,6 +122,8 @@ This document is the source of truth for the rules, guidelines, and invariants t
 
 - 2026-04-22 — @srikanth — Initial constitution bootstrapped via governance-bootstrap.
 - 2026-04-22 — @srikanth — Add `plan-captured`: require `plans/*.md` with Goal/Steps sections so intent is captured alongside the diff.
+- 2026-04-22 — @srikanth — Add `issues-tracked`: require `QUALITY.md` with Open + Resolved sections so bugs live in the system of record, not Slack.
+- 2026-04-22 — @srikanth — Add **Compliance** section: explicit directive that humans, agents, and automation must satisfy every principle, guideline, and invariant — not just the mechanically enforced ones. Mirrored into the bootstrap template.
 
 ## Escape hatches
 

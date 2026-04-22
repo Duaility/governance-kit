@@ -106,6 +106,7 @@ If the user asks for rules that exist in `references/RULES_CATALOG.md` under "Al
 
 Copy `assets/CONSTITUTION.template.md` to `<repo-root>/CONSTITUTION.md`. Then tailor it:
 
+- The template ships with a **Compliance** section directly under the cardinal-rule callout — leave it intact. It is the prescriptive directive that tells humans, agents, and automation they must satisfy every principle, guideline, and invariant in the document (not just the mechanically enforced ones). Every bootstrapped repo gets it; do not edit unless the user asks.
 - Fill the **Principles** section with 3-5 high-level principles inferred from the rules the user picked, plus a generic starter like "Changes to the constitution require changes to the enforcing tests."
 - Under **Invariants**, list one subsection per selected rule. Each subsection must have:
   - **Rule** (one-sentence statement)
@@ -115,6 +116,22 @@ Copy `assets/CONSTITUTION.template.md` to `<repo-root>/CONSTITUTION.md`. Then ta
 - Leave the **Evolution Log** section with a template entry and a note that each amendment needs a commit.
 
 Do not invent principles the user did not pick. It is better to ship a short constitution than a bloated one.
+
+### Step 4b — Inject the Compliance directive into AGENTS.md
+
+The constitution's **Compliance** section is the rule; the AGENTS.md directive is the routing pointer that tells agents to *read* the rule. Without it, agents may never reach the constitution. Inject `assets/AGENTS.directive.md` into the target repo's `AGENTS.md`.
+
+The snippet leads with an HTML marker comment `<!-- governance: rules-to-follow -->` so this step is **idempotent** — always grep for the marker before inserting. If it's already present, skip silently.
+
+Three cases:
+
+1. **`AGENTS.md` exists and lacks the marker.** Insert the snippet near the top of the file. The right insertion point is **after the H1 heading and the first intro paragraph (or any frontmatter), and before the first `##` heading**. Use `Edit` — preserve everything else verbatim.
+
+2. **`AGENTS.md` is missing AND the user picked the `agents-md-exists` rule.** Create a stub at `<repo-root>/AGENTS.md` containing: `# AGENTS.md`, a one-line intro, the directive snippet, and a `## What this repo is` placeholder. Tell the user the stub is intentionally minimal — they need to flesh it out (the rule requires 30–250 lines and ≥ 3 internal doc links).
+
+3. **`AGENTS.md` is missing AND the user did NOT pick `agents-md-exists`.** Skip silently. Do not nag — the user opted out of the rule, and creating a file they didn't ask for is presumptuous.
+
+After injecting, run `bash tests/governance/rules/agents-md-exists.sh` once if the rule is installed, so the user knows whether the file still needs more content.
 
 ### Step 5 — Install the test runner
 
