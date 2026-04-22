@@ -1,0 +1,168 @@
+# Native tests & alternative hook frameworks
+
+The bash rules in `tests/governance/rules/` are the baseline — they work in any repo without dependencies. This doc shows how to **also** run governance rules through the project's native test framework so they show up in the normal test report, and how to wire the pre-commit hook into frameworks the repo may already use.
+
+## When to add native tests
+
+Add native tests when:
+
+- The repo already runs `pytest` / `jest` / `go test` in CI — governance violations should appear in the same report.
+- A rule is easier to express in code than in bash (e.g. AST checks on Python imports, TypeScript type assertions).
+
+The bash rules stay either way. Native tests are additive, not a replacement.
+
+## pytest (Python)
+
+Create `tests/governance/test_governance.py`:
+
+```python
+import subprocess
+from pathlib import Path
+
+RULES_DIR = Path(__file__).parent / "rules"
+
+def _rules():
+    return sorted(p for p in RULES_DIR.glob("*.sh"))
+
+def test_rules_exist():
+    assert _rules(), "no governance rules defined"
+
+def test_each_rule(tmp_path, pytestconfig):
+    failures = []
+    for rule in _rules():
+        result = subprocess.run(["bash", str(rule)], capture_output=True, text=True)
+        if result.returncode != 0:
+            failures.append(f"{rule.name}:\n{result.stdout}{result.stderr}")
+    if failures:
+        raise AssertionError("\n\n".join(failures))
+```
+
+For AST-level rules, skip the bash wrapper and write a direct pytest test. Example — no wildcard imports:
+
+```python
+import ast
+from pathlib import Path
+
+def test_no_wildcard_imports():
+    offenders = []
+    for py in Path(".").rglob("*.py"):
+        if any(part.startswith(".") or part in {"node_modules", "venv", ".venv"} for part in py.parts):
+            continue
+        tree = ast.parse(py.read_text())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and any(a.name == "*" for a in node.names):
+                offenders.append(f"{py}:{node.lineno}")
+    assert not offenders, "wildcard imports: " + ", ".join(offenders)
+```
+
+## jest / vitest (Node)
+
+Create `tests/governance/governance.test.js`:
+
+```javascript
+const { execSync } = require('node:child_process');
+const { readdirSync } = require('node:fs');
+const { join } = require('node:path');
+
+const RULES_DIR = join(__dirname, 'rules');
+
+describe('governance rules', () => {
+  const rules = readdirSync(RULES_DIR).filter(f => f.endsWith('.sh'));
+
+  test('at least one rule is defined', () => {
+    expect(rules.length).toBeGreaterThan(0);
+  });
+
+  test.each(rules)('%s passes', (rule) => {
+    expect(() => {
+      execSync(`bash ${join(RULES_DIR, rule)}`, { stdio: 'pipe' });
+    }).not.toThrow();
+  });
+});
+```
+
+## go test (Go)
+
+Create `tests/governance/governance_test.go`:
+
+```go
+package governance_test
+
+import (
+    "os/exec"
+    "path/filepath"
+    "testing"
+)
+
+func TestGovernanceRules(t *testing.T) {
+    rules, err := filepath.Glob("rules/*.sh")
+    if err != nil || len(rules) == 0 {
+        t.Fatal("no governance rules defined")
+    }
+    for _, rule := range rules {
+        rule := rule
+        t.Run(filepath.Base(rule), func(t *testing.T) {
+            out, err := exec.Command("bash", rule).CombinedOutput()
+            if err != nil {
+                t.Fatalf("%s\n%s", err, out)
+            }
+        })
+    }
+}
+```
+
+## Alternative hook frameworks
+
+### husky
+
+If `package.json` has `husky` configured, don't write to `.git/hooks/pre-commit` directly. Instead:
+
+```bash
+npx husky add .husky/pre-commit "bash tests/governance/run.sh"
+```
+
+Add the `SKIP_GOVERNANCE` guard at the top of `.husky/pre-commit`:
+
+```bash
+#!/usr/bin/env bash
+. "$(dirname -- "$0")/_/husky.sh"
+
+[[ "${SKIP_GOVERNANCE:-0}" == "1" ]] && exit 0
+bash tests/governance/run.sh
+```
+
+### pre-commit framework (pre-commit.com)
+
+Add to `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: local
+    hooks:
+      - id: governance
+        name: governance
+        entry: bash tests/governance/run.sh
+        language: system
+        pass_filenames: false
+        stages: [commit]
+```
+
+Users can skip with `SKIP=governance git commit ...` (the framework's native skip mechanism).
+
+### lefthook
+
+```yaml
+pre-commit:
+  commands:
+    governance:
+      run: bash tests/governance/run.sh
+      skip_empty: true
+```
+
+## Where to put complex rules
+
+- **Bash** — filesystem, grep, regex. Fast to add, portable.
+- **pytest / jest / go test** — AST inspection, type checks, cross-file reasoning.
+- **External tools in CI only** — `gitleaks`, `trufflehog`, `semgrep`, dependency scanners. Don't run these in the pre-commit hook (too slow); wire them into `.github/workflows/governance.yml` as additional steps.
+
+Layer them: fast rules on commit, heavier rules in CI. Both are enforcement, just at different cadences.

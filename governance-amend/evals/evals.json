@@ -1,0 +1,48 @@
+{
+  "skill_name": "governance-amend",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "We had an incident yesterday (INC-4117) — someone committed a private key file (*.pem) and we had to rotate half our credentials. Add a governance rule that blocks committing *.pem, *.key, and *.p12 files. Wire it into the constitution properly.",
+      "expected_output": "Three coordinated artifacts land together: (a) a new tests/governance/rules/<rule-name>.sh that blocks committing the listed key/cert extensions, (b) a new Invariants subsection in CONSTITUTION.md describing the rule and citing INC-4117, and (c) an Evolution Log entry with today's date summarizing the amendment. The rule is tested against a seeded repo with and without a .pem file. The skill does not commit the change without showing the three artifacts to the user.",
+      "files": ["evals/files/seeded-repo/"],
+      "assertions": [
+        "A new rule script was created under tests/governance/rules/ with a name matching the invariant (e.g., no-key-material.sh)",
+        "The rule script blocks at least these extensions: .pem, .key, .p12",
+        "The rule script has a rationale comment naming INC-4117",
+        "The rule script uses rule_start, violation, rule_end, and sources lib.sh (consistent with existing conventions)",
+        "CONSTITUTION.md gained a new Invariants subsection that names the rule and cites INC-4117",
+        "CONSTITUTION.md's Evolution Log gained a new entry dated today describing the amendment",
+        "Running tests/governance/run.sh on a repo containing a staged *.pem file produces a violation referencing the new rule",
+        "Running tests/governance/run.sh on a clean repo (no key files) exits 0 after the amendment",
+        "The skill presented the three artifacts (test, invariant section, evolution log entry) as a coordinated set before applying them — it did not apply them piecemeal"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "We want to raise our file-size-limit from 500 lines to 800 lines — the old limit is triggering too many false positives in the data-pipeline package. Amend the constitution.",
+      "expected_output": "The existing file-size-limit rule's limit is updated (either directly in the script or via the GOVERNANCE_FILE_SIZE_LIMIT env var convention). The constitution's invariant section for file-size-limit is updated to reflect 800. A new Evolution Log entry records the change with a reason (false positives in data-pipeline). No new rule script is created — this is an amendment to an existing rule, not a new one.",
+      "files": ["evals/files/repo-with-file-size-rule/"],
+      "assertions": [
+        "The existing file-size-limit rule script was edited (not duplicated)",
+        "The new limit value (800) appears in the rule script or its env var default",
+        "The CONSTITUTION.md invariant for file-size-limit references 800 (not 500)",
+        "A new Evolution Log entry was added with today's date describing the limit change and citing the data-pipeline false-positive reason",
+        "No new rule script file was created"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Remove the no-console-log rule — we're keeping structured logs via pino and the rule is noisy. Do it properly.",
+      "expected_output": "Three coordinated deletions/edits: the rule script is removed, the corresponding Invariants subsection is removed from CONSTITUTION.md, and an Evolution Log entry records the removal with a reason (structured logging via pino makes the rule redundant). The skill warns if any other docs or code references the removed rule by name.",
+      "files": ["evals/files/repo-with-console-log-rule/"],
+      "assertions": [
+        "tests/governance/rules/no-console-log.sh no longer exists",
+        "The Invariants section of CONSTITUTION.md no longer describes no-console-log",
+        "A new Evolution Log entry dated today records the removal with the stated reason",
+        "Running tests/governance/run.sh still exits 0 on the seeded repo after removal",
+        "If the repo contains any references to the removed rule name (e.g., in a README or CI doc), the skill surfaced them to the user rather than silently leaving dangling references"
+      ]
+    }
+  ]
+}
