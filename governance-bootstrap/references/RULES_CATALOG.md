@@ -26,7 +26,7 @@ The skill presents these via `AskUserQuestion` across two calls (five categories
 | Rule | What it checks |
 |---|---|
 | `architecture-doc-exists`       | `ARCHITECTURE.md` (root or `docs/`) exists, non-empty, ≥ 20 lines. |
-| `no-broken-internal-doc-links`  | Every markdown `[text](relative/path)` in tracked `.md` files resolves to an existing file. |
+| `no-broken-internal-doc-links`  | Every relative-path markdown link in tracked `.md` files resolves to an existing file. |
 | `doc-freshness`                 | Docs listed in `tests/governance/freshness.conf` carry `<!-- last-verified: YYYY-MM-DD -->` within 90 days (configurable). No-op if the config file is absent. |
 | `ci-workflow-exists`            | `.github/workflows/` contains at least one non-governance workflow. |
 
