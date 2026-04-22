@@ -1,0 +1,64 @@
+{
+  "skill_name": "doc-gardener",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Run doc gardener on this repo. Show me what's stale before you open anything.",
+      "expected_output": "A freshness report classifies the tracked docs into bump-only, needs-update, unwatched-stale, no-stamp, and orphaned buckets, with counts and per-doc lines. The skill asks via AskUserQuestion how to proceed (dry-run, bump-only, needs-update, or both) and defaults to dry-run on the first invocation. No PRs or branches are created before the user answers.",
+      "files": ["evals/files/mixed-staleness-repo/"],
+      "assertions": [
+        "The skill printed a freshness report with all classification buckets named (bump-only, needs-update, unwatched-stale, no-stamp, orphaned, skipped)",
+        "The tracked-doc set was built as the UNION of the baseline (AGENTS.md, README.md, SECURITY.md, docs/**, plans/**, adrs/**, etc. that exist) and tests/governance/freshness.conf — not just the config",
+        "CHANGELOG.md and any adrs/** entries were classified as 'skipped' rather than processed",
+        "Each listed doc in the report shows its path and its stamp date (or 'no stamp')",
+        "The skill invoked AskUserQuestion to get the user's decision",
+        "No branches matching 'doc-gardener/*' were created before the user answered",
+        "No PRs were opened before the user answered",
+        "The working tree was not modified before the user answered"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Garden the docs. Proceed with both bump-only and needs-update PRs.",
+      "expected_output": "One branch for the batched bump-only PR (contains only stamp edits — no prose changes) and one branch per needs-update doc (contains a drafted content update plus a stamp bump). The bump-only PR is opened as ready-for-review; the needs-update PRs are opened as Draft. Each PR body comes from the respective template and lists the watched set and summary of code changes. The skill refuses to run if the working tree is dirty.",
+      "files": ["evals/files/mixed-staleness-repo/"],
+      "assertions": [
+        "Exactly one branch named 'doc-gardener/stamp-bumps-<YYYY-MM-DD>' was created",
+        "The bump-only branch's diff contains ONLY changes to <!-- last-verified: ... --> lines — no prose edits",
+        "A separate branch named 'doc-gardener/update-<slug>-<YYYY-MM-DD>' was created for each needs-update doc",
+        "Each needs-update branch's diff includes both a stamp update AND substantive content edits",
+        "The bump-only PR was opened as ready-for-review (not draft)",
+        "Each needs-update PR was opened as Draft",
+        "Each PR body includes the watched set as a bulleted list",
+        "Each needs-update PR body includes a 'What I inferred' section distinguishing high- and low-confidence edits",
+        "No force-push was used; if a branch name collided, a -v2 suffix was used instead"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Run the gardener. I have some uncommitted work in this tree, but just skip past that — I want the report.",
+      "expected_output": "The skill refuses to perform any git operations on a dirty working tree, even when the user asks it to proceed. It tells the user to commit or stash first. It may still produce the read-only freshness report, but must not create branches, commits, or PRs.",
+      "files": ["evals/files/dirty-tree-repo/"],
+      "assertions": [
+        "The skill detected the dirty working tree (uncommitted changes or untracked files)",
+        "The skill explicitly refused to create branches, commits, or PRs and told the user to commit/stash first",
+        "No new branches were created",
+        "No commits were made",
+        "No PRs were opened",
+        "The skill did not cave to the user's 'skip past that' — it held the rule because the rationale (don't mix gardener output with unrelated changes) still applies"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Garden the docs. This repo has one doc with an explicit gardener-watches annotation pointing at files that haven't changed since the stamp, and one doc with no annotation at all.",
+      "expected_output": "The annotated doc is classified as bump-only (the gardener can prove nothing changed in its watch set). The unannotated doc is classified as unwatched-stale only if no watch set can be inferred via fenced code blocks, inline paths, or the directory-sibling fallback — otherwise it should be handled like a normal doc. The report is specific about which inference rule matched (or that none did).",
+      "files": ["evals/files/annotation-vs-inference-repo/"],
+      "assertions": [
+        "The annotated doc was classified as bump-only",
+        "For the unannotated doc, the report names which inference rule was applied (explicit annotation / fenced blocks / inline refs / directory sibling / none)",
+        "If no inference succeeded, the doc is classified as unwatched-stale and NO PR is opened for it",
+        "The unwatched-stale doc is explicitly surfaced in the 'needs your attention' section of the final report with a suggestion to add a gardener-watches annotation"
+      ]
+    }
+  ]
+}
