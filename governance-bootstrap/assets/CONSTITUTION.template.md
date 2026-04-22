@@ -4,6 +4,15 @@ This document is the source of truth for the rules, guidelines, and invariants t
 
 > **The cardinal rule:** Amendments to this constitution must land in the same commit as the change to its enforcing test. No exceptions.
 
+## Compliance
+
+Anyone working in this repo — humans, agents, scripted automation — must satisfy every principle, guideline, and invariant in this document.
+
+- **Mechanical rules** (the **Invariants** section below) are enforced by `tests/governance/` via the pre-commit hook and CI. A violating commit is blocked locally and re-blocked in CI if the hook is bypassed.
+- **Principles and guidelines** (the **Principles** section above the Invariants) cannot be checked mechanically. They depend on judgment and reviewer discipline. A change that defies a principle without explanation is grounds to block the PR.
+
+If a specific change cannot satisfy a rule, document the deviation in the PR description and use the rule's stated waiver mechanism if one exists. Drive-by violations without explanation will block the merge.
+
 ## Principles
 
 <!-- High-level philosophy. 3-5 statements max. These are not enforced automatically — they frame the invariants below and guide what rules belong here. -->

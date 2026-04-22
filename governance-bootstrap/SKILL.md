@@ -106,6 +106,7 @@ If the user asks for rules that exist in `references/RULES_CATALOG.md` under "Al
 
 Copy `assets/CONSTITUTION.template.md` to `<repo-root>/CONSTITUTION.md`. Then tailor it:
 
+- The template ships with a **Compliance** section directly under the cardinal-rule callout — leave it intact. It is the prescriptive directive that tells humans, agents, and automation they must satisfy every principle, guideline, and invariant in the document (not just the mechanically enforced ones). Every bootstrapped repo gets it; do not edit unless the user asks.
 - Fill the **Principles** section with 3-5 high-level principles inferred from the rules the user picked, plus a generic starter like "Changes to the constitution require changes to the enforcing tests."
 - Under **Invariants**, list one subsection per selected rule. Each subsection must have:
   - **Rule** (one-sentence statement)
