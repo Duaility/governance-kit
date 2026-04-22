@@ -27,10 +27,10 @@ if ! bash "$RULE" "$1"; then
 ✗ Commit message blocked by governance.
 
 Conventional Commits format:
-    <type>(<optional-scope>)!?: <subject>
+    <type>(<optional-scope>)!?: <subject> (#123)
 
 Types: feat, fix, chore, docs, refactor, test, perf, build, ci, revert, style.
-Example: fix(auth): reject tokens with empty 'sub' claim
+Example: fix(auth): reject tokens with empty 'sub' claim (#123)
 
 Bypass (CI will still enforce on PR):
     SKIP_GOVERNANCE=1 git commit ...

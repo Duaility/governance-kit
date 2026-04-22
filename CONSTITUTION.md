@@ -69,8 +69,8 @@ If a specific change cannot satisfy a rule, document the deviation in the PR des
 
 ### conventional-commits
 
-- **Rule**: Commit messages match `<type>(scope)?!?: subject` per the Conventional Commits spec.
-- **Rationale**: A parseable commit log feeds changelog generation, semver decisions, and future rule enforcement.
+- **Rule**: Commit messages match `<type>(scope)?!?: subject (#123)` per the Conventional Commits spec, with a trailing GitHub issue reference in parentheses.
+- **Rationale**: A parseable commit log feeds changelog generation, semver decisions, and future rule enforcement; the linked GitHub issue keeps every commit tied to a durable discussion or work item.
 - **Enforced by**: `tests/governance/rules/conventional-commits.sh` (checks history) and `.githooks/commit-msg` (checks the pending commit).
 - **Exceptions**: Merge commits and revert commits are exempt.
 
@@ -133,6 +133,7 @@ If a specific change cannot satisfy a rule, document the deviation in the PR des
 - 2026-04-22 — @srikanth — Add **Compliance** section: explicit directive that humans, agents, and automation must satisfy every principle, guideline, and invariant — not just the mechanically enforced ones. Mirrored into the bootstrap template.
 - 2026-04-22 — @srikanth — Add `hooks-configured`: move local hook scripts to tracked `.githooks/` and require `core.hooksPath=.githooks`, so a fresh clone gets the same local enforcement as every other contributor. Bootstrap skill updated to install hooks under `.githooks/` (not `.git/hooks/`).
 - 2026-04-22 — @srikanth — Strengthen `plan-captured`: require substantive tracked changes to touch `plans/*.md` in the same change set, so missing plans fail mechanically instead of relying on repo memory.
+- 2026-04-22 — @srikanth — Strengthen `conventional-commits`: require a trailing GitHub issue suffix like `(#123)` so every commit is traceable to a durable work item.
 
 ## Escape hatches
 
