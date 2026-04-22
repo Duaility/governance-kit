@@ -16,6 +16,14 @@ fi
 ROOT="$(git rev-parse --show-toplevel)"
 BASH_RUNNER="$ROOT/tests/governance/run.sh"
 
+# Agent-accounting: if the commit is agent-authored (detected via runtime env
+# vars), append the COSTS.md row and stage it BEFORE governance tests run, so
+# the agent-token-accounting rule sees the row for this commit's tree.
+ACCOUNTING="$ROOT/scripts/governance/agent-accounting.sh"
+if [[ -x "$ACCOUNTING" ]]; then
+    bash "$ACCOUNTING" || exit 1
+fi
+
 ran_something=0
 fail=0
 

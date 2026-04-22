@@ -45,14 +45,15 @@ Cost-Key: codex-01HXYZabcdef-1713800000
 Inside the bootstrapped repo:
 
 ```sh
-cp <governance-kit>/governance-bootstrap/assets/tests-bash/rules/agent-token-accounting.sh tests/governance/rules/
-cp <governance-kit>/governance-bootstrap/assets/githooks/prepare-commit-msg .githooks/
-cp <governance-kit>/governance-bootstrap/assets/COSTS.template.md COSTS.md
-mkdir -p scripts
-cp <governance-kit>/governance-bootstrap/assets/scripts/governance-commit.sh scripts/
-cp <governance-kit>/governance-bootstrap/assets/scripts/claude-code-commit.sh scripts/   # if you use Claude Code
-cp <governance-kit>/governance-bootstrap/assets/scripts/codex-commit.sh        scripts/   # if you use Codex
-chmod +x tests/governance/rules/agent-token-accounting.sh .githooks/prepare-commit-msg scripts/*.sh
+cp    <governance-kit>/governance-bootstrap/assets/tests-bash/rules/agent-token-accounting.sh tests/governance/rules/
+cp    <governance-kit>/governance-bootstrap/assets/githooks/pre-commit         .githooks/
+cp    <governance-kit>/governance-bootstrap/assets/githooks/prepare-commit-msg .githooks/
+cp    <governance-kit>/governance-bootstrap/assets/COSTS.template.md           COSTS.md
+cp -r <governance-kit>/governance-bootstrap/assets/scripts/governance          scripts/
+chmod +x tests/governance/rules/agent-token-accounting.sh \
+         .githooks/pre-commit .githooks/prepare-commit-msg \
+         scripts/governance/agent-accounting.sh \
+         scripts/governance/runtimes/*.sh
 ```
 
 Then add an `agent-token-accounting` Invariants subsection to `CONSTITUTION.md`
@@ -74,95 +75,111 @@ The `hooks-configured` rule accepts both forms; the worktree-local override
 just ensures the hooks you are editing in the worktree are the ones that
 actually run.
 
-## Wiring runtimes
+## How a commit flows
 
-The commit pipeline splits into three layers:
+`git commit` is the only entry point. There is no wrapper script to remember
+or teach — if the commit is agent-authored, the pre-commit hook detects the
+runtime, reads the transcript, appends the ledger row, and hands off to
+`prepare-commit-msg` to stamp the matching trailers. Human commits flow
+through untouched.
 
-1. **Per-runtime wrapper** (e.g. `scripts/claude-code-commit.sh`,
-   `scripts/codex-commit.sh`) — the only layer that knows about a specific
-   runtime. It locates the session transcript, sums cumulative tokens, and
-   exports four env vars: `AGENT_NAME`, `AGENT_SESSION_ID`, `AGENT_CUM_INPUT`,
-   `AGENT_CUM_OUTPUT`. Then it `exec`s the shared helper.
-2. **Shared helper** (`scripts/governance-commit.sh`) — runtime-agnostic. It
-   subtracts prev ledger rows (per-commit delta), parses the issue anchor
-   from `-m`, computes the `Cost-Key`, appends the `COSTS.md` row, `git add`s
-   it, exports the `AGENT_*` trailer contract, and `exec`s `git commit`.
-3. **`prepare-commit-msg` hook** — runtime-agnostic. Reads the exported
-   `AGENT_*` env vars and stamps the trailers onto the commit message. Does
-   not touch `COSTS.md`.
+```
+git commit -m "feat: x (#13)"
+      │
+      ▼
+pre-commit ──► scripts/governance/agent-accounting.sh
+      │          1. Detect runtime from env (CLAUDECODE / CODEX_THREAD_ID / AGENT_NAME)
+      │          2. Read parent argv (/proc/$PPID/cmdline or `ps`) to recover
+      │             the -m subject and parse the (#N) issue anchor
+      │          3. Dispatch to scripts/governance/runtimes/<runtime>.sh —
+      │             returns `<session_id> <cum_input> <cum_output>`
+      │          4. Subtract prior rows for this session → per-commit delta
+      │          5. Compute Cost-Key, append COSTS.md row, `git add` it
+      │          6. Write .git/governance-pending.env
+      │
+      ▼
+(governance tests run — agent-token-accounting sees the new row in-tree)
+      │
+      ▼
+prepare-commit-msg ──► sources .git/governance-pending.env, stamps the
+                       seven trailers onto the commit message, deletes
+                       the handoff file
+      │
+      ▼
+git snapshots the tree (COSTS.md row is already staged) → commit
+```
 
-The ledger append has to happen **before** `git commit` starts. Files
-modified or staged during `prepare-commit-msg` land in the *next* commit's
-index, not the tree git has already snapshotted for this commit — a CI
-failure of the form "Cost-Key X should have exactly 1 row in COSTS.md, found
-0" is the tell. The shared helper gets this right once, for every runtime.
+The ordering is load-bearing. `git add` during **pre-commit** lands in the
+tree git is about to snapshot; `git add` during **prepare-commit-msg** lands
+in the *next* commit's index. A CI failure of the form `Cost-Key X should
+have exactly 1 row in COSTS.md, found 0` means something tried to stage
+`COSTS.md` too late in the pipeline.
 
-### Env-var contract
+### Runtime detection
 
-| Layer | Vars in | Vars out |
-|---|---|---|
-| Runtime wrapper → helper | (reads transcripts / runtime state) | `AGENT_NAME`, `AGENT_SESSION_ID`, `AGENT_CUM_INPUT`, `AGENT_CUM_OUTPUT` |
-| Helper → hook | `AGENT_NAME`, `AGENT_SESSION_ID`, `AGENT_CUM_INPUT`, `AGENT_CUM_OUTPUT`, optionally `AGENT_ISSUE` / `AGENT_COST_KEY` | `AGENT_NAME`, `AGENT_SESSION_ID`, `AGENT_TOKEN_INPUT` (delta), `AGENT_TOKEN_OUTPUT` (delta), `AGENT_COST_KEY`, `AGENT_ISSUE` |
-| Hook | All "helper → hook" outputs | Stamps trailers onto the commit message |
+`agent-accounting.sh` picks the runtime from environment, in order:
+
+| Signal | Runtime |
+|---|---|
+| `AGENT_NAME` set (any value) | `manual` — caller supplies `AGENT_SESSION_ID`, `AGENT_CUM_INPUT`, `AGENT_CUM_OUTPUT` |
+| `CLAUDECODE=1` | `claude-code` — reads `~/.claude/projects/<encoded-cwd>/*.jsonl` |
+| `CODEX_THREAD_ID` set | `codex` — reads `~/.codex/sessions/*.jsonl` |
+| none of the above | no-op (human commit) |
+
+The issue anchor is parsed from the parent git's `-m` / `--message` argv, or
+can be supplied explicitly via `AGENT_ISSUE='#13'` (useful for editor-mode
+commits where argv has no `-m`).
 
 ### Claude Code
 
-Usage:
+No setup beyond installing the hooks. `CLAUDECODE=1` is already exported to
+every Bash tool invocation, so `git commit -m "feat: x (#13)"` from an
+agent session Just Works.
 
-```sh
-scripts/claude-code-commit.sh -m "feat: add foo (#13)"
-```
+The reader at `scripts/governance/runtimes/claude-code.sh`:
 
-Claude Code does **not** currently export a session id or token tallies as
-environment variables — the Bash tool sees `CLAUDECODE=1` and a few harness
-vars but nothing usage-related. The wrapper reads them from the on-disk
-session transcript:
-
-1. Finds the session JSONL under `~/.claude/projects/<encoded-cwd>/` where the
-   encoding replaces every `/` and `.` in the absolute path with `-`. Override
-   with `CLAUDE_TRANSCRIPT_PATH` if needed.
-2. Sums every `assistant` entry's `.message.usage` fields (input counts
-   regular + cache-creation + cache-read so the number matches billed usage
-   regardless of cache state).
-3. Hands off cumulative totals to `governance-commit.sh`.
+1. Finds the session JSONL under `~/.claude/projects/<encoded-cwd>/`, where
+   the encoding replaces every `/` and `.` in the absolute path with `-`.
+   Override with `CLAUDE_TRANSCRIPT_PATH` if needed.
+2. Reads `sessionId` from the first entry that has one.
+3. Sums every `assistant` entry's `.message.usage` fields — `input_tokens`,
+   `cache_creation_input_tokens`, and `cache_read_input_tokens` all count as
+   input so the number matches billed usage regardless of cache state.
+4. Prints `<session_id> <cum_input> <cum_output>` for `agent-accounting.sh`.
 
 ### Codex
 
-Usage:
+Same story — `CODEX_THREAD_ID` is already set in Codex sessions, so no
+wrapper is needed. The reader at `scripts/governance/runtimes/codex.sh`:
 
-```sh
-scripts/codex-commit.sh -m "feat: add foo (#13)"
-```
-
-The wrapper reads Codex's on-disk session transcript under
-`~/.codex/sessions/`:
-
-1. Locates the transcript via `CODEX_THREAD_ID` if set, otherwise falls back
-   to the most recently modified `*.jsonl` in the sessions dir. Override with
-   `CODEX_TRANSCRIPT_PATH`.
+1. Locates the transcript at `~/.codex/sessions/${CODEX_THREAD_ID}.jsonl`,
+   falling back to the most recently modified `*.jsonl` in the sessions dir.
+   Override with `CODEX_TRANSCRIPT_PATH`.
 2. Derives the session id from `CODEX_THREAD_ID` or from the transcript
    filename.
-3. Sums tokens across the common shapes — top-level `usage`,
-   `message.usage`, `response.usage` — handling both `input_tokens` /
-   `output_tokens` and `prompt_tokens` / `completion_tokens` keys, since
-   Codex's transcript schema varies by version.
-4. Hands off cumulative totals to `governance-commit.sh`.
+3. Sums tokens across the common shapes — top-level `usage`, `message.usage`,
+   `response.usage` — handling both `input_tokens` / `output_tokens` and
+   `prompt_tokens` / `completion_tokens` key pairs, since Codex's transcript
+   schema varies by version.
 
 ### Other runtimes
 
-Any runtime (Cursor, Aider, a homegrown agent) needs only a ~40-line
-wrapper that locates its transcript, sums tokens, and exports the four
-`AGENT_NAME` / `AGENT_SESSION_ID` / `AGENT_CUM_INPUT` / `AGENT_CUM_OUTPUT`
-env vars. Use `scripts/codex-commit.sh` as a template — everything after the
-token sum is delegated to `governance-commit.sh`, which is already correct.
+Drop a reader at `scripts/governance/runtimes/<name>.sh` whose only job is
+to print `<session_id> <cum_input> <cum_output>` on stdout (non-zero exit if
+it can't find a transcript), and add a branch to the runtime-detection
+block in `agent-accounting.sh`. `runtimes/codex.sh` is a ~60-line template.
+
+Until you do that, `AGENT_NAME=<name> AGENT_SESSION_ID=... AGENT_CUM_INPUT=...
+AGENT_CUM_OUTPUT=... git commit` (the `manual` path) works as an escape
+hatch.
 
 ## What gets enforced where
 
 | Layer | What it checks |
 |---|---|
-| Runtime wrapper | Transcript discovery + token sum for one specific runtime. |
-| `governance-commit.sh` (shared) | Per-commit delta, issue parsing, cost-key generation, ledger append + stage — **all before** `exec git commit`. |
-| `prepare-commit-msg` hook | When `AGENT_NAME` is set, stamps all seven trailers from env vars. Fails closed if required env vars are missing or non-integer. Does not touch `COSTS.md`. |
+| `scripts/governance/runtimes/<runtime>.sh` | Transcript discovery + token sum for one specific runtime. |
+| `scripts/governance/agent-accounting.sh` (pre-commit) | Runtime detection, issue parsing from parent argv, per-commit delta, cost-key generation, ledger append + `git add` — **all before** git snapshots the tree. Writes `.git/governance-pending.env` for the message hook. |
+| `prepare-commit-msg` hook | Sources the handoff env file and stamps all seven trailers. Idempotent on amends (skips if an `Agent:` trailer is already present). Silent no-op if no handoff file exists (human commit, or `--no-verify`). Does not touch `COSTS.md`. |
 | `agent-token-accounting` rule (`run.sh` / CI) | Walks `base..HEAD`. For each commit with an `Agent:` trailer: requires the full trailer set, checks `Total = Input + Output`, requires exactly one matching `Cost-Key` row in `COSTS.md`, and verifies the row's numbers agree with the trailers. Independently validates `COSTS.md` row shape and `Cost-Key` uniqueness so the ledger stays clean even after branch commits are squashed away. |
 
 ## What it doesn't try to do

@@ -1,26 +1,11 @@
 #!/usr/bin/env bash
 # Governance prepare-commit-msg hook — stamps agent token-accounting trailers
-# when an agent-runtime wrapper has exported AGENT_* environment variables.
+# using values the pre-commit hook computed and handed off via
+# .git/governance-pending.env.
 #
-# The hook does NOT touch COSTS.md. The ledger append must happen before
-# `git commit` starts (otherwise the row lands in the next commit's index, not
-# the current tree — that's the footgun this hook used to have). The wrapper
-# that sets AGENT_* owns the append + stage; see
-# governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md.
-#
-# Generic across runtimes. Any wrapper (Codex, Claude Code, or other) that
-# exports these env vars before invoking `git commit` gets its commits
-# trailer-stamped:
-#
-#   AGENT_NAME           required — free-form runtime id (e.g. "codex", "claude-code")
-#   AGENT_SESSION_ID     required — the runtime's session / thread id
-#   AGENT_TOKEN_INPUT    required — non-negative integer
-#   AGENT_TOKEN_OUTPUT   required — non-negative integer
-#   AGENT_COST_KEY       required — wrapper-computed; must match the staged row
-#   AGENT_ISSUE          optional — "#123"; parsed from subject if omitted
-#
-# If AGENT_NAME is unset this hook is a silent no-op — human commits pass
-# through untouched.
+# If the handoff file doesn't exist, this commit is either human-authored or
+# came from a path where pre-commit didn't run (e.g. `git commit --no-verify`)
+# — in either case the hook is a silent no-op.
 #
 # Escape hatches:
 #   SKIP_GOVERNANCE=1 git commit ...
@@ -29,9 +14,6 @@
 set -u
 
 if [[ "${SKIP_GOVERNANCE:-0}" == "1" ]]; then
-    exit 0
-fi
-if [[ -z "${AGENT_NAME:-}" ]]; then
     exit 0
 fi
 
@@ -44,74 +26,29 @@ case "$COMMIT_SOURCE" in
     merge|squash|commit) exit 0 ;;
 esac
 
-require_var() {
-    local name="$1"
-    if [[ -z "${!name:-}" ]]; then
-        cat >&2 <<EOF
+HANDOFF="$(git rev-parse --git-path governance-pending.env)"
 
-────────────────────────────────────────
-✗ Agent commit blocked by governance.
+[[ -f "$HANDOFF" ]] || exit 0
 
-AGENT_NAME is set to '$AGENT_NAME' but \$${name} is not set.
-
-When a runtime wrapper declares an agent commit it must export the full
-set of token-accounting variables:
-  AGENT_NAME, AGENT_SESSION_ID, AGENT_TOKEN_INPUT, AGENT_TOKEN_OUTPUT
-
-See: governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md
-
-Bypass (CI will still enforce on PR):
-    SKIP_GOVERNANCE=1 git commit ...
-    git commit --no-verify
-────────────────────────────────────────
-EOF
-        exit 1
-    fi
-}
-
-require_var AGENT_SESSION_ID
-require_var AGENT_TOKEN_INPUT
-require_var AGENT_TOKEN_OUTPUT
-require_var AGENT_COST_KEY
-
-if ! [[ "$AGENT_TOKEN_INPUT" =~ ^[0-9]+$ && "$AGENT_TOKEN_OUTPUT" =~ ^[0-9]+$ ]]; then
-    echo "✗ AGENT_TOKEN_INPUT and AGENT_TOKEN_OUTPUT must be non-negative integers" >&2
-    exit 1
-fi
-
-TOKEN_TOTAL=$(( AGENT_TOKEN_INPUT + AGENT_TOKEN_OUTPUT ))
-
-# Parse issue from the subject line if not explicitly provided.
-SUBJECT=$(grep -vE '^[[:space:]]*($|#)' "$MSG_FILE" | head -n1)
-ISSUE="${AGENT_ISSUE:-}"
-if [[ -z "$ISSUE" ]]; then
-    if [[ "$SUBJECT" =~ \(#([1-9][0-9]*)\) ]]; then
-        ISSUE="#${BASH_REMATCH[1]}"
-    fi
-fi
-if [[ -z "$ISSUE" ]]; then
-    echo "✗ Could not infer AGENT_ISSUE from subject '$SUBJECT' — set AGENT_ISSUE='#123' or include '(#N)' in the subject" >&2
-    exit 1
-fi
+# shellcheck disable=SC1090
+source "$HANDOFF"
+rm -f "$HANDOFF"
 
 # Skip stamping if trailers are already present (idempotent on amends/retries).
 if grep -qE '^Agent:[[:space:]]' "$MSG_FILE"; then
     exit 0
 fi
 
-# Append trailers to the commit message. Git trailer convention: blank line
-# separating body from trailers; `git interpret-trailers` handles this cleanly.
 {
     cat "$MSG_FILE"
-    # Ensure a trailing newline + blank line before trailer block.
     printf '\n'
-    printf 'Agent: %s\n' "$AGENT_NAME"
-    printf 'Issue: %s\n' "$ISSUE"
-    printf 'Session: %s\n' "$AGENT_SESSION_ID"
-    printf 'Token-Input: %s\n' "$AGENT_TOKEN_INPUT"
+    printf 'Agent: %s\n'        "$AGENT_NAME"
+    printf 'Issue: %s\n'        "$AGENT_ISSUE"
+    printf 'Session: %s\n'      "$AGENT_SESSION_ID"
+    printf 'Token-Input: %s\n'  "$AGENT_TOKEN_INPUT"
     printf 'Token-Output: %s\n' "$AGENT_TOKEN_OUTPUT"
-    printf 'Token-Total: %s\n' "$TOKEN_TOTAL"
-    printf 'Cost-Key: %s\n' "$AGENT_COST_KEY"
+    printf 'Token-Total: %s\n'  "$AGENT_TOKEN_TOTAL"
+    printf 'Cost-Key: %s\n'     "$AGENT_COST_KEY"
 } > "$MSG_FILE.new"
 mv "$MSG_FILE.new" "$MSG_FILE"
 

@@ -112,8 +112,8 @@ If a specific change cannot satisfy a rule, document the deviation in the PR des
 ### agent-token-accounting
 
 - **Rule**: Every commit carrying an `Agent:` trailer also carries the full trailer set (`Issue`, `Session`, `Token-Input`, `Token-Output`, `Token-Total`, `Cost-Key`), satisfies `Token-Total = Token-Input + Token-Output`, and has exactly one matching append-only row in `COSTS.md` whose numbers agree with the trailers. `COSTS.md` rows are well-formed and `Cost-Key` is unique within the file.
-- **Rationale**: Agent-authored work should be accountable to the same system-of-record discipline as any other change. Token trailers give branch-time provenance reviewers can read; `COSTS.md` is the durable ledger that survives squash merges and keeps the audit trail in the repo rather than on a contributor's laptop. The rule is a no-op on human commits, so adoption has zero friction until a runtime wrapper starts exporting the `AGENT_*` contract.
-- **Enforced by**: `tests/governance/rules/agent-token-accounting.sh` (validates history) and `.githooks/prepare-commit-msg` (stamps trailers + appends the ledger row when `AGENT_NAME` is set).
+- **Rationale**: Agent-authored work should be accountable to the same system-of-record discipline as any other change. Token trailers give branch-time provenance reviewers can read; `COSTS.md` is the durable ledger that survives squash merges and keeps the audit trail in the repo rather than on a contributor's laptop. The rule is a no-op on human commits, so adoption has zero friction — `git commit` is the entry point for agents and humans alike; the pre-commit hook auto-detects the runtime and does the accounting.
+- **Enforced by**: `tests/governance/rules/agent-token-accounting.sh` (validates history), `scripts/governance/agent-accounting.sh` invoked from `.githooks/pre-commit` (detects the runtime, reads the transcript, and appends the `COSTS.md` row in-tree), and `.githooks/prepare-commit-msg` (stamps matching trailers from the pre-commit handoff).
 - **Exceptions**: none. The rule only activates on commits that declare `Agent:`; commits without that trailer are not in scope.
 
 ### hooks-configured
@@ -142,6 +142,7 @@ If a specific change cannot satisfy a rule, document the deviation in the PR des
 - 2026-04-22 — @srikanth — Strengthen `plan-captured`: require substantive tracked changes to touch `plans/*.md` in the same change set, so missing plans fail mechanically instead of relying on repo memory.
 - 2026-04-22 — @srikanth — Strengthen `conventional-commits`: require a trailing GitHub issue suffix like `(#123)` so every commit is traceable to a durable work item.
 - 2026-04-22 — @srikanth — Add `agent-token-accounting`: agent-authored commits must carry token trailers and a matching row in `COSTS.md`, so the repo becomes the system-of-record for agent cost rather than per-contributor session transcripts. Dogfoods the opt-in rule shipped in [#14](https://github.com/Duaility/governance-kit/pull/14).
+- 2026-04-22 — @srikanth — Refactor `agent-token-accounting` plumbing: move runtime detection, transcript reading, and `COSTS.md` append out of runtime-specific wrappers and into `scripts/governance/agent-accounting.sh` invoked from pre-commit, so `git commit` is the single entry point for agents and humans. Per-runtime readers live under `scripts/governance/runtimes/`. The pre-commit layer is load-bearing: staging `COSTS.md` there lands it in the commit's tree, which `prepare-commit-msg` cannot do.
 
 ## Escape hatches
 

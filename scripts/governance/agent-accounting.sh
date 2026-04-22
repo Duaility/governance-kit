@@ -1,0 +1,232 @@
+#!/usr/bin/env bash
+# Agent token accounting — invoked from the pre-commit hook.
+#
+# This is what makes `git commit` the baseline for agent-authored commits.
+# The pre-commit hook runs it before governance tests; if the commit is
+# agent-authored, it appends the ledger row and `git add`s it (so the row
+# lands in the CURRENT commit's tree), then writes a handoff file that
+# prepare-commit-msg reads to stamp matching trailers onto the message.
+#
+# Why not do this in prepare-commit-msg directly: by the time that hook runs,
+# git has already snapshotted the tree for the commit. `git add` from there
+# lands in the NEXT commit's index, not this one.
+#
+# Runtime detection is automatic from the environment:
+#   CLAUDECODE=1                 → claude-code
+#   CODEX_THREAD_ID set          → codex
+#   AGENT_NAME set manually      → whatever the user said, with explicit
+#                                   AGENT_SESSION_ID / AGENT_CUM_INPUT /
+#                                   AGENT_CUM_OUTPUT
+# Otherwise the commit is treated as a human commit and this script no-ops.
+#
+# Issue anchor inference reads the parent git process's argv via
+# /proc/$PPID/cmdline (Linux) or `ps -ww -p $PPID -o args=` (macOS) to find a
+# `(#N)` in the -m / --message subject. Set AGENT_ISSUE='#N' explicitly to
+# skip inference (useful for editor-mode commits where argv has no -m).
+
+set -u
+
+if [[ "${SKIP_GOVERNANCE:-0}" == "1" ]]; then
+    exit 0
+fi
+
+# ── Detect runtime ─────────────────────────────────────────────
+RUNTIME=""
+if [[ -n "${AGENT_NAME:-}" ]]; then
+    RUNTIME="manual"
+elif [[ "${CLAUDECODE:-}" == "1" ]]; then
+    RUNTIME="claude-code"
+elif [[ -n "${CODEX_THREAD_ID:-}" ]]; then
+    RUNTIME="codex"
+fi
+
+# Not an agent commit — exit silently. Humans committing manually hit this path.
+[[ -z "$RUNTIME" ]] && exit 0
+
+ROOT="$(git rev-parse --show-toplevel)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+LEDGER="$ROOT/COSTS.md"
+# In a worktree `.git` is a pointer file, not a directory. Use rev-parse
+# to locate the real per-worktree git dir so the handoff file writes cleanly.
+HANDOFF="$(git rev-parse --git-path governance-pending.env)"
+
+# ── Read git's argv to recover the -m / --message subject ─────
+# This script runs as: git → pre-commit hook → bash agent-accounting.sh.
+# $PPID is the hook, not git. Walk up one more level to find git.
+grandparent_pid() {
+    local pid="$PPID"
+    if [[ -r "/proc/$pid/status" ]]; then
+        awk '/^PPid:/ {print $2}' "/proc/$pid/status"
+    else
+        ps -p "$pid" -o ppid= 2>/dev/null | tr -d ' '
+    fi
+}
+
+parent_argv_string() {
+    local pid="$1"
+    if [[ -r "/proc/$pid/cmdline" ]]; then
+        tr '\0' ' ' < "/proc/$pid/cmdline"
+    else
+        ps -ww -p "$pid" -o args= 2>/dev/null
+    fi
+}
+
+GIT_PID="$(grandparent_pid)"
+ARGV="$(parent_argv_string "${GIT_PID:-$PPID}")"
+# Fallback to the immediate parent if the grandparent argv doesn't look
+# like a git commit invocation (e.g. a rebase driving the hook).
+if [[ "$ARGV" != *git* ]]; then
+    ARGV="$(parent_argv_string "$PPID")"
+fi
+
+# ── Infer the issue anchor ─────────────────────────────────────
+ISSUE="${AGENT_ISSUE:-}"
+if [[ -z "$ISSUE" && "$ARGV" =~ \(#([1-9][0-9]*)\) ]]; then
+    ISSUE="#${BASH_REMATCH[1]}"
+fi
+if [[ -z "$ISSUE" ]]; then
+    cat >&2 <<EOF
+
+────────────────────────────────────────
+✗ Agent commit blocked by governance.
+
+Detected agent runtime: $RUNTIME
+Could not infer issue anchor from the commit subject.
+
+Pass '(#N)' in the subject:
+    git commit -m "feat: thing (#123)"
+
+Or set AGENT_ISSUE explicitly (useful for editor-mode commits):
+    AGENT_ISSUE='#123' git commit
+────────────────────────────────────────
+EOF
+    exit 1
+fi
+
+# ── Pull a subject for the ledger's note column (best-effort) ──
+# BSD ps escapes newlines in args as literal `\012` sequences, so truncate
+# the captured message at the first backslash-escape — that's the subject.
+SUBJECT=""
+if [[ "$ARGV" =~ [[:space:]](-m|--message)[[:space:]]+(.+) ]]; then
+    SUBJECT="${BASH_REMATCH[2]%%\\*}"
+elif [[ "$ARGV" =~ --message=(.+) ]]; then
+    SUBJECT="${BASH_REMATCH[1]%%\\*}"
+fi
+
+# ── Runtime dispatch: get session id + cumulative tokens ───────
+SESSION_ID=""
+CUM_INPUT=0
+CUM_OUTPUT=0
+case "$RUNTIME" in
+    claude-code)
+        if ! out="$("$HERE/runtimes/claude-code.sh")"; then
+            echo "✗ claude-code: transcript not found or unreadable" >&2
+            exit 1
+        fi
+        read -r SESSION_ID CUM_INPUT CUM_OUTPUT <<<"$out"
+        AGENT_NAME="claude-code"
+        ;;
+    codex)
+        if ! out="$("$HERE/runtimes/codex.sh")"; then
+            echo "✗ codex: transcript not found or unreadable" >&2
+            exit 1
+        fi
+        read -r SESSION_ID CUM_INPUT CUM_OUTPUT <<<"$out"
+        AGENT_NAME="codex"
+        ;;
+    manual)
+        require() {
+            if [[ -z "${!1:-}" ]]; then
+                echo "✗ AGENT_NAME=$AGENT_NAME set manually but \$$1 is unset" >&2
+                exit 1
+            fi
+        }
+        require AGENT_SESSION_ID
+        require AGENT_CUM_INPUT
+        require AGENT_CUM_OUTPUT
+        SESSION_ID="$AGENT_SESSION_ID"
+        CUM_INPUT="$AGENT_CUM_INPUT"
+        CUM_OUTPUT="$AGENT_CUM_OUTPUT"
+        ;;
+esac
+
+if ! [[ "$CUM_INPUT" =~ ^[0-9]+$ && "$CUM_OUTPUT" =~ ^[0-9]+$ ]]; then
+    echo "✗ cumulative token values must be non-negative integers (got '$CUM_INPUT'/'$CUM_OUTPUT')" >&2
+    exit 1
+fi
+
+# ── Compute per-commit delta from prev rows for this session ──
+# Column layout under `awk -F'|'`:
+#   $1 empty | $2 cost-key | $3 agent | $4 session | $5 issue |
+#   $6 input | $7 output   | $8 total | $9 note    | $10 empty
+PREV_INPUT=0
+PREV_OUTPUT=0
+if [[ -f "$LEDGER" ]]; then
+    read -r PREV_INPUT PREV_OUTPUT < <(
+        awk -F'|' -v sid="$SESSION_ID" '
+            /^[[:space:]]*\|/ {
+                n = split($0, c, "|")
+                if (n < 9) next
+                for (i = 2; i <= 8; i++) gsub(/^[[:space:]]+|[[:space:]]+$/, "", c[i])
+                if (c[2] == "cost-key" || c[2] ~ /^-+$/ || c[2] == "") next
+                if (c[4] != sid) next
+                tin  += c[6] + 0
+                tout += c[7] + 0
+            }
+            END { print (tin+0) " " (tout+0) }
+        ' "$LEDGER"
+    )
+fi
+
+TOKEN_INPUT=$(( CUM_INPUT  - PREV_INPUT  ))
+TOKEN_OUTPUT=$(( CUM_OUTPUT - PREV_OUTPUT ))
+(( TOKEN_INPUT  < 0 )) && TOKEN_INPUT=0
+(( TOKEN_OUTPUT < 0 )) && TOKEN_OUTPUT=0
+TOKEN_TOTAL=$(( TOKEN_INPUT + TOKEN_OUTPUT ))
+
+# ── Compute cost-key ──────────────────────────────────────────
+SESSION_SHORT="${SESSION_ID:0:12}"
+SESSION_SHORT="${SESSION_SHORT%%[-._]}"
+COST_KEY="${AGENT_COST_KEY:-${AGENT_NAME}-${SESSION_SHORT}-$(date +%s)}"
+
+# ── Append the ledger row ─────────────────────────────────────
+if [[ ! -f "$LEDGER" ]]; then
+    cat > "$LEDGER" <<'LEDGER_EOF'
+<!-- COSTS.md — append-only agent token-accounting ledger -->
+<!-- governance: allow-plan-captured -->
+
+# COSTS.md
+
+Append-only ledger of token consumption for agent-authored commits. Rows are
+keyed by `Cost-Key`, which survives squash merges. Do not rewrite or reorder
+rows; this file is auditable history.
+
+## Ledger
+
+| cost-key | agent | session | issue | input | output | total | note |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+LEDGER_EOF
+fi
+
+NOTE=$(printf '%s' "$SUBJECT" | tr -d '|' | tr -d '\000-\037' | cut -c 1-80)
+printf '| %s | %s | %s | %s | %s | %s | %s | %s |\n' \
+    "$COST_KEY" "$AGENT_NAME" "$SESSION_ID" "$ISSUE" \
+    "$TOKEN_INPUT" "$TOKEN_OUTPUT" "$TOKEN_TOTAL" "$NOTE" \
+    >> "$LEDGER"
+git add "$LEDGER"
+
+# ── Hand off to prepare-commit-msg via env file ───────────────
+cat > "$HANDOFF" <<EOF
+AGENT_NAME='$AGENT_NAME'
+AGENT_SESSION_ID='$SESSION_ID'
+AGENT_ISSUE='$ISSUE'
+AGENT_TOKEN_INPUT='$TOKEN_INPUT'
+AGENT_TOKEN_OUTPUT='$TOKEN_OUTPUT'
+AGENT_TOKEN_TOTAL='$TOKEN_TOTAL'
+AGENT_COST_KEY='$COST_KEY'
+EOF
+
+printf 'agent-accounting: runtime=%s session=%s input=+%d output=+%d (cumulative %d/%d) cost-key=%s\n' \
+    "$RUNTIME" "$SESSION_ID" "$TOKEN_INPUT" "$TOKEN_OUTPUT" "$CUM_INPUT" "$CUM_OUTPUT" "$COST_KEY" >&2
+
+exit 0
