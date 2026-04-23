@@ -30,18 +30,35 @@ if [[ -f tests/governance/rules/conventional-commits.sh ]]; then
     fi
 fi
 
-# 3. core.hooksPath must point at .githooks. This is per-clone config; the
-# rule's whole job is to nag until it's set.
+# 3. core.hooksPath must point at a .githooks directory. This is per-clone
+# config; the rule's whole job is to nag until it's set.
+#
+# The check is intentionally tolerant of absolute paths so it passes in
+# worktrees, where config is shared with the main repo and `core.hooksPath`
+# is commonly stored as an absolute path to the main checkout's .githooks.
+# The strict invariant is: the configured path is a directory whose basename
+# is `.githooks` and which contains an executable pre-commit. The separate
+# tracked-file checks above already ensure the worktree itself ships hooks.
+#
 # Skip in CI: runners clone fresh and invoke the suite directly (not via the
 # hook), so checking their core.hooksPath is meaningless. The tracked +
 # executable checks above still run there.
 if [[ -z "${CI:-}" && -z "${GITHUB_ACTIONS:-}" ]]; then
     configured="$(git config --get core.hooksPath 2>/dev/null || true)"
-    if [[ "$configured" != ".githooks" ]]; then
-        if [[ -z "$configured" ]]; then
-            violation "core.hooksPath is not set — run: git config core.hooksPath .githooks"
+    if [[ -z "$configured" ]]; then
+        violation "core.hooksPath is not set — run: git config core.hooksPath .githooks"
+    else
+        if [[ "$configured" = /* ]]; then
+            resolved="$configured"
         else
-            violation "core.hooksPath is '$configured' — expected '.githooks' (run: git config core.hooksPath .githooks)"
+            resolved="$ROOT/$configured"
+        fi
+        if [[ "$(basename "$resolved")" != ".githooks" ]]; then
+            violation "core.hooksPath is '$configured' — expected a path ending in '.githooks' (run: git config core.hooksPath .githooks)"
+        elif [[ ! -d "$resolved" ]]; then
+            violation "core.hooksPath is '$configured' but '$resolved' is not a directory"
+        elif [[ ! -x "$resolved/pre-commit" ]]; then
+            violation "core.hooksPath='$configured' but '$resolved/pre-commit' is missing or not executable"
         fi
     fi
 fi

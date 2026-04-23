@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "We had an incident yesterday (INC-4117) — someone committed a private key file (*.pem) and we had to rotate half our credentials. Add a governance rule that blocks committing *.pem, *.key, and *.p12 files. Wire it into the constitution properly.",
-      "expected_output": "Three coordinated artifacts land together: (a) a new tests/governance/rules/<rule-name>.sh that blocks committing the listed key/cert extensions, (b) a new Invariants subsection in CONSTITUTION.md describing the rule and citing INC-4117, and (c) an Evolution Log entry with today's date summarizing the amendment. The rule is tested against a seeded repo with and without a .pem file. Because the request is concrete, the skill may use its fast path, but it must still report the rule name, action type, smoke-test result, staged status, and suggested commit message.",
+      "expected_output": "Three coordinated artifacts land together in one commit: (a) a new tests/governance/rules/<rule-name>.sh that blocks committing the listed key/cert extensions, (b) a new Invariants subsection in CONSTITUTION.md describing the rule and citing INC-4117, and (c) an Evolution Log entry with today's date summarizing the amendment. The rule is tested against a seeded repo with and without a .pem file. The skill drafts, smoke-tests, and commits in one pass without asking for approval of the draft. The final summary reports the rule name, action type, smoke-test result, the commit sha+subject, and that the next step is `git push` for PR review.",
       "files": ["evals/files/seeded-repo/"],
       "assertions": [
         "A new rule script was created under tests/governance/rules/ with a name matching the invariant (e.g., no-key-material.sh)",
@@ -15,7 +15,9 @@
         "CONSTITUTION.md's Evolution Log gained a new entry dated today describing the amendment",
         "Running tests/governance/run.sh on a repo containing a staged *.pem file produces a violation referencing the new rule",
         "Running tests/governance/run.sh on a clean repo (no key files) exits 0 after the amendment",
-        "The skill reported the action type, smoke-test result, staged status, and suggested commit message in its final summary"
+        "The skill created exactly one new commit containing all three artifacts with a conventional-commit subject",
+        "The skill did not pause to ask the user for approval of the draft before writing or committing",
+        "The skill reported the action type, smoke-test result, commit sha+subject, and `git push` next step in its final summary"
       ]
     },
     {
@@ -29,6 +31,7 @@
         "The CONSTITUTION.md invariant for file-size-limit references 800 (not 500)",
         "A new Evolution Log entry was added with today's date describing the limit change and citing the data-pipeline false-positive reason",
         "No new rule script file was created",
+        "The skill created exactly one new commit containing the amendment with a conventional-commit subject",
         "The amendment summary reported that this was an update rather than a new rule"
       ]
     },
@@ -42,6 +45,7 @@
         "The Invariants section of CONSTITUTION.md no longer describes no-console-log",
         "A new Evolution Log entry dated today records the removal with the stated reason",
         "Running tests/governance/run.sh still exits 0 on the seeded repo after removal",
+        "The skill created exactly one new commit containing the removal with a conventional-commit subject",
         "If the repo contains any references to the removed rule name (e.g., in a README or CI doc), the skill surfaced them to the user rather than silently leaving dangling references"
       ]
     },

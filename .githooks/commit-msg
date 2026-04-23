@@ -13,20 +13,17 @@ if [[ "${SKIP_GOVERNANCE:-0}" == "1" ]]; then
 fi
 
 ROOT="$(git rev-parse --show-toplevel)"
-RULE="$ROOT/tests/governance/rules/conventional-commits.sh"
+CC_RULE="$ROOT/tests/governance/rules/conventional-commits.sh"
+ATA_RULE="$ROOT/tests/governance/rules/agent-token-accounting.sh"
 
-if [[ ! -x "$RULE" ]]; then
-    # conventional-commits not installed; nothing to enforce at commit-msg time.
-    exit 0
-fi
-
-if ! bash "$RULE" "$1"; then
-    cat >&2 <<EOF
+if [[ -x "$CC_RULE" ]]; then
+    if ! bash "$CC_RULE" "$1"; then
+        cat >&2 <<EOF
 
 ────────────────────────────────────────
-✗ Commit message blocked by governance.
+✗ Commit message blocked by governance (conventional-commits).
 
-Conventional Commits format:
+Format:
     <type>(<optional-scope>)!?: <subject> (#123)
 
 Types: feat, fix, chore, docs, refactor, test, perf, build, ci, revert, style.
@@ -37,7 +34,28 @@ Bypass (CI will still enforce on PR):
     git commit --no-verify
 ────────────────────────────────────────
 EOF
-    exit 1
+        exit 1
+    fi
+fi
+
+if [[ -x "$ATA_RULE" ]]; then
+    if ! bash "$ATA_RULE" "$1"; then
+        cat >&2 <<EOF
+
+────────────────────────────────────────
+✗ Commit message blocked by governance (agent-token-accounting).
+
+An agent-authored commit must carry the full trailer set and have a matching
+append-only row in COSTS.md. See:
+    governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md
+
+Bypass (CI will still enforce on PR):
+    SKIP_GOVERNANCE=1 git commit ...
+    git commit --no-verify
+────────────────────────────────────────
+EOF
+        exit 1
+    fi
 fi
 
 exit 0
