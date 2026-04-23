@@ -14,13 +14,13 @@ The `governance-bootstrap` skill sets up the system of record. **This skill evol
 
 Governance-driven development's cardinal rule: *the constitution and the enforcing tests evolve together, in one commit.* This skill makes obeying that rule cheap and makes breaking it harder than following it.
 
-Every amendment this skill produces is three logical changes, staged atomically:
+Every amendment this skill produces is three logical changes, committed atomically:
 
 1. A new (or updated) test script at `tests/governance/rules/<rule-name>.sh`.
 2. A new **Invariants** subsection in `CONSTITUTION.md`.
 3. A new entry in the `CONSTITUTION.md` **Evolution Log**.
 
-The skill does **not** commit. The user reviews and commits. But the amendment is staged together and the skill refuses to finish with a partial amendment on disk.
+The skill stages and **commits** the amendment in one conventional-commit. Review happens on the PR — the skill does not run inline approval loops, because the workflow this skill is built for relies on PR review as the gate. The skill still refuses to finish with a partial amendment on disk.
 
 ## Negative triggers
 
@@ -37,10 +37,11 @@ Do **not** use this skill for these requests:
 |---|---|
 | Governance kit is missing | Stop and tell the user to run `governance-bootstrap` first. |
 | User asks for a general review or health check | Do not amend. Redirect to `governance-gardener`. |
-| Request names a concrete rule, rationale, and check shape | Use the fast path. |
-| Request is missing rationale or check logic | Ask one concise question at a time until it is implementable. |
-| Request updates an existing rule | Preserve the existing rationale unless the user explicitly changes the policy intent. |
+| Request has enough info to draft the rule | Draft, smoke-test, commit. No approval loop — PR review is the review layer. |
+| Request is missing rationale or check logic | Ask only the blocking question(s). Do not ask for approval of drafts that are already unambiguous. |
+| Request updates an existing rule | Preserve the existing rationale unless the user explicitly changes the policy intent. Note the update in the summary. |
 | Request removes a rule | Remove the test and invariant together, add an evolution-log entry, and surface dangling references. |
+| Smoke test fails on pre-existing violators | Ask one blocking question — **loosen** (which threshold), **grandfather** (add waivers to the specific violators), or **block** (commit as-is, user fixes tree separately). Act on the answer, then commit. Do not punt a red-CI PR to the reviewer. |
 | Structured question tools are unavailable | Use short free-text questions instead of stopping. |
 
 ---
@@ -80,20 +81,16 @@ Before you draft anything, write down an explicit **intent map** for yourself:
 | **Enforcement surface** | Repo-at-rest scan, staged diff, or branch diff in CI. |
 | **Why this surface fits** | One sentence tying the check shape back to the bad merge. |
 
-If any field is ambiguous, **ask one question at a time** via `AskUserQuestion` or free text — don't dump a four-question form on the user. The most common blocker is "check logic" being too vague; iterate until you have something concrete enough to write bash that either passes or fails deterministically.
+If a **blocking** field is missing (no rationale, or check logic so vague the bash cannot be deterministic), **ask only that blocking question** via `AskUserQuestion` or free text. Never ask for approval of a draft that is already implementable — the PR is the review surface, not the skill's transcript. One question at a time; do not dump a multi-field form.
 
 If the user's rationale says "every substantive change must...", "this kind of change must also...", "reviewers keep missing intent/approval/metadata", or anything else that describes a missing companion artifact in a change set, classify it as a **change-set obligation** unless the user explicitly says otherwise.
 
-Use two operating modes:
-- **Fast path** — if the user's request already names a concrete rule, rationale, and check shape, draft the amendment directly, smoke-test it, and then show the result.
-- **Interactive path** — if rule scope, rationale, or check logic is ambiguous, ask one concise question at a time until the rule is concrete enough to implement safely.
+Default operating mode is **fast path**: draft → syntax-check → smoke-test → edit constitution → stage → commit. Ask a clarifying question only when the intent map cannot be filled in from the user's request. If structured question tools are unavailable, use short free-text questions instead of stopping.
 
-If structured question tools are unavailable, use short free-text questions instead of stopping.
-
-**Check for collisions before you proceed:**
-- If `tests/governance/rules/<name>.sh` already exists → this is an **update**, not a new rule. Confirm with the user before overwriting, and treat the matching `CONSTITUTION.md` subsection as an update too (not a new insertion).
-- If `CONSTITUTION.md` already has a subsection whose header closely matches the proposed name → same thing, confirm.
-- If the user asked to **remove** a rule, confirm the matching script and invariant exist before you start deleting. Also grep for dangling references in docs or CI notes before finishing.
+**Handle collisions without asking for confirmation:**
+- If `tests/governance/rules/<name>.sh` already exists → this is an **update**, not a new rule. Proceed with the update (preserving rationale unless policy intent changes) and note it in the summary. Treat the matching `CONSTITUTION.md` subsection as an update too.
+- If `CONSTITUTION.md` already has a subsection whose header closely matches the proposed name → same: proceed with update, note it.
+- If the user asked to **remove** a rule, verify the matching script and invariant exist before deleting, and grep for dangling references in docs or CI notes. If references exist, surface them in the summary — do not silently delete around them.
 
 Do not proceed until the intent map is coherent. A valid amendment needs a concrete bad merge, a policy surface, and a check shape that would actually fail that bad merge.
 
@@ -115,21 +112,21 @@ Choose the inspection surface to match the intent map:
 - `change-set obligation` rules inspect the staged diff locally and the branch diff in CI. Do not collapse these into existence checks just because existence checks are easier to write.
 - If you cannot enforce the intended surface mechanically, stop and tell the user the rule is not ready yet. Do not ship a knowingly weak proxy without calling it out and getting explicit buy-in.
 
-Syntax-check it: `bash -n tests/governance/rules/<name>.sh`. If it fails, fix and re-check. Do not put syntactically broken bash in front of the user.
+Syntax-check it: `bash -n tests/governance/rules/<name>.sh`. If it fails, fix and re-check. Never ship syntactically broken bash.
 
-On the **interactive path**, show the draft and ask whether it's the check they want. Iterate. When the user signs off, write it to disk.
-
-On the **fast path**, write the script once it passes syntax check, then show the user the resulting rule and any smoke-test output. Do not stop for approval unless the smoke test reveals ambiguity or the rule would require waivers or repo fixes the user did not ask for.
+Write the script once it passes syntax check. Do not pause for user approval of the draft — PR review is the review layer. The only reason to stop mid-draft is a missing *blocking* input (rationale, or check shape so vague the bash cannot be deterministic); ask that one question and continue.
 
 ### Step 4 — Smoke-test the script
 
 Run `bash tests/governance/rules/<name>.sh` against the current repo and capture the result.
 
 - **Exits 0 (passes)** — fine. The rule isn't flagging the current tree. Proceed.
-- **Exits 1 (fails)** — show the user the output and ask: is this a real violation that needs fixing now, or is the rule overly strict? They choose: (a) fix the code so the rule passes, or (b) loosen the rule, or (c) add a waiver comment for the specific existing cases.
-- **Any other exit code / crashes** — the rule has a bug. Back to Step 3.
-
-Never ship an amendment that crashes. Exit-1 is legitimate (that's a rule detecting a violation); exit-2+ or a stack trace is a broken rule.
+- **Exits 1 (fails)** — real rule output, pre-existing violators. This is the one case where a **single blocking question** is required before commit, because the resolution branches on user intent in a way the skill cannot decide mechanically. Show the verbatim violator list and ask the user to pick exactly one:
+  1. **Loosen** — the rule is too strict; adjust the threshold / pattern / scope before committing. (Ask which threshold or scope to relax if the change isn't obvious from their answer.)
+  2. **Grandfather** — the violators are pre-existing tech debt the user is willing to carry. Add waiver comments to the specific files/lines so CI stays green, then commit. The grandfathering is a reviewable diff.
+  3. **Block** — the violators are real bugs. Commit the amendment as-is (CI will go red), and the user fixes the tree in a follow-up before merging.
+  Then act on the chosen resolution and commit. Do **not** punt a red-CI PR to the reviewer by default — PR review is the review layer for the *rule*, not for triaging its collateral damage. "Block" is a valid choice when the user means it, but it's a choice, not a fallback.
+- **Any other exit code / crashes** — the rule has a bug. Back to Step 3. Never ship an amendment that crashes.
 
 For `change-set obligation` rules, also smoke-test the failure mode itself whenever feasible. The minimum bar is to create or identify a representative changed-path scenario and verify the rule fails when the required companion artifact is missing, not just that it passes on the current tree. If you cannot exercise the missing-companion case safely in the repo, say so explicitly in the final summary.
 
@@ -160,13 +157,26 @@ If this is an **update** to an existing rule, preserve the original rationale un
 
 Use today's date from the session environment (not a placeholder).
 
-### Step 6 — Stage the three artifacts
+### Step 6 — Stage and commit the three artifacts
 
 Use `git add -A tests/governance/rules/<rule-name>.sh CONSTITUTION.md` so removals are staged correctly too.
 
 Then run `git status` to confirm the three changes are staged and nothing else unrelated is picked up. If other unstaged changes exist, leave them unstaged — they're not part of this amendment.
 
-**Do not commit.** The user commits, with a message they write. Suggest a commit message in the summary (Step 7) but don't run `git commit`.
+**Commit** using a Conventional Commits subject matching the action:
+
+- Added rule: `feat(governance): add <rule-name> — <one-line summary>`
+- Updated rule: `refactor(governance): <one-line summary of what tightened/loosened> (<rule-name>)` (or `feat` if the update materially changes policy intent)
+- Removed rule: `chore(governance): remove <rule-name> — <one-line reason>`
+
+Append the issue anchor the repo requires (`conventional-commits` enforces `(#N)` in this kit by default). If the user did not name an issue, ask for it as a blocking input — it's a repo invariant, not a style preference.
+
+The commit body should include:
+- A two-line summary of what the amendment does and why.
+- If smoke-test exited 1: the verbatim violator list so the PR reviewer can act on it.
+- Any material assumptions.
+
+Pass the message via a HEREDOC so the formatting survives the shell. Do **not** push; the user (or the outer agent step) handles push. The skill's job ends at the local commit — PR review is the review layer, but opening the PR is not this skill's scope.
 
 ### Step 7 — Report to the user
 
@@ -175,12 +185,12 @@ Print:
 - The action type: added, updated, or removed.
 - The three files changed (with paths).
 - The intent map: bad merge to block, policy surface, and chosen enforcement surface.
-- Smoke-test result: pass, fail-with-real-violation, or crashed-then-fixed.
-- Staged status: confirm the intended amendment files are staged and unrelated files are not.
-- A suggested commit message in Conventional Commits format: `feat(governance): add <rule-name> — <one-line summary>`
+- Smoke-test result: pass, fail-with-violators (list them), or crashed-then-fixed.
+- Commit status: the SHA and subject of the commit the skill just made.
 - How to test locally: `bash tests/governance/run.sh <rule-name>`
 - Assumptions made. If none, say `Assumptions: none`.
 - A reminder that the pre-commit hook and CI workflow already pick up the new rule — no hook reinstall needed.
+- Next step for the user: `git push` to open the PR-review cycle (the real review gate).
 
 ## Required final output
 
@@ -189,27 +199,27 @@ Every successful run should include:
 - `Rule:` name
 - `Action:` added, updated, or removed
 - `Files changed:` list
-- `Smoke test:` result
-- `Staged:` yes/no summary
+- `Smoke test:` result (with violator list if exit-1)
+- `Committed:` `<short-sha> <conventional-commit subject>`
 - `Assumptions:` any material assumptions, or `none`
-- `Suggested commit:` conventional-commit subject
+- `Next:` `git push` to open the PR-review cycle
 
 ---
 
 ## Key design rules
 
 - **Three artifacts or nothing.** If you can only produce two of the three (e.g., the script is ambiguous and can't be written yet), stop and report. Do not edit `CONSTITUTION.md` for a rule whose test doesn't exist yet, and do not write a test whose invariant isn't in the constitution. That is exactly the drift this skill is built to prevent.
-- **Fast path when the request is concrete.** Do not force an approval loop for an obvious, well-specified amendment.
-- **Iterate on the check when it is ambiguous.** A staged half-baked rule is worse than no rule — if the rule shape is unclear, slow down and clarify before staging.
-- **Never invent rationale.** If the user didn't give a reason, ask. "Because it's best practice" is not a rationale — governance derives authority from *named* incidents and *real* constraints. A rule without one is a speed bump nobody respects.
+- **PR review is the review layer, not the skill.** Don't ask the user to sign off on a draft before you write it, and don't ask them to resolve smoke-test violators inline. Commit the amendment, surface the information they need to review on the PR, and let that be the gate.
+- **Block only on genuinely missing inputs.** Rationale and a deterministic check shape are not optional — if either is missing from the user's request, ask a single targeted question. Everything else (threshold exact value, wording choices, alphabetical ordering) the skill decides and the reviewer adjusts.
+- **Never invent rationale.** "Because it's best practice" is not a rationale — governance derives authority from *named* incidents and *real* constraints. A rule without one is a speed bump nobody respects.
 - **Preserve policy intent on updates.** Threshold tweaks and mechanical refinements should not silently rewrite the rationale.
 - **Strengthen weak proxies, do not preserve them by default.** If an existing rule claims to enforce per-change behavior but only checks repo-level existence or file shape, treat that mismatch as drift worth fixing, not a quirk to copy forward.
 - **Choose the check shape by failure mode.** Ask what bad merge this rule is meant to block. If the answer is "a future change that forgot to do X", the test should inspect the staged diff or branch diff rather than only the repo at rest.
 - **Name the policy surface explicitly.** Every amendment must classify the rule as `repo-state` or `change-set obligation` before any bash is written. If you cannot make that classification, you do not understand the rule yet.
 - **A passing smoke test is not enough for change-set rules.** If the rule is supposed to fail a missing companion artifact, prove that scenario fails or say why you could not exercise it. "It passes on the current repo" is not evidence that the right merge would be blocked.
 - **Respect existing formatting.** The constitution is a living document. Match the indent style, list marker, and heading level conventions already in the file. Don't rewrite prose the user has been tending to.
-- **State material assumptions explicitly.** If you inferred the rule name, summary line, or author handle, surface that in the summary.
-- **Don't commit.** The skill ends at `git add`, not `git commit`. The user's review is the final gate.
+- **State material assumptions explicitly.** Surface them in the commit body and the summary; the reviewer sees them on the PR.
+- **Commit, don't push.** The skill creates a local commit; pushing is a separate decision the user makes. The skill's boundary is one atomic commit.
 
 ## References
 

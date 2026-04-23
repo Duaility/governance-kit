@@ -46,3 +46,4 @@ Schema:
 | claude-code-b8c3537c-03c-1776912518 | claude-code | b8c3537c-03c3-4ba3-8e42-ceb02b2da58b | #13 |  | 0 | 1119082 | 48089930 | 103302 | 1222384 |  | refactor(governance): split cache tokens into own columns, move ledger to python |
 | claude-code-b8c3537c-03c-1776931918 | claude-code | b8c3537c-03c3-4ba3-8e42-ceb02b2da58b | #13 |  | 0 | 446668 | 7667667 | 58560 | 505228 |  | refactor(governance): exclude cache_read from COSTS.md total (#13) |
 | claude-code-b8c3537c-03c-1776933349 | claude-code | b8c3537c-03c3-4ba3-8e42-ceb02b2da58b | #13 | claude-opus-4-7 | 0 | 212534 | 10138629 | 104827 | 317361 | 9.0183 | feat(governance): add model + cost-usd columns, rename total to new-work (#13) |
+| claude-code-b8c3537c-03c-1776934117 | claude-code | b8c3537c-03c3-4ba3-8e42-ceb02b2da58b | #13 | claude-opus-4-7 | 0 | 66335 | 6967296 | 44506 | 110841 | 5.0109 | refactor(governance-amend): drop inline approval loops, commit atomically (#13) |
