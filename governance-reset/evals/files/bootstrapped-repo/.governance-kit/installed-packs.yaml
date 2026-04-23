@@ -1,31 +1,21 @@
-# Written by governance-bootstrap on 2026-01-15.
-version: 1
+version: "1"
 generated_at: 2026-01-15T09:00:00Z
-bootstrap_version: "0.2"
-
 hook_strategy: githooks
 stack: bash
-
-packs:
-  - id: core
-    version: "0.2"
-    rules:
-      - id: constitution-exists
-        installed_path: tests/governance/rules/constitution-exists
-        hook: none
-      - id: no-secrets
-        installed_path: tests/governance/rules/no-secrets
-        hook: none
-
 constitution: true
 ci_workflow: .github/workflows/governance.yml
 tests_dir: tests/governance
-
+agents_md_directive: true
+agents_md_created: false
+packs:
+  - id: core
+    version: "0.1"
+    rules:
+      - id: constitution-exists
+        installed_path: tests/governance/rules/constitution-exists
+      - id: no-secrets
+        installed_path: tests/governance/rules/no-secrets
 install_assets_seeded:
   - QUALITY.md
   - COSTS.md
-
-agents_md_created: false
-agents_md_directive: true
-
 collisions: []

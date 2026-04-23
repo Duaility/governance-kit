@@ -172,18 +172,23 @@ Every commit closes `(#25)` and touches this plan file to satisfy
 6. **Commit 6 — Reset alignment.** Makes reset consume what bootstrap
    now emits and adds legacy fallbacks for repos bootstrapped before
    commit 5:
-   - Rewrite `governance-reset/references/MANIFEST_SCHEMA.md` around
-     the real v1 schema as the current shape, with a legacy-fallback
+   - Rewrote `governance-reset/references/MANIFEST_SCHEMA.md` around
+     the real v1 schema (what bootstrap actually emits — quoted
+     `version: "1"`, no per-rule `hook` duplication, flat `extra`
+     collision field) as the current shape, with a legacy-fallback
      section covering v0.1 (the pre-PR-#26 flat manifest) and the
      heuristic fallback when no manifest exists.
-   - Add an opening-marker-only `AGENTS.md` heuristic in the reset
-     SKILL.md: if only the opening marker is present (pre-commit-5
-     bootstrap runs), strip-until-next-`##` at lower confidence and
-     require an extra confirm.
-   - Regenerate
+   - Added an opening-marker-only `AGENTS.md` heuristic: if only the
+     opening marker is present (pre-commit-5 bootstrap runs),
+     strip-until-next-`^## ` at lower confidence and require an extra
+     confirm. Documented in both the schema ref and the reset
+     SKILL.md (interaction-policy table + Step 5 AGENTS.md surgery).
+   - Regenerated
      `governance-reset/evals/files/bootstrapped-repo/.governance-kit/installed-packs.yaml`
-     to match real v1 output byte-for-byte so the fixture is no longer
-     a strawman for what bootstrap writes.
+     to match real v1 output byte-for-byte (verified against a live
+     `write_installed_manifest` invocation, modulo the `generated_at`
+     timestamp) so the fixture is no longer a strawman for what
+     bootstrap writes.
 
 ## Out of scope
 

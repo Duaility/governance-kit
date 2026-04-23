@@ -36,6 +36,8 @@ Do **not** use this skill for these requests:
 | Repo is not a git repo | Stop. Reset operates on a tracked governance surface, which requires git. |
 | Manifest present, artifacts present, markers consistent | Proceed. Manifest is the source of truth. |
 | Manifest missing, artifacts detected (`CONSTITUTION.md` + `tests/governance/` + marked hooks) | Force **dry-run** by default. Require explicit opt-in before executing a destructive mode. |
+| Manifest present but `version` ≠ `"1"` (legacy v0.1 shape) | Fall back to heuristic detection for fields absent in v0.1. Proceed; log every assumption in the Step 6 report. See [references/MANIFEST_SCHEMA.md](references/MANIFEST_SCHEMA.md#legacy-fallback--v01--pre-pr-26-manifests). |
+| `AGENTS.md` has the opening `<!-- governance: rules-to-follow -->` but **not** the matching closing marker | Classify as `directive-block-unbounded`. Strip from the opening marker up to the next `^## ` heading. Require an extra confirm (the block boundary is inferred, not marker-bounded). See [references/MANIFEST_SCHEMA.md](references/MANIFEST_SCHEMA.md#agentsmd-opening-marker-only-heuristic). |
 | Manifest missing, no artifacts detected | Report "nothing to remove" and exit. Idempotent no-op. |
 | Unmarked hook at a path we would delete | Stop. Offer the same three choices bootstrap's collision flow offers (wrap, skip, overwrite with backup) — but here they are *restore wrap*, *leave alone*, *delete with backup*. |
 | `core.hooksPath` points somewhere other than `.githooks/` | Do **not** unset. The user changed it themselves. Warn in the report. |
@@ -146,7 +148,11 @@ Delete and restore in this order (deliberate — the manifest is read last so it
 
 1. **Hooks first.** Delete `.githooks/<name>` that carry the marker. Rename `<name>.userhook` siblings back to `<name>`. Never delete unmarked hooks — those were resolved in Step 4 or skipped.
 2. **Git config.** If `core.hooksPath` still equals `.githooks`, run `git config --unset core.hooksPath`. If the value changed since install or was cleared manually, leave it alone and note in the report.
-3. **AGENTS.md surgery.** Read the file, locate the marker-bounded block, and remove it. Run a byte-diff on the remainder and abort the whole reset if any non-block line changed. If the manifest records `agents_md_created: true` (bootstrap's Step 4b Case 2), offer to delete the file entirely in hard mode; keep it in soft mode.
+3. **AGENTS.md surgery.** Read the file and remove the directive block.
+   - **Paired-marker path (v1 directive):** locate `<!-- governance: rules-to-follow -->` and `<!-- /governance: rules-to-follow -->` and delete the span (inclusive of both marker lines, plus the blank line immediately after the closing marker if present).
+   - **Opening-marker-only path (pre-PR-#26 directive):** if only the opening marker is present, strip from that line up to — but not including — the next `^## ` heading (or end-of-file). Record the heuristic in the report's `Assumptions:` line.
+   - Run a byte-diff on the remainder and abort the whole reset if any non-block line changed.
+   - If the manifest records `agents_md_created: true` (bootstrap's Step 4b Case 2), offer to delete the file entirely in hard mode; keep it in soft mode.
 4. **Tree deletes.** `CONSTITUTION.md`, `tests/governance/` (recursive), `.github/workflows/governance.yml`.
 5. **Path B.** If the repo uses husky or `pre-commit`, remove only the governance entries from the framework's config file (keep every other hook intact). Use the manifest's `path_b_entries` list if present; otherwise grep for entries that invoke `tests/governance/run.sh`.
 6. **Seeded docs.** In soft mode: preserve, report as orphaned. In hard mode: delete `QUALITY.md`, `COSTS.md`, and every path the manifest lists under `install_assets_seeded`.
