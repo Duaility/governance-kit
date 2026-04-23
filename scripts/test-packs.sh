@@ -17,13 +17,20 @@ set -u
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 PACKS_ROOT="$ROOT/governance-bootstrap/assets/packs"
 LOADER="$PACKS_ROOT/lib/packs.sh"
+HOOKS_LIB="$PACKS_ROOT/lib/hooks.sh"
 
 if [[ ! -f "$LOADER" ]]; then
     echo "✗ loader missing: $LOADER" >&2
     exit 1
 fi
+if [[ ! -f "$HOOKS_LIB" ]]; then
+    echo "✗ hooks lib missing: $HOOKS_LIB" >&2
+    exit 1
+fi
 # shellcheck disable=SC1090
 source "$LOADER"
+# shellcheck disable=SC1090
+source "$HOOKS_LIB"
 
 fail=0
 pack_count=0
@@ -64,6 +71,46 @@ while IFS=$'\t' read -r pack_id pack_dir; do
     # always_install is reserved to core — validate_pack already enforced
     # this above.
 done < <(list_packs "$PACKS_ROOT")
+
+printf '\n── hook generation smoke ─────────────────────────────────\n'
+
+# Build a spec file covering every rule with a non-none hook across all
+# packs, then ask the generator to emit hooks for them. This proves the
+# generator survives the manifest shapes our packs actually ship.
+hook_tmp="$(mktemp -d)"
+hook_spec="$hook_tmp/spec.tsv"
+: > "$hook_spec"
+while IFS=$'\t' read -r pack_id pack_dir; do
+    [[ -z "$pack_id" ]] && continue
+    while IFS= read -r rid; do
+        [[ -z "$rid" ]] && continue
+        hk=$(rule_field "$pack_dir" "$rid" hook 2>/dev/null || true)
+        surface=$(rule_field "$pack_dir" "$rid" surface 2>/dev/null || true)
+        [[ -z "$hk" || "$hk" == "none" ]] && continue
+        printf '%s\t%s\t%s\n' "$rid" "$hk" "$surface" >> "$hook_spec"
+    done < <(rules_for "$pack_dir")
+done < <(list_packs "$PACKS_ROOT")
+
+hook_out="$hook_tmp/hooks"
+mkdir -p "$hook_out"
+if generate_hooks "$hook_out" "test" "$hook_spec"; then
+    for h in "$hook_out"/*; do
+        [[ -f "$h" ]] || continue
+        if ! bash -n "$h"; then
+            printf '  ✗ generated %s fails syntax check\n' "$(basename "$h")"
+            fail=1
+        elif ! hook_has_marker "$h"; then
+            printf '  ✗ generated %s missing ownership marker\n' "$(basename "$h")"
+            fail=1
+        else
+            printf '  ✓ %s\n' "$(basename "$h")"
+        fi
+    done
+else
+    printf '  ✗ generate_hooks failed\n'
+    fail=1
+fi
+rm -rf "$hook_tmp"
 
 printf '\n── pack evals ────────────────────────────────────────────\n'
 

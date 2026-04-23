@@ -57,3 +57,4 @@ Schema:
 | claude-code-2ee76956-1f7-1776942571 | claude-code | 2ee76956-1f71-48a1-b8ed-5f0da9c878ce | #23 | claude-opus-4-7 | 37 | 22399 | 4651804 | 13535 | 35971 | 2.8045 | refactor(packs): migrate rule scripts into core pack + add snippets (#23) |
 | claude-code-2ee76956-1f7-1776942768 | claude-code | 2ee76956-1f71-48a1-b8ed-5f0da9c878ce | #23 | claude-opus-4-7 | 27 | 33737 | 3958194 | 17384 | 51148 | 2.6247 | feat(packs): promote this repo's rules into agent-governance pack (#23) |
 | claude-code-2ee76956-1f7-1776943072 | claude-code | 2ee76956-1f71-48a1-b8ed-5f0da9c878ce | #23 | claude-opus-4-7 | 21 | 43243 | 1004234 | 21652 | 64916 | 1.3138 | docs(packs): rewrite governance-bootstrap SKILL.md for pack flow (#23) |
+| claude-code-2ee76956-1f7-1776943230 | claude-code | 2ee76956-1f71-48a1-b8ed-5f0da9c878ce | #23 | claude-opus-4-7 | 31 | 32830 | 1417967 | 22284 | 55145 | 1.4714 | feat(packs): manifest-driven hook generator + collision detection (#23) |
