@@ -27,6 +27,7 @@ patterns=(
 excludes=(
     ":!tests/governance/rules/no-secrets.sh"
     ":!CONSTITUTION.md"
+    ":!governance-bootstrap/assets/packs/*/evals/**"
     ":!*.lock"
     ":!*.lockfile"
     ":!package-lock.json"

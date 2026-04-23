@@ -24,7 +24,8 @@ while IFS=: read -r file line_no match; do
         continue
     fi
     violation "$file:$line_no — $(echo "$match" | sed 's/^[[:space:]]*//' | cut -c1-80)"
-done < <(git grep -nE '\b(TODO|FIXME)\b' -- \
+# `--word-regexp` is portable across GNU and BSD git-grep; `\b` is not.
+done < <(git grep -nwE '(TODO|FIXME)' -- \
     ':!tests/governance/rules/no-orphan-todos.sh' \
     ':!CONSTITUTION.md' 2>/dev/null || true)
 

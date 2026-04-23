@@ -22,6 +22,10 @@ jobs:
         if: hashFiles('tests/governance/run.sh') != ''
         run: bash tests/governance/run.sh
 
+      - name: Validate shipped rule packs
+        if: hashFiles('scripts/test-packs.sh') != ''
+        run: bash scripts/test-packs.sh
+
       # ─── Native test runners (remove any that don't apply to this repo) ───
 
       - name: Set up Python

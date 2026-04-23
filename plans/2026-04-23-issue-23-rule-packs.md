@@ -138,7 +138,7 @@ every step.
 - [x] Step 3 — agent-governance pack
 - [x] Step 4 — SKILL.md activation-flow rewrite
 - [x] Step 5 — hook generation + collision detection
-- [ ] Step 6 — evals infrastructure + CI job
+- [x] Step 6 — evals infrastructure + CI job
 - [ ] Step 7 — docs updates
 - [ ] Step 8 — evolution-log entry
 

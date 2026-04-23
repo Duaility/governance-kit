@@ -16,6 +16,7 @@ while IFS=: read -r file line_no _; do
     # Skip this rule file — it contains the patterns as strings.
     [[ "$file" == tests/governance/rules/no-merge-conflict-markers.sh ]] && continue
     violation "$file:$line_no — merge conflict marker"
-done < <(git grep -InE '^(<<<<<<< |=======$|>>>>>>> )' 2>/dev/null || true)
+done < <(git grep -InE '^(<<<<<<< |=======$|>>>>>>> )' -- \
+    ':!governance-bootstrap/assets/packs/*/evals/**' 2>/dev/null || true)
 
 rule_end
