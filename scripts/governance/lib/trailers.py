@@ -1,0 +1,202 @@
+#!/usr/bin/env python3
+"""Commit-trailer parsing for agent-token-accounting.
+
+Trailers stamped onto agent-authored commits:
+
+    Agent:        free-form runtime identifier
+    Issue:        #N
+    Session:      runtime session / thread id
+    Token-Input:  non-negative int  (= input_tokens + cache_creation_input_tokens)
+    Token-Output: non-negative int  (= output_tokens)
+    Token-Total:  non-negative int  (= Token-Input + Token-Output)
+    Cost-Key:     <agent>-<session-short>-<epoch>
+
+This module is the data-processing side of the rule script's Mode A /
+Mode B validators — bash feeds a commit message on stdin or a file path,
+Python returns a JSON blob with `trailers` and `violations`.
+
+CLI:
+
+    python3 -m trailers validate <cost_key_found_in_ledger? 0|1> \\
+                                 <ledger_input> <ledger_cache_create> \\
+                                 <ledger_cache_read> <ledger_output> \\
+                                 <ledger_total> \\
+                                 [msg_file | -]
+
+        Stdin or file → commit message. Remaining args → the matching
+        ledger row's numeric columns (if cost_key_found_in_ledger == 1).
+        Prints one violation per line; exits 1 if any, 0 if clean.
+
+        When cost_key_found_in_ledger == 0, the ledger cross-check is
+        skipped and only the trailer-shape + math checks run. The bash
+        caller handles the "zero or multiple ledger rows" case separately.
+"""
+
+from __future__ import annotations
+
+import re
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+
+
+REQUIRED_TRAILERS = (
+    "Agent",
+    "Issue",
+    "Session",
+    "Token-Input",
+    "Token-Output",
+    "Token-Total",
+    "Cost-Key",
+)
+
+_INT_RE = re.compile(r"^[0-9]+$")
+_COST_KEY_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+@dataclass
+class Trailers:
+    agent: str = ""
+    issue: str = ""
+    session: str = ""
+    token_input: str = ""
+    token_output: str = ""
+    token_total: str = ""
+    cost_key: str = ""
+
+
+def parse(msg: str) -> dict[str, str]:
+    """Return a dict of trailer key → value. Keys are preserved as-is
+    (case-sensitive). Only the *last* occurrence of a given key wins, matching
+    git-interpret-trailers semantics for repeated keys."""
+    out: dict[str, str] = {}
+    for line in msg.splitlines():
+        # A trailer is `Key: value` at the start of the line — but only in the
+        # final paragraph. We accept any occurrence here; the rule script
+        # already limits scope to commit message bodies.
+        m = re.match(r"^([A-Za-z][A-Za-z0-9-]*):[ \t]*(.*)$", line)
+        if m:
+            out[m.group(1)] = m.group(2).strip()
+    return out
+
+
+def validate(
+    msg: str,
+    label: str,
+    *,
+    ledger_row: tuple[int, int, int, int, int] | None = None,
+) -> list[str]:
+    """Validate trailer set on a commit message.
+
+    Args:
+        msg: the full commit message.
+        label: prefix for violation strings (e.g. "pending commit" or a SHA).
+        ledger_row: if provided, a 5-tuple of
+            (input, cache_create, cache_read, output, total) from the ledger
+            row whose cost-key matches this commit. Cross-checks trailers
+            against those numbers. None means "skip the cross-check" — the
+            bash caller uses this when the ledger row is missing or duplicated
+            (handled separately).
+
+    Returns a list of violation strings (empty if clean).
+    """
+    trailers = parse(msg)
+    agent = trailers.get("Agent", "")
+    if not agent:
+        # Not an agent commit. Nothing to validate.
+        return []
+
+    violations: list[str] = []
+
+    missing = [k for k in REQUIRED_TRAILERS if not trailers.get(k)]
+    if missing:
+        violations.append(
+            f"{label} — declares Agent: '{agent}' but is missing trailers: "
+            + " ".join(missing)
+        )
+        return violations
+
+    t_input = trailers["Token-Input"]
+    t_output = trailers["Token-Output"]
+    t_total = trailers["Token-Total"]
+    cost_key = trailers["Cost-Key"]
+
+    if not (_INT_RE.match(t_input) and _INT_RE.match(t_output) and _INT_RE.match(t_total)):
+        violations.append(
+            f"{label} — Token-Input/Output/Total must be non-negative integers "
+            f"(got '{t_input}', '{t_output}', '{t_total}')"
+        )
+        return violations
+
+    if int(t_input) + int(t_output) != int(t_total):
+        violations.append(
+            f"{label} — Token-Total ({t_total}) != Token-Input ({t_input}) + Token-Output ({t_output})"
+        )
+
+    if not _COST_KEY_RE.match(cost_key):
+        violations.append(
+            f"{label} — Cost-Key '{cost_key}' contains invalid characters "
+            f"(allowed: A-Z a-z 0-9 . _ -)"
+        )
+
+    # Cross-check against the ledger row when one was found.
+    if ledger_row is not None:
+        row_input, row_cache_create, row_cache_read, row_output, row_total = ledger_row
+        # Trailer Token-Input = row.input + row.cache_create
+        # Trailer Token-Output = row.output
+        expected_trailer_input = row_input + row_cache_create
+        expected_trailer_output = row_output
+        if int(t_input) != expected_trailer_input or int(t_output) != expected_trailer_output:
+            violations.append(
+                f"{label} — COSTS.md row for '{cost_key}' disagrees with commit trailers "
+                f"(trailer input/output: {t_input}/{t_output}, "
+                f"row input+cache_create / output: "
+                f"{row_input}+{row_cache_create}={expected_trailer_input} / {row_output})"
+            )
+
+    return violations
+
+
+# ── CLI ───────────────────────────────────────────────────────────────────
+
+
+def _read_msg(path_or_dash: str) -> str:
+    if path_or_dash == "-":
+        return sys.stdin.read()
+    return Path(path_or_dash).read_text()
+
+
+def _cmd_validate(argv: list[str]) -> int:
+    if len(argv) < 8:
+        print(
+            "trailers validate: <label> <cost_key_found_in_ledger: 0|1> "
+            "<input> <cache_create> <cache_read> <output> <total> "
+            "[msg_file | -]",
+            file=sys.stderr,
+        )
+        return 2
+    label = argv[0]
+    found = argv[1] == "1"
+    row_ints = [int(x) for x in argv[2:7]]
+    msg_src = argv[7] if len(argv) > 7 else "-"
+    msg = _read_msg(msg_src)
+    ledger_row = tuple(row_ints) if found else None  # type: ignore[assignment]
+    violations = validate(msg, label, ledger_row=ledger_row)  # type: ignore[arg-type]
+    for v in violations:
+        print(v)
+    return 1 if violations else 0
+
+
+def main(argv: list[str]) -> int:
+    if not argv or argv[0] in ("-h", "--help"):
+        print(__doc__)
+        return 0 if argv else 2
+    cmd, rest = argv[0], argv[1:]
+    if cmd == "validate":
+        return _cmd_validate(rest)
+    print(f"trailers: unknown command {cmd!r}", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

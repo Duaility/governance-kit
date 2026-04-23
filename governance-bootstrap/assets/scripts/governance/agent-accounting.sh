@@ -16,13 +16,18 @@
 #   CODEX_THREAD_ID set          → codex
 #   AGENT_NAME set manually      → whatever the user said, with explicit
 #                                   AGENT_SESSION_ID / AGENT_CUM_INPUT /
-#                                   AGENT_CUM_OUTPUT
+#                                   AGENT_CUM_CACHE_CREATE /
+#                                   AGENT_CUM_CACHE_READ / AGENT_CUM_OUTPUT
 # Otherwise the commit is treated as a human commit and this script no-ops.
 #
 # Issue anchor inference reads the parent git process's argv via
 # /proc/$PPID/cmdline (Linux) or `ps -ww -p $PPID -o args=` (macOS) to find a
 # `(#N)` in the -m / --message subject. Set AGENT_ISSUE='#N' explicitly to
 # skip inference (useful for editor-mode commits where argv has no -m).
+#
+# All COSTS.md parsing / summing / appending goes through
+# scripts/governance/lib/ledger.py — bash here only handles git plumbing,
+# environment detection, argv walking, and the env-file handoff.
 
 set -u
 
@@ -46,6 +51,7 @@ fi
 ROOT="$(git rev-parse --show-toplevel)"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 LEDGER="$ROOT/COSTS.md"
+LIB="$HERE/lib"
 # In a worktree `.git` is a pointer file, not a directory. Use rev-parse
 # to locate the real per-worktree git dir so the handoff file writes cleanly.
 HANDOFF="$(git rev-parse --git-path governance-pending.env)"
@@ -104,18 +110,21 @@ EOF
 fi
 
 # ── Pull a subject for the ledger's note column (best-effort) ──
-# BSD ps escapes newlines in args as literal `\012` sequences, so truncate
-# the captured message at the first backslash-escape — that's the subject.
+# BSD ps escapes newlines in args as literal `\012` sequences; ledger.py's
+# _safe_cell truncates at the first backslash on write, so here we just
+# pass the raw captured blob through.
 SUBJECT=""
 if [[ "$ARGV" =~ [[:space:]](-m|--message)[[:space:]]+(.+) ]]; then
-    SUBJECT="${BASH_REMATCH[2]%%\\*}"
+    SUBJECT="${BASH_REMATCH[2]}"
 elif [[ "$ARGV" =~ --message=(.+) ]]; then
-    SUBJECT="${BASH_REMATCH[1]%%\\*}"
+    SUBJECT="${BASH_REMATCH[1]}"
 fi
 
 # ── Runtime dispatch: get session id + cumulative tokens ───────
 SESSION_ID=""
 CUM_INPUT=0
+CUM_CACHE_CREATE=0
+CUM_CACHE_READ=0
 CUM_OUTPUT=0
 case "$RUNTIME" in
     claude-code)
@@ -123,7 +132,7 @@ case "$RUNTIME" in
             echo "✗ claude-code: transcript not found or unreadable" >&2
             exit 1
         fi
-        read -r SESSION_ID CUM_INPUT CUM_OUTPUT <<<"$out"
+        read -r SESSION_ID CUM_INPUT CUM_CACHE_CREATE CUM_CACHE_READ CUM_OUTPUT <<<"$out"
         AGENT_NAME="claude-code"
         ;;
     codex)
@@ -131,7 +140,7 @@ case "$RUNTIME" in
             echo "✗ codex: transcript not found or unreadable" >&2
             exit 1
         fi
-        read -r SESSION_ID CUM_INPUT CUM_OUTPUT <<<"$out"
+        read -r SESSION_ID CUM_INPUT CUM_CACHE_CREATE CUM_CACHE_READ CUM_OUTPUT <<<"$out"
         AGENT_NAME="codex"
         ;;
     manual)
@@ -146,43 +155,39 @@ case "$RUNTIME" in
         require AGENT_CUM_OUTPUT
         SESSION_ID="$AGENT_SESSION_ID"
         CUM_INPUT="$AGENT_CUM_INPUT"
+        CUM_CACHE_CREATE="${AGENT_CUM_CACHE_CREATE:-0}"
+        CUM_CACHE_READ="${AGENT_CUM_CACHE_READ:-0}"
         CUM_OUTPUT="$AGENT_CUM_OUTPUT"
         ;;
 esac
 
-if ! [[ "$CUM_INPUT" =~ ^[0-9]+$ && "$CUM_OUTPUT" =~ ^[0-9]+$ ]]; then
-    echo "✗ cumulative token values must be non-negative integers (got '$CUM_INPUT'/'$CUM_OUTPUT')" >&2
-    exit 1
-fi
+for var in CUM_INPUT CUM_CACHE_CREATE CUM_CACHE_READ CUM_OUTPUT; do
+    val="${!var}"
+    if ! [[ "$val" =~ ^[0-9]+$ ]]; then
+        echo "✗ $var must be a non-negative integer (got '$val')" >&2
+        exit 1
+    fi
+done
 
 # ── Compute per-commit delta from prev rows for this session ──
-# Column layout under `awk -F'|'`:
-#   $1 empty | $2 cost-key | $3 agent | $4 session | $5 issue |
-#   $6 input | $7 output   | $8 total | $9 note    | $10 empty
-PREV_INPUT=0
-PREV_OUTPUT=0
-if [[ -f "$LEDGER" ]]; then
-    read -r PREV_INPUT PREV_OUTPUT < <(
-        awk -F'|' -v sid="$SESSION_ID" '
-            /^[[:space:]]*\|/ {
-                n = split($0, c, "|")
-                if (n < 9) next
-                for (i = 2; i <= 8; i++) gsub(/^[[:space:]]+|[[:space:]]+$/, "", c[i])
-                if (c[2] == "cost-key" || c[2] ~ /^-+$/ || c[2] == "") next
-                if (c[4] != sid) next
-                tin  += c[6] + 0
-                tout += c[7] + 0
-            }
-            END { print (tin+0) " " (tout+0) }
-        ' "$LEDGER"
-    )
-fi
+read -r PREV_INPUT PREV_CACHE_CREATE PREV_CACHE_READ PREV_OUTPUT < <(
+    python3 "$LIB/ledger.py" sum-by-session "$LEDGER" "$SESSION_ID"
+)
 
-TOKEN_INPUT=$(( CUM_INPUT  - PREV_INPUT  ))
-TOKEN_OUTPUT=$(( CUM_OUTPUT - PREV_OUTPUT ))
-(( TOKEN_INPUT  < 0 )) && TOKEN_INPUT=0
-(( TOKEN_OUTPUT < 0 )) && TOKEN_OUTPUT=0
-TOKEN_TOTAL=$(( TOKEN_INPUT + TOKEN_OUTPUT ))
+TOKEN_INPUT=$(( CUM_INPUT         - PREV_INPUT         ))
+TOKEN_CACHE_CREATE=$(( CUM_CACHE_CREATE - PREV_CACHE_CREATE ))
+TOKEN_CACHE_READ=$(( CUM_CACHE_READ   - PREV_CACHE_READ   ))
+TOKEN_OUTPUT=$(( CUM_OUTPUT        - PREV_OUTPUT        ))
+(( TOKEN_INPUT         < 0 )) && TOKEN_INPUT=0
+(( TOKEN_CACHE_CREATE  < 0 )) && TOKEN_CACHE_CREATE=0
+(( TOKEN_CACHE_READ    < 0 )) && TOKEN_CACHE_READ=0
+(( TOKEN_OUTPUT        < 0 )) && TOKEN_OUTPUT=0
+
+# Trailer contract: Token-Input = new-work tokens = input + cache_create.
+# cache_read is NOT in the trailer — it's the same bytes re-read, not new work.
+TRAILER_INPUT=$(( TOKEN_INPUT + TOKEN_CACHE_CREATE ))
+TRAILER_OUTPUT=$TOKEN_OUTPUT
+TRAILER_TOTAL=$(( TRAILER_INPUT + TRAILER_OUTPUT ))
 
 # ── Compute cost-key ──────────────────────────────────────────
 SESSION_SHORT="${SESSION_ID:0:12}"
@@ -190,29 +195,11 @@ SESSION_SHORT="${SESSION_SHORT%%[-._]}"
 COST_KEY="${AGENT_COST_KEY:-${AGENT_NAME}-${SESSION_SHORT}-$(date +%s)}"
 
 # ── Append the ledger row ─────────────────────────────────────
-if [[ ! -f "$LEDGER" ]]; then
-    cat > "$LEDGER" <<'LEDGER_EOF'
-<!-- COSTS.md — append-only agent token-accounting ledger -->
-<!-- governance: allow-plan-captured -->
-
-# COSTS.md
-
-Append-only ledger of token consumption for agent-authored commits. Rows are
-keyed by `Cost-Key`, which survives squash merges. Do not rewrite or reorder
-rows; this file is auditable history.
-
-## Ledger
-
-| cost-key | agent | session | issue | input | output | total | note |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-LEDGER_EOF
-fi
-
-NOTE=$(printf '%s' "$SUBJECT" | tr -d '|' | tr -d '\000-\037' | cut -c 1-80)
-printf '| %s | %s | %s | %s | %s | %s | %s | %s |\n' \
+python3 "$LIB/ledger.py" append-row \
+    "$LEDGER" \
     "$COST_KEY" "$AGENT_NAME" "$SESSION_ID" "$ISSUE" \
-    "$TOKEN_INPUT" "$TOKEN_OUTPUT" "$TOKEN_TOTAL" "$NOTE" \
-    >> "$LEDGER"
+    "$TOKEN_INPUT" "$TOKEN_CACHE_CREATE" "$TOKEN_CACHE_READ" "$TOKEN_OUTPUT" \
+    "$SUBJECT"
 git add "$LEDGER"
 
 # ── Hand off to prepare-commit-msg via env file ───────────────
@@ -220,13 +207,13 @@ cat > "$HANDOFF" <<EOF
 AGENT_NAME='$AGENT_NAME'
 AGENT_SESSION_ID='$SESSION_ID'
 AGENT_ISSUE='$ISSUE'
-AGENT_TOKEN_INPUT='$TOKEN_INPUT'
-AGENT_TOKEN_OUTPUT='$TOKEN_OUTPUT'
-AGENT_TOKEN_TOTAL='$TOKEN_TOTAL'
+AGENT_TOKEN_INPUT='$TRAILER_INPUT'
+AGENT_TOKEN_OUTPUT='$TRAILER_OUTPUT'
+AGENT_TOKEN_TOTAL='$TRAILER_TOTAL'
 AGENT_COST_KEY='$COST_KEY'
 EOF
 
-printf 'agent-accounting: runtime=%s session=%s input=+%d output=+%d (cumulative %d/%d) cost-key=%s\n' \
-    "$RUNTIME" "$SESSION_ID" "$TOKEN_INPUT" "$TOKEN_OUTPUT" "$CUM_INPUT" "$CUM_OUTPUT" "$COST_KEY" >&2
+printf 'agent-accounting: runtime=%s session=%s input=+%d cache_create=+%d cache_read=+%d output=+%d cost-key=%s\n' \
+    "$RUNTIME" "$SESSION_ID" "$TOKEN_INPUT" "$TOKEN_CACHE_CREATE" "$TOKEN_CACHE_READ" "$TOKEN_OUTPUT" "$COST_KEY" >&2
 
 exit 0

@@ -132,6 +132,38 @@ taught so the final shape reads with its reasoning intact.
      `\012`. The subject captured for `COSTS.md`'s NOTE column must be
      truncated at the first `\` to avoid contaminating the row.
 
+5. **Split cache tokens into their own columns; move ledger logic to Python.**
+   A review of the single `input` column revealed it was summing
+   `input_tokens + cache_creation + cache_read` — matching the billing
+   dashboard's gross number but inflating what most readers would call
+   "how much input did this commit consume," since `cache_read` is the
+   same bytes re-read each turn.
+   **Learned:**
+   - The ledger should be lossless: once cache components are summed
+     away they're gone, and billing dollars / cache-hit-rate cannot be
+     recovered. Splitting to four token columns (`input`, `cache-create`,
+     `cache-read`, `output`) keeps all information.
+   - Trailers stay narrow on purpose. `Token-Input = input + cache-create`
+     surfaces new work; `cache-read` is cache rent, not effort, and doesn't
+     belong in commit messages reviewers skim.
+   - `awk -F'|'` over a widening schema is the exact shape of bug we've
+     already eaten once (column-index off by one). Moving ledger parse /
+     sum-by-session / append / validate into
+     `scripts/governance/lib/ledger.py` — stdlib only, named fields on a
+     dataclass — makes the schema change a single-field edit and
+     eliminates positional fragility. Same treatment for trailer parsing
+     in `lib/trailers.py`.
+   - Bash stays in charge of git plumbing, env detection, `ps` argv
+     walking, and the env-file handoff; it shells out to the Python libs
+     for anything that touches rows by semantics. Rule script calls the
+     same libs, sharing the one parser.
+   - Legacy 8-column rows (pre-split) stay readable: `ledger.py.parse`
+     accepts them with `cache_create` and `cache_read` defaulted to 0,
+     so old trailer-vs-row cross-checks still pass. Migration is a
+     one-time edit of `COSTS.md` to insert two zero columns per row —
+     all invariants hold because `old_input == new_input + 0 + 0` and
+     `old_total == new_total`.
+
 ## What shipped
 
 **In the bootstrap (opt-in for downstream repos):**
@@ -144,9 +176,17 @@ taught so the final shape reads with its reasoning intact.
 - `governance-bootstrap/assets/githooks/prepare-commit-msg` — sources the
   handoff env file and stamps seven trailers.
 - `governance-bootstrap/assets/scripts/governance/agent-accounting.sh` —
-  runtime detection, issue parsing, ledger append.
+  runtime detection, issue parsing, shells out to `lib/ledger.py` for
+  ledger append and delta math.
+- `governance-bootstrap/assets/scripts/governance/lib/ledger.py` —
+  stdlib-only Python: `LedgerRow` dataclass, `parse`, `sum_by_session`,
+  `append_row`, `validate`, `find_by_cost_key`. Handles both the v2
+  10-column schema and the v1 8-column legacy shape.
+- `governance-bootstrap/assets/scripts/governance/lib/trailers.py` —
+  parses commit trailers and cross-checks them against a ledger row.
 - `governance-bootstrap/assets/scripts/governance/runtimes/claude-code.sh`
-  and `runtimes/codex.sh` — transcript readers.
+  and `runtimes/codex.sh` — transcript readers emitting five
+  whitespace-separated values (`session_id input cache_create cache_read output`).
 - `governance-bootstrap/assets/COSTS.template.md` — starter ledger with
   the append-only header and a `governance: allow-plan-captured` waiver.
 - `governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md` — install

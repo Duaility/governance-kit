@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # Claude Code transcript reader.
 #
-# Output on success (one line to stdout):
-#   <session_id> <cum_input> <cum_output>
+# Output on success (one line to stdout, space-separated):
+#   <session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output>
 # Exit non-zero if no transcript can be located.
+#
+# The four token numbers are cumulative across the whole session transcript;
+# the caller (agent-accounting.sh) subtracts prior ledger rows to get the
+# per-commit delta.
 #
 # Environment overrides:
 #   CLAUDE_TRANSCRIPT_PATH   absolute path to the session JSONL
@@ -32,14 +36,19 @@ fi
 
 [[ -z "$TRANSCRIPT" || ! -f "$TRANSCRIPT" ]] && exit 1
 
-# Input counts regular + cache-creation + cache-read so the number matches
-# billed usage regardless of cache state.
+# The four usage fields are reported separately so the ledger can split:
+#   input_tokens                  → new tokens this turn (not from cache)
+#   cache_creation_input_tokens   → tokens written to the prompt cache
+#   cache_read_input_tokens       → tokens re-read from the prompt cache
+#   output_tokens                 → model output
 python3 - "$TRANSCRIPT" <<'PY'
 import json, sys
 path = sys.argv[1]
 sid = None
-tin = 0
-tout = 0
+t_input = 0
+t_cache_create = 0
+t_cache_read = 0
+t_output = 0
 with open(path) as f:
     for line in f:
         try:
@@ -54,11 +63,11 @@ with open(path) as f:
         usage = msg.get("usage")
         if not isinstance(usage, dict):
             continue
-        tin  += int(usage.get("input_tokens", 0) or 0)
-        tin  += int(usage.get("cache_creation_input_tokens", 0) or 0)
-        tin  += int(usage.get("cache_read_input_tokens", 0) or 0)
-        tout += int(usage.get("output_tokens", 0) or 0)
+        t_input        += int(usage.get("input_tokens", 0) or 0)
+        t_cache_create += int(usage.get("cache_creation_input_tokens", 0) or 0)
+        t_cache_read   += int(usage.get("cache_read_input_tokens", 0) or 0)
+        t_output       += int(usage.get("output_tokens", 0) or 0)
 if sid is None:
     sys.exit(2)
-print(f"{sid} {tin} {tout}")
+print(f"{sid} {t_input} {t_cache_create} {t_cache_read} {t_output}")
 PY

@@ -37,8 +37,34 @@ Cost-Key: codex-01HXYZabcdef-1713800000
 - `Agent` is a free-form identifier — whatever name you want to report in the ledger.
 - `Issue` must match `#123` (the same anchor `conventional-commits` enforces in the subject).
 - `Session` is whatever stable id your runtime uses to group usage events.
+- `Token-Input` counts **new-work input tokens** — `input + cache_create`. It
+  deliberately excludes `cache_read`, which is the same bytes re-read each
+  turn rather than new effort.
 - `Token-Total` **must equal** `Token-Input + Token-Output`.
 - `Cost-Key` must be unique within `COSTS.md`. Convention: `<agent>-<session-short>-<epoch>`.
+
+## Ledger schema
+
+`COSTS.md` is the durable record and is lossless by design — cache traffic
+is tracked in its own columns so billing and cache-hit-rate analyses are
+recoverable later:
+
+```
+| cost-key | agent | session | issue | input | cache-create | cache-read | output | total | note |
+```
+
+- `input` — truly new input tokens
+- `cache-create` — tokens written to the prompt cache (billed at ~1.25×)
+- `cache-read` — tokens read from the prompt cache (billed at ~0.10×)
+- `output` — model output tokens
+- `total = input + cache-create + cache-read + output` (self-checking invariant)
+
+Runtimes that don't report cache traffic (Codex today) emit `0` in the
+cache columns — the row invariant still holds.
+
+Legacy 8-column rows from before the cache split (no `cache-create` /
+`cache-read` columns) are accepted by the parser with both cache fields
+defaulted to `0`, so an in-place migration is a one-time textual insertion.
 
 ## Installing
 
@@ -55,6 +81,10 @@ chmod +x tests/governance/rules/agent-token-accounting.sh \
          scripts/governance/agent-accounting.sh \
          scripts/governance/runtimes/*.sh
 ```
+
+The `scripts/governance/` tree includes `lib/ledger.py` and `lib/trailers.py`
+— both are stdlib-only Python 3, no `pip install` required. The only
+runtime dependency is `python3` on `$PATH`.
 
 Then add an `agent-token-accounting` Invariants subsection to `CONSTITUTION.md`
 via the `governance-amend` skill (the rule and the constitutional entry must
@@ -91,17 +121,21 @@ pre-commit ──► scripts/governance/agent-accounting.sh
       │          1. Detect runtime from env (CLAUDECODE / CODEX_THREAD_ID / AGENT_NAME)
       │          2. Read parent argv (/proc/$PPID/cmdline or `ps`) to recover
       │             the -m subject and parse the (#N) issue anchor
-      │          3. Dispatch to scripts/governance/runtimes/<runtime>.sh —
-      │             returns `<session_id> <cum_input> <cum_output>`
-      │          4. Subtract prior rows for this session → per-commit delta
-      │          5. Compute Cost-Key, append COSTS.md row, `git add` it
-      │          6. Write .git/governance-pending.env
+      │          3. Dispatch to scripts/governance/runtimes/<runtime>.sh — returns
+      │             `<session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output>`
+      │          4. Subtract prior rows for this session (via lib/ledger.py
+      │             `sum-by-session`) → per-commit delta for all four token fields
+      │          5. Compute Cost-Key, append COSTS.md row (lib/ledger.py
+      │             `append-row`), `git add` it
+      │          6. Write handoff env file at
+      │             `$(git rev-parse --git-path governance-pending.env)`
       │
       ▼
 (governance tests run — agent-token-accounting sees the new row in-tree)
       │
       ▼
-prepare-commit-msg ──► sources .git/governance-pending.env, stamps the
+prepare-commit-msg ──► sources the handoff env file (same
+                       `git rev-parse --git-path` call), stamps the
                        seven trailers onto the commit message, deletes
                        the handoff file
       │
@@ -114,6 +148,12 @@ tree git is about to snapshot; `git add` during **prepare-commit-msg** lands
 in the *next* commit's index. A CI failure of the form `Cost-Key X should
 have exactly 1 row in COSTS.md, found 0` means something tried to stage
 `COSTS.md` too late in the pipeline.
+
+The handoff file path is resolved via `git rev-parse --git-path
+governance-pending.env` on both ends — that's deliberate. In a worktree
+`.git` is a pointer file, not a directory; hardcoding `$ROOT/.git/…`
+breaks silently. The same call works in both the main checkout and any
+worktree.
 
 ### Runtime detection
 
@@ -142,10 +182,13 @@ The reader at `scripts/governance/runtimes/claude-code.sh`:
    the encoding replaces every `/` and `.` in the absolute path with `-`.
    Override with `CLAUDE_TRANSCRIPT_PATH` if needed.
 2. Reads `sessionId` from the first entry that has one.
-3. Sums every `assistant` entry's `.message.usage` fields — `input_tokens`,
-   `cache_creation_input_tokens`, and `cache_read_input_tokens` all count as
-   input so the number matches billed usage regardless of cache state.
-4. Prints `<session_id> <cum_input> <cum_output>` for `agent-accounting.sh`.
+3. Sums every `assistant` entry's `.message.usage` fields into four
+   separate cumulative counters — `input_tokens`,
+   `cache_creation_input_tokens`, `cache_read_input_tokens`, and
+   `output_tokens`. Keeping them separate lets the ledger stay lossless:
+   billing dollars and cache-hit-rate analyses can be reconstructed later.
+4. Prints `<session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output>`
+   for `agent-accounting.sh`.
 
 ### Codex
 
@@ -160,27 +203,35 @@ wrapper is needed. The reader at `scripts/governance/runtimes/codex.sh`:
 3. Sums tokens across the common shapes — top-level `usage`, `message.usage`,
    `response.usage` — handling both `input_tokens` / `output_tokens` and
    `prompt_tokens` / `completion_tokens` key pairs, since Codex's transcript
-   schema varies by version.
+   schema varies by version. Also picks up `cache_creation_input_tokens` /
+   `cache_read_input_tokens` when present; zeroes the cache columns when
+   the runtime doesn't expose them.
+4. Prints `<session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output>`.
 
 ### Other runtimes
 
 Drop a reader at `scripts/governance/runtimes/<name>.sh` whose only job is
-to print `<session_id> <cum_input> <cum_output>` on stdout (non-zero exit if
-it can't find a transcript), and add a branch to the runtime-detection
-block in `agent-accounting.sh`. `runtimes/codex.sh` is a ~60-line template.
+to print `<session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output>`
+on stdout (non-zero exit if it can't find a transcript), and add a branch
+to the runtime-detection block in `agent-accounting.sh`. Emit `0` for the
+two cache fields if the runtime doesn't expose them. `runtimes/codex.sh`
+is a ~60-line template.
 
 Until you do that, `AGENT_NAME=<name> AGENT_SESSION_ID=... AGENT_CUM_INPUT=...
 AGENT_CUM_OUTPUT=... git commit` (the `manual` path) works as an escape
-hatch.
+hatch. `AGENT_CUM_CACHE_CREATE` and `AGENT_CUM_CACHE_READ` are optional
+and default to `0`.
 
 ## What gets enforced where
 
 | Layer | What it checks |
 |---|---|
-| `scripts/governance/runtimes/<runtime>.sh` | Transcript discovery + token sum for one specific runtime. |
-| `scripts/governance/agent-accounting.sh` (pre-commit) | Runtime detection, issue parsing from parent argv, per-commit delta, cost-key generation, ledger append + `git add` — **all before** git snapshots the tree. Writes `.git/governance-pending.env` for the message hook. |
-| `prepare-commit-msg` hook | Sources the handoff env file and stamps all seven trailers. Idempotent on amends (skips if an `Agent:` trailer is already present). Silent no-op if no handoff file exists (human commit, or `--no-verify`). Does not touch `COSTS.md`. |
-| `agent-token-accounting` rule (`run.sh` / CI) | Walks `base..HEAD`. For each commit with an `Agent:` trailer: requires the full trailer set, checks `Total = Input + Output`, requires exactly one matching `Cost-Key` row in `COSTS.md`, and verifies the row's numbers agree with the trailers. Independently validates `COSTS.md` row shape and `Cost-Key` uniqueness so the ledger stays clean even after branch commits are squashed away. |
+| `scripts/governance/runtimes/<runtime>.sh` | Transcript discovery + 4-field token sum for one specific runtime. |
+| `scripts/governance/lib/ledger.py` | Stdlib-only Python library that owns the ledger: `LedgerRow` dataclass, `parse`, `sum_by_session`, `append_row`, `validate`, `find_by_cost_key`. Handles both the 10-column schema and the legacy 8-column shape. Keeping the schema-sensitive parsing in named-field Python (not `awk -F'\|'`) eliminates the whole class of column-index bugs we ate once already. |
+| `scripts/governance/lib/trailers.py` | Parses commit trailers and cross-checks them against a ledger row — `Token-Input == input + cache_create`, `Token-Output == output`, `Token-Total == Token-Input + Token-Output`. |
+| `scripts/governance/agent-accounting.sh` (pre-commit) | Bash glue: runtime detection, issue parsing from parent argv, cost-key generation, handoff env-file write. Shells out to `lib/ledger.py` for `sum-by-session` (per-commit delta) and `append-row` (ledger write + `git add`) — **all before** git snapshots the tree. |
+| `prepare-commit-msg` hook | Sources the handoff env file (resolved via `git rev-parse --git-path governance-pending.env` so worktrees work) and stamps all seven trailers. Idempotent on amends (skips if an `Agent:` trailer is already present). Silent no-op if no handoff file exists (human commit, or `--no-verify`). Does not touch `COSTS.md`. |
+| `agent-token-accounting` rule (`run.sh` / CI) | Walks `base..HEAD`. Calls `lib/ledger.py validate` for repo-wide shape checks; for each commit with an `Agent:` trailer calls `lib/trailers.py validate` to require the full trailer set, check `Total = Input + Output`, require exactly one matching `Cost-Key` row in `COSTS.md`, and verify the row's numbers agree with the trailers. Runs independently of `COSTS.md` presence so the ledger stays clean even after branch commits are squashed away. |
 
 ## What it doesn't try to do
 
