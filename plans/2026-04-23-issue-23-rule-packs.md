@@ -131,6 +131,17 @@ without a loader that can reconcile them. The 8 commits within one PR
 keep each reviewable diff small while the working tree stays green at
 every step.
 
+## Progress
+
+- [x] Step 1 — manifest schema + loader + core pack.yaml
+- [ ] Step 2 — directory migration into packs/core/
+- [ ] Step 3 — agent-governance pack
+- [ ] Step 4 — SKILL.md activation-flow rewrite
+- [ ] Step 5 — hook generation + collision detection
+- [ ] Step 6 — evals infrastructure + CI job
+- [ ] Step 7 — docs updates
+- [ ] Step 8 — evolution-log entry
+
 ## Test plan
 
 - [ ] `scripts/test-packs.sh` passes locally and in CI against `core`
