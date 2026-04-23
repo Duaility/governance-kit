@@ -1,0 +1,5 @@
+category: Security
+recommended: true
+summary: No tracked file contains common cloud/CI secret patterns.
+surface: repo-state
+hook: none

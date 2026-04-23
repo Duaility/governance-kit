@@ -124,14 +124,22 @@ Every commit closes `(#25)` and touches this plan file to satisfy
    to both references via relative paths — splitting them would break
    `no-broken-internal-doc-links` in the intermediate state.
 
-3. **Commit 3 — Baseline eval.** One eval under
-   `governance-reset/evals/` that runs the full-install round-trip:
-   bootstrap a fixture repo with a known preset, run reset (hard
-   mode), assert the repo is byte-identical to the pre-bootstrap
-   state (modulo seeded docs, which the fixture pre-declares).
-   The three remaining eval scenarios (partial install, unmarked-hook
-   collision, Path B / husky) are out of scope for this PR — they
-   land as a follow-up purely test-only PR.
+3. **Commit 3 — Baseline evals.** Three eval cases under
+   `governance-reset/evals/`:
+   - Case 1 — full-install hard-reset round-trip against a
+     `bootstrapped-repo/` fixture carrying the manifest, marked
+     hooks, constitution, tests tree, CI workflow, seeded docs, and
+     an `AGENTS.md` with the directive block.
+   - Case 2 — idempotent no-op against a `clean-repo/` fixture with
+     no governance footprint.
+   - Case 3 — explicit `dry-run` mode against the same bootstrapped
+     fixture, asserting the tree is byte-identical afterwards.
+
+   The three remaining eval scenarios from the issue's acceptance
+   criteria (partial install, unmarked-hook collision, Path B /
+   husky) are deliberately out of scope for this PR — they land as a
+   follow-up purely test-only PR so the design surface of PR-a can
+   be reviewed without eval-harness noise.
 
 4. **Commit 4 — AGENTS.md + README.md.** Add `governance-reset` to
    the skills table in `AGENTS.md`, add the reset use case to

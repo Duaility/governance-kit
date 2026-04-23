@@ -74,3 +74,4 @@ Schema:
 | claude-code-3ffd2eba-cd2-1776958096 | claude-code | 3ffd2eba-cd2f-439f-9aa0-7090cbcd3511 | #23 | claude-opus-4-7 | 4 | 2641 | 241814 | 2132 | 4777 | 0.1907 | ci(governance): install uv so pack manifest parsing works (#23) |
 | claude-code-7109f1b4-393-1776961095 | claude-code | 7109f1b4-393a-45ce-8318-02e4f85a277c | #25 | claude-opus-4-7 | 63 | 229719 | 1317336 | 23493 | 253275 | 2.6821 | docs(plan): draft governance-reset skill plan (#25) |
 | claude-code-7109f1b4-393-1776961345 | claude-code | 7109f1b4-393a-45ce-8318-02e4f85a277c | #25 | claude-opus-4-7 | 20 | 33244 | 1757867 | 23650 | 56914 | 1.6781 | feat(reset): add governance-reset skill with uninstall matrix and manifest schem |
+| claude-code-7109f1b4-393-1776961546 | claude-code | 7109f1b4-393a-45ce-8318-02e4f85a277c | #25 | claude-opus-4-7 | 34 | 22205 | 3690592 | 14136 | 36375 | 2.3376 | test(reset): add baseline evals M-bM^@M^T hard-reset, idempotent, dry-run (#25) |
