@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Rule: Agent-authored commits carry full token-accounting trailers and a
-# matching append-only row in COSTS.md.
+# Rule: Every non-merge, non-revert commit carries full token-accounting
+# trailers and a matching append-only row in COSTS.md. This repo is
+# agent-driven only — an untrailered commit is a bug, not an allowed mode.
 #
-# Required trailers on any commit whose message contains `Agent: <name>`:
+# Required trailers on every in-scope commit:
 #   Agent:         free-form runtime identifier (codex, claude-code, cursor, ...)
 #   Issue:         #123 — the GitHub issue anchor
 #   Session:       the runtime's session / thread id
@@ -28,9 +29,15 @@
 #
 # Modes:
 #   Mode A — commit-msg hook:  bash agent-token-accounting.sh <path-to-msg-file>
+#       Skips revert commits (subject starts with `Revert "`); merge commits
+#       don't go through commit-msg.
 #   Mode B — CI / run.sh:      bash agent-token-accounting.sh
-#       Walks default-branch merge-base → HEAD and validates every commit
-#       that declares an Agent: trailer. Also validates COSTS.md shape
+#       Walks default-branch merge-base → HEAD and validates every non-merge,
+#       non-revert commit. Merge commits (>1 parent) and revert commits
+#       (subject starts with `Revert "`) are exempt. When the range is empty
+#       (HEAD already at base, no remote main, etc.) Mode B is a no-op —
+#       Mode A handles the pending commit, and re-flagging historical commits
+#       already in main is out of scope. Also validates COSTS.md shape
 #       independently, so post-squash repos still get ledger integrity.
 #
 # Ledger parsing, trailer parsing, and cross-check math are in
@@ -80,8 +87,11 @@ validate_commit_message() {
     local msg
     msg="$(cat)"
 
-    # Quick exit: no Agent: trailer → not an agent commit.
+    # Mandatory: every in-scope commit must carry an Agent: trailer.
+    # Caller is responsible for filtering out merge / revert commits before
+    # invoking this function.
     if ! printf '%s\n' "$msg" | grep -qE '^Agent:[[:space:]]'; then
+        violation "$label — missing required Agent: trailer (every non-merge, non-revert commit must carry token-accounting trailers; run \`git commit\` through the runtime-aware pre-commit hook)"
         return 0
     fi
 
@@ -102,7 +112,7 @@ validate_commit_message() {
     # First-class ledger-presence violation is independent of the trailer shape.
     if [[ "$found" == "0" ]]; then
         if [[ ! -f "$LEDGER" ]]; then
-            violation "$label — agent-authored commit but COSTS.md does not exist at repo root"
+            violation "$label — declares Agent: trailer but COSTS.md does not exist at repo root"
         else
             local count
             count="$(python3 "$LIB/ledger.py" find-by-cost-key "$LEDGER" "$cost_key" 2>&1 1>/dev/null | grep -oE 'found [0-9]+' | awk '{print $2}')"
@@ -133,6 +143,12 @@ if [[ $# -gt 0 ]]; then
         violation "commit-msg file not found: $msg_file"
         rule_end
     fi
+    # Skip revert commits — git's auto-format starts with `Revert "..."`.
+    # Merge commits don't go through commit-msg, so no parent check here.
+    pending_subject=$(grep -vE '^[[:space:]]*($|#)' "$msg_file" | head -n1)
+    if [[ "$pending_subject" == Revert\ \"* ]]; then
+        rule_end
+    fi
     validate_commit_message "pending commit" <"$msg_file"
     rule_end
 fi
@@ -151,17 +167,40 @@ for candidate in origin/main origin/master main master; do
     fi
 done
 
+is_exempt_commit() {
+    # Returns 0 (true) if the SHA is a merge commit or a revert commit.
+    local sha="$1"
+    local parents subject
+    parents=$(git log -1 --format=%P "$sha" 2>/dev/null || echo "")
+    # Multi-parent → merge commit.
+    if [[ "$parents" == *' '* ]]; then
+        return 0
+    fi
+    subject=$(git log -1 --format=%s "$sha" 2>/dev/null || echo "")
+    if [[ "$subject" == Revert\ \"* ]]; then
+        return 0
+    fi
+    return 1
+}
+
 if [[ -z "$base" ]]; then
-    # Fall back to validating HEAD alone so the rule still exercises.
-    msg=$(git log -1 --format=%B HEAD 2>/dev/null || echo "")
-    [[ -n "$msg" ]] && printf '%s' "$msg" | validate_commit_message "HEAD"
+    # No base ref found, or HEAD is at the base (no new work on this branch).
+    # Nothing to walk — Mode A (commit-msg hook) handles the pending commit.
+    # We deliberately do NOT fall back to validating HEAD here, because under
+    # mandatory semantics that would re-flag historical commits already in
+    # main, which are out of scope for this rule.
     rule_end
 fi
 
 while IFS= read -r sha; do
     [[ -z "$sha" ]] && continue
+    if is_exempt_commit "$sha"; then
+        continue
+    fi
     msg=$(git log -1 --format=%B "$sha")
-    printf '%s' "$msg" | validate_commit_message "$sha"
+    # Here-string keeps validate_commit_message in the current shell so
+    # `violation` calls actually bubble up (a pipe would subshell them).
+    validate_commit_message "$sha" <<<"$msg"
 done < <(git log "$base..HEAD" --format='%H')
 
 rule_end
