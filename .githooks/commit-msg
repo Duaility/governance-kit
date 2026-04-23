@@ -15,6 +15,7 @@ fi
 ROOT="$(git rev-parse --show-toplevel)"
 CC_RULE="$ROOT/tests/governance/rules/conventional-commits.sh"
 ATA_RULE="$ROOT/tests/governance/rules/agent-token-accounting.sh"
+CIPM_RULE="$ROOT/tests/governance/rules/commit-issue-plan-match.sh"
 
 if [[ -x "$CC_RULE" ]]; then
     if ! bash "$CC_RULE" "$1"; then
@@ -48,6 +49,27 @@ if [[ -x "$ATA_RULE" ]]; then
 An agent-authored commit must carry the full trailer set and have a matching
 append-only row in COSTS.md. See:
     governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md
+
+Bypass (CI will still enforce on PR):
+    SKIP_GOVERNANCE=1 git commit ...
+    git commit --no-verify
+────────────────────────────────────────
+EOF
+        exit 1
+    fi
+fi
+
+if [[ -x "$CIPM_RULE" ]]; then
+    if ! bash "$CIPM_RULE" "$1"; then
+        cat >&2 <<EOF
+
+────────────────────────────────────────
+✗ Commit message blocked by governance (commit-issue-plan-match).
+
+The commit's trailing (#N) must match an issue-<N> token on a plans/*.md
+file this commit adds or modifies. Add the matching plan (or touch the
+existing one), or document a waiver in the commit body:
+    governance: allow-commit-issue-plan-match <reason>
 
 Bypass (CI will still enforce on PR):
     SKIP_GOVERNANCE=1 git commit ...

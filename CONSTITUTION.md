@@ -95,19 +95,19 @@ If a specific change cannot satisfy a rule, document the deviation in the PR des
 - **Enforced by**: `tests/governance/rules/no-merge-conflict-markers.sh`
 - **Exceptions**: none.
 
-### plan-captured
-
-- **Rule**: The repo maintains a `plans/` directory with at least one tracked `.md` file, every `plans/*.md` has a top-level `# ` heading, a `## Goal` section, and a `## Steps` section, and every substantive tracked change outside `plans/` or `governance-health/` adds or modifies at least one `plans/*.md` file in the same change set.
-- **Rationale**: The diff shows *what* changed; the plan shows *why it took this shape*. Without the plan on disk, reviewers and future agents reconstruct intent from code and get it wrong.
-- **Enforced by**: `tests/governance/rules/plan-captured.sh`
-- **Exceptions**: Per-file waiver — a line matching `governance: allow-plan-captured` (bare or inside an HTML comment) anywhere in the file exempts that plan from the structure check. Changes limited to `plans/` or `governance-health/` are exempt from the same-change requirement.
-
 ### plan-per-issue
 
 - **Rule**: Every tracked `plans/*.md` filename includes an `issue-<N>` token identifying the GitHub issue it plans for, and no two plan files share the same issue number.
 - **Rationale**: Plans are the durable record of intent behind a change set. A one-to-one binding between plan and issue keeps the system of record unambiguous — reviewers jump from an issue to its single plan, and agents can detect whether an issue already has a plan before drafting a duplicate.
 - **Enforced by**: `tests/governance/rules/plan-per-issue.sh`
 - **Exceptions**: Per-file waiver — a line matching `governance: allow-plan-per-issue` (bare or inside an HTML comment) anywhere in the file exempts that plan. Used to grandfather plans that predate this rule.
+
+### commit-issue-plan-match
+
+- **Rule**: For every non-merge, non-revert commit in scope, the issue number in the commit subject's trailing `(#N)` matches an `issue-<N>` token on at least one `plans/*.md` file the commit adds or modifies. A commit that touches no `plans/*.md` fails this rule.
+- **Rationale**: `conventional-commits` pins each commit to an issue and `plan-per-issue` pins each plan to an issue, but nothing cross-checks the two — a commit claiming `(#15)` while touching only issue #42's plan passes both rules in isolation. This rule closes that hole and, in doing so, subsumes the former `plan-captured` "substantive change must touch a plan" obligation under a stricter check (the plan must also be the *right* one for the commit's issue).
+- **Enforced by**: `tests/governance/rules/commit-issue-plan-match.sh` (Mode B — CI walks merge-base → HEAD) and `.githooks/commit-msg` (Mode A — validates the pending commit against its staged diff).
+- **Exceptions**: Merge commits and revert commits are exempt (mirrors `conventional-commits`). Per-commit waiver — a line `governance: allow-commit-issue-plan-match <reason>` in the commit body exempts that commit (reason required; a bare token does not waive).
 
 ### issues-tracked
 
@@ -155,6 +155,7 @@ If a specific change cannot satisfy a rule, document the deviation in the PR des
 - 2026-04-23 — @srikanth — Evolve `agent-token-accounting` schema to v3 (12 columns): add a `model` column (runtime-reported, e.g. `claude-sonnet-4-5`) and a `cost-usd` column computed from `scripts/governance/lib/rates.py` using **all four** token columns (cache_read included — that's where cache rent shows up). Rename `total` to `new-work` to stop pretending the raw token sum is a single comparable headline; the dollar column is the only number that lines up across commits with different cache mixes. Runtime readers now emit 6 values (add `<model>`); `agent-accounting.sh` passes model into the ledger; `lib/ledger.py` recomputes `new_work` and looks up `cost_usd` at append time. Legacy v2 (10 cols) and v1 (8 cols) rows are still parsed under the same `new_work` invariant; existing rows in `COSTS.md` were migrated in place by inserting empty `model`/`cost-usd` cells (token values unchanged since v2 `total` already matched the `new_work` semantic).
 - 2026-04-23 — @srikanth — Add `plan-per-issue`: require each `plans/*.md` filename to carry an `issue-<N>` token and forbid duplicate plans for the same issue, so the plan↔issue binding is one-to-one. Closes [#15](https://github.com/Duaility/governance-kit/issues/15).
 - 2026-04-23 — @srikanth — Flip `agent-token-accounting` from opt-in to mandatory: every non-merge, non-revert commit must now carry the full token-trailer set and a matching `COSTS.md` row, instead of only those declaring `Agent:`. This repo is agent-driven only — an untrailered commit was a silent hole in the ledger; now it's a CI failure. Merge and revert commits are exempt (mirrors `conventional-commits`). Also fixed a latent subshell bug in the per-commit walk: violations from `validate_commit_message` were being swallowed by a pipe (`printf | fn`); switched to a here-string so `violation` calls bubble up. Removed the `merge-base == HEAD` fallback that re-validated HEAD alone — it was a smoke-test convenience under opt-in semantics; under mandatory semantics it would re-flag historical commits already on `main`. In-flight branches without trailers will fail CI after this lands and need to be re-committed through the runtime-aware pre-commit hook. Closes [#17](https://github.com/Duaility/governance-kit/issues/17).
+- 2026-04-23 — @srikanth — Replace `plan-captured` with `commit-issue-plan-match`: the new rule cross-validates each commit's trailing `(#N)` against the `issue-<N>` tokens on the `plans/*.md` files it actually touched, closing the hole where `conventional-commits`, `plan-per-issue`, and `plan-captured` each checked one link in isolation and let a commit claim `(#15)` while touching only issue #42's plan. `plan-captured`'s three checks collapse: "`plans/` exists with ≥1 `.md`" is trivially implied once every commit must touch a plan; "substantive change must touch a plan" is subsumed and strengthened (the plan must also carry the *matching* issue number); the `## Goal` / `## Steps` structure check was stylistic and is dropped. Landed in a single amendment — the rule that subsumes and the rule that retires travel together, or the intervening state is a lie. Existing `governance: allow-plan-captured` waiver lines are left as harmless comments. Closes [#19](https://github.com/Duaility/governance-kit/issues/19).
 
 ## Escape hatches
 

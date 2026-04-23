@@ -116,7 +116,7 @@ Write to `governance-health/YYYY-MM-DD.md` using [assets/health-report.template.
    - `governance-amend <rule-name>` (for each rule-shaped candidate).
 4. **Trend** — diff against the previous report (counts only: +2 Friction findings, -1 Consistency, etc.). Skip if no prior run exists.
 
-The report file carries `<!-- governance: allow-plan-captured -->` at the top so it doesn't trip the `plan-captured` rule — it's a report, not a plan.
+The report file lives under `governance-health/`, not `plans/`, so the issue-driven rules (`plan-per-issue`, `commit-issue-plan-match`) don't apply to it. The legacy `<!-- governance: allow-plan-captured -->` line at the top of the template is a harmless no-op kept from when `plan-captured` was a live rule.
 
 If the same finding shows up run after run and nobody acts on it, the Trend section will make that visible. That's the whole reason for writing a file instead of streaming to stdout.
 
