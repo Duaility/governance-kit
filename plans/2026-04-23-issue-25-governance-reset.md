@@ -110,23 +110,21 @@ Every commit closes `(#25)` and touches this plan file to satisfy
    commits have a pointer, and establishes the `issue-25` plan required
    by `plan-per-issue` and `commit-issue-plan-match`.
 
-2. **Commit 2 — `governance-reset/SKILL.md`.** The skill entry point.
-   Frontmatter (`name`, `description`, `license`, `metadata.version`),
-   negative triggers, interaction policy table, six-step activation
-   flow (Survey → Classify → Mode → Confirm → Execute → Report), and
-   key design rules. Mirrors the shape of `governance-bootstrap/SKILL.md`
-   so authors reading both see parallel structure.
+2. **Commit 2 — Skill files.** `governance-reset/SKILL.md` (the entry
+   point — frontmatter, negative triggers, interaction policy,
+   six-step activation flow, key design rules) plus both references:
+   - `references/UNINSTALL_MATRIX.md` — canonical table of every
+     artifact the kit can produce and its soft / hard / dry-run reset
+     action. The skill consults this at execute time.
+   - `references/MANIFEST_SCHEMA.md` — schema of
+     `.governance-kit/installed-packs.yaml` that reset reads, plus the
+     fallback heuristic when the manifest is absent.
 
-3. **Commit 3 — References.** Two reference docs under
-   `governance-reset/references/`:
-   - `UNINSTALL_MATRIX.md` — every artifact the kit can produce and
-     the exact reset action under soft vs. hard mode. This is the
-     canonical table the skill consults at execute-time.
-   - `MANIFEST_SCHEMA.md` — schema of
-     `.governance-kit/installed-packs.yaml` that reset reads, plus
-     the fallback heuristic when the manifest is absent.
+   SKILL.md and references ship in one commit because the SKILL links
+   to both references via relative paths — splitting them would break
+   `no-broken-internal-doc-links` in the intermediate state.
 
-4. **Commit 4 — Baseline eval.** One eval under
+3. **Commit 3 — Baseline eval.** One eval under
    `governance-reset/evals/` that runs the full-install round-trip:
    bootstrap a fixture repo with a known preset, run reset (hard
    mode), assert the repo is byte-identical to the pre-bootstrap
@@ -135,7 +133,7 @@ Every commit closes `(#25)` and touches this plan file to satisfy
    collision, Path B / husky) are out of scope for this PR — they
    land as a follow-up purely test-only PR.
 
-5. **Commit 5 — AGENTS.md + README.md.** Add `governance-reset` to
+4. **Commit 4 — AGENTS.md + README.md.** Add `governance-reset` to
    the skills table in `AGENTS.md`, add the reset use case to
    `README.md`, and update the "Linking the skills into a runtime"
    snippet.

@@ -1,0 +1,211 @@
+---
+name: governance-reset
+description: Cleanly uninstalls a governance-kit setup from a repo that was previously bootstrapped. Reverses every side-effect `governance-bootstrap` produces — tracked `CONSTITUTION.md`, `tests/governance/` tree, CI workflow, install manifest, managed `.githooks/` dispatchers, `AGENTS.md` directive block, and `git config core.hooksPath` — with ownership-marker discipline that refuses to delete any file it did not install. Offers three modes (dry-run, soft, hard) and defaults to dry-run when the install manifest is missing but governance artifacts are detected. Use when the user wants to undo governance bootstrap, says "reset governance", "uninstall governance-kit", "tear down the governance setup", or wants a clean slate before re-bootstrapping. Do not use for removing individual rules (that is `governance-amend`) or for a governance health check (that is `governance-gardener`).
+license: MIT
+metadata:
+  author: governance-kit
+  version: "0.1"
+---
+
+# governance-reset
+
+This skill **uninstalls** `governance-kit` from the current repository. It is the inverse of `governance-bootstrap` — for every side-effect bootstrap can produce, reset knows how to reverse it, and it refuses to touch anything it does not recognize as kit-owned.
+
+Three source-of-truth layers drive what reset deletes, in priority order:
+
+1. **Install manifest** at `.governance-kit/installed-packs.yaml` — the authoritative record of packs, rules, and paths bootstrap installed.
+2. **Ownership marker** — `.githooks/` dispatchers carry the line-2 marker `# governance-kit:managed pack-version=<v> generated=<date>`. The marker is a contract that the file is regeneratable, and symmetrically, safe to delete.
+3. **Heuristic fallback** — when neither manifest nor marker is present but governance artifacts are detected, reset defaults to **dry-run** and requires explicit opt-in before deleting anything.
+
+Leaving intact: files the user owns (pack-seeded docs like `QUALITY.md` / `COSTS.md` in soft mode), hooks without the ownership marker (those belong to someone else), user-authored content inside `AGENTS.md` (only the marker-bounded directive block is stripped), and every uncommitted change in the working tree.
+
+## Negative triggers
+
+Do **not** use this skill for these requests:
+
+- "Remove the `no-large-files` rule" — use `governance-amend` (it has a remove verb and preserves the rest of the surface).
+- "Find dead rules" / "audit the governance setup" — use `governance-gardener`.
+- "Reset this repo to the last green commit" — that is a git operation, not a governance operation. Say so and stop.
+- "Wipe my working tree" — this skill never runs `git clean`, `git reset --hard`, or touches uncommitted work. Redirect to git.
+- "Uninstall the `governance-reset` skill from my machine" — this skill operates on **repo state**, not on the user's `~/.claude/skills/` or `~/.codex/skills/` symlinks. Tell the user to `rm` the symlink themselves.
+
+## Interaction policy
+
+| Situation | Action |
+|---|---|
+| Repo is not a git repo | Stop. Reset operates on a tracked governance surface, which requires git. |
+| Manifest present, artifacts present, markers consistent | Proceed. Manifest is the source of truth. |
+| Manifest missing, artifacts detected (`CONSTITUTION.md` + `tests/governance/` + marked hooks) | Force **dry-run** by default. Require explicit opt-in before executing a destructive mode. |
+| Manifest missing, no artifacts detected | Report "nothing to remove" and exit. Idempotent no-op. |
+| Unmarked hook at a path we would delete | Stop. Offer the same three choices bootstrap's collision flow offers (wrap, skip, overwrite with backup) — but here they are *restore wrap*, *leave alone*, *delete with backup*. |
+| `core.hooksPath` points somewhere other than `.githooks/` | Do **not** unset. The user changed it themselves. Warn in the report. |
+| Structured question tools are unavailable | Ask concise free-text questions. If no answer, stop — reset is destructive enough that assumed defaults are unsafe. |
+
+---
+
+## Activation flow
+
+Run these steps in order. Do not skip steps unless noted.
+
+### Step 1 — Survey the repository
+
+Before touching anything, run these in parallel:
+
+- `git rev-parse --show-toplevel` to confirm this is a git repo and find the root.
+- Read `.governance-kit/installed-packs.yaml` if present. Its schema is documented in [references/MANIFEST_SCHEMA.md](references/MANIFEST_SCHEMA.md).
+- `ls -la` at the root and at `.githooks/`, `.github/workflows/`, `tests/governance/`.
+- Check for each artifact in the uninstall matrix (see [references/UNINSTALL_MATRIX.md](references/UNINSTALL_MATRIX.md)):
+  - `CONSTITUTION.md`
+  - `tests/governance/run.sh`, `tests/governance/lib.sh`, every `tests/governance/rules/<id>/`
+  - `tests/governance/freshness.conf`
+  - `.github/workflows/governance.yml`
+  - `.governance-kit/installed-packs.yaml`
+  - `.githooks/pre-commit`, `.githooks/commit-msg`, `.githooks/prepare-commit-msg`
+  - `.githooks/*.userhook` (Path A wrap leftovers)
+  - `<any>.pre-governance.bak` files (Path A overwrite backups)
+  - `AGENTS.md` and whether it contains `<!-- governance: rules-to-follow -->`
+  - `.husky/` or `.pre-commit-config.yaml` with governance entries (Path B)
+- Read `git config --get core.hooksPath` (empty string is fine — it means no override).
+
+**Hook-marker survey.** For each `.githooks/<name>` that exists, read line 2 and match against the regex `^# governance-kit:managed `. Record `marker=present|absent` per file. Do the same for any legacy `.git/hooks/<name>` — a marker there is a bug but still signals ownership.
+
+Record findings as a structured inventory for Step 2.
+
+### Step 2 — Classify repository state
+
+Based on the survey, pick exactly one classification:
+
+| Classification | Conditions | Implication |
+|---|---|---|
+| `fully-installed` | Manifest present; every artifact it names exists; every managed hook carries the marker. | Safe path. All modes available. |
+| `partial` | Manifest present but some listed artifacts are missing, OR manifest missing but ≥ 2 artifacts present with markers intact. | Proceed with the subset found. Note discrepancies in the report. |
+| `unmarked-collision` | A managed-path hook exists **without** the marker, OR a manifest-listed file has been heavily modified since install (best-effort detection). | Stop before executing. Resolve collisions per Step 4. |
+| `none-detected` | No manifest, no marked hooks, no `CONSTITUTION.md`, no `tests/governance/`. | Report "nothing to remove" and exit. |
+
+Idempotency contract: `none-detected` is the expected outcome of running reset on a repo that never had governance installed, or on one where reset already ran. Treat it as success, not an error.
+
+### Step 3 — Mode selection
+
+Ask the user one `AskUserQuestion` with three mutually exclusive options:
+
+| Mode | Intent | Leaves untouched |
+|---|---|---|
+| `dry-run` | Print the plan, change nothing. | Everything. |
+| `soft` (default) | Remove managed surface (constitution, tests, workflow, managed hooks, manifest, AGENTS.md block). | Pack-seeded `install-assets/` docs (`QUALITY.md`, `COSTS.md`, others). Backup `.bak` files. |
+| `hard` | Remove **everything** governance-kit touched, including seeded docs, `.bak` backups from overwrite-collision resolution, and an AGENTS.md stub if manifest records it as kit-created. | Uncommitted work in the working tree. |
+
+Forced overrides:
+
+- If Step 2 classified the repo as `unmarked-collision`, the only legal option is to resolve collisions first (Step 4) — do not present `soft` or `hard` yet.
+- If the manifest is missing AND artifacts are detected, lock the default to `dry-run` and require the user to **explicitly** pick `soft` or `hard` to proceed. A silent acceptance of the default (no answer) must not execute a destructive mode.
+
+### Step 4 — Confirmation
+
+Show the user the exact plan before acting. Build a structured preview from the inventory in Step 1 and the uninstall matrix:
+
+```
+Files to delete:
+  CONSTITUTION.md
+  tests/governance/run.sh
+  tests/governance/lib.sh
+  tests/governance/rules/<rule-a>/          (4 files)
+  tests/governance/rules/<rule-b>/          (4 files)
+  .github/workflows/governance.yml
+  .governance-kit/installed-packs.yaml
+  .githooks/pre-commit       (marker present)
+  .githooks/commit-msg       (marker present)
+
+Hooks to restore (Path A userhook wraps):
+  .githooks/pre-commit.userhook → .githooks/pre-commit  [original filename]
+
+AGENTS.md edit:
+  strip block bounded by <!-- governance: rules-to-follow --> … <!-- /governance: rules-to-follow -->
+  byte-diff verify: ensure every other line is identical pre/post
+
+Git config:
+  unset core.hooksPath  (current value: .githooks — will reset)
+
+Seeded docs (preserved in soft mode; deleted in hard):
+  QUALITY.md
+  COSTS.md
+```
+
+The preview is informational. Ask for an explicit `yes` to execute — this is destructive, and the cost of a misclicked default is higher than the friction of an extra keystroke.
+
+**Unmarked-collision resolution.** When Step 2 found hook collisions, resolve each one before the main confirmation:
+
+| Choice | Action |
+|---|---|
+| `leave alone` (default) | Keep the hook as-is. Reset does not touch it. Note in the report. |
+| `delete with backup` | Move the hook to `<path>.pre-reset.bak`, then remove the reference from `core.hooksPath` if it becomes empty. |
+| `restore wrap` (only if a `<name>.userhook` sibling exists) | Delete the managed hook (if any) and rename `<name>.userhook` back to `<name>`. |
+
+### Step 5 — Execute
+
+Delete and restore in this order (deliberate — the manifest is read last so its absence is the idempotency signal for subsequent runs):
+
+1. **Hooks first.** Delete `.githooks/<name>` that carry the marker. Rename `<name>.userhook` siblings back to `<name>`. Never delete unmarked hooks — those were resolved in Step 4 or skipped.
+2. **Git config.** If `core.hooksPath` still equals `.githooks`, run `git config --unset core.hooksPath`. If the value changed since install or was cleared manually, leave it alone and note in the report.
+3. **AGENTS.md surgery.** Read the file, locate the marker-bounded block, and remove it. Run a byte-diff on the remainder and abort the whole reset if any non-block line changed. If the manifest records `agents_md_created: true` (bootstrap's Step 4b Case 2), offer to delete the file entirely in hard mode; keep it in soft mode.
+4. **Tree deletes.** `CONSTITUTION.md`, `tests/governance/` (recursive), `.github/workflows/governance.yml`.
+5. **Path B.** If the repo uses husky or `pre-commit`, remove only the governance entries from the framework's config file (keep every other hook intact). Use the manifest's `path_b_entries` list if present; otherwise grep for entries that invoke `tests/governance/run.sh`.
+6. **Seeded docs.** In soft mode: preserve, report as orphaned. In hard mode: delete `QUALITY.md`, `COSTS.md`, and every path the manifest lists under `install_assets_seeded`.
+7. **Backups.** In soft mode: preserve `*.pre-governance.bak`, report them. In hard mode: delete them.
+8. **Manifest.** Delete `.governance-kit/installed-packs.yaml`. If `.governance-kit/` is now empty, `rmdir` it.
+
+All deletes use plain `rm` / `git rm` against tracked paths. Never `git clean`, `git reset --hard`, or stash — those can touch the user's uncommitted work.
+
+**Leave changes unstaged.** Do not `git commit`. The user reviews the diff and commits intentionally, same discipline as `governance-bootstrap`. The pre-commit hook is also gone now, so `git diff` is the only guard rail — which is the desired end state of a reset.
+
+### Step 6 — Report
+
+Print a concise summary:
+
+- `Mode:` `dry-run` | `soft` | `hard`.
+- `Classification:` `fully-installed` | `partial` | `unmarked-collision` | `none-detected`.
+- `Source of truth:` `manifest` | `heuristic`.
+- `Files deleted:` list.
+- `Files preserved:` seeded docs, user-authored backups, unmarked hooks.
+- `Hooks restored:` `<name>.userhook` → `<name>` pairs, or `none`.
+- `AGENTS.md:` `directive block stripped` | `stub deleted (hard mode)` | `left untouched (no marker)` | `skipped — non-block content would have changed`.
+- `Git config:` `core.hooksPath unset` | `left as-is — pointed at <path>`.
+- `Collisions:` per-file resolution, or `none`.
+- `Assumptions:` any heuristic fallback used, or `none`.
+- `Next command:` `git status` — let the user see exactly what changed before they commit.
+
+Do **not** commit the changes. The user's first commit after a reset is the one that ratifies the uninstall; they own it.
+
+---
+
+## Required final output
+
+Every successful run should leave the user with a summary that includes:
+
+- `Mode:` the mode actually executed (dry-run leaves the rest of the summary prefixed "would-").
+- `Source of truth:` `manifest` (authoritative) or `heuristic` (fallback, with a note on each decision).
+- `Files deleted:` file-backed list.
+- `Files preserved:` seeded docs, unmarked hooks, backups.
+- `AGENTS.md:` verb describing the edit outcome.
+- `Collisions:` resolution per file, or `none`.
+- `Assumptions:` material assumptions, or `none`.
+- `Next command:` `git status`
+
+---
+
+## Key design rules for this skill
+
+- **Symmetry with bootstrap.** Every file bootstrap can create, reset can remove. Every config mutation bootstrap performs, reset can reverse. If bootstrap adds a new artifact class, reset must learn it in the same PR.
+- **Manifest first, marker second, heuristic last.** The manifest is authoritative; the ownership marker is the contract; heuristics are a fallback and degrade to dry-run by default.
+- **Never delete without ownership evidence.** An unmarked hook at a path we would manage is somebody else's file — surface it, do not touch it. The cost of a false-positive delete is high; the cost of an extra confirm prompt is low.
+- **Dry-run is a real mode, not a debug affordance.** When the state is ambiguous (manifest missing, artifacts present), dry-run is the default and destructive modes must be explicitly opted into. Silence is not consent.
+- **No destructive git ops.** No `git clean`, no `git reset --hard`, no stash. Reset touches tracked governance artifacts and one git config — nothing else.
+- **AGENTS.md edits are surgical.** Strip only the marker-bounded block. Byte-diff the rest. Abort if anything else changed — there is no safe way to guess the user's intent inside their own doc.
+- **Idempotent.** Running reset on a repo with nothing installed is a success, not an error. Running it twice in a row is identical to running it once.
+- **Leave the result unstaged.** Same discipline as bootstrap — the user's commit is intentional, not automatic.
+- **Report what was skipped and why.** Seeded docs in soft mode, unmarked hooks, a `core.hooksPath` the user redirected — these are deliberate preservations, not oversights. Surface them so the user does not discover them later and wonder.
+
+## References
+
+- [../GOVERNANCE_VOCABULARY.md](../GOVERNANCE_VOCABULARY.md) — shared terms used across the four governance skills.
+- [references/UNINSTALL_MATRIX.md](references/UNINSTALL_MATRIX.md) — canonical table of every artifact the kit can produce and the exact reset action under soft vs. hard mode.
+- [references/MANIFEST_SCHEMA.md](references/MANIFEST_SCHEMA.md) — schema of `.governance-kit/installed-packs.yaml` that reset reads, plus the fallback heuristic when the manifest is absent.
