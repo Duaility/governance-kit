@@ -171,3 +171,9 @@ every step.
 - [x] `scripts/test-packs.sh` green in CI (mikefarah yq): loader must
       fall back to awk when yq's expression dialect rejects the
       jq-style `.id // ""` form.
+- [x] Rules modelled as **atoms**: each rule is a self-contained folder
+      `rules/<id>/` with `rule.yaml` + `check.sh` + `constitution.md` +
+      `evals/test.sh`. `pack.yaml` carries only pack identity and the
+      preset graph — no flat `rules:` block, no sibling
+      `constitution-snippets/` or `evals/` directories. Adding /
+      removing / reshuffling a rule is one `git mv` of its folder.

@@ -6,23 +6,27 @@ Read [RULES_CATALOG.md](RULES_CATALOG.md) first for what each existing rule does
 
 ## Layout
 
+Rules are **atoms**. Each rule is a self-contained folder that owns its test, its Invariant snippet, its metadata, and its eval fixtures. Nothing about a rule lives outside its folder.
+
 ```
 <pack>/
-├── pack.yaml                  # manifest — fields below
-├── rules/
-│   └── <rule-id>.sh           # rule scripts; filename == rule id
-├── constitution-snippets/
-│   └── <rule-id>.md           # Invariant subsection (Rule / Rationale / Enforced by / Exceptions)
-└── evals/
+├── pack.yaml                  # pack identity + presets
+└── rules/
     └── <rule-id>/
-        └── test.sh            # pass + fail fixtures using eval-lib.sh
+        ├── rule.yaml          # per-rule metadata (category, summary, hook, …)
+        ├── check.sh           # the executable test
+        ├── constitution.md    # Invariant subsection (Rule / Rationale / Enforced by / Exceptions)
+        └── evals/
+            └── test.sh        # pass + fail fixtures using eval-lib.sh
 ```
 
-One rule script ↔ one constitution snippet ↔ one eval directory, all sharing the same `<rule-id>`. The id must match the filename without `.sh`.
+Adding, moving, deleting, or shipping a rule to another pack is a single `git mv` of its folder. The folder name **is** the rule id — there is no separate registry to update.
 
 In-tree packs live under `governance-bootstrap/assets/packs/<pack>/`. Out-of-tree packs live anywhere the bootstrap skill is pointed at.
 
 ## `pack.yaml` schema
+
+`pack.yaml` carries pack-level identity and the preset graph. Per-rule data lives in each rule's `rule.yaml`, not here.
 
 ### Pack-level fields
 
@@ -35,7 +39,6 @@ In-tree packs live under `governance-bootstrap/assets/packs/<pack>/`. Out-of-tre
 | `description` | yes | One-line summary of what this pack covers. |
 | `author` | yes | Pack author / org. |
 | `presets` | yes | See below. |
-| `rules` | yes | Array of rule entries. |
 
 ### Presets
 
@@ -55,36 +58,33 @@ presets:
 
 When the user picks a preset at install time, the bootstrap skill takes the **union** of that preset across every selected pack. A rule listed in a preset still respects its own `always_install` flag.
 
-### Rule entries
+## `rule.yaml` schema
+
+Each rule folder has a `rule.yaml` with flat scalar keys:
 
 ```yaml
-rules:
-  - id: <rule-id>
-    category: <category-label>
-    recommended: true | false
-    summary: <one-line menu description>
-    script: rules/<rule-id>.sh
-    constitution: constitution-snippets/<rule-id>.md
-    surface: repo-state | change-set
-    hook: pre-commit | commit-msg | prepare-commit-msg | none
-    always_install: true        # optional; see below
+category: <category-label>
+recommended: true | false
+summary: <one-line menu description>
+surface: repo-state | change-set
+hook: pre-commit | commit-msg | prepare-commit-msg | none
+always_install: true            # optional; see below
 ```
 
 | Field | Notes |
 |---|---|
-| `id` | Filename of the rule script without `.sh`. Must be unique across all packs installed into the same target. |
 | `category` | Menu grouping. Canonical values: `Foundation`, `Security`, `SystemOfRecord`, `CommitHygiene`, `Quality`. Packs may introduce new categories (`agent-governance` adds `AgentDiscipline`); the skill renders each category as its own menu screen. |
 | `recommended` | Pre-ticks the rule in the category menu. Presets override this per-preset. |
 | `summary` | Shown next to the id in the multi-select picker. Keep it to one line. |
-| `script` | Relative path inside the pack. |
-| `constitution` | Relative path to the Invariant snippet spliced into `CONSTITUTION.md` at install. |
 | `surface` | `repo-state` for rules that inspect the tree at rest; `change-set` for rules that inspect a specific commit or diff. Documented for the authoring guardrail (see RULES_CATALOG.md). |
 | `hook` | Hook kind the rule wants to run in. Drives dispatcher generation. Use `none` only if the rule runs exclusively in CI. |
 | `always_install` | Reserved to `core`. Skips the menu. If you need an unconditionally installed rule in a third-party pack, file an issue first — the guarantee only holds for `core`. |
 
-## Rule script conventions
+There is no `id`, `script`, or `constitution` field — the id is the folder name, the script is always `check.sh`, and the snippet is always `constitution.md`. Keeping the shape rigid means a new rule folder can be dropped in without editing any index.
 
-Every rule sources the shared lib and uses the standard lifecycle helpers:
+## Rule check conventions
+
+`check.sh` sources the shared lib and uses the standard lifecycle helpers:
 
 ```bash
 #!/usr/bin/env bash
@@ -102,16 +102,16 @@ require_git
 rule_end
 ```
 
-- The rule id in `rule_start` must match the filename.
+- The rule id in `rule_start` must match the folder name.
 - Exit status is owned by `lib.sh`; do not call `exit` manually.
 - Prefer `git grep -InE` with pathspec excludes over `find | xargs grep` — it skips binaries, respects `.gitignore`, and is portable.
 - Avoid GNU-only regex features. `\b` is not portable across BSD `git grep`; use `--word-regexp` (`-w`) instead.
 - When a rule's own script contains the pattern it hunts for, self-exempt via pathspec: `:!tests/governance/rules/<rule-id>.sh`.
-- Self-exempt the pack eval directory: `:!governance-bootstrap/assets/packs/*/evals/**`. Eval fixtures deliberately contain the patterns rules look for.
+- Self-exempt the pack eval directory: `:!governance-bootstrap/assets/packs/*/rules/*/evals/**`. Eval fixtures deliberately contain the patterns rules look for.
 
-## Constitution snippets
+## Constitution snippet
 
-Each rule ships a markdown fragment that becomes an `Invariants` subsection in the target repo's `CONSTITUTION.md`. Four sections, in order:
+Each rule ships a markdown fragment (`constitution.md`) that becomes an `Invariants` subsection in the target repo's `CONSTITUTION.md`. Four sections, in order:
 
 ```markdown
 ### <rule-id>
@@ -129,23 +129,28 @@ The bootstrap skill splices these in at install. Do not write a top-level `#` he
 
 ## Evals
 
-Every rule ships a pass+fail eval under `evals/<rule-id>/test.sh`. Evals run via `scripts/test-packs.sh` and exercise the rule end-to-end in a throwaway git fixture.
+Every rule ships a pass+fail eval at `rules/<rule-id>/evals/test.sh`. Evals run via `scripts/test-packs.sh` and exercise the rule end-to-end in a throwaway git fixture.
 
 ```bash
 #!/usr/bin/env bash
-set -euo pipefail
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib/eval-lib.sh" && pwd)/eval-lib.sh"
+set -u
+EVAL_ID="<rule-id>"
+# rules/<rule-id>/evals/test.sh → repo root is seven levels up.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../../../.." && pwd)"
+source "$ROOT/governance-bootstrap/assets/packs/lib/eval-lib.sh"
+PACK_DIR="$ROOT/governance-bootstrap/assets/packs/<pack>"
+RULE="tests/governance/rules/$EVAL_ID.sh"
 
-fixture_init                                # temp git repo with baseline docs + empty governance harness
-install_rule core <rule-id>                 # copies rules/<rule-id>.sh + lib.sh into tests/governance/rules/
+fixture_init
+install_rule "$PACK_DIR" "$EVAL_ID"
 
 # Pass case — fixture satisfies the rule as-is.
-expect_pass
+expect_pass "$RULE"
 
 # Fail case — introduce a violation.
 echo "something that violates the rule" >> some-file
 stage_all
-expect_fail <rule-id>
+EVAL_LABEL="$EVAL_ID violation" expect_fail "$RULE"
 
 fixture_cleanup
 eval_done
@@ -154,10 +159,10 @@ eval_done
 Helpers provided by `eval-lib.sh`:
 
 - `fixture_init` — creates a temp repo with `README.md`, `LICENSE`, `CONSTITUTION.md`, `AGENTS.md`, `ARCHITECTURE.md`, `SECURITY.md`, `.gitignore`, `.env.example`, `.github/workflows/ci.yml`, `.githooks/pre-commit`, all sized to pass the default repo-state rules.
-- `install_rule <pack> <rule-id>` — copies the rule script and `lib.sh` into the fixture's `tests/governance/rules/`.
+- `install_rule <pack-dir> <rule-id>` — copies the rule's `check.sh` and `lib.sh` into the fixture's `tests/governance/rules/`.
 - `stage_all`, `commit_quiet "<msg>"` — git helpers.
-- `expect_pass` — runs `tests/governance/run.sh` and asserts clean exit.
-- `expect_fail <rule-id>` — asserts the named rule reports a violation.
+- `expect_pass <rule-path>` — runs the rule and asserts clean exit.
+- `expect_fail <rule-path>` — asserts the rule reports a violation.
 - `fixture_cleanup`, `eval_done` — teardown + report.
 
 Fixtures that need baseline files differ from the default — e.g. a rule that requires Python libraries under `scripts/governance/lib/` — should copy what they need from the pack asset tree rather than inlining content.
@@ -170,8 +175,8 @@ At activation the bootstrap skill:
 2. Offers pack selection (`core` is pre-selected and locked).
 3. Offers a preset (`minimal` / `standard` / `strict`) and per-category multi-selects for the remaining rules.
 4. Computes `always_install ∪ preset_rules ∪ user_selections` across the selected packs.
-5. Copies each selected `rules/<id>.sh` into the target's `tests/governance/rules/`.
-6. Splices each selected `constitution-snippets/<id>.md` into the target's `CONSTITUTION.md`.
+5. Copies each selected `rules/<id>/check.sh` into the target's `tests/governance/rules/<id>.sh`.
+6. Splices each selected `rules/<id>/constitution.md` into the target's `CONSTITUTION.md`.
 7. Generates hook dispatchers (`pre-commit`, `commit-msg`, `prepare-commit-msg`) containing only the selected rules, keyed off their `hook:` declarations. Each hook carries an ownership marker (`# governance-kit:managed pack-version=<v> generated=<date>`). Pre-existing unmarked hooks trigger a collision prompt.
 8. Appends an evolution-log entry in `CONSTITUTION.md`.
 
@@ -189,4 +194,4 @@ From the `governance-kit` root:
 bash scripts/test-packs.sh
 ```
 
-This walks every pack, validates manifests, runs every `evals/<rule>/test.sh`, and smoke-tests hook generation for the union of all rules. Every rule must have at least one pass and one fail fixture; test-packs fails if an eval is missing.
+This walks every pack, validates each rule folder, runs every `rules/<rule>/evals/test.sh`, and smoke-tests hook generation for the union of all rules. Every rule must have at least one pass and one fail fixture; test-packs fails if an eval is missing.

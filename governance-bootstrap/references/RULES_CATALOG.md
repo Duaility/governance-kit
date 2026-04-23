@@ -1,6 +1,6 @@
 # Rules Catalog
 
-Every rule lives in a **pack** under `governance-bootstrap/assets/packs/<pack>/`. A pack bundles rule scripts (`rules/*.sh`), Invariant snippets (`constitution-snippets/*.md`), a YAML manifest (`pack.yaml`), and pass/fail evals (`evals/<rule>/test.sh`). The bootstrap skill discovers packs at activation, unions their menus, and installs the selected subset.
+Every rule lives in a **pack** under `governance-bootstrap/assets/packs/<pack>/`. Each rule is a self-contained folder at `rules/<rule-id>/` carrying its metadata (`rule.yaml`), the executable test (`check.sh`), its Invariant snippet (`constitution.md`), and pass/fail evals (`evals/test.sh`). The pack's top-level `pack.yaml` carries only pack identity and presets. The bootstrap skill discovers packs at activation, unions their menus, and installs the selected subset.
 
 Two packs ship in-tree:
 
@@ -104,23 +104,22 @@ Waivers are visible in `git blame` and searchable by design. Only use them for d
 
 ## Adding a new rule to an existing pack
 
-1. Write the script at `governance-bootstrap/assets/packs/<pack>/rules/<id>.sh`, `chmod +x`.
-2. Write the Invariant snippet at `governance-bootstrap/assets/packs/<pack>/constitution-snippets/<id>.md` — four sections: **Rule**, **Rationale**, **Enforced by**, **Exceptions**.
-3. Append a rule entry to `governance-bootstrap/assets/packs/<pack>/pack.yaml`:
-   ```yaml
-   - id: <id>
+1. Create `governance-bootstrap/assets/packs/<pack>/rules/<id>/` and populate it:
+   - `check.sh` — the bash test, `chmod +x`.
+   - `constitution.md` — four sections: **Rule**, **Rationale**, **Enforced by**, **Exceptions**.
+   - `rule.yaml` — scalar fields:
+     ```yaml
      category: <Foundation|Security|SystemOfRecord|CommitHygiene|Quality|AgentDiscipline|...>
      recommended: true|false
      summary: <one-line menu description>
-     script: rules/<id>.sh
-     constitution: constitution-snippets/<id>.md
      surface: repo-state | change-set
      hook: pre-commit | commit-msg | prepare-commit-msg | none
-   ```
-   Add the `id` to any preset blocks (`minimal` / `standard` / `strict`) it should be part of.
-4. Write a pack eval at `governance-bootstrap/assets/packs/<pack>/evals/<id>/test.sh` using `eval-lib.sh`. Exercise a **pass** fixture and at least one **fail** fixture.
-5. Run `bash scripts/test-packs.sh` — it validates manifests, runs every eval, and smoke-tests hook generation.
-6. Document the rule in this file under the pack's category table.
+     # always_install: true   # optional; reserved to the core pack
+     ```
+   - `evals/test.sh` — pass + fail fixtures using `eval-lib.sh`.
+2. If the rule should be part of a preset, add its id to the relevant block (`minimal` / `standard` / `strict`) in the pack's `pack.yaml`. The `rules:` block no longer lives there — rule metadata comes from each rule's `rule.yaml`.
+3. Run `bash scripts/test-packs.sh` — it validates every rule folder, runs every eval, and smoke-tests hook generation.
+4. Document the rule in this file under the pack's category table.
 
 For rules that belong in a new pack (not `core` or `agent-governance`), see [AUTHORING_PACKS.md](AUTHORING_PACKS.md).
 

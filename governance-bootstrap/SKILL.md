@@ -103,11 +103,11 @@ source governance-bootstrap/assets/packs/lib/packs.sh
 list_packs governance-bootstrap/assets/packs
 ```
 
-Every `assets/packs/<pack-id>/pack.yaml` is a pack. For each pack, read the manifest and build an in-memory catalog of:
+Every `assets/packs/<pack-id>/pack.yaml` is a pack. Rule metadata lives inside each rule's folder (`assets/packs/<pack-id>/rules/<rule-id>/rule.yaml`) — the loader surfaces it via `rules_for` and `rule_field`. For each pack, build an in-memory catalog of:
 
-- pack id, name, description, version
-- declared presets (`minimal`, `standard`, `strict`, plus any pack-specific ones)
-- rule list with fields `category`, `recommended`, `summary`, `script`, `constitution`, `surface`, `hook`, `always_install`
+- pack id, name, description, version (from `pack.yaml`)
+- declared presets (`minimal`, `standard`, `strict`, plus any pack-specific ones — from `pack.yaml`)
+- rule list; for each rule read `category`, `recommended`, `summary`, `surface`, `hook`, `always_install` from `rules/<rule-id>/rule.yaml`. The check script is at `rules/<rule-id>/check.sh` and the Invariant snippet at `rules/<rule-id>/constitution.md` — paths are implied by the folder shape, not declared.
 
 No env var or CLI flag controls pack selection in v1 — discovery is in-tree only.
 
@@ -174,7 +174,7 @@ Ask this explicitly whenever the user requests a custom rule or a rule whose rat
 
 Do not accept a repo-exists proxy for a change-set obligation unless you explicitly tell the user it is only a weak approximation and they approve that tradeoff.
 
-For each rule in the final install list, copy `<pack-dir>/rules/<rule>.sh` into `tests/governance/rules/`. If the user selects `doc-freshness`, also copy `assets/freshness.conf` to `tests/governance/freshness.conf` (the seed file is commented — every path is opt-in by uncommenting; `governance-gardener` complements it with a built-in baseline).
+For each rule in the final install list, copy `<pack-dir>/rules/<rule>/check.sh` into `tests/governance/rules/<rule>.sh` and mark it executable. If the user selects `doc-freshness`, also copy `assets/freshness.conf` to `tests/governance/freshness.conf` (the seed file is commented — every path is opt-in by uncommenting; `governance-gardener` complements it with a built-in baseline).
 
 ### Step 4 — Write the constitution
 
@@ -182,7 +182,7 @@ Copy `assets/CONSTITUTION.template.md` to `<repo-root>/CONSTITUTION.md`. Then ta
 
 - The template ships with a **Compliance** section directly under the cardinal-rule callout — leave it intact. Every bootstrapped repo gets it.
 - Fill the **Principles** section with 3-5 high-level principles inferred from the rules the user picked, plus a generic starter like "Changes to the constitution require changes to the enforcing tests."
-- Under **Invariants**, for each rule in the final install list, read the rule's `constitution:` file from its pack (`<pack-dir>/constitution-snippets/<rule>.md`) and splice the snippet verbatim into the **Invariants** section. Every snippet is already in the standard Rule / Rationale / Enforced by / Exceptions shape — do not rewrite.
+- Under **Invariants**, for each rule in the final install list, read the rule's Invariant subsection snippet (`<pack-dir>/rules/<rule>/constitution.md`) and splice it verbatim into the **Invariants** section. Every snippet is already in the standard Rule / Rationale / Enforced by / Exceptions shape — do not rewrite.
 - Leave the **Evolution Log** section with a template entry and a note that each amendment needs a commit.
 
 Do not invent principles the user did not pick. It is better to ship a short constitution than a bloated one. If you had to infer anything material — stack, preset, or hook strategy — record it under `Assumptions:` in the final summary. If you install any custom or change-set-aware rule, make sure the invariant text says what merge it blocks, not just what file shape it checks.
@@ -229,7 +229,7 @@ Path choice:
 
 1. Generate `.githooks/pre-commit`, and `.githooks/commit-msg` / `.githooks/prepare-commit-msg` if any selected rule uses them.
 2. `chmod +x` every generated hook.
-3. Install `hooks-configured.sh` (copied from `<core-pack-dir>/rules/hooks-configured.sh`).
+3. Install `hooks-configured.sh` (copied from `<core-pack-dir>/rules/hooks-configured/check.sh` to `tests/governance/rules/hooks-configured.sh`).
 4. Run `git config core.hooksPath .githooks`. **Tell the user explicitly** that this config is per-clone — every other contributor must run the same command after their first clone. The `hooks-configured` rule will surface that requirement on every commit until they do.
 5. **Do not** create files under `.git/hooks/`. If `.git/hooks/pre-commit` (or `commit-msg`) already exists from a previous bootstrap or another tool, ask the user before deleting — it could be a husky or pre-commit.com hook (see Path B).
 

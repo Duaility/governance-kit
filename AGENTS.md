@@ -50,10 +50,13 @@ governance-kit/
 │   ├── assets/                  # Templates copied into target repos.
 │   │   └── packs/               # Rule packs (core, agent-governance, ...).
 │   │       └── <pack>/
-│   │           ├── pack.yaml           # manifest
-│   │           ├── rules/              # *.sh rule scripts
-│   │           ├── constitution-snippets/  # *.md Invariant subsections
-│   │           └── evals/              # pass/fail eval fixtures
+│   │           ├── pack.yaml           # pack id + presets
+│   │           └── rules/
+│   │               └── <rule-id>/      # self-contained rule folder
+│   │                   ├── rule.yaml       # per-rule metadata
+│   │                   ├── check.sh        # executable test
+│   │                   ├── constitution.md # Invariant subsection
+│   │                   └── evals/test.sh   # pass/fail fixtures
 │   └── references/              # RULES_CATALOG.md, NATIVE_TESTS.md,
 │                                #   AUTHORING_PACKS.md.
 ├── governance-amend/            # Skill 2 — adds/modifies a rule atomically.
@@ -85,23 +88,26 @@ Do not edit [CONSTITUTION.md](CONSTITUTION.md) by hand. Invoke the `governance-a
 ### Adding a new rule to the catalog
 
 Rules live inside **packs** under `governance-bootstrap/assets/packs/<pack>/`.
-Two packs ship in-tree today: `core` (general rules) and `agent-governance`
-(rules for repos operating under agent-driven development).
+Each rule is a self-contained folder — test, snippet, metadata, and
+eval all live together under `rules/<rule-id>/`. Two packs ship in-tree
+today: `core` (general rules) and `agent-governance` (rules for repos
+operating under agent-driven development).
 
-1. Add the bash test under `governance-bootstrap/assets/packs/<pack>/rules/<id>.sh`.
-2. Add a matching Invariant subsection at
-   `governance-bootstrap/assets/packs/<pack>/constitution-snippets/<id>.md`
-   (Rule / Rationale / Enforced by / Exceptions).
-3. Append a rule entry to `governance-bootstrap/assets/packs/<pack>/pack.yaml`
-   — fields: `id`, `category`, `recommended`, `summary`, `script`,
-   `constitution`, `surface` (`repo-state`|`change-set`), `hook`
-   (`pre-commit`|`commit-msg`|`prepare-commit-msg`|`none`), and add it to
-   the relevant preset block if it should be part of `minimal` / `standard`.
-4. Add an eval at `governance-bootstrap/assets/packs/<pack>/evals/<id>/test.sh`
-   — run `bash scripts/test-packs.sh` to confirm it passes pass and fail
-   fixtures.
-5. Document it in [governance-bootstrap/references/RULES_CATALOG.md](governance-bootstrap/references/RULES_CATALOG.md).
-6. For authoring an entirely new pack, see
+1. Create `governance-bootstrap/assets/packs/<pack>/rules/<id>/` and
+   populate it with:
+   - `rule.yaml` — scalar fields `category`, `recommended`, `summary`,
+     `surface` (`repo-state`|`change-set`), `hook`
+     (`pre-commit`|`commit-msg`|`prepare-commit-msg`|`none`), optional
+     `always_install` (reserved to `core`).
+   - `check.sh` — the bash test.
+   - `constitution.md` — the Invariant subsection (Rule / Rationale /
+     Enforced by / Exceptions).
+   - `evals/test.sh` — pass + fail fixtures. Run `bash scripts/test-packs.sh`
+     to confirm.
+2. If the rule should be part of `minimal` / `standard` / `strict`,
+   add its id to the relevant preset block in the pack's `pack.yaml`.
+3. Document it in [governance-bootstrap/references/RULES_CATALOG.md](governance-bootstrap/references/RULES_CATALOG.md).
+4. For authoring an entirely new pack, see
    [governance-bootstrap/references/AUTHORING_PACKS.md](governance-bootstrap/references/AUTHORING_PACKS.md).
 
 ### Commit messages

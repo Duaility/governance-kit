@@ -1,0 +1,6 @@
+# no-orphan-todos — Every TODO / FIXME references
+category: CommitHygiene
+recommended: false
+summary: Every TODO / FIXME references
+surface: repo-state
+hook: pre-commit

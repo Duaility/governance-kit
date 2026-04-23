@@ -1,0 +1,6 @@
+# no-committed-build-artifacts — No __pycache__ / node_modules / dist / build / target / out / .DS_Store tracked.
+category: Quality
+recommended: true
+summary: No __pycache__ / node_modules / dist / build / target / out / .DS_Store tracked.
+surface: repo-state
+hook: pre-commit

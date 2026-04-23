@@ -1,0 +1,6 @@
+# file-size-limit — No source file exceeds 500 lines (override via GOVERNANCE_FILE_SIZE_LIMIT).
+category: Quality
+recommended: false
+summary: No source file exceeds 500 lines (override via GOVERNANCE_FILE_SIZE_LIMIT).
+surface: repo-state
+hook: pre-commit

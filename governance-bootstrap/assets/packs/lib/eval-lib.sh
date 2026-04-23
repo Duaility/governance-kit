@@ -16,8 +16,9 @@
 #       Individual evals mutate this baseline for their pass/fail cases.
 #
 #   install_rule <pack-dir> <rule-id>
-#       Copies `assets/tests-bash/lib.sh` and `<pack-dir>/rules/<id>.sh`
-#       into the fixture's `tests/governance/`. Idempotent.
+#       Copies `assets/tests-bash/lib.sh` and the rule's check script
+#       (`<pack-dir>/rules/<id>/check.sh`) into the fixture's
+#       `tests/governance/rules/<id>.sh`. Idempotent.
 #
 #   stage_all
 #       git add -A in the fixture.
@@ -215,7 +216,7 @@ install_rule() {
     local pack_dir="$1" rule_id="$2"
     mkdir -p tests/governance/rules
     cp "$_EVAL_LIB_SH" tests/governance/lib.sh
-    cp "$pack_dir/rules/$rule_id.sh" "tests/governance/rules/$rule_id.sh"
+    cp "$pack_dir/rules/$rule_id/check.sh" "tests/governance/rules/$rule_id.sh"
     chmod +x "tests/governance/rules/$rule_id.sh"
 }
 

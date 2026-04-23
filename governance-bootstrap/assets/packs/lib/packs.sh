@@ -1,50 +1,66 @@
 #!/usr/bin/env bash
 # packs.sh — pack loader for governance-bootstrap.
 #
-# Reads pack.yaml manifests from a pack root (default:
-# governance-bootstrap/assets/packs/) and exposes helpers the skill and
-# eval infrastructure use to drive the activation flow and hook
-# generation.
+# Rule layout: each rule is a self-contained folder under the pack.
 #
-# The manifests are intentionally shallow and regular — two top-level
-# maps (`presets`, `rules`), both with flat values. That lets us parse
-# them with either `yq` (when available) or a minimal pure-bash pass
-# that handles exactly the shapes pack.yaml files are allowed to use.
-# A general YAML parser is not warranted.
+#   packs/<pack>/
+#     pack.yaml                  # pack metadata + presets
+#     rules/<rule-id>/
+#       rule.yaml                # per-rule scalars (category, summary, hook, …)
+#       check.sh                 # the executable test
+#       constitution.md          # Invariant subsection snippet
+#       evals/test.sh            # pack-author eval (optional pass/fail cases)
+#
+# Every artefact that belongs to a rule lives inside its folder — so
+# adding, moving, or deleting a rule is a single directory operation.
+# Pack-level data (preset membership) lives in pack.yaml. There is no
+# flat rule index anywhere; `rules_for` discovers rules by listing the
+# folders under `rules/`.
+#
+# The manifests are intentionally shallow and regular — simple scalar
+# keys at the top level of each YAML file. That lets us parse them with
+# either `yq` (when available) or a minimal pure-bash pass. A general
+# YAML parser is not warranted.
 #
 # The contract with callers:
 #   list_packs <packs-root>
 #       Prints one line per pack: "<pack-id>\t<pack-dir>"
 #
 #   pack_field <pack-dir> <field>
-#       Prints the top-level scalar field (id, name, version, ...).
+#       Prints the top-level scalar field from pack.yaml
+#       (id, name, version, …).
 #
 #   rules_for <pack-dir>
-#       Prints one line per rule: "<id>" (in manifest order).
+#       Prints one line per rule id, sorted lexicographically. A rule is
+#       any directory under `<pack-dir>/rules/` that contains a
+#       `rule.yaml`.
+#
+#   rule_dir <pack-dir> <rule-id>
+#       Prints the rule folder path (does not check existence).
 #
 #   rule_field <pack-dir> <rule-id> <field>
-#       Prints the scalar field for a rule (category, summary, script,
-#       constitution, surface, hook, recommended, always_install).
+#       Prints the scalar field from that rule's rule.yaml
+#       (category, summary, surface, hook, recommended, always_install).
 #
 #   preset_resolve <pack-dir> <preset>
 #       Prints the set of rule ids in the preset after `extends:` is
 #       unrolled. Empty output (and non-zero exit) if the preset is not
 #       declared on the pack.
 #
-#   union_preset <preset> <pack-dir> [<pack-dir>...]
+#   union_preset <preset> <pack-dir> [<pack-dir>…]
 #       Prints the union of preset rule ids across the given packs,
 #       deduplicated but order-preserving. Packs without the preset
 #       contribute nothing (union, not fallback).
 #
 #   always_install_rules <pack-dir>
 #       Prints rule ids with always_install: true. Enforced to be
-#       core-only at install time by the skill.
+#       core-only by `validate_pack`.
 #
 #   validate_pack <pack-dir>
-#       Structural checks — manifest loads, every rule has a script and
-#       constitution file present on disk, pack id matches dir name, no
-#       unknown hook values. Prints violations on stdout; exit non-zero
-#       if any.
+#       Structural checks — pack.yaml id matches dir name, every rule
+#       folder has rule.yaml + check.sh + constitution.md on disk, no
+#       unknown hook/surface values, always_install is core-only.
+#       Prints violations on stdout; exit non-zero if any.
 
 set -u
 
@@ -64,13 +80,11 @@ _yaml_scalar_awk() {
         BEGIN { in_block = 0 }
         /^[[:space:]]*#/ { next }
         /^[^[:space:]]/ {
-            # New top-level key.
             line = $0
             sub(/#.*$/, "", line)
             if (match(line, "^" k ":[[:space:]]*")) {
                 val = substr(line, RLENGTH + 1)
                 sub(/[[:space:]]+$/, "", val)
-                # Strip surrounding quotes.
                 if (val ~ /^".*"$/ || val ~ /^'\''.*'\''$/) {
                     val = substr(val, 2, length(val) - 2)
                 }
@@ -102,20 +116,9 @@ _yaml_scalar() {
     _yaml_scalar_awk "$file" "$key"
 }
 
-# _yaml_rules_block <file>
-# Prints the raw YAML lines between the top-level `rules:` key and the
-# next top-level key (or EOF).
-_yaml_rules_block() {
-    local file="$1"
-    awk '
-        /^[[:space:]]*#/ { next }
-        /^rules:[[:space:]]*$/ { in_rules = 1; next }
-        in_rules && /^[^[:space:]]/ { exit }
-        in_rules { print }
-    ' "$file"
-}
-
 # _yaml_presets_block <file>
+# Prints the raw YAML lines inside the top-level `presets:` map, up to
+# the next top-level key (or EOF).
 _yaml_presets_block() {
     local file="$1"
     awk '
@@ -149,54 +152,30 @@ pack_field() {
     _yaml_scalar "$pack_dir/pack.yaml" "$field"
 }
 
+rule_dir() {
+    local pack_dir="$1" rule_id="$2"
+    printf '%s/rules/%s' "$pack_dir" "$rule_id"
+}
+
 rules_for() {
     local pack_dir="$1"
-    _yaml_rules_block "$pack_dir/pack.yaml" | awk '
-        /^[[:space:]]*-[[:space:]]+id:[[:space:]]*/ {
-            line = $0
-            sub(/^[[:space:]]*-[[:space:]]+id:[[:space:]]*/, "", line)
-            sub(/[[:space:]]*#.*$/, "", line)
-            sub(/[[:space:]]+$/, "", line)
-            # Strip quotes if present.
-            if (line ~ /^".*"$/ || line ~ /^'\''.*'\''$/) {
-                line = substr(line, 2, length(line) - 2)
-            }
-            print line
-        }
-    '
+    local rules_root="$pack_dir/rules"
+    [[ -d "$rules_root" ]] || return 0
+    local entry rule_id
+    while IFS= read -r entry; do
+        [[ -z "$entry" ]] && continue
+        rule_id="${entry##*/}"
+        if [[ -f "$entry/rule.yaml" ]]; then
+            printf '%s\n' "$rule_id"
+        fi
+    done < <(find "$rules_root" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
 }
 
 rule_field() {
     local pack_dir="$1" rule_id="$2" field="$3"
-    _yaml_rules_block "$pack_dir/pack.yaml" | awk -v rid="$rule_id" -v f="$field" '
-        function clean(v) {
-            sub(/[[:space:]]*#.*$/, "", v)
-            sub(/^[[:space:]]+/, "", v)
-            sub(/[[:space:]]+$/, "", v)
-            if (v ~ /^".*"$/ || v ~ /^'\''.*'\''$/) {
-                v = substr(v, 2, length(v) - 2)
-            }
-            return v
-        }
-        /^[[:space:]]*-[[:space:]]+id:[[:space:]]*/ {
-            line = $0
-            sub(/^[[:space:]]*-[[:space:]]+id:[[:space:]]*/, "", line)
-            cur = clean(line)
-            match_block = (cur == rid) ? 1 : 0
-            next
-        }
-        match_block && /^[[:space:]]+[A-Za-z_][A-Za-z0-9_]*:[[:space:]]*/ {
-            # Key inside the rule block.
-            line = $0
-            sub(/^[[:space:]]+/, "", line)
-            key = line; sub(/:.*$/, "", key)
-            val = line; sub(/^[^:]*:[[:space:]]*/, "", val)
-            if (key == f) {
-                print clean(val)
-                exit
-            }
-        }
-    '
+    local manifest="$pack_dir/rules/$rule_id/rule.yaml"
+    [[ -f "$manifest" ]] || return 0
+    _yaml_scalar "$manifest" "$field"
 }
 
 # _preset_raw <pack-dir> <preset-name>
@@ -287,7 +266,7 @@ preset_resolve() {
             *" $p "*) return 0 ;;
         esac
         seen_presets="$seen_presets $p"
-        local raw extends rules line
+        local raw extends rules
         raw="$(_preset_raw "$pack_dir" "$p")"
         [[ -z "$raw" ]] && return 1
         extends="$(printf '%s\n' "$raw" | awk '/^extends / {print $2; exit}')"
@@ -364,21 +343,28 @@ validate_pack() {
         ok=1
     fi
 
-    local rule_id script snippet hook surface
+    # Rules directory must exist (empty is technically allowed, but a
+    # pack with zero rules is almost always a mistake).
+    local rules_root="$pack_dir/rules"
+    if [[ ! -d "$rules_root" ]]; then
+        printf '%s: rules/ directory missing\n' "$pack_dir"
+        return 1
+    fi
+
+    local rule_id rule_path hook surface
     while IFS= read -r rule_id; do
         [[ -z "$rule_id" ]] && continue
-        script="$(rule_field "$pack_dir" "$rule_id" script)"
-        snippet="$(rule_field "$pack_dir" "$rule_id" constitution)"
+        rule_path="$rules_root/$rule_id"
+        if [[ ! -f "$rule_path/check.sh" ]]; then
+            printf '%s/%s: check.sh missing\n' "$pack_dir" "$rule_id"
+            ok=1
+        fi
+        if [[ ! -f "$rule_path/constitution.md" ]]; then
+            printf '%s/%s: constitution.md missing\n' "$pack_dir" "$rule_id"
+            ok=1
+        fi
         hook="$(rule_field "$pack_dir" "$rule_id" hook)"
         surface="$(rule_field "$pack_dir" "$rule_id" surface)"
-        if [[ -z "$script" || ! -f "$pack_dir/$script" ]]; then
-            printf '%s/%s: script missing (%q)\n' "$pack_dir" "$rule_id" "$script"
-            ok=1
-        fi
-        if [[ -z "$snippet" || ! -f "$pack_dir/$snippet" ]]; then
-            printf '%s/%s: constitution snippet missing (%q)\n' "$pack_dir" "$rule_id" "$snippet"
-            ok=1
-        fi
         case "$hook" in
             pre-commit|commit-msg|prepare-commit-msg|none|"") ;;
             *) printf '%s/%s: unknown hook value %q\n' "$pack_dir" "$rule_id" "$hook"; ok=1 ;;
@@ -388,6 +374,16 @@ validate_pack() {
             *) printf '%s/%s: unknown surface value %q\n' "$pack_dir" "$rule_id" "$surface"; ok=1 ;;
         esac
     done < <(rules_for "$pack_dir")
+
+    # Stray files directly under rules/ (not inside a rule folder) are
+    # always a mistake — usually a leftover from the old flat layout.
+    local stray
+    while IFS= read -r stray; do
+        [[ -z "$stray" ]] && continue
+        printf '%s: stray file under rules/ (%s) — rules must be folders\n' \
+            "$pack_dir" "${stray##*/}"
+        ok=1
+    done < <(find "$rules_root" -mindepth 1 -maxdepth 1 -not -type d 2>/dev/null | sort)
 
     # always_install is reserved to core.
     if [[ "$pack_id" != "core" ]]; then

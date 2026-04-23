@@ -1,0 +1,7 @@
+# no-merge-conflict-markers — No <<<<<<< / ======= / >>>>>>> markers in tracked files.
+category: Quality
+recommended: true
+summary: No <<<<<<< / ======= / >>>>>>> markers in tracked files.
+surface: repo-state
+hook: pre-commit
+always_install: true

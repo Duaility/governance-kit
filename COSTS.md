@@ -64,3 +64,4 @@ Schema:
 | claude-code-2ee76956-1f7-1776944546 | claude-code | 2ee76956-1f71-48a1-b8ed-5f0da9c878ce | #23 | claude-opus-4-7 | 14 | 11929 | 618519 | 3330 | 15273 | 0.4671 | docs(governance): record pack refactor in evolution log (#23) |
 | claude-code-3ffd2eba-cd2-1776946025 | claude-code | 3ffd2eba-cd2f-439f-9aa0-7090cbcd3511 | #23 | claude-opus-4-7 | 42 | 127620 | 1549947 | 17406 | 145068 | 2.0080 | fix(packs): fall back to awk when yq expression fails (#23) |
 | claude-code-3ffd2eba-cd2-1776946058 | claude-code | 3ffd2eba-cd2f-439f-9aa0-7090cbcd3511 | #23 | claude-opus-4-7 | 8 | 3347 | 526288 | 1703 | 5058 | 0.3267 | fix(packs): fall back to awk when yq expression fails (#23) |
+| claude-code-3ffd2eba-cd2-1776946817 | claude-code | 3ffd2eba-cd2f-439f-9aa0-7090cbcd3511 | #23 | claude-opus-4-7 | 138 | 300744 | 11592692 | 64156 | 365038 | 9.2806 | refactor(packs): model each rule as a self-contained folder (#23) |

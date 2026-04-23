@@ -123,7 +123,7 @@ while IFS= read -r eval_script; do
         fail=1
         printf '    ✗ eval failed\n'
     fi
-done < <(find "$PACKS_ROOT" -type f -path '*/evals/*/test.sh' 2>/dev/null | sort)
+done < <(find "$PACKS_ROOT" -type f -path '*/rules/*/evals/test.sh' 2>/dev/null | sort)
 
 printf '\n────────────────────────────────────────\n'
 if [[ $fail -ne 0 ]]; then

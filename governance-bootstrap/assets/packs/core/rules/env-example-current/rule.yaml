@@ -1,0 +1,6 @@
+# env-example-current — Every key in local .env is declared in .env.example.
+category: Security
+recommended: false
+summary: Every key in local .env is declared in .env.example.
+surface: repo-state
+hook: pre-commit

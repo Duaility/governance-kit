@@ -14,6 +14,10 @@
 # Category `AgentDiscipline` is introduced by this pack — the
 # bootstrap skill surfaces it as an additional screen when this pack
 # is selected.
+#
+# Rule metadata and artefacts live inside each rule's folder under
+# `rules/<id>/`. This file carries only pack-level identity and the
+# presets that select rules by id.
 
 id: agent-governance
 name: Agent-governance rules
@@ -35,40 +39,3 @@ presets:
   strict:
     extends: standard
     rules: []
-
-rules:
-  - id: plan-per-issue
-    category: AgentDiscipline
-    recommended: true
-    summary: Every tracked plans/*.md filename carries a unique issue-<N> token.
-    script: rules/plan-per-issue.sh
-    constitution: constitution-snippets/plan-per-issue.md
-    surface: repo-state
-    hook: pre-commit
-
-  - id: commit-issue-plan-match
-    category: AgentDiscipline
-    recommended: true
-    summary: Each commit's (#N) matches an issue-<N> token on a plan it touches.
-    script: rules/commit-issue-plan-match.sh
-    constitution: constitution-snippets/commit-issue-plan-match.md
-    surface: change-set
-    hook: commit-msg
-
-  - id: issues-tracked
-    category: AgentDiscipline
-    recommended: true
-    summary: QUALITY.md exists at repo root with Open and Resolved sections.
-    script: rules/issues-tracked.sh
-    constitution: constitution-snippets/issues-tracked.md
-    surface: repo-state
-    hook: pre-commit
-
-  - id: agent-token-accounting
-    category: AgentDiscipline
-    recommended: true
-    summary: Every non-merge, non-revert commit carries token trailers + matching COSTS.md row.
-    script: rules/agent-token-accounting.sh
-    constitution: constitution-snippets/agent-token-accounting.md
-    surface: change-set
-    hook: commit-msg
