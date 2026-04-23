@@ -24,7 +24,7 @@ Minimum floor of hygiene — `CONSTITUTION.md` exists, secrets aren't committed,
 | `readme-exists`        | `README.md` (or `README.rst`) exists with a heading and ≥ 30 words. |
 | `license-exists`       | `LICENSE` (or variants) exists at the repo root and is non-empty. |
 | `agents-md-exists`     | `AGENTS.md` at repo root, 30–250 lines, with ≥ 3 links to other docs. |
-| `hooks-configured`     | `.githooks/pre-commit` is tracked + executable, `.githooks/commit-msg` likewise if `conventional-commits` is installed, and `core.hooksPath` is set to `.githooks`. |
+| `hooks-configured`     | `.githooks/pre-commit` is tracked + executable, `.githooks/commit-msg` likewise if `conventional-commits` is installed, and `core.hooksPath` is set to `.githooks`. Declares `requires_hook_strategy: githooks`, so bootstrap skips it for husky/pre-commit.com repos. |
 
 ### Security
 | Rule | What it checks |
@@ -77,8 +77,8 @@ For repos where every tree-change is produced through an agent runtime (Codex, C
 |---|---|
 | `plan-per-issue`           | Every tracked `plans/*.md` filename carries a unique `issue-<N>` token. |
 | `commit-issue-plan-match`  | Each commit's `(#N)` subject anchor matches an `issue-<N>` token on a plan file it touches. Installs a `commit-msg` hook. |
-| `issues-tracked`           | `QUALITY.md` exists at repo root with `Open` and `Resolved` sections. |
-| `agent-token-accounting`   | Every non-merge, non-revert commit carries the full trailer set (`Agent`, `Issue`, `Session`, `Token-Input`, `Token-Output`, `Token-Total`, `Cost-Key`), satisfies `Total = Input + Output`, and has exactly one matching append-only row in `COSTS.md`. Ships a `prepare-commit-msg` hook that stamps trailers when `AGENT_*` env vars are set. Runtime-agnostic — see [AGENT_TOKEN_ACCOUNTING.md](AGENT_TOKEN_ACCOUNTING.md) for Codex / Claude Code wiring. |
+| `issues-tracked`           | `QUALITY.md` exists at repo root with `Open` and `Resolved` sections. Ships `install-assets/QUALITY.md` so a newly bootstrapped repo starts green. |
+| `agent-token-accounting`   | Every non-merge, non-revert commit carries the full trailer set (`Agent`, `Issue`, `Session`, `Token-Input`, `Token-Output`, `Token-Total`, `Cost-Key`), satisfies `Total = Input + Output`, and has exactly one matching append-only row in `COSTS.md`. Ships `install-assets/COSTS.md` plus rule-owned pre-commit and prepare-commit-msg helpers. Runtime-agnostic — see [AGENT_TOKEN_ACCOUNTING.md](AGENT_TOKEN_ACCOUNTING.md) for Codex / Claude Code wiring. |
 
 ### `agent-governance` presets
 
@@ -115,10 +115,12 @@ Waivers are visible in `git blame` and searchable by design. Only use them for d
      surface: repo-state | change-set
      hook: pre-commit | commit-msg | prepare-commit-msg | none
      # always_install: true   # optional; reserved to the core pack
+     # requires_hook_strategy: githooks   # optional environment filter
      ```
+   - `install-assets/` — optional files copied into the target repo before the first governance run. Use this for required seed files like `QUALITY.md` or `COSTS.md`; do not hide seed files in skill-specific special cases.
    - `evals/test.sh` — pass + fail fixtures using `eval-lib.sh`.
 2. If the rule should be part of a preset, add its id to the relevant block (`minimal` / `standard` / `strict`) in the pack's `pack.yaml`. The `rules:` block no longer lives there — rule metadata comes from each rule's `rule.yaml`.
-3. Run `bash scripts/test-packs.sh` — it validates every rule folder, runs every eval, and smoke-tests hook generation.
+3. Run `bash scripts/test-packs.sh` — it validates every rule folder, installs `core.standard` into a fresh repo and runs it, runs every eval, and smoke-tests hook generation.
 4. Document the rule in this file under the pack's category table.
 
 For rules that belong in a new pack (not `core` or `agent-governance`), see [AUTHORING_PACKS.md](AUTHORING_PACKS.md).

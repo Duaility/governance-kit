@@ -3,7 +3,7 @@
 #
 # Each eval at `packs/<pack>/evals/<rule>/test.sh` sources this library,
 # spins up a temp git repo, installs the rule under test into
-# `tests/governance/rules/<rule>.sh`, then drives pass + fail fixtures
+# `tests/governance/rules/<rule>/check.sh`, then drives pass + fail fixtures
 # through `expect_pass` / `expect_fail`.
 #
 # The harness is intentionally small. The contract:

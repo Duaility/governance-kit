@@ -14,7 +14,7 @@ Agents and humans working in this repo must read and follow this document.
 
 ### no-secrets
 **Rule.** No credentials or private keys in tracked files.
-**Enforced by.** tests/governance/rules/no-secrets.sh
+**Enforced by.** tests/governance/rules/no-secrets/check.sh
 
 ## Evolution Log
 

@@ -22,7 +22,7 @@ from pathlib import Path
 RULES_DIR = Path(__file__).parent / "rules"
 
 def _rules():
-    return sorted(p for p in RULES_DIR.glob("*.sh"))
+    return sorted(p for p in RULES_DIR.glob("*/check.sh"))
 
 def test_rules_exist():
     assert _rules(), "no governance rules defined"
@@ -67,7 +67,7 @@ const { join } = require('node:path');
 const RULES_DIR = join(__dirname, 'rules');
 
 describe('governance rules', () => {
-  const rules = readdirSync(RULES_DIR).filter(f => f.endsWith('.sh'));
+  const rules = readdirSync(RULES_DIR).map(f => join(RULES_DIR, f, 'check.sh'));
 
   test('at least one rule is defined', () => {
     expect(rules.length).toBeGreaterThan(0);
@@ -75,7 +75,7 @@ describe('governance rules', () => {
 
   test.each(rules)('%s passes', (rule) => {
     expect(() => {
-      execSync(`bash ${join(RULES_DIR, rule)}`, { stdio: 'pipe' });
+      execSync(`bash ${rule}`, { stdio: 'pipe' });
     }).not.toThrow();
   });
 });
@@ -95,7 +95,7 @@ import (
 )
 
 func TestGovernanceRules(t *testing.T) {
-    rules, err := filepath.Glob("rules/*.sh")
+    rules, err := filepath.Glob("rules/*/check.sh")
     if err != nil || len(rules) == 0 {
         t.Fatal("no governance rules defined")
     }
