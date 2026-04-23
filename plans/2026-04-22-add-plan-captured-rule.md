@@ -1,3 +1,5 @@
+<!-- governance: allow-plan-per-issue predates-rule -->
+
 # 2026-04-22 — Add `plan-captured` governance rule
 
 Plan for the amendment that introduces the `plan-captured` rule. Captured here to satisfy the rule it creates — the first commit under the new regime should itself have a plan on disk.

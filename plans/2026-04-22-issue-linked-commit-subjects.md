@@ -1,3 +1,5 @@
+<!-- governance: allow-plan-per-issue predates-rule -->
+
 # Require Issue-Linked Commit Subjects
 
 ## Goal

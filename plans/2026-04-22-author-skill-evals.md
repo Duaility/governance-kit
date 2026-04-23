@@ -1,3 +1,5 @@
+<!-- governance: allow-plan-per-issue predates-rule -->
+
 # Author evals for all three skills
 
 ## Goal

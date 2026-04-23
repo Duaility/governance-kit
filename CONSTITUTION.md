@@ -102,6 +102,13 @@ If a specific change cannot satisfy a rule, document the deviation in the PR des
 - **Enforced by**: `tests/governance/rules/plan-captured.sh`
 - **Exceptions**: Per-file waiver — a line matching `governance: allow-plan-captured` (bare or inside an HTML comment) anywhere in the file exempts that plan from the structure check. Changes limited to `plans/` or `governance-health/` are exempt from the same-change requirement.
 
+### plan-per-issue
+
+- **Rule**: Every tracked `plans/*.md` filename includes an `issue-<N>` token identifying the GitHub issue it plans for, and no two plan files share the same issue number.
+- **Rationale**: Plans are the durable record of intent behind a change set. A one-to-one binding between plan and issue keeps the system of record unambiguous — reviewers jump from an issue to its single plan, and agents can detect whether an issue already has a plan before drafting a duplicate.
+- **Enforced by**: `tests/governance/rules/plan-per-issue.sh`
+- **Exceptions**: Per-file waiver — a line matching `governance: allow-plan-per-issue` (bare or inside an HTML comment) anywhere in the file exempts that plan. Used to grandfather plans that predate this rule.
+
 ### issues-tracked
 
 - **Rule**: `QUALITY.md` exists at the repo root with a top-level `# ` heading and contains `## Open` and `## Resolved` sections.
@@ -146,6 +153,7 @@ If a specific change cannot satisfy a rule, document the deviation in the PR des
 - 2026-04-23 — @srikanth — Strengthen `agent-token-accounting` ledger: split prompt-cache traffic into its own `cache-create` and `cache-read` columns so the ledger is lossless (billing dollars and cache-hit-rate recoverable). Move ledger parse / sum / append / validate and trailer parse / cross-check into stdlib-only Python libs at `scripts/governance/lib/ledger.py` and `lib/trailers.py` — bash stays in charge of git plumbing, env detection, and argv walking, but schema-sensitive work uses named dataclass fields instead of positional `awk -F'\|'`. Trailer `Token-Input = input + cache_create` (excludes `cache_read`) to surface new work rather than cache rent. Legacy 8-column rows are accepted by the parser, so the migration is a one-time textual edit.
 - 2026-04-23 — @srikanth — Tighten `agent-token-accounting` total invariant: `COSTS.md` `total` now equals `input + cache_create + output` (cache_read is tracked but excluded from total), so the ledger's headline number represents new work rather than cache rent. This makes `row.total == Token-Total` in the trailer by construction; `trailers.py` gained a matching cross-check to catch any future drift between the two. One live row was recomputed in place; zero-cache-read rows are unaffected.
 - 2026-04-23 — @srikanth — Evolve `agent-token-accounting` schema to v3 (12 columns): add a `model` column (runtime-reported, e.g. `claude-sonnet-4-5`) and a `cost-usd` column computed from `scripts/governance/lib/rates.py` using **all four** token columns (cache_read included — that's where cache rent shows up). Rename `total` to `new-work` to stop pretending the raw token sum is a single comparable headline; the dollar column is the only number that lines up across commits with different cache mixes. Runtime readers now emit 6 values (add `<model>`); `agent-accounting.sh` passes model into the ledger; `lib/ledger.py` recomputes `new_work` and looks up `cost_usd` at append time. Legacy v2 (10 cols) and v1 (8 cols) rows are still parsed under the same `new_work` invariant; existing rows in `COSTS.md` were migrated in place by inserting empty `model`/`cost-usd` cells (token values unchanged since v2 `total` already matched the `new_work` semantic).
+- 2026-04-23 — @srikanth — Add `plan-per-issue`: require each `plans/*.md` filename to carry an `issue-<N>` token and forbid duplicate plans for the same issue, so the plan↔issue binding is one-to-one. Closes [#15](https://github.com/Duaility/governance-kit/issues/15).
 
 ## Escape hatches
 
