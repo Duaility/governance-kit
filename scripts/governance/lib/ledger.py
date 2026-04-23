@@ -5,78 +5,89 @@ This module is the data-processing half of agent-token-accounting. The bash
 hooks and rule scripts still do git plumbing and env detection; anything that
 manipulates COSTS.md rows by name rather than by column index lives here.
 
-Schema (v2 — cache columns split out):
+Schema (v3 — model + cost-usd + new-work):
 
-    | cost-key | agent | session | issue | input | cache-create | cache-read | output | total | note |
+    | cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | note |
 
 Where:
-    input         = usage.input_tokens            (truly new tokens this turn)
-    cache-create  = usage.cache_creation_input_tokens
-    cache-read    = usage.cache_read_input_tokens
+    model         = runtime-reported model id (e.g. claude-sonnet-4-5)
+    input         = usage.input_tokens            (first-time tokens, not cached)
+    cache-create  = usage.cache_creation_input_tokens (first-time, also cached)
+    cache-read    = usage.cache_read_input_tokens (re-reads from cache)
     output        = usage.output_tokens
-    total         = input + cache-create + output
-                    (new-work tokens — cache_read is re-reads of the same bytes
-                    and is deliberately NOT summed into total, so the ledger's
-                    headline number matches what reviewers see in `Token-Total`
-                    and represents billable new work rather than cache rent.)
+    new-work      = input + cache-create + output
+                    (all "new work" tokens — cache_read is NOT here because
+                    it's the same bytes re-read each turn. Matches trailer
+                    Token-Total by construction.)
+    cost-usd      = scripts/governance/lib/rates.lookup(model) ·
+                    (input, cache_create, cache_read, output)
+                    Empty string if the model isn't in the rate table.
 
-Trailer invariant (not enforced here, enforced by the rule script):
-    Token-Input  = input + cache-create            (new work worth showing reviewers)
-    Token-Output = output
-    Token-Total  = Token-Input + Token-Output  ==  row.total
+`new-work` is the single reviewer-facing headline. `cost-usd` is the true
+dollar cost including cache rent — the only single number that's comparable
+across commits with different cache mixes.
 
-This module is stdlib-only and has no runtime dependencies.
+Legacy rows:
+    v2 (10 cols): cost-key agent session issue input cache-create cache-read output total note
+    v1 (8 cols):  cost-key agent session issue input                           output total note
+Both are accepted by the parser. For v2/v1 rows, `model` and `cost_usd` are
+left empty; `new_work` is taken from the old `total` column (same semantic
+after the 2026-04-23 invariant tightening). Migration to v3 is a textual edit.
+
+This module is stdlib-only and depends only on `rates.py` in the same dir.
 
 CLI shims (called from bash):
 
     python3 -m ledger sum-by-session <ledger> <session_id>
         → prints  "<input> <cache_create> <cache_read> <output>"
-          (zeros if no matching rows or ledger is missing)
 
     python3 -m ledger append-row <ledger> <cost_key> <agent> <session> \\
-                                 <issue> <input> <cache_create> <cache_read> \\
+                                 <issue> <model> \\
+                                 <input> <cache_create> <cache_read> \\
                                  <output> <note>
-        → appends the row (formatted), creating the file with the header
-          template if needed. Prints nothing on success.
+        → appends the row (recomputes new_work, looks up cost_usd).
 
     python3 -m ledger validate <ledger>
-        → prints one violation per line to stdout; exits non-zero if any.
-          Checks: row shape, total invariant, issue anchor shape, cost-key
-          uniqueness.
+        → prints one violation per line; exits non-zero if any.
 
     python3 -m ledger find-by-cost-key <ledger> <cost_key>
-        → prints the matching row's columns space-separated:
-          "<input> <cache_create> <cache_read> <output> <total>"
-          or exits with code 2 if zero/multiple matches.
+        → prints "<input> <cache_create> <cache_read> <output> <new_work>"
+          (cost_usd is not part of the cross-check) or exits 2 on miss.
 """
 
 from __future__ import annotations
 
 import re
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
+
+# rates.py sits next to this file; import relative works under `python3 ledger.py …`
+# because the parent dir is on sys.path.
+try:
+    from rates import compute_cost_usd  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover — import fallback when run as a module
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from rates import compute_cost_usd  # type: ignore
 
 
 # ── Schema ────────────────────────────────────────────────────────────────
 
-# Columns as they appear in a ledger row, left to right. Used by both the
-# parser (index → field) and the writer (field → cell order).
 COLUMNS = (
     "cost_key",
     "agent",
     "session",
     "issue",
+    "model",
     "input",
     "cache_create",
     "cache_read",
     "output",
-    "total",
+    "new_work",
+    "cost_usd",
     "note",
 )
 
-# Numeric columns that get summed for per-commit deltas.
 NUMERIC_COLUMNS = ("input", "cache_create", "cache_read", "output")
 
 LEDGER_TEMPLATE = """\
@@ -92,16 +103,10 @@ survives squash merges that strip the original commit history.
 **Do not** rewrite or reorder rows. This file is the durable system-of-record
 that the `agent-token-accounting` governance rule validates.
 
-The pre-commit hook (`scripts/governance/agent-accounting.sh`) appends a row
-before git snapshots the tree; the `prepare-commit-msg` hook stamps the
-matching trailers. See
-[governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md](governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md)
-for wiring instructions.
-
 ## Ledger
 
-| cost-key | agent | session | issue | input | cache-create | cache-read | output | total | note |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | note |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 """
 
 
@@ -114,32 +119,35 @@ class LedgerRow:
     agent: str = ""
     session: str = ""
     issue: str = ""
+    model: str = ""
     input: int = 0
     cache_create: int = 0
     cache_read: int = 0
     output: int = 0
-    total: int = 0
+    new_work: int = 0
+    cost_usd: float | None = None  # None = unknown model (empty cell in ledger)
     note: str = ""
 
     @property
-    def expected_total(self) -> int:
-        # total = input + cache_create + output  (new-work tokens).
-        # cache_read is NOT included — it's the same bytes re-read each turn,
-        # not new work. This keeps row.total == Token-Total in the trailer.
+    def expected_new_work(self) -> int:
+        # new_work = input + cache_create + output.  cache_read is tracked
+        # but excluded — it's re-reads of the same bytes, not new effort.
         return self.input + self.cache_create + self.output
 
     def to_cells(self) -> list[str]:
-        """Return the row as a list of ten string cells, pipe-separator-ready."""
+        cost_cell = "" if self.cost_usd is None else f"{self.cost_usd:.4f}"
         return [
             self.cost_key,
             self.agent,
             self.session,
             self.issue,
+            self.model,
             str(self.input),
             str(self.cache_create),
             str(self.cache_read),
             str(self.output),
-            str(self.total),
+            str(self.new_work),
+            cost_cell,
             self.note,
         ]
 
@@ -148,20 +156,14 @@ class LedgerRow:
 
 
 _INT_RE = re.compile(r"^-?\d+$")
+_FLOAT_RE = re.compile(r"^-?\d+(\.\d+)?$")
 _ISSUE_RE = re.compile(r"^#[1-9][0-9]*$")
 
 
 def _parse_cells(line: str) -> list[str] | None:
-    """Split a `| a | b | c |` line into cell strings with whitespace stripped.
-
-    Returns None if the line is not a table row (no leading `|` or not enough
-    cells). The header row and separator row are *not* filtered here — callers
-    filter by inspecting cell contents.
-    """
     stripped = line.strip()
     if not stripped.startswith("|"):
         return None
-    # `| a | b |`.split("|") → ["", " a ", " b ", ""] — drop the two sentinel empties.
     parts = [c.strip() for c in stripped.split("|")[1:-1]]
     return parts or None
 
@@ -174,20 +176,28 @@ def _is_header_or_separator(cells: list[str]) -> bool:
         return True
     if first == "" or re.fullmatch(r"-+", first or ""):
         return True
-    # Separator rows like `| --- | --- | ... |` have all cells as dashes.
     if all(c == "" or re.fullmatch(r"-+", c) for c in cells):
         return True
     return False
 
 
-def parse(path: str | Path) -> list[LedgerRow]:
-    """Parse all data rows from a COSTS.md ledger file.
+def _to_int(s: str) -> int:
+    return int(s) if _INT_RE.match(s or "") else 0
 
-    Returns an empty list if the file doesn't exist. Rows with the *legacy*
-    8-column shape (input, output, total, note — pre-cache-split) are accepted
-    and upgraded to the new shape with cache_create/cache_read defaulted to 0.
-    Rows with fewer than 8 cells or non-integer token fields are skipped
-    silently here; validate() surfaces them as violations.
+
+def _to_cost(s: str) -> float | None:
+    s = (s or "").strip()
+    if not s:
+        return None
+    return float(s) if _FLOAT_RE.match(s) else None
+
+
+def parse(path: str | Path) -> list[LedgerRow]:
+    """Parse all data rows. Accepts v1 (8), v2 (10), and v3 (12) shapes.
+
+    For v1/v2 rows, `model` and `cost_usd` are left empty. The old `total`
+    column value is stored as `new_work` (identical semantic since the
+    2026-04-23 invariant tightening dropped cache_read from total).
     """
     p = Path(path)
     if not p.is_file():
@@ -195,39 +205,59 @@ def parse(path: str | Path) -> list[LedgerRow]:
     rows: list[LedgerRow] = []
     for line in p.read_text().splitlines():
         cells = _parse_cells(line)
-        if cells is None:
-            continue
-        if _is_header_or_separator(cells):
+        if cells is None or _is_header_or_separator(cells):
             continue
 
-        # v2 (10 columns, cache split): cost-key agent session issue input cache_create cache_read output total note
-        # v1 legacy (8 columns):        cost-key agent session issue input                           output total note
-        if len(cells) == 10:
-            cost_key, agent, session, issue, i, cc, cr, o, t, note = cells
-        elif len(cells) == 8:
-            cost_key, agent, session, issue, i, o, t, note = cells
-            cc, cr = "0", "0"
-        else:
-            # Unknown shape — skip in parse; validate() reports the file-level issue.
-            continue
-
-        def to_int(s: str) -> int:
-            return int(s) if _INT_RE.match(s or "") else 0
-
-        rows.append(
-            LedgerRow(
-                cost_key=cost_key,
-                agent=agent,
-                session=session,
-                issue=issue,
-                input=to_int(i),
-                cache_create=to_int(cc),
-                cache_read=to_int(cr),
-                output=to_int(o),
-                total=to_int(t),
-                note=note,
+        if len(cells) == 12:
+            (cost_key, agent, session, issue, model, i, cc, cr, o, nw, cost, note) = cells
+            rows.append(
+                LedgerRow(
+                    cost_key=cost_key,
+                    agent=agent,
+                    session=session,
+                    issue=issue,
+                    model=model,
+                    input=_to_int(i),
+                    cache_create=_to_int(cc),
+                    cache_read=_to_int(cr),
+                    output=_to_int(o),
+                    new_work=_to_int(nw),
+                    cost_usd=_to_cost(cost),
+                    note=note,
+                )
             )
-        )
+        elif len(cells) == 10:
+            (cost_key, agent, session, issue, i, cc, cr, o, t, note) = cells
+            rows.append(
+                LedgerRow(
+                    cost_key=cost_key,
+                    agent=agent,
+                    session=session,
+                    issue=issue,
+                    input=_to_int(i),
+                    cache_create=_to_int(cc),
+                    cache_read=_to_int(cr),
+                    output=_to_int(o),
+                    new_work=_to_int(t),  # v2 `total` == v3 `new_work`
+                    note=note,
+                )
+            )
+        elif len(cells) == 8:
+            (cost_key, agent, session, issue, i, o, t, note) = cells
+            rows.append(
+                LedgerRow(
+                    cost_key=cost_key,
+                    agent=agent,
+                    session=session,
+                    issue=issue,
+                    input=_to_int(i),
+                    output=_to_int(o),
+                    new_work=_to_int(t),
+                    note=note,
+                )
+            )
+        else:
+            continue
     return rows
 
 
@@ -235,9 +265,8 @@ def parse(path: str | Path) -> list[LedgerRow]:
 
 
 def sum_by_session(rows: list[LedgerRow], session_id: str) -> LedgerRow:
-    """Return a synthetic LedgerRow whose numeric fields are sums across all
-    rows matching `session_id`. Non-numeric fields are left default. Used to
-    compute per-commit delta = cumulative - priors."""
+    """Return a synthetic LedgerRow summing numeric fields across all rows
+    matching `session_id`. Used to compute per-commit delta."""
     agg = LedgerRow(session=session_id)
     for r in rows:
         if r.session == session_id:
@@ -245,13 +274,11 @@ def sum_by_session(rows: list[LedgerRow], session_id: str) -> LedgerRow:
             agg.cache_create += r.cache_create
             agg.cache_read += r.cache_read
             agg.output += r.output
-    agg.total = agg.expected_total
+    agg.new_work = agg.expected_new_work
     return agg
 
 
 def find_by_cost_key(rows: list[LedgerRow], cost_key: str) -> list[LedgerRow]:
-    """All rows matching a cost-key. Expected to be exactly 1; the rule
-    surfaces 0-or-more-than-1 as violations."""
     return [r for r in rows if r.cost_key == cost_key]
 
 
@@ -259,15 +286,17 @@ def find_by_cost_key(rows: list[LedgerRow], cost_key: str) -> list[LedgerRow]:
 
 
 def append_row(path: str | Path, row: LedgerRow) -> None:
-    """Append `row` to the ledger. Creates the file with the header template
-    if it doesn't exist yet. `row.total` is recomputed from its components so
-    callers don't have to keep it in sync."""
-    row.total = row.expected_total
+    """Append `row` to the ledger. Creates the file if needed. Recomputes
+    `new_work` and looks up `cost_usd` from `row.model`."""
+    row.new_work = row.expected_new_work
+    if row.cost_usd is None:
+        row.cost_usd = compute_cost_usd(
+            row.model, row.input, row.cache_create, row.cache_read, row.output
+        )
     p = Path(path)
     if not p.exists():
         p.write_text(LEDGER_TEMPLATE)
     cells = row.to_cells()
-    # Strip pipes and control chars from `note` so the row stays well-formed.
     cells[-1] = _safe_cell(cells[-1])[:80]
     line = "| " + " | ".join(cells) + " |\n"
     with p.open("a") as f:
@@ -275,12 +304,7 @@ def append_row(path: str | Path, row: LedgerRow) -> None:
 
 
 def _safe_cell(s: str) -> str:
-    """Strip pipes and ASCII control characters from a cell. BSD `ps` escapes
-    embedded newlines in argv as literal `\\012`; truncate at the first
-    backslash too so those escapes don't contaminate the note column."""
-    # Drop control chars (0x00-0x1F, 0x7F) and pipes.
     cleaned = "".join(ch for ch in s if ch.isprintable() and ch != "|")
-    # Truncate at first backslash (ps escape boundary).
     if "\\" in cleaned:
         cleaned = cleaned.split("\\", 1)[0]
     return cleaned.strip()
@@ -290,17 +314,15 @@ def _safe_cell(s: str) -> str:
 
 
 def validate(path: str | Path) -> list[str]:
-    """Walk the ledger and return a list of violation strings.
+    """Walk the ledger, return violation strings.
 
     Checks:
-        - Every non-header, non-separator `|...|` line has 8 (legacy) or 10 cells.
-        - All token columns are non-negative integers.
-        - row.total == input + cache_create + output  (cache_read excluded).
-        - issue matches `#N`.
-        - agent / session / issue are non-empty.
-        - cost-key is unique across the file.
-
-    Returns [] if the ledger is clean. A missing file is not a violation.
+        - Every data row has 8 (v1), 10 (v2), or 12 (v3) cells.
+        - Token columns are non-negative integers.
+        - new_work == input + cache_create + output.
+        - cost_usd is a non-negative float or empty.
+        - issue matches `#N`; agent/session/issue non-empty.
+        - cost-key unique across the file.
     """
     p = Path(path)
     if not p.is_file():
@@ -311,23 +333,23 @@ def validate(path: str | Path) -> list[str]:
 
     for line_no, line in enumerate(p.read_text().splitlines(), start=1):
         cells = _parse_cells(line)
-        if cells is None:
+        if cells is None or _is_header_or_separator(cells):
             continue
-        if _is_header_or_separator(cells):
-            continue
-        if len(cells) not in (8, 10):
+        if len(cells) not in (8, 10, 12):
             violations.append(
-                f"COSTS.md:{line_no} — row has {len(cells)} cells, expected 8 (legacy) or 10"
+                f"COSTS.md:{line_no} — row has {len(cells)} cells, expected 8/10/12"
             )
             continue
 
-        if len(cells) == 10:
-            cost_key, agent, session, issue, i, cc, cr, o, t, _note = cells
-        else:
-            cost_key, agent, session, issue, i, o, t, _note = cells
-            cc, cr = "0", "0"
+        if len(cells) == 12:
+            cost_key, agent, session, issue, _model, i, cc, cr, o, nw, cost, _note = cells
+        elif len(cells) == 10:
+            cost_key, agent, session, issue, i, cc, cr, o, nw, _note = cells
+            cost = ""
+        else:  # 8
+            cost_key, agent, session, issue, i, o, nw, _note = cells
+            cc, cr, cost = "0", "0", ""
 
-        # Shape of all required string fields.
         if not cost_key:
             violations.append(f"COSTS.md:{line_no} — empty cost-key")
             continue
@@ -340,21 +362,29 @@ def validate(path: str | Path) -> list[str]:
                 f"COSTS.md — row '{cost_key}' issue '{issue}' must look like '#123'"
             )
 
-        # Token columns.
-        token_cells = {"input": i, "cache_create": cc, "cache_read": cr, "output": o, "total": t}
+        token_cells = {"input": i, "cache_create": cc, "cache_read": cr, "output": o, "new_work": nw}
         if not all(_INT_RE.match(v or "") and int(v) >= 0 for v in token_cells.values()):
             violations.append(
                 f"COSTS.md — row '{cost_key}' has non-integer or negative token counts "
-                f"(input={i}, cache_create={cc}, cache_read={cr}, output={o}, total={t})"
+                f"(input={i}, cache_create={cc}, cache_read={cr}, output={o}, new_work={nw})"
             )
             continue
 
-        actual_total = int(i) + int(cc) + int(o)
-        if int(t) != actual_total:
+        expected_nw = int(i) + int(cc) + int(o)
+        if int(nw) != expected_nw:
             violations.append(
-                f"COSTS.md — row '{cost_key}' has total={t} but "
-                f"input+cache_create+output={actual_total} "
-                f"(cache_read={cr} is tracked but excluded from total)"
+                f"COSTS.md — row '{cost_key}' has new_work={nw} but "
+                f"input+cache_create+output={expected_nw} "
+                f"(cache_read={cr} is tracked but excluded from new_work)"
+            )
+
+        if cost and not _FLOAT_RE.match(cost):
+            violations.append(
+                f"COSTS.md — row '{cost_key}' has non-numeric cost_usd '{cost}'"
+            )
+        elif cost and float(cost) < 0:
+            violations.append(
+                f"COSTS.md — row '{cost_key}' has negative cost_usd '{cost}'"
             )
 
         cost_keys[cost_key] = cost_keys.get(cost_key, 0) + 1
@@ -381,23 +411,15 @@ def _cmd_sum_by_session(args: list[str]) -> int:
 
 
 def _cmd_append_row(args: list[str]) -> int:
-    # ledger cost_key agent session issue input cache_create cache_read output note
-    if len(args) != 10:
+    # ledger cost_key agent session issue model input cache_create cache_read output note
+    if len(args) != 11:
         _die(
             "append-row takes: <ledger> <cost_key> <agent> <session> <issue> "
-            "<input> <cache_create> <cache_read> <output> <note>"
+            "<model> <input> <cache_create> <cache_read> <output> <note>"
         )
     (
-        ledger,
-        cost_key,
-        agent,
-        session,
-        issue,
-        inp,
-        cc,
-        cr,
-        out,
-        note,
+        ledger, cost_key, agent, session, issue, model,
+        inp, cc, cr, out, note,
     ) = args
 
     def to_int(s: str, label: str) -> int:
@@ -410,6 +432,7 @@ def _cmd_append_row(args: list[str]) -> int:
         agent=agent,
         session=session,
         issue=issue,
+        model=model,
         input=to_int(inp, "input"),
         cache_create=to_int(cc, "cache_create"),
         cache_read=to_int(cr, "cache_read"),
@@ -438,7 +461,7 @@ def _cmd_find_by_cost_key(args: list[str]) -> int:
         print(f"expected 1 row for cost-key '{args[1]}', found {len(hits)}", file=sys.stderr)
         return 2
     r = hits[0]
-    print(f"{r.input} {r.cache_create} {r.cache_read} {r.output} {r.total}")
+    print(f"{r.input} {r.cache_create} {r.cache_read} {r.output} {r.new_work}")
     return 0
 
 

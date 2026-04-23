@@ -120,19 +120,20 @@ elif [[ "$ARGV" =~ --message=(.+) ]]; then
     SUBJECT="${BASH_REMATCH[1]}"
 fi
 
-# ── Runtime dispatch: get session id + cumulative tokens ───────
+# ── Runtime dispatch: get session id + cumulative tokens + model ───
 SESSION_ID=""
 CUM_INPUT=0
 CUM_CACHE_CREATE=0
 CUM_CACHE_READ=0
 CUM_OUTPUT=0
+MODEL=""
 case "$RUNTIME" in
     claude-code)
         if ! out="$("$HERE/runtimes/claude-code.sh")"; then
             echo "✗ claude-code: transcript not found or unreadable" >&2
             exit 1
         fi
-        read -r SESSION_ID CUM_INPUT CUM_CACHE_CREATE CUM_CACHE_READ CUM_OUTPUT <<<"$out"
+        read -r SESSION_ID CUM_INPUT CUM_CACHE_CREATE CUM_CACHE_READ CUM_OUTPUT MODEL <<<"$out"
         AGENT_NAME="claude-code"
         ;;
     codex)
@@ -140,7 +141,7 @@ case "$RUNTIME" in
             echo "✗ codex: transcript not found or unreadable" >&2
             exit 1
         fi
-        read -r SESSION_ID CUM_INPUT CUM_CACHE_CREATE CUM_CACHE_READ CUM_OUTPUT <<<"$out"
+        read -r SESSION_ID CUM_INPUT CUM_CACHE_CREATE CUM_CACHE_READ CUM_OUTPUT MODEL <<<"$out"
         AGENT_NAME="codex"
         ;;
     manual)
@@ -158,8 +159,11 @@ case "$RUNTIME" in
         CUM_CACHE_CREATE="${AGENT_CUM_CACHE_CREATE:-0}"
         CUM_CACHE_READ="${AGENT_CUM_CACHE_READ:-0}"
         CUM_OUTPUT="$AGENT_CUM_OUTPUT"
+        MODEL="${AGENT_MODEL:-unknown}"
         ;;
 esac
+# Normalize missing/blank model to a sentinel the ledger recognizes as unpriced.
+MODEL="${MODEL:-unknown}"
 
 for var in CUM_INPUT CUM_CACHE_CREATE CUM_CACHE_READ CUM_OUTPUT; do
     val="${!var}"
@@ -197,7 +201,7 @@ COST_KEY="${AGENT_COST_KEY:-${AGENT_NAME}-${SESSION_SHORT}-$(date +%s)}"
 # ── Append the ledger row ─────────────────────────────────────
 python3 "$LIB/ledger.py" append-row \
     "$LEDGER" \
-    "$COST_KEY" "$AGENT_NAME" "$SESSION_ID" "$ISSUE" \
+    "$COST_KEY" "$AGENT_NAME" "$SESSION_ID" "$ISSUE" "$MODEL" \
     "$TOKEN_INPUT" "$TOKEN_CACHE_CREATE" "$TOKEN_CACHE_READ" "$TOKEN_OUTPUT" \
     "$SUBJECT"
 git add "$LEDGER"
@@ -213,7 +217,7 @@ AGENT_TOKEN_TOTAL='$TRAILER_TOTAL'
 AGENT_COST_KEY='$COST_KEY'
 EOF
 
-printf 'agent-accounting: runtime=%s session=%s input=+%d cache_create=+%d cache_read=+%d output=+%d cost-key=%s\n' \
-    "$RUNTIME" "$SESSION_ID" "$TOKEN_INPUT" "$TOKEN_CACHE_CREATE" "$TOKEN_CACHE_READ" "$TOKEN_OUTPUT" "$COST_KEY" >&2
+printf 'agent-accounting: runtime=%s model=%s session=%s input=+%d cache_create=+%d cache_read=+%d output=+%d cost-key=%s\n' \
+    "$RUNTIME" "$MODEL" "$SESSION_ID" "$TOKEN_INPUT" "$TOKEN_CACHE_CREATE" "$TOKEN_CACHE_READ" "$TOKEN_OUTPUT" "$COST_KEY" >&2
 
 exit 0

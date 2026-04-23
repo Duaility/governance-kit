@@ -2,8 +2,12 @@
 # Claude Code transcript reader.
 #
 # Output on success (one line to stdout, space-separated):
-#   <session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output>
+#   <session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output> <model>
 # Exit non-zero if no transcript can be located.
+#
+# `model` is the latest `message.model` seen on any assistant entry; used by
+# lib/rates.py to compute cost_usd. If absent, printed as the literal string
+# `unknown` (the rate lookup returns None and cost-usd lands as an empty cell).
 #
 # The four token numbers are cumulative across the whole session transcript;
 # the caller (agent-accounting.sh) subtracts prior ledger rows to get the
@@ -45,6 +49,7 @@ python3 - "$TRANSCRIPT" <<'PY'
 import json, sys
 path = sys.argv[1]
 sid = None
+model = ""
 t_input = 0
 t_cache_create = 0
 t_cache_read = 0
@@ -60,6 +65,11 @@ with open(path) as f:
         msg = d.get("message") if isinstance(d.get("message"), dict) else None
         if not msg:
             continue
+        # Track model from whichever assistant entry carries it. Latest wins
+        # so mid-session /model switches propagate forward.
+        m = msg.get("model")
+        if isinstance(m, str) and m and m != "<synthetic>":
+            model = m
         usage = msg.get("usage")
         if not isinstance(usage, dict):
             continue
@@ -69,5 +79,5 @@ with open(path) as f:
         t_output       += int(usage.get("output_tokens", 0) or 0)
 if sid is None:
     sys.exit(2)
-print(f"{sid} {t_input} {t_cache_create} {t_cache_read} {t_output}")
+print(f"{sid} {t_input} {t_cache_create} {t_cache_read} {t_output} {model or 'unknown'}")
 PY

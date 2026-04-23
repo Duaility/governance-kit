@@ -18,13 +18,23 @@ for wiring instructions.
 
 ## Ledger
 
-Schema: `input` counts truly-new tokens; `cache-create` and `cache-read`
-split out prompt-cache traffic (0 for runtimes that don't report them);
-`output` is model output; `total = input + cache-create + output`. `cache-read`
-is tracked but deliberately excluded from `total` — it's the same bytes
-re-read each turn, not new work. This keeps `total == Token-Total` in the
-commit trailer, so the ledger's headline number and the reviewer-facing
-number are the same.
+Schema:
 
-| cost-key | agent | session | issue | input | cache-create | cache-read | output | total | note |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+- `model` — runtime-reported model id (e.g. `claude-sonnet-4-5`); empty for
+  legacy rows and runtimes that don't surface it.
+- `input` — truly-new tokens (not from cache).
+- `cache-create` / `cache-read` — prompt-cache traffic, split for visibility.
+  Zero when the runtime doesn't report the cache fields.
+- `output` — model output tokens.
+- `new-work` = `input + cache-create + output`. Self-checking. `cache-read`
+  is tracked but deliberately excluded — it's the same bytes re-read each
+  turn, not new work — so `new-work` matches `Token-Total` in the commit
+  trailer by construction.
+- `cost-usd` — the true dollar cost for this row, computed from `model` via
+  `scripts/governance/lib/rates.py` and all four token columns (cache_read
+  included — that's the only place cache rent actually appears). Empty when
+  the model isn't in the rate table. This is the only single-number headline
+  that's comparable across commits with different cache mixes.
+
+| cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | note |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

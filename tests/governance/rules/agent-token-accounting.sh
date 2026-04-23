@@ -12,13 +12,19 @@
 #   Cost-Key:      <agent>-<session-short>-<epoch>, unique within COSTS.md
 #
 # COSTS.md ledger format — one row per agent-authored commit, append-only:
-#   | cost-key | agent | session | issue | input | cache-create | cache-read | output | total | note |
+#   | cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | note |
 #
-# Where row.total == input + cache_create + output (self-checking). cache_read
-# is tracked but deliberately excluded from total — it's the same bytes re-read
-# each turn, not new work, so row.total == Token-Total in the trailer.
-# Legacy 8-column rows (from before the cache split) are accepted with
-# cache_create/cache_read defaulted to 0.
+# Where:
+#   model      = runtime-reported model id (e.g. claude-sonnet-4-5)
+#   new-work   == input + cache_create + output (self-checking, cache_read
+#                 excluded — same bytes re-read, not new effort). Matches
+#                 Token-Total in the trailer by construction.
+#   cost-usd   = scripts/governance/lib/rates.lookup(model) · token columns.
+#                Empty when the model isn't in the rate table.
+# Legacy rows are accepted: v2 (10 cols, no model/cost-usd) and v1 (8 cols,
+# no cache split either). For those, `model`/`cost_usd` are empty and the
+# old `total` value is read as `new_work` (same semantic after the
+# 2026-04-23 invariant tightening).
 #
 # Modes:
 #   Mode A — commit-msg hook:  bash agent-token-accounting.sh <path-to-msg-file>
@@ -85,10 +91,10 @@ validate_commit_message() {
     cost_key="$(printf '%s\n' "$msg" | awk -F': *' '/^Cost-Key:[[:space:]]/ {val=$2} END {print val}')"
 
     # Look up the ledger row.
-    local found=0 row_input=0 row_cc=0 row_cr=0 row_output=0 row_total=0
+    local found=0 row_input=0 row_cc=0 row_cr=0 row_output=0 row_new_work=0
     if [[ -n "$cost_key" && -f "$LEDGER" ]]; then
         if row_output_line="$(python3 "$LIB/ledger.py" find-by-cost-key "$LEDGER" "$cost_key" 2>/dev/null)"; then
-            read -r row_input row_cc row_cr row_output row_total <<<"$row_output_line"
+            read -r row_input row_cc row_cr row_output row_new_work <<<"$row_output_line"
             found=1
         fi
     fi
@@ -113,7 +119,7 @@ validate_commit_message() {
     done < <(
         printf '%s' "$msg" | python3 "$LIB/trailers.py" validate \
             "$label" "$found" \
-            "$row_input" "$row_cc" "$row_cr" "$row_output" "$row_total" \
+            "$row_input" "$row_cc" "$row_cr" "$row_output" "$row_new_work" \
             - 2>/dev/null || true
     )
 }

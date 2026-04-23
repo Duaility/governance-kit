@@ -8,7 +8,7 @@ Trailers stamped onto agent-authored commits:
     Session:      runtime session / thread id
     Token-Input:  non-negative int  (= input_tokens + cache_creation_input_tokens)
     Token-Output: non-negative int  (= output_tokens)
-    Token-Total:  non-negative int  (= Token-Input + Token-Output == row.total)
+    Token-Total:  non-negative int  (= Token-Input + Token-Output == row.new_work)
     Cost-Key:     <agent>-<session-short>-<epoch>
 
 This module is the data-processing side of the rule script's Mode A /
@@ -92,7 +92,7 @@ def validate(
         msg: the full commit message.
         label: prefix for violation strings (e.g. "pending commit" or a SHA).
         ledger_row: if provided, a 5-tuple of
-            (input, cache_create, cache_read, output, total) from the ledger
+            (input, cache_create, cache_read, output, new_work) from the ledger
             row whose cost-key matches this commit. Cross-checks trailers
             against those numbers. None means "skip the cross-check" — the
             bash caller uses this when the ledger row is missing or duplicated
@@ -141,10 +141,10 @@ def validate(
 
     # Cross-check against the ledger row when one was found.
     if ledger_row is not None:
-        row_input, row_cache_create, row_cache_read, row_output, row_total = ledger_row
-        # Trailer Token-Input = row.input + row.cache_create
+        row_input, row_cache_create, row_cache_read, row_output, row_new_work = ledger_row
+        # Trailer Token-Input  = row.input + row.cache_create
         # Trailer Token-Output = row.output
-        # Trailer Token-Total  = row.total  (both exclude cache_read)
+        # Trailer Token-Total  = row.new_work  (both exclude cache_read)
         expected_trailer_input = row_input + row_cache_create
         expected_trailer_output = row_output
         if int(t_input) != expected_trailer_input or int(t_output) != expected_trailer_output:
@@ -154,9 +154,9 @@ def validate(
                 f"row input+cache_create / output: "
                 f"{row_input}+{row_cache_create}={expected_trailer_input} / {row_output})"
             )
-        if int(t_total) != row_total:
+        if int(t_total) != row_new_work:
             violations.append(
-                f"{label} — Token-Total ({t_total}) != COSTS.md row total ({row_total}) "
+                f"{label} — Token-Total ({t_total}) != COSTS.md row new_work ({row_new_work}) "
                 f"for cost-key '{cost_key}'"
             )
 

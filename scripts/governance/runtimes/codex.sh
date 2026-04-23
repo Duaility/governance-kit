@@ -2,7 +2,7 @@
 # Codex transcript reader.
 #
 # Output on success (one line to stdout, space-separated):
-#   <session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output>
+#   <session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output> <model>
 # Exit non-zero if no transcript can be located.
 #
 # Codex transcripts typically do not report prompt-cache fields (that's an
@@ -44,13 +44,14 @@ fi
 # `output_tokens` and `prompt_tokens` / `completion_tokens` key pairs.
 # Also surface cache_creation / cache_read fields if the transcript happens
 # to carry them (some Anthropic-via-Codex configurations do).
-read -r CUM_INPUT CUM_CACHE_CREATE CUM_CACHE_READ CUM_OUTPUT < <(python3 - "$TRANSCRIPT" <<'PY'
+read -r CUM_INPUT CUM_CACHE_CREATE CUM_CACHE_READ CUM_OUTPUT MODEL < <(python3 - "$TRANSCRIPT" <<'PY'
 import json, sys
 path = sys.argv[1]
 t_input = 0
 t_cache_create = 0
 t_cache_read = 0
 t_output = 0
+model = ""
 
 def pull(u):
     """Return (input, cache_create, cache_read, output) from a usage dict."""
@@ -71,6 +72,13 @@ with open(path) as f:
             d = json.loads(line)
         except Exception:
             continue
+        # Model can live at any of several places depending on transcript version.
+        for container in (d, d.get("message"), d.get("response")):
+            if isinstance(container, dict):
+                m = container.get("model")
+                if isinstance(m, str) and m:
+                    model = m
+                    break
         for container in (
             d,
             d.get("message")  if isinstance(d.get("message"),  dict) else None,
@@ -86,9 +94,9 @@ with open(path) as f:
                 t_cache_read   += cr
                 t_output       += o
                 break
-print(f"{t_input} {t_cache_create} {t_cache_read} {t_output}")
+print(f"{t_input} {t_cache_create} {t_cache_read} {t_output} {model or 'unknown'}")
 PY
 )
 
-printf '%s %s %s %s %s\n' \
-    "$SESSION_ID" "${CUM_INPUT:-0}" "${CUM_CACHE_CREATE:-0}" "${CUM_CACHE_READ:-0}" "${CUM_OUTPUT:-0}"
+printf '%s %s %s %s %s %s\n' \
+    "$SESSION_ID" "${CUM_INPUT:-0}" "${CUM_CACHE_CREATE:-0}" "${CUM_CACHE_READ:-0}" "${CUM_OUTPUT:-0}" "${MODEL:-unknown}"

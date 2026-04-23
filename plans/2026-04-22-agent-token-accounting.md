@@ -187,6 +187,52 @@ taught so the final shape reads with its reasoning intact.
      claude-code reader only started splitting cache columns in
      iteration 5).
 
+7. **Add `model` + `cost-usd` columns; rename `total` → `new-work`.**
+   Iteration 6 tightened the invariant but left one hole: the "headline"
+   token sum is still meaningless across commits with different cache
+   mixes. Output tokens cost ~50× cache-read tokens per MTok, so a
+   `new-work`-heavy commit and a `cache-read`-heavy commit with the same
+   headline can bill 10× differently. Raw token sums are the wrong
+   comparable.
+   **Learned:**
+   - The fix isn't a smarter token formula — it's a dollar column. Added
+     `scripts/governance/lib/rates.py` with a per-MTok rate table keyed
+     by model string (Opus / Sonnet tiers, 5-minute cache TTL assumed)
+     and tolerant lookup (lowercase, strip date suffix, prefix match).
+     `compute_cost_usd(model, i, cc, cr, o)` multiplies each of the four
+     token columns by its own rate — `cache_read` finally appears in the
+     headline where it actually matters: billing.
+   - `cost-usd` is the only number that lines up across commits with
+     different cache mixes. `new-work` stays as the token-side headline
+     — stable, denominator-free, matches `Token-Total` by construction —
+     but reviewers comparing cost across PRs read the dollar column.
+   - The schema needs a `model` column to make `cost-usd` reproducible
+     and to survive future rate changes. Runtime readers now emit 6
+     values (`session_id input cache_create cache_read output model`);
+     `claude-code.sh` reads `.message.model` (latest-wins so mid-session
+     `/model` switches propagate); `codex.sh` checks the same field
+     across the container shapes it already handles. Unknown model →
+     `cost-usd` empty, no cross-check failure — the rate table is a
+     best-effort lookup, not an invariant.
+   - Renaming `total` → `new-work` in v3 stops pretending the raw token
+     sum is a comparable headline. The semantic is unchanged from v2's
+     tightened `total` (iteration 6), so migration is purely textual:
+     insert empty `model` after `issue`, rename `total` → `new-work`,
+     insert empty `cost-usd` before `note`. Every existing row already
+     satisfied the new invariant. Legacy v2 (10 cols) and v1 (8 cols)
+     shapes continue to parse under the same `new_work` invariant.
+   - `trailers.py` cross-check renamed `row.total` → `row.new_work`; the
+     trailer shape (`Token-Input` / `Token-Output` / `Token-Total`) is
+     unchanged — trailers stay token-only, dollars live only in the
+     ledger.
+   - Non-goal call-out: `cost-usd` is a commit-time *estimate*. Real
+     invoices include promotional credits, per-workspace overrides, and
+     enterprise pricing we can't see from a hook. Treat it as a
+     prioritization signal; reconcile against the actual invoice
+     monthly. Also: the rate table assumes the 5-minute cache TTL
+     (Claude Code's default); a 1h-cache column will be needed if any
+     runtime starts reporting that split.
+
 ## What shipped
 
 **In the bootstrap (opt-in for downstream repos):**
@@ -201,15 +247,20 @@ taught so the final shape reads with its reasoning intact.
 - `governance-bootstrap/assets/scripts/governance/agent-accounting.sh` —
   runtime detection, issue parsing, shells out to `lib/ledger.py` for
   ledger append and delta math.
+- `governance-bootstrap/assets/scripts/governance/lib/rates.py` —
+  model → per-MTok USD rate table + `compute_cost_usd` helper with
+  tolerant model-name lookup (strip date suffix, prefix match).
 - `governance-bootstrap/assets/scripts/governance/lib/ledger.py` —
-  stdlib-only Python: `LedgerRow` dataclass, `parse`, `sum_by_session`,
-  `append_row`, `validate`, `find_by_cost_key`. Handles both the v2
-  10-column schema and the v1 8-column legacy shape.
+  stdlib-only Python: `LedgerRow` dataclass with `model`/`new_work`/`cost_usd`
+  fields, `parse`, `sum_by_session`, `append_row` (recomputes `new_work`,
+  looks up `cost_usd`), `validate`, `find_by_cost_key`. Handles v3
+  (12 cols), v2 (10 cols), and v1 (8 cols) shapes.
 - `governance-bootstrap/assets/scripts/governance/lib/trailers.py` —
-  parses commit trailers and cross-checks them against a ledger row.
+  parses commit trailers and cross-checks them against a ledger row
+  (`Token-Total == row.new_work`).
 - `governance-bootstrap/assets/scripts/governance/runtimes/claude-code.sh`
-  and `runtimes/codex.sh` — transcript readers emitting five
-  whitespace-separated values (`session_id input cache_create cache_read output`).
+  and `runtimes/codex.sh` — transcript readers emitting six
+  whitespace-separated values (`session_id input cache_create cache_read output model`).
 - `governance-bootstrap/assets/COSTS.template.md` — starter ledger with
   the append-only header and a `governance: allow-plan-captured` waiver.
 - `governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md` — install
@@ -232,8 +283,15 @@ taught so the final shape reads with its reasoning intact.
   numbers will pass the math check. The rule makes tampering *visible*
   (git blame on `COSTS.md`), not impossible.
 - **No squash-merge trailer** on the base-branch commit — covered above.
-- **No cost computation.** The rule tracks tokens, not dollars. A
-  downstream report can join `COSTS.md` to billing data if needed.
+- **No invoice reconciliation.** The `cost-usd` column uses the rate
+  table in `scripts/governance/lib/rates.py` — a best-effort estimate
+  from a commit hook with no network access. Real invoices include
+  promotional credits, per-workspace overrides, and enterprise pricing
+  we can't see. Treat `cost-usd` as a commit-time prioritization signal;
+  reconcile monthly against the actual Anthropic invoice.
+- **No 1-hour cache pricing.** The rate table assumes the 5-minute TTL
+  (Claude Code's default). If a runtime ever reports 1h cache writes
+  separately, `rates.py` needs a second cache-create column.
 - **No modification to the runtimes themselves.** If Claude Code or Codex
   later export session id / token counts as env vars natively, the
   per-runtime readers become strictly simpler. The contract stays put.
