@@ -14,7 +14,9 @@
 # COSTS.md ledger format — one row per agent-authored commit, append-only:
 #   | cost-key | agent | session | issue | input | cache-create | cache-read | output | total | note |
 #
-# Where row.total == input + cache_create + cache_read + output (self-checking).
+# Where row.total == input + cache_create + output (self-checking). cache_read
+# is tracked but deliberately excluded from total — it's the same bytes re-read
+# each turn, not new work, so row.total == Token-Total in the trailer.
 # Legacy 8-column rows (from before the cache split) are accepted with
 # cache_create/cache_read defaulted to 0.
 #

@@ -164,6 +164,29 @@ taught so the final shape reads with its reasoning intact.
      all invariants hold because `old_input == new_input + 0 + 0` and
      `old_total == new_total`.
 
+6. **Exclude `cache_read` from the ledger's `total` column.** The first
+   commit under the new split-column schema landed with
+   `total = 49,312,314` — dwarfed by a 48M `cache_read` that represented
+   re-reads of the same bytes, not new work. The headline number for a
+   commit was now mostly cache rent, and `row.total` no longer matched
+   `Token-Total` in the trailer (since the trailer already excluded
+   cache traffic).
+   **Learned:**
+   - A lossless ledger doesn't mean every column sums into the headline.
+     `cache_read` belongs in `COSTS.md` (billing-dollar and cache-hit-rate
+     reconstructability) but *not* in `total`. Keeping it out makes
+     `row.total == input + cache_create + output == Token-Total` a
+     single identity across ledger and trailer.
+   - With `total` and `Token-Total` now *by construction* equal,
+     `trailers.py` gained an explicit `Token-Total == row.total`
+     cross-check. Tightening the invariant was a net add: the rule
+     gets a new equality to enforce for free.
+   - Migration cost was trivial because only commits with non-zero
+     `cache_read` needed their `total` recomputed — every earlier row
+     had `cache_read = 0` (Codex wasn't reporting cache, and the
+     claude-code reader only started splitting cache columns in
+     iteration 5).
+
 ## What shipped
 
 **In the bootstrap (opt-in for downstream repos):**

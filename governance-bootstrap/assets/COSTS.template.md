@@ -20,9 +20,11 @@ for wiring instructions.
 
 Schema: `input` counts truly-new tokens; `cache-create` and `cache-read`
 split out prompt-cache traffic (0 for runtimes that don't report them);
-`output` is model output; `total = input + cache-create + cache-read + output`.
-Commit trailers surface a narrower `Token-Input = input + cache-create` so
-reviewers see new work rather than cache rent.
+`output` is model output; `total = input + cache-create + output`. `cache-read`
+is tracked but deliberately excluded from `total` — it's the same bytes
+re-read each turn, not new work. This keeps `total == Token-Total` in the
+commit trailer, so the ledger's headline number and the reviewer-facing
+number are the same.
 
 | cost-key | agent | session | issue | input | cache-create | cache-read | output | total | note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

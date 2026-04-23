@@ -55,9 +55,15 @@ recoverable later:
 
 - `input` — truly new input tokens
 - `cache-create` — tokens written to the prompt cache (billed at ~1.25×)
-- `cache-read` — tokens read from the prompt cache (billed at ~0.10×)
+- `cache-read` — tokens read from the prompt cache (billed at ~0.10×) — **tracked but excluded from `total`**
 - `output` — model output tokens
-- `total = input + cache-create + cache-read + output` (self-checking invariant)
+- `total = input + cache-create + output` (self-checking invariant)
+
+`cache-read` sits in its own column so billing dollars and cache-hit-rate
+are still recoverable, but it is deliberately **not** summed into `total`
+— those are the same bytes re-read each turn, not new work. This keeps
+`row.total == Token-Total` in the commit trailer: ledger headline number
+and reviewer-facing number match.
 
 Runtimes that don't report cache traffic (Codex today) emit `0` in the
 cache columns — the row invariant still holds.
@@ -228,7 +234,7 @@ and default to `0`.
 |---|---|
 | `scripts/governance/runtimes/<runtime>.sh` | Transcript discovery + 4-field token sum for one specific runtime. |
 | `scripts/governance/lib/ledger.py` | Stdlib-only Python library that owns the ledger: `LedgerRow` dataclass, `parse`, `sum_by_session`, `append_row`, `validate`, `find_by_cost_key`. Handles both the 10-column schema and the legacy 8-column shape. Keeping the schema-sensitive parsing in named-field Python (not `awk -F'\|'`) eliminates the whole class of column-index bugs we ate once already. |
-| `scripts/governance/lib/trailers.py` | Parses commit trailers and cross-checks them against a ledger row — `Token-Input == input + cache_create`, `Token-Output == output`, `Token-Total == Token-Input + Token-Output`. |
+| `scripts/governance/lib/trailers.py` | Parses commit trailers and cross-checks them against a ledger row — `Token-Input == input + cache_create`, `Token-Output == output`, `Token-Total == Token-Input + Token-Output`, and `Token-Total == row.total` (so the trailer headline and the ledger headline can't drift). |
 | `scripts/governance/agent-accounting.sh` (pre-commit) | Bash glue: runtime detection, issue parsing from parent argv, cost-key generation, handoff env-file write. Shells out to `lib/ledger.py` for `sum-by-session` (per-commit delta) and `append-row` (ledger write + `git add`) — **all before** git snapshots the tree. |
 | `prepare-commit-msg` hook | Sources the handoff env file (resolved via `git rev-parse --git-path governance-pending.env` so worktrees work) and stamps all seven trailers. Idempotent on amends (skips if an `Agent:` trailer is already present). Silent no-op if no handoff file exists (human commit, or `--no-verify`). Does not touch `COSTS.md`. |
 | `agent-token-accounting` rule (`run.sh` / CI) | Walks `base..HEAD`. Calls `lib/ledger.py validate` for repo-wide shape checks; for each commit with an `Agent:` trailer calls `lib/trailers.py validate` to require the full trailer set, check `Total = Input + Output`, require exactly one matching `Cost-Key` row in `COSTS.md`, and verify the row's numbers agree with the trailers. Runs independently of `COSTS.md` presence so the ledger stays clean even after branch commits are squashed away. |

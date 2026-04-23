@@ -14,13 +14,16 @@ Where:
     cache-create  = usage.cache_creation_input_tokens
     cache-read    = usage.cache_read_input_tokens
     output        = usage.output_tokens
-    total         = input + cache-create + cache-read + output
-                    (total billable tokens — self-checking invariant)
+    total         = input + cache-create + output
+                    (new-work tokens — cache_read is re-reads of the same bytes
+                    and is deliberately NOT summed into total, so the ledger's
+                    headline number matches what reviewers see in `Token-Total`
+                    and represents billable new work rather than cache rent.)
 
 Trailer invariant (not enforced here, enforced by the rule script):
     Token-Input  = input + cache-create            (new work worth showing reviewers)
     Token-Output = output
-    Token-Total  = Token-Input + Token-Output
+    Token-Total  = Token-Input + Token-Output  ==  row.total
 
 This module is stdlib-only and has no runtime dependencies.
 
@@ -120,7 +123,10 @@ class LedgerRow:
 
     @property
     def expected_total(self) -> int:
-        return self.input + self.cache_create + self.cache_read + self.output
+        # total = input + cache_create + output  (new-work tokens).
+        # cache_read is NOT included — it's the same bytes re-read each turn,
+        # not new work. This keeps row.total == Token-Total in the trailer.
+        return self.input + self.cache_create + self.output
 
     def to_cells(self) -> list[str]:
         """Return the row as a list of ten string cells, pipe-separator-ready."""
@@ -289,7 +295,7 @@ def validate(path: str | Path) -> list[str]:
     Checks:
         - Every non-header, non-separator `|...|` line has 8 (legacy) or 10 cells.
         - All token columns are non-negative integers.
-        - row.total == sum of the four token columns.
+        - row.total == input + cache_create + output  (cache_read excluded).
         - issue matches `#N`.
         - agent / session / issue are non-empty.
         - cost-key is unique across the file.
@@ -343,11 +349,12 @@ def validate(path: str | Path) -> list[str]:
             )
             continue
 
-        actual_total = int(i) + int(cc) + int(cr) + int(o)
+        actual_total = int(i) + int(cc) + int(o)
         if int(t) != actual_total:
             violations.append(
                 f"COSTS.md — row '{cost_key}' has total={t} but "
-                f"input+cache_create+cache_read+output={actual_total}"
+                f"input+cache_create+output={actual_total} "
+                f"(cache_read={cr} is tracked but excluded from total)"
             )
 
         cost_keys[cost_key] = cost_keys.get(cost_key, 0) + 1

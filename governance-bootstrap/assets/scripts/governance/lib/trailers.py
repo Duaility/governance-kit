@@ -8,7 +8,7 @@ Trailers stamped onto agent-authored commits:
     Session:      runtime session / thread id
     Token-Input:  non-negative int  (= input_tokens + cache_creation_input_tokens)
     Token-Output: non-negative int  (= output_tokens)
-    Token-Total:  non-negative int  (= Token-Input + Token-Output)
+    Token-Total:  non-negative int  (= Token-Input + Token-Output == row.total)
     Cost-Key:     <agent>-<session-short>-<epoch>
 
 This module is the data-processing side of the rule script's Mode A /
@@ -144,6 +144,7 @@ def validate(
         row_input, row_cache_create, row_cache_read, row_output, row_total = ledger_row
         # Trailer Token-Input = row.input + row.cache_create
         # Trailer Token-Output = row.output
+        # Trailer Token-Total  = row.total  (both exclude cache_read)
         expected_trailer_input = row_input + row_cache_create
         expected_trailer_output = row_output
         if int(t_input) != expected_trailer_input or int(t_output) != expected_trailer_output:
@@ -152,6 +153,11 @@ def validate(
                 f"(trailer input/output: {t_input}/{t_output}, "
                 f"row input+cache_create / output: "
                 f"{row_input}+{row_cache_create}={expected_trailer_input} / {row_output})"
+            )
+        if int(t_total) != row_total:
+            violations.append(
+                f"{label} — Token-Total ({t_total}) != COSTS.md row total ({row_total}) "
+                f"for cost-key '{cost_key}'"
             )
 
     return violations
