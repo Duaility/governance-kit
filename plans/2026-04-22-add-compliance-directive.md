@@ -1,3 +1,5 @@
+<!-- governance: allow-plan-per-issue predates-rule -->
+
 # 2026-04-22 — Add Compliance directive (AGENTS.md + CONSTITUTION.md + bootstrap template)
 
 ## Goal

@@ -1,3 +1,5 @@
+<!-- governance: allow-plan-per-issue predates-rule -->
+
 # 2026-04-22 - Refine governance skill contracts
 
 Retrospective plan for the follow-up work that tightened the three governance skills after the initial PR was already in flight. This was originally missed during execution and is being captured now so the repo history still records why the change took this shape.
