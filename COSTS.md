@@ -72,3 +72,4 @@ Schema:
 | codex-019dbad3-0b7-1776957621 | codex | 019dbad3-0b7b-7c80-b884-5dffbd1bd7bb | #23 | gpt-5.4 | 4178 | 0 | 1159040 | 429 | 4607 | 0.3066 | docs(skills): align companions to rule folders (#23) -m Update amend and gardene |
 | claude-code-3ffd2eba-cd2-1776958080 | claude-code | 3ffd2eba-cd2f-439f-9aa0-7090cbcd3511 | #23 | claude-opus-4-7 | 63 | 364771 | 4269939 | 10600 | 375434 | 4.6801 | ci(governance): install uv so pack manifest parsing works (#23) |
 | claude-code-3ffd2eba-cd2-1776958096 | claude-code | 3ffd2eba-cd2f-439f-9aa0-7090cbcd3511 | #23 | claude-opus-4-7 | 4 | 2641 | 241814 | 2132 | 4777 | 0.1907 | ci(governance): install uv so pack manifest parsing works (#23) |
+| claude-code-7109f1b4-393-1776961095 | claude-code | 7109f1b4-393a-45ce-8318-02e4f85a277c | #25 | claude-opus-4-7 | 63 | 229719 | 1317336 | 23493 | 253275 | 2.6821 | docs(plan): draft governance-reset skill plan (#25) |
