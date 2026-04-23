@@ -207,3 +207,7 @@ every step.
       user-owned-copy model.
 - [x] Review follow-up: companion skill docs (`governance-amend` and
       `governance-gardener`) now refer to folder-shaped installed rules.
+- [x] CI follow-up: `packs.sh` now depends on `uv run --isolated --with
+      PyYAML` for manifest parsing, so the governance workflow installs
+      `astral-sh/setup-uv` (pinned by SHA) before running bash rules or
+      `scripts/test-packs.sh`.

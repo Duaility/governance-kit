@@ -18,6 +18,12 @@ jobs:
           # Full history so git-grep-based rules can inspect all tracked files.
           fetch-depth: 0
 
+      - name: Install uv
+        # Pack manifest parsing runs through `uv run --isolated --with PyYAML`,
+        # so uv must be on PATH before test-packs.sh or any governance rule
+        # that touches a pack manifest can execute.
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+
       - name: Run bash governance rules
         if: hashFiles('tests/governance/run.sh') != ''
         run: bash tests/governance/run.sh

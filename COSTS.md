@@ -70,3 +70,5 @@ Schema:
 | codex-019dbad3-0b7-1776957557 | codex | 019dbad3-0b7b-7c80-b884-5dffbd1bd7bb | #23 | gpt-5.4 | 632803 | 0 | 22140928 | 46330 | 679133 | 7.8122 | fix(packs): parse manifests with pyyaml (#23) -m Replace ad hoc YAML parsing wit |
 | codex-019dbad3-0b7-1776957588 | codex | 019dbad3-0b7b-7c80-b884-5dffbd1bd7bb | #23 | gpt-5.4 | 4821 | 0 | 1144704 | 656 | 5477 | 0.3081 | feat(packs): codify install-time contracts (#23) -m Add installer-facing helpers |
 | codex-019dbad3-0b7-1776957621 | codex | 019dbad3-0b7b-7c80-b884-5dffbd1bd7bb | #23 | gpt-5.4 | 4178 | 0 | 1159040 | 429 | 4607 | 0.3066 | docs(skills): align companions to rule folders (#23) -m Update amend and gardene |
+| claude-code-3ffd2eba-cd2-1776958080 | claude-code | 3ffd2eba-cd2f-439f-9aa0-7090cbcd3511 | #23 | claude-opus-4-7 | 63 | 364771 | 4269939 | 10600 | 375434 | 4.6801 | ci(governance): install uv so pack manifest parsing works (#23) |
+| claude-code-3ffd2eba-cd2-1776958096 | claude-code | 3ffd2eba-cd2f-439f-9aa0-7090cbcd3511 | #23 | claude-opus-4-7 | 4 | 2641 | 241814 | 2132 | 4777 | 0.1907 | ci(governance): install uv so pack manifest parsing works (#23) |
