@@ -40,7 +40,7 @@ For each invariant, use this structure:
 
 - **Rule**: A `CONSTITUTION.md` exists at the repo root and is non-empty.
 - **Rationale**: Governance without a discoverable source of truth is tribal knowledge.
-- **Enforced by**: `tests/governance/rules/constitution-exists.sh`
+- **Enforced by**: `tests/governance/rules/constitution-exists/check.sh`
 - **Exceptions**: none.
 
 <!-- governance-bootstrap will inject one subsection per rule the user selected. -->

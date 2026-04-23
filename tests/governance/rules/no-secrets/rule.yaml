@@ -1,0 +1,6 @@
+# no-secrets — Heuristic scan for AWS / GCP / GitHub / Slack / Stripe / private-key patterns.
+category: Security
+recommended: true
+summary: Heuristic scan for AWS / GCP / GitHub / Slack / Stripe / private-key patterns.
+surface: repo-state
+hook: pre-commit

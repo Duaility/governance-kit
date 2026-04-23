@@ -2,7 +2,7 @@
 # Rule: <one-sentence statement of the rule>
 # Rationale: <why this matters — link incident / policy / constraint if possible>
 set -u
-source "$(dirname "$0")/../lib.sh"
+source "$(dirname "$0")/../../lib.sh"
 rule_start "<rule-name>"    # MUST match the filename without .sh
 require_git                  # remove if the rule does not touch git
 

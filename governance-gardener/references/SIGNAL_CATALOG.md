@@ -43,7 +43,7 @@ Stability levels:
 Built-in patterns scanned (extend in `references/NORM_PATTERNS.md` if you add more):
 
 - Every bash script under `tests/` starts with `set -euo pipefail`.
-- Every `rules/*.sh` sources `lib.sh` on the second non-comment line.
+- Every `rules/<id>/check.sh` sources `lib.sh` on the second non-comment line.
 - Every markdown file under `docs/` ends with a single trailing newline.
 - Every Python file opens with `from __future__ import annotations`.
 
@@ -106,7 +106,7 @@ Group by the rule that would have fired only when the evidence is direct. If gro
 
 ### F2 · Dead rule
 
-**Checks:** for each `tests/governance/rules/*.sh`:
+**Checks:** for each `tests/governance/rules/<id>/check.sh`:
 
 1. Determine its watched scope using [WATCH_SCOPES.md](WATCH_SCOPES.md).
 2. Run `git log --since=<2× window>` on those paths.
@@ -139,7 +139,7 @@ Drop clusters that match an existing Invariants rule (e.g., "fix conventional-co
 
 **Severity:** `watch`. **Confidence:** `medium`. **Stability:** `experimental`.
 
-**Interpretation:** a recurring-fix cluster usually means either (a) a rule is missing or (b) automation is missing. Both are valid amendments — either a new `tests/governance/rules/<name>.sh` or a pre-commit formatter/linter.
+**Interpretation:** a recurring-fix cluster usually means either (a) a rule is missing or (b) automation is missing. Both are valid amendments — either a new `tests/governance/rules/<name>/check.sh` or a pre-commit formatter/linter.
 
 ---
 
@@ -175,7 +175,7 @@ Overlaps with A1 — A1 is the symptom ("your rule is aspirational"), C1 is the 
 
 ### C2 · Test without rule
 
-**Checks:** for each `tests/governance/rules/*.sh`, grep `CONSTITUTION.md` for a mention of the script name or the rule name derived from the script filename.
+**Checks:** for each `tests/governance/rules/<id>/check.sh`, grep `CONSTITUTION.md` for a mention of the `check.sh` path or the rule id derived from the folder name.
 
 **Evidence:** script path, derived rule name.
 

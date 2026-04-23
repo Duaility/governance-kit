@@ -1,0 +1,48 @@
+# governance-kit core pack
+#
+# Built-in rules that ship with governance-bootstrap. Every repo that
+# bootstraps governance gets at least the rules listed in
+# `presets.minimal` from this pack — the `core` pack cannot be
+# deselected by users.
+#
+# Rule metadata lives inside each rule's folder under `rules/<id>/` —
+# `rule.yaml` (category / recommended / summary / surface / hook /
+# always_install), `check.sh`, `constitution.md`, and optional
+# `evals/`. This file carries only pack-level identity and the presets
+# that select rules by id.
+
+id: core
+name: Core governance rules
+version: "0.1"
+min_governance_kit: "0.1"
+description: Baseline rules shipped with governance-kit.
+author: governance-kit
+
+presets:
+  minimal:
+    rules:
+      - constitution-exists
+      - no-secrets
+      - dotenv-gitignored
+      - workflows-hardened
+      - no-broken-internal-doc-links
+      - no-large-files
+      - no-committed-build-artifacts
+      - no-merge-conflict-markers
+      - hooks-configured
+  standard:
+    extends: minimal
+    rules:
+      - agents-md-exists
+      - conventional-commits
+      - doc-freshness
+  strict:
+    extends: standard
+    rules:
+      - readme-exists
+      - security-md-exists
+      - architecture-doc-exists
+      - ci-workflow-exists
+      - no-orphan-todos
+      - file-size-limit
+      - no-debug-statements

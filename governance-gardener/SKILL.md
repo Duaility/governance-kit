@@ -75,7 +75,7 @@ Tunables (env vars, all optional):
 Parse these once; every axis reuses them:
 
 - **Invariants** — scrape `CONSTITUTION.md` for `### <rule-name>` subsections under `## Invariants`. For each, capture: rule text, rationale, "Enforced by" path, exceptions.
-- **Tests** — list `tests/governance/rules/*.sh`.
+- **Tests** — list `tests/governance/rules/<id>/check.sh` and read sibling `rule.yaml` metadata when present.
 - **Evolution Log** — parse `## Evolution Log` entries (date, author, summary, linked PR if present).
 - **Freshness config** — `tests/governance/freshness.conf` if present.
 - **Tracked doc set** — the baseline globs + freshness.conf (see [references/WATCH_SCOPES.md](references/WATCH_SCOPES.md) for the canonical watched-scope model).
@@ -98,7 +98,7 @@ Run each signal. Collect findings as structured records: `{axis, signal, severit
 
 **Consistency signals** — SIGNAL_CATALOG.md §Consistency:
 - `C1` Rule without test — an Invariants entry names a test that doesn't exist.
-- `C2` Test without rule — a `rules/*.sh` script not mentioned in any Invariants entry.
+- `C2` Test without rule — a `rules/<id>/check.sh` script not mentioned in any Invariants entry.
 - `C3` Evolution-log drift — a log entry whose commit touched neither `CONSTITUTION.md` nor `tests/governance/`.
 - `C4` Orphaned freshness entry — a path in `freshness.conf` that doesn't exist on disk.
 - `C5` Hedge language — an Invariants **Rule** line containing `should`, `generally`, `usually`, `typically`, `try to`. Invariants are hard rules; hedges belong in Principles.

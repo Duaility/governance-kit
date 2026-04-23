@@ -1,0 +1,6 @@
+# readme-exists — README.md (or .rst) exists with a heading and >= 30 words.
+category: Foundation
+recommended: false
+summary: README.md (or .rst) exists with a heading and >= 30 words.
+surface: repo-state
+hook: pre-commit

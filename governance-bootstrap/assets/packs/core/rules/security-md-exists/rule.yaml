@@ -1,0 +1,6 @@
+# security-md-exists — SECURITY.md (root / docs/ / .github/) with a contact email or URL.
+category: Security
+recommended: false
+summary: SECURITY.md (root / docs/ / .github/) with a contact email or URL.
+surface: repo-state
+hook: pre-commit

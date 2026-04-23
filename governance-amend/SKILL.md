@@ -16,7 +16,7 @@ Governance-driven development's cardinal rule: *the constitution and the enforci
 
 Every amendment this skill produces is three logical changes, committed atomically:
 
-1. A new (or updated) test script at `tests/governance/rules/<rule-name>.sh`.
+1. A new (or updated) rule folder at `tests/governance/rules/<rule-name>/` with `rule.yaml`, `check.sh`, and `constitution.md`.
 2. A new **Invariants** subsection in `CONSTITUTION.md`.
 3. A new entry in the `CONSTITUTION.md` **Evolution Log**.
 
@@ -88,7 +88,7 @@ If the user's rationale says "every substantive change must...", "this kind of c
 Default operating mode is **fast path**: draft → syntax-check → smoke-test → edit constitution → stage → commit. Ask a clarifying question only when the intent map cannot be filled in from the user's request. If structured question tools are unavailable, use short free-text questions instead of stopping.
 
 **Handle collisions without asking for confirmation:**
-- If `tests/governance/rules/<name>.sh` already exists → this is an **update**, not a new rule. Proceed with the update (preserving rationale unless policy intent changes) and note it in the summary. Treat the matching `CONSTITUTION.md` subsection as an update too.
+- If `tests/governance/rules/<name>/check.sh` already exists → this is an **update**, not a new rule. Proceed with the update (preserving rationale unless policy intent changes) and note it in the summary. Treat the matching `CONSTITUTION.md` subsection as an update too.
 - If `CONSTITUTION.md` already has a subsection whose header closely matches the proposed name → same: proceed with update, note it.
 - If the user asked to **remove** a rule, verify the matching script and invariant exist before deleting, and grep for dangling references in docs or CI notes. If references exist, surface them in the summary — do not silently delete around them.
 
@@ -96,12 +96,12 @@ Do not proceed until the intent map is coherent. A valid amendment needs a concr
 
 ### Step 3 — Draft the test script
 
-Start from `assets/rule.template.sh`. Substitute:
+Create or update `tests/governance/rules/<name>/`. Start `check.sh` from `assets/rule.template.sh`. Substitute:
 - `<rule-name>` → the chosen name.
 - The commented block → the actual check.
 
 The script must:
-- Source `../lib.sh` (the helpers from governance-bootstrap).
+- Source `../../lib.sh` (the helpers from governance-bootstrap).
 - Call `rule_start "<name>"` at the top and `rule_end` at the bottom.
 - Call `require_git` if it touches `git ls-files` / `git grep`.
 - On every violation: call `violation "<file>:<line> — <specific-message>"`. A rule without a location in the message is less useful — always include one if the check is per-file or per-line.
@@ -112,13 +112,17 @@ Choose the inspection surface to match the intent map:
 - `change-set obligation` rules inspect the staged diff locally and the branch diff in CI. Do not collapse these into existence checks just because existence checks are easier to write.
 - If you cannot enforce the intended surface mechanically, stop and tell the user the rule is not ready yet. Do not ship a knowingly weak proxy without calling it out and getting explicit buy-in.
 
-Syntax-check it: `bash -n tests/governance/rules/<name>.sh`. If it fails, fix and re-check. Never ship syntactically broken bash.
+Create or update `tests/governance/rules/<name>/rule.yaml` with at least `category`, `recommended`, `summary`, `surface`, and `hook` fields. Use `hook: pre-commit` for ordinary repo-state rules, `hook: commit-msg` only for rules that validate the pending commit message, and `hook: none` for CI-only checks.
+
+Create or update `tests/governance/rules/<name>/constitution.md` with the same Invariants subsection you add to `CONSTITUTION.md`; this keeps the installed rule folder self-describing for future bootstrap/gardener work.
+
+Syntax-check it: `bash -n tests/governance/rules/<name>/check.sh`. If it fails, fix and re-check. Never ship syntactically broken bash.
 
 Write the script once it passes syntax check. Do not pause for user approval of the draft — PR review is the review layer. The only reason to stop mid-draft is a missing *blocking* input (rationale, or check shape so vague the bash cannot be deterministic); ask that one question and continue.
 
 ### Step 4 — Smoke-test the script
 
-Run `bash tests/governance/rules/<name>.sh` against the current repo and capture the result.
+Run `bash tests/governance/rules/<name>/check.sh` against the current repo and capture the result.
 
 - **Exits 0 (passes)** — fine. The rule isn't flagging the current tree. Proceed.
 - **Exits 1 (fails)** — real rule output, pre-existing violators. This is the one case where a **single blocking question** is required before commit, because the resolution branches on user intent in a way the skill cannot decide mechanically. Show the verbatim violator list and ask the user to pick exactly one:
@@ -141,7 +145,7 @@ Two edits, both in the same file:
 
 - **Rule**: <one-sentence statement>.
 - **Rationale**: <why this matters, link incident if applicable>.
-- **Enforced by**: `tests/governance/rules/<rule-name>.sh`
+- **Enforced by**: `tests/governance/rules/<rule-name>/check.sh`
 - **Exceptions**: <none | waiver comment format | config file reference>
 ```
 
@@ -159,7 +163,7 @@ Use today's date from the session environment (not a placeholder).
 
 ### Step 6 — Stage and commit the three artifacts
 
-Use `git add -A tests/governance/rules/<rule-name>.sh CONSTITUTION.md` so removals are staged correctly too.
+Use `git add -A tests/governance/rules/<rule-name> CONSTITUTION.md` so removals are staged correctly too.
 
 Then run `git status` to confirm the three changes are staged and nothing else unrelated is picked up. If other unstaged changes exist, leave them unstaged — they're not part of this amendment.
 
@@ -189,7 +193,7 @@ Print:
 - Commit status: the SHA and subject of the commit the skill just made.
 - How to test locally: `bash tests/governance/run.sh <rule-name>`
 - Assumptions made. If none, say `Assumptions: none`.
-- A reminder that the pre-commit hook and CI workflow already pick up the new rule — no hook reinstall needed.
+- A reminder that the pre-commit hook and CI workflow discover installed rule folders — no hook reinstall is needed for `pre-commit`, `commit-msg`, or `prepare-commit-msg` rules that declare the right `hook:` in `rule.yaml`.
 - Next step for the user: `git push` to open the PR-review cycle (the real review gate).
 
 ## Required final output

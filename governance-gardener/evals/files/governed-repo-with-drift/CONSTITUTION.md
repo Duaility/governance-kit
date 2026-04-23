@@ -10,11 +10,11 @@ Agents and humans follow this document. Mechanical invariants are enforced by `t
 
 ### no-secrets
 **Rule.** Tracked files should not contain credentials or private keys.
-**Enforced by.** `tests/governance/rules/no-secrets.sh`
+**Enforced by.** `tests/governance/rules/no-secrets/check.sh`
 
 ### agents-md-exists
 **Rule.** AGENTS.md exists at the repo root.
-**Enforced by.** `tests/governance/rules/agents-md-exists.sh`
+**Enforced by.** `tests/governance/rules/agents-md-exists/check.sh`
 
 ## Evolution Log
 - 2025-09-10 — Bootstrap with no-secrets.

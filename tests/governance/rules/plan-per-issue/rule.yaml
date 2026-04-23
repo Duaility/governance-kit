@@ -1,0 +1,6 @@
+# plan-per-issue — Every tracked plans/*.md filename carries a unique issue-<N> token.
+category: AgentDiscipline
+recommended: true
+summary: Every tracked plans/*.md filename carries a unique issue-<N> token.
+surface: repo-state
+hook: pre-commit

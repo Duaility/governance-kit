@@ -1,0 +1,6 @@
+# license-exists — A LICENSE (or variant) exists at the repo root.
+category: Foundation
+recommended: false
+summary: A LICENSE (or variant) exists at the repo root.
+surface: repo-state
+hook: pre-commit

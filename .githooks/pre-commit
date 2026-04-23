@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Governance pre-commit hook — installed by governance-bootstrap.
-# Runs tests/governance/ before allowing a commit.
+# governance-kit:managed pack-version=0.1 generated=2026-04-23
+# Governance pre-commit hook — generated from selected pack rules.
 #
-# Escape hatches (in order of preference):
+# Escape hatches:
 #   SKIP_GOVERNANCE=1 git commit ...    # telegraphs intent; CI still enforces
-#   git commit --no-verify              # skips all hooks; CI still enforces
+#   git commit --no-verify              # skips all hooks
 
 set -u
 
@@ -14,52 +14,49 @@ if [[ "${SKIP_GOVERNANCE:-0}" == "1" ]]; then
 fi
 
 ROOT="$(git rev-parse --show-toplevel)"
-BASH_RUNNER="$ROOT/tests/governance/run.sh"
+RULES_DIR="$ROOT/tests/governance/rules"
 
-# Agent-accounting: if the commit is agent-authored (detected via runtime env
-# vars), append the COSTS.md row and stage it BEFORE governance tests run, so
-# the agent-token-accounting rule sees the row for this commit's tree.
-ACCOUNTING="$ROOT/scripts/governance/agent-accounting.sh"
-if [[ -x "$ACCOUNTING" ]]; then
-    bash "$ACCOUNTING" || exit 1
+# Rule-owned pre-commit helpers (side effects — run before validation).
+if [[ -x "$RULES_DIR/agent-token-accounting/hooks/pre-commit.sh" ]]; then
+    bash "$RULES_DIR/agent-token-accounting/hooks/pre-commit.sh" || exit 1
 fi
 
-ran_something=0
 fail=0
-
-# Bash runner (universal)
-if [[ -x "$BASH_RUNNER" ]]; then
-    ran_something=1
-    bash "$BASH_RUNNER" || fail=1
+if [[ -x "$RULES_DIR/agents-md-exists/check.sh" ]]; then
+    bash "$RULES_DIR/agents-md-exists/check.sh" || fail=1
 fi
-
-# Native test runners — if the project has governance tests in its native
-# framework, run them too. These detectors are intentionally loose; rip out
-# any that don't apply.
-if [[ -d "$ROOT/tests/governance" ]]; then
-    # pytest
-    if compgen -G "$ROOT/tests/governance/test_*.py" >/dev/null && command -v pytest >/dev/null 2>&1; then
-        ran_something=1
-        (cd "$ROOT" && pytest tests/governance -q) || fail=1
-    fi
-    # jest / vitest (package.json declares it)
-    if [[ -f "$ROOT/package.json" ]] && compgen -G "$ROOT/tests/governance/*.test.*" >/dev/null; then
-        ran_something=1
-        if command -v npx >/dev/null 2>&1; then
-            (cd "$ROOT" && npx --no-install jest tests/governance 2>/dev/null \
-                || npx --no-install vitest run tests/governance 2>/dev/null) || fail=1
-        fi
-    fi
-    # go test
-    if [[ -f "$ROOT/go.mod" ]] && compgen -G "$ROOT/tests/governance/*_test.go" >/dev/null; then
-        ran_something=1
-        (cd "$ROOT" && go test ./tests/governance/...) || fail=1
-    fi
+if [[ -x "$RULES_DIR/constitution-exists/check.sh" ]]; then
+    bash "$RULES_DIR/constitution-exists/check.sh" || fail=1
 fi
-
-if [[ $ran_something -eq 0 ]]; then
-    echo "⊘ no governance tests found — hook is a no-op" >&2
-    exit 0
+if [[ -x "$RULES_DIR/dotenv-gitignored/check.sh" ]]; then
+    bash "$RULES_DIR/dotenv-gitignored/check.sh" || fail=1
+fi
+if [[ -x "$RULES_DIR/hooks-configured/check.sh" ]]; then
+    bash "$RULES_DIR/hooks-configured/check.sh" || fail=1
+fi
+if [[ -x "$RULES_DIR/issues-tracked/check.sh" ]]; then
+    bash "$RULES_DIR/issues-tracked/check.sh" || fail=1
+fi
+if [[ -x "$RULES_DIR/no-broken-internal-doc-links/check.sh" ]]; then
+    bash "$RULES_DIR/no-broken-internal-doc-links/check.sh" || fail=1
+fi
+if [[ -x "$RULES_DIR/no-committed-build-artifacts/check.sh" ]]; then
+    bash "$RULES_DIR/no-committed-build-artifacts/check.sh" || fail=1
+fi
+if [[ -x "$RULES_DIR/no-large-files/check.sh" ]]; then
+    bash "$RULES_DIR/no-large-files/check.sh" || fail=1
+fi
+if [[ -x "$RULES_DIR/no-merge-conflict-markers/check.sh" ]]; then
+    bash "$RULES_DIR/no-merge-conflict-markers/check.sh" || fail=1
+fi
+if [[ -x "$RULES_DIR/no-secrets/check.sh" ]]; then
+    bash "$RULES_DIR/no-secrets/check.sh" || fail=1
+fi
+if [[ -x "$RULES_DIR/plan-per-issue/check.sh" ]]; then
+    bash "$RULES_DIR/plan-per-issue/check.sh" || fail=1
+fi
+if [[ -x "$RULES_DIR/workflows-hardened/check.sh" ]]; then
+    bash "$RULES_DIR/workflows-hardened/check.sh" || fail=1
 fi
 
 if [[ $fail -ne 0 ]]; then

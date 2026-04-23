@@ -1,0 +1,5 @@
+category: Quality
+recommended: true
+summary: Fixture rule for no-secrets.
+surface: repo-state
+hook: pre-commit
