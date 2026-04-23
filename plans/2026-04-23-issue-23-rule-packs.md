@@ -23,9 +23,9 @@ Each step is a separate commit. The whole sequence lands as one PR.
    `governance-bootstrap/assets/packs/core/pack.yaml` that covers every
    currently-shipped rule (21 rules today). Write a bash loader at
    `governance-bootstrap/assets/packs/lib/packs.sh` with helpers
-   `list_packs`, `rules_for`, `preset_resolve`, `pack_rule_field`. Uses
-   `yq` when available, falls back to a minimal pure-bash YAML parser
-   (manifests are shallow and regular — a full YAML parser is overkill).
+   `list_packs`, `rules_for`, `preset_resolve`, `pack_rule_field`.
+   The shell API delegates real YAML parsing to `uv run --isolated --with
+   PyYAML` via `packctl.py`; ad hoc shell parsing is deliberately avoided.
    Add a `scripts/test-packs.sh` skeleton that at least asserts the
    manifest is loadable.
 
@@ -55,20 +55,20 @@ Each step is a separate commit. The whole sequence lands as one PR.
    `custom`), dynamic Q2..Qn category screens built from the union of
    selected packs' rules. Preset semantics: union across packs; packs
    without the preset name contribute nothing.
-   Installation step copies `rules/*.sh` into `tests/governance/rules/`
-   (flat layout, reject ID collisions) and
-   `constitution-snippets/<rule>.md` into the appropriate Invariant
-   subsection of `CONSTITUTION.md`.
+   Installation step copies `rules/<id>/` folders into
+   `tests/governance/rules/<id>/` (flat namespace by folder id, reject ID
+   collisions) and `rules/<id>/constitution.md` into the appropriate
+   Invariant subsection of `CONSTITUTION.md`.
 
 5. **Hook generation.** Replace the hardcoded copy of
    `assets/githooks/{pre-commit,commit-msg}` with a generator that emits
-   dispatchers from the selected rules' `hook:` declarations:
-   - `.githooks/pre-commit` — iterates every `rules/*.sh` with
-     `hook: pre-commit` (today's run.sh behavior, but the set is
-     manifest-driven).
-   - `.githooks/commit-msg` — installed only if ≥1 selected rule
-     declares `hook: commit-msg`; iterates just those rules.
-   - `.githooks/prepare-commit-msg` — same pattern.
+   dispatchers that discover installed `rule.yaml` files at runtime:
+   - `.githooks/pre-commit` — runs rule-owned `hooks/pre-commit.sh`
+     helpers, then every installed rule declaring `hook: pre-commit`.
+   - `.githooks/commit-msg` — installed up front and dispatches to
+     installed rules declaring `hook: commit-msg`.
+   - `.githooks/prepare-commit-msg` — same pattern for
+     `prepare-commit-msg`.
    - Each generated hook carries an ownership marker on line 2:
      `# governance-kit:managed pack-version=<v> generated=<YYYY-MM-DD>`.
    - Collision detection (in Step 1 survey): if target hook exists and
@@ -99,8 +99,8 @@ Captured from the issue; noted here for future reviewers:
 
 - Manifest format: **YAML**.
 - Backwards compatibility: **big-bang** (skill is v0.1).
-- Target-repo rule layout: **flat** `tests/governance/rules/`; collisions
-  rejected at install.
+- Target-repo rule layout: **folder-shaped** `tests/governance/rules/<id>/`
+  with a flat rule-id namespace; collisions rejected at install.
 - Pack discovery scope: **in-tree only** (`assets/packs/*`) for v1.
 - Preset semantics across packs: **union**.
 - Constitution snippet shape: **full Invariant subsection** (Rule /
@@ -168,9 +168,9 @@ every step.
 - [ ] No dangling references to `assets/tests-bash/rules/` in tracked
       files after migration.
 - [ ] `bash tests/governance/run.sh` green on this branch.
-- [x] `scripts/test-packs.sh` green in CI (mikefarah yq): loader must
-      fall back to awk when yq's expression dialect rejects the
-      jq-style `.id // ""` form.
+- [x] `scripts/test-packs.sh` green in CI with real YAML parsing:
+      `packs.sh` delegates to `uv run --isolated --with PyYAML` so
+      manifest strings containing `:` or `#` fail loudly unless quoted.
 - [x] Rules modelled as **atoms**: each rule is a self-contained folder
       `rules/<id>/` with `rule.yaml` + `check.sh` + `constitution.md` +
       `evals/test.sh`. `pack.yaml` carries only pack identity and the
@@ -190,3 +190,20 @@ every step.
       into the rule folder; `assets/scripts/` and pre-generator
       `assets/githooks/{pre-commit,commit-msg,prepare-commit-msg}`
       retired.
+- [x] Review follow-up: `scripts/test-packs.sh` now includes a fresh-repo
+      install contract for `core.standard`, verifies generated hooks, runs
+      installed governance, and checks the installed manifest.
+- [x] Review follow-up: generated hooks discover installed rule folders via
+      `tests/governance/rules/<id>/rule.yaml` at runtime, so post-install
+      amendments can add compatible rules without hook regeneration.
+- [x] Review follow-up: rules can ship `install-assets/` for required seed
+      files; `issues-tracked` seeds `QUALITY.md`, and
+      `agent-token-accounting` seeds `COSTS.md`.
+- [x] Review follow-up: environment-specific rules can declare
+      `requires_hook_strategy`; `hooks-configured` is now explicitly gated
+      to `.githooks` installs.
+- [x] Review follow-up: `.governance-kit/installed-packs.yaml` records
+      installed pack/rule versions as an audit manifest while preserving the
+      user-owned-copy model.
+- [x] Review follow-up: companion skill docs (`governance-amend` and
+      `governance-gardener`) now refer to folder-shaped installed rules.

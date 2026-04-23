@@ -103,6 +103,10 @@ source governance-bootstrap/assets/packs/lib/packs.sh
 list_packs governance-bootstrap/assets/packs
 ```
 
+The loader is a bash wrapper around `uv run --isolated --with PyYAML`, so pack
+manifests are parsed as real YAML. If `uv` is unavailable, stop and tell the
+user pack discovery requires `uv` (or install it before continuing).
+
 Every `assets/packs/<pack-id>/pack.yaml` is a pack. Rule metadata lives inside each rule's folder (`assets/packs/<pack-id>/rules/<rule-id>/rule.yaml`) — the loader surfaces it via `rules_for` and `rule_field`. For each pack, build an in-memory catalog of:
 
 - pack id, name, description, version (from `pack.yaml`)
@@ -147,9 +151,9 @@ Use `standard` as the recommended preset. If the user does not answer and you mu
 
 Split into multiple `AskUserQuestion` calls — the tool caps at four questions per call. Follow the same pattern today's flow does: first call for Foundation / Security / SystemOfRecord / CommitHygiene; second call for Quality / AgentDiscipline / any additional categories. Category menus with only a single rule are fine — do not pad with filler.
 
-If the user picks "Other" and describes a new rule, generate a new `.sh` file under `tests/governance/rules/` following the template in `references/RULES_CATALOG.md` and add a matching Invariants subsection to `CONSTITUTION.md`. The rule joins the target repo directly; it is not retrofitted into a pack (that is a pack-authoring activity, covered in `references/AUTHORING_PACKS.md`).
+If the user picks "Other" and describes a new rule, generate a new rule folder under `tests/governance/rules/<id>/` with `rule.yaml`, `check.sh`, and `constitution.md`, following the template in `references/RULES_CATALOG.md`, and add a matching Invariants subsection to `CONSTITUTION.md`. The rule joins the target repo directly; it is not retrofitted into a pack (that is a pack-authoring activity, covered in `references/AUTHORING_PACKS.md`).
 
-**Always installed — bypass the menu.** Walk every selected pack's `always_install: true` rules and queue them for install regardless of user picks. This flag is **reserved to the `core` pack**; third-party packs declaring it are rejected at install. Today only `no-merge-conflict-markers` carries the flag. `hooks-configured` is conditionally force-installed — only when the repo is using the `.githooks/` strategy.
+**Always installed — bypass the menu.** Walk every selected pack's `always_install: true` rules and queue them for install regardless of user picks. This flag is **reserved to the `core` pack**; third-party packs declaring it are rejected at install. Today only `no-merge-conflict-markers` carries the flag. Apply each rule's optional `requires_hook_strategy:` filter after preset resolution; `hooks-configured` declares `requires_hook_strategy: githooks`, so it is installed only when the repo is using the `.githooks/` strategy.
 
 **Install resolution.** The final install list is:
 
@@ -159,7 +163,7 @@ install = always_install_core
        ∪ user_selected_rules (from Q2..Qn, which may add or remove items)
 ```
 
-If two packs list the same rule `id`, reject with a clear error before touching the filesystem. The target repo's `tests/governance/rules/` is flat — collisions there would be silent overwrites.
+If two selected packs list the same rule `id`, reject with a clear error before touching the filesystem. The target repo's rule namespace is flat by folder name (`tests/governance/rules/<id>/`), so collisions there would be silent overwrites.
 
 Before installing, classify any user-described custom rule by surface:
 
@@ -174,7 +178,13 @@ Ask this explicitly whenever the user requests a custom rule or a rule whose rat
 
 Do not accept a repo-exists proxy for a change-set obligation unless you explicitly tell the user it is only a weak approximation and they approve that tradeoff.
 
-For each rule in the final install list, copy `<pack-dir>/rules/<rule>/check.sh` into `tests/governance/rules/<rule>.sh` and mark it executable. If the user selects `doc-freshness`, also copy `assets/freshness.conf` to `tests/governance/freshness.conf` (the seed file is commented — every path is opt-in by uncommenting; `governance-gardener` complements it with a built-in baseline).
+For each rule in the final install list, use `assets/packs/lib/install.sh`:
+
+- `install_rule_folder <pack-dir> <rule> <repo-root>` copies `<pack-dir>/rules/<rule>/` into `tests/governance/rules/<rule>/`, excluding `evals/`, and marks `check.sh` plus rule-owned hooks/runtimes executable.
+- `install_rule_assets <pack-dir> <rule> <repo-root>` copies optional `install-assets/` files into the target repo without overwriting existing files in augment mode. This is how rules such as `issues-tracked` seed `QUALITY.md` and `agent-token-accounting` seeds `COSTS.md`.
+- If the user selects `doc-freshness`, also copy `assets/freshness.conf` to `tests/governance/freshness.conf` (the seed file is commented — every path is opt-in by uncommenting; `governance-gardener` complements it with a built-in baseline).
+
+After all rules are installed, write `.governance-kit/installed-packs.yaml` via `write_installed_manifest`. It records selected pack ids, pack versions, rule ids, and installed paths for audit/debugging only. Installed rule folders are still user-owned copies; the manifest is not an auto-upgrade contract.
 
 ### Step 4 — Write the constitution
 
@@ -213,21 +223,29 @@ If the user wants **native** tests in addition to bash, read `references/NATIVE_
 
 ### Step 6 — Install the git hooks
 
-Hooks are **generated**, not copied. Use the manifest-driven logic in `assets/packs/lib/hooks.sh` (invoked via `generate_hooks <target-repo> <pack-dir>...` with the selected install list). The generator:
+Hooks are **generated**, not copied. Use `assets/packs/lib/install.sh` to build a hook spec from the installed rule folders, then pass that spec to `assets/packs/lib/hooks.sh`:
 
-1. Computes the distinct set of `hook:` values across the final install list.
-2. Emits one dispatcher per value — `pre-commit`, `commit-msg`, `prepare-commit-msg`. Dispatchers iterate only the rule scripts that declared that hook and honor `SKIP_GOVERNANCE=1`.
+```sh
+build_hook_spec_from_installed_rules <repo-root> /tmp/governance-hook-spec.tsv
+generate_hooks <repo-root>/.githooks <pack-version-label> /tmp/governance-hook-spec.tsv
+```
+
+The generator:
+
+1. Emits all three dispatchers — `pre-commit`, `commit-msg`, `prepare-commit-msg` — so future user-owned amendments that add a compatible `hook:` declaration are discovered without regenerating hooks.
+2. Each dispatcher scans installed `tests/governance/rules/<id>/rule.yaml` at runtime, runs rule-owned `hooks/<kind>.sh` helpers first, then runs `check.sh` for rules whose `hook:` matches the dispatcher. Dispatchers honor `SKIP_GOVERNANCE=1`.
 3. Stamps each dispatcher with a **line-2 ownership marker**:
    ```sh
    #!/usr/bin/env bash
    # governance-kit:managed pack-version=<v> generated=<YYYY-MM-DD>
    ```
+   The `pack-version` marker is an ownership/regeneration marker, not an upgrade promise; installed pack/rule details live in `.governance-kit/installed-packs.yaml`.
 
 Path choice:
 
 **Path A — repo-local `.githooks/`** (default when no other framework is present).
 
-1. Generate `.githooks/pre-commit`, and `.githooks/commit-msg` / `.githooks/prepare-commit-msg` if any selected rule uses them.
+1. Generate `.githooks/pre-commit`, `.githooks/commit-msg`, and `.githooks/prepare-commit-msg`.
 2. `chmod +x` every generated hook.
 3. Install `hooks-configured` (copy `<core-pack-dir>/rules/hooks-configured/` into `tests/governance/rules/hooks-configured/`, excluding `evals/`).
 4. Run `git config core.hooksPath .githooks`. **Tell the user explicitly** that this config is per-clone — every other contributor must run the same command after their first clone. The `hooks-configured` rule will surface that requirement on every commit until they do.
@@ -244,7 +262,7 @@ If the existing hook **has** the marker, overwrite silently — `governance-amen
 **Path B — existing hook framework.** If the project uses `husky` or the `pre-commit` framework, *do not* set `core.hooksPath` and do not copy into `.githooks/` — those frameworks already have their own tracked hook-config mechanism. Instead, add a hook entry to the existing config (ask the user which framework they use, or infer it from the files you found). See `references/NATIVE_TESTS.md` for the husky / pre-commit.com snippets.
 
 In this path:
-- Do not install `hooks-configured.sh`.
+- Do not install the `hooks-configured` rule folder.
 - Do not describe `hooks-configured` as part of the constitution.
 - Tell the user explicitly that the repo is using its existing tracked hook framework instead of `.githooks/`.
 

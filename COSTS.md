@@ -67,3 +67,4 @@ Schema:
 | claude-code-3ffd2eba-cd2-1776946058 | claude-code | 3ffd2eba-cd2f-439f-9aa0-7090cbcd3511 | #23 | claude-opus-4-7 | 8 | 3347 | 526288 | 1703 | 5058 | 0.3267 | fix(packs): fall back to awk when yq expression fails (#23) |
 | claude-code-3ffd2eba-cd2-1776946817 | claude-code | 3ffd2eba-cd2f-439f-9aa0-7090cbcd3511 | #23 | claude-opus-4-7 | 138 | 300744 | 11592692 | 64156 | 365038 | 9.2806 | refactor(packs): model each rule as a self-contained folder (#23) |
 | claude-code-3ffd2eba-cd2-1776954519 | claude-code | 3ffd2eba-cd2f-439f-9aa0-7090cbcd3511 | #23 | claude-opus-4-7 | 306 | 740103 | 26016221 | 136526 | 876935 | 21.0484 | refactor(packs): pull rule dependencies inside the rule folder (#23) |
+| codex-019dbad3-0b7-1776957557 | codex | 019dbad3-0b7b-7c80-b884-5dffbd1bd7bb | #23 | gpt-5.4 | 632803 | 0 | 22140928 | 46330 | 679133 | 7.8122 | fix(packs): parse manifests with pyyaml (#23) -m Replace ad hoc YAML parsing wit |

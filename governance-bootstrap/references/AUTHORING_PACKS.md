@@ -69,6 +69,7 @@ summary: <one-line menu description>
 surface: repo-state | change-set
 hook: pre-commit | commit-msg | prepare-commit-msg | none
 always_install: true            # optional; see below
+requires_hook_strategy: githooks # optional; githooks | husky | pre-commit
 ```
 
 | Field | Notes |
@@ -79,6 +80,7 @@ always_install: true            # optional; see below
 | `surface` | `repo-state` for rules that inspect the tree at rest; `change-set` for rules that inspect a specific commit or diff. Documented for the authoring guardrail (see RULES_CATALOG.md). |
 | `hook` | Hook kind the rule wants to run in. Drives dispatcher generation. Use `none` only if the rule runs exclusively in CI. |
 | `always_install` | Reserved to `core`. Skips the menu. If you need an unconditionally installed rule in a third-party pack, file an issue first — the guarantee only holds for `core`. |
+| `requires_hook_strategy` | Optional environment filter. Use this for rules that only make sense under one hook strategy, e.g. `hooks-configured` requires `githooks` and is skipped for husky/pre-commit.com repos. |
 
 There is no `id`, `script`, or `constitution` field — the id is the folder name, the script is always `check.sh`, and the snippet is always `constitution.md`. Keeping the shape rigid means a new rule folder can be dropped in without editing any index.
 
@@ -91,7 +93,7 @@ There is no `id`, `script`, or `constitution` field — the id is the folder nam
 # Rule: <one-line statement>
 # Rationale: <why — link an incident if there is one>
 set -u
-source "$(dirname "$0")/../lib.sh"
+source "$(dirname "$0")/../../lib.sh"
 rule_start "<rule-id>"
 require_git
 
@@ -106,7 +108,7 @@ rule_end
 - Exit status is owned by `lib.sh`; do not call `exit` manually.
 - Prefer `git grep -InE` with pathspec excludes over `find | xargs grep` — it skips binaries, respects `.gitignore`, and is portable.
 - Avoid GNU-only regex features. `\b` is not portable across BSD `git grep`; use `--word-regexp` (`-w`) instead.
-- When a rule's own script contains the pattern it hunts for, self-exempt via pathspec: `:!tests/governance/rules/<rule-id>.sh`.
+- When a rule's own script contains the pattern it hunts for, self-exempt via pathspec: `:!tests/governance/rules/<rule-id>/**`.
 - Self-exempt the pack eval directory: `:!governance-bootstrap/assets/packs/*/rules/*/evals/**`. Eval fixtures deliberately contain the patterns rules look for.
 
 ## Constitution snippet
@@ -120,7 +122,7 @@ Each rule ships a markdown fragment (`constitution.md`) that becomes an `Invaria
 
 **Rationale.** <why this rule exists — ideally a specific incident or constraint>
 
-**Enforced by.** `tests/governance/rules/<rule-id>.sh` (runs in `pre-commit` / `commit-msg` / `prepare-commit-msg` / CI only).
+**Enforced by.** `tests/governance/rules/<rule-id>/check.sh` (runs in `pre-commit` / `commit-msg` / `prepare-commit-msg` / CI only).
 
 **Exceptions.** <how to waive — `governance: allow-<rule-id>` comment / env-var override / docs-only carve-out>. If none, write "None."
 ```
@@ -129,7 +131,7 @@ The bootstrap skill splices these in at install. Do not write a top-level `#` he
 
 ## Evals
 
-Every rule ships a pass+fail eval at `rules/<rule-id>/evals/test.sh`. Evals run via `scripts/test-packs.sh` and exercise the rule end-to-end in a throwaway git fixture.
+Every rule ships a pass+fail eval at `rules/<rule-id>/evals/test.sh`. Evals run via `scripts/test-packs.sh` and exercise the rule end-to-end in a throwaway git fixture. The same script validates `pack.yaml` and each `rule.yaml` with PyYAML through `uv run`, so quote strings that contain YAML comment or mapping characters such as `#` and `:`.
 
 ```bash
 #!/usr/bin/env bash
@@ -139,7 +141,7 @@ EVAL_ID="<rule-id>"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../../../.." && pwd)"
 source "$ROOT/governance-bootstrap/assets/packs/lib/eval-lib.sh"
 PACK_DIR="$ROOT/governance-bootstrap/assets/packs/<pack>"
-RULE="tests/governance/rules/$EVAL_ID.sh"
+RULE="tests/governance/rules/$EVAL_ID/check.sh"
 
 fixture_init
 install_rule "$PACK_DIR" "$EVAL_ID"
@@ -175,16 +177,19 @@ At activation the bootstrap skill:
 2. Offers pack selection (`core` is pre-selected and locked).
 3. Offers a preset (`minimal` / `standard` / `strict`) and per-category multi-selects for the remaining rules.
 4. Computes `always_install ∪ preset_rules ∪ user_selections` across the selected packs.
-5. Copies each selected `rules/<id>/` folder (minus `evals/`) into the target's `tests/governance/rules/<id>/`, so `check.sh`, `lib/`, `hooks/`, and `runtimes/` all land as a unit.
-6. Splices each selected `rules/<id>/constitution.md` into the target's `CONSTITUTION.md`.
-7. Generates hook dispatchers (`pre-commit`, `commit-msg`, `prepare-commit-msg`) containing only the selected rules, keyed off their `hook:` declarations. Each hook carries an ownership marker (`# governance-kit:managed pack-version=<v> generated=<date>`). Pre-existing unmarked hooks trigger a collision prompt.
-8. Appends an evolution-log entry in `CONSTITUTION.md`.
+5. Applies environment filters such as `requires_hook_strategy`.
+6. Copies each selected `rules/<id>/` folder (minus `evals/`) into the target's `tests/governance/rules/<id>/`, so `check.sh`, `lib/`, `hooks/`, and `runtimes/` all land as a unit.
+7. Copies optional rule-owned `install-assets/` files into the target repo without overwriting existing files in augment mode.
+8. Splices each selected `rules/<id>/constitution.md` into the target's `CONSTITUTION.md`.
+9. Writes `.governance-kit/installed-packs.yaml` as an audit/debug manifest. Installed rules are still user-owned copies; the manifest is not an auto-upgrade contract.
+10. Generates hook dispatchers (`pre-commit`, `commit-msg`, `prepare-commit-msg`) that discover installed `rule.yaml` files at runtime. Each hook carries an ownership marker (`# governance-kit:managed pack-version=<v> generated=<date>`). Pre-existing unmarked hooks trigger a collision prompt.
+11. Appends an evolution-log entry in `CONSTITUTION.md`.
 
-Re-running bootstrap is idempotent: marked hooks get overwritten silently, rule scripts are copied fresh, and the evolution log records deltas.
+Re-running bootstrap is idempotent: marked hooks get overwritten silently, rule folders are copied fresh in overwrite mode or preserved in augment mode, and the evolution log records deltas.
 
 ## Versioning
 
-Bump `version` in `pack.yaml` whenever rule semantics, ids, or the preset graph change. The version gets stamped into the hook ownership marker so operators can audit which pack version is live in a given repo. `min_governance_kit` guards against installing into an older bootstrap skill than the pack was built for.
+Bump `version` in `pack.yaml` whenever rule semantics, ids, or the preset graph change. The hook marker only says the file is managed/regeneratable; the installed pack/rule details live in `.governance-kit/installed-packs.yaml`. `min_governance_kit` guards against installing into an older bootstrap skill than the pack was built for.
 
 ## Testing a pack
 
@@ -194,4 +199,4 @@ From the `governance-kit` root:
 bash scripts/test-packs.sh
 ```
 
-This walks every pack, validates each rule folder, runs every `rules/<rule>/evals/test.sh`, and smoke-tests hook generation for the union of all rules. Every rule must have at least one pass and one fail fixture; test-packs fails if an eval is missing.
+This walks every pack, validates each rule folder, bootstraps `core.standard` into a fresh repo and runs its installed governance suite, runs every `rules/<rule>/evals/test.sh`, and smoke-tests hook generation for the union of all rules. Every rule must have at least one pass and one fail fixture; test-packs fails if an eval is missing.
