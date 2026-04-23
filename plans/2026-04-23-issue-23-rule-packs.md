@@ -140,7 +140,7 @@ every step.
 - [x] Step 5 — hook generation + collision detection
 - [x] Step 6 — evals infrastructure + CI job
 - [x] Step 7 — docs updates
-- [ ] Step 8 — evolution-log entry
+- [x] Step 8 — evolution-log entry
 
 ## Test plan
 
