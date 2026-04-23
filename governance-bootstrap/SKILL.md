@@ -1,10 +1,10 @@
 ---
 name: governance-bootstrap
-description: Bootstraps governance-driven development in a repository that does not yet have the kit installed — scaffolds an initial CONSTITUTION.md, a test suite under tests/governance/ that enforces it, tracked git hooks, and a GitHub Actions workflow. Offers a menu of ready-made rules across five categories (Foundation, Security, System of record, Commit hygiene, Quality) including Conventional Commits, secret scanning, .env hygiene, GitHub Actions hardening, AGENTS.md / ARCHITECTURE.md / SECURITY.md checks, broken-link detection, doc freshness, and merge-conflict-marker detection. Use when the user wants initial governance setup, says "bootstrap governance", "set up governance tests", or wants to install this governance kit into a repo. Do not use for amending an existing rule set; use governance-amend for that.
+description: Bootstraps governance-driven development in a repository that does not yet have the kit installed — scaffolds an initial CONSTITUTION.md, a test suite under tests/governance/ that enforces it, tracked git hooks, and a GitHub Actions workflow. Ships with rule packs — `core` (Conventional Commits, secret scanning, .env hygiene, GitHub Actions hardening, AGENTS.md / ARCHITECTURE.md / SECURITY.md checks, broken-link detection, doc freshness, merge-conflict-marker detection) and `agent-governance` (plan-per-issue, commit-issue-plan-match, issues-tracked, agent-token-accounting for repos under agent-driven development). Users pick packs, a preset (minimal/standard/strict/custom), and then customize per-category. Use when the user wants initial governance setup, says "bootstrap governance", "set up governance tests", or wants to install this governance kit into a repo. Do not use for amending an existing rule set; use governance-amend for that.
 license: MIT
 metadata:
   author: governance-kit
-  version: "0.1"
+  version: "0.2"
 ---
 
 # governance-bootstrap
@@ -13,8 +13,13 @@ This skill sets up **governance-driven development** in the current repository:
 
 1. A `CONSTITUTION.md` at the repo root — the evolving source of truth for rules, guidelines, and invariants.
 2. Machine-enforced tests under `tests/governance/` — every rule in the constitution has a corresponding test.
-3. A pre-commit hook — runs `tests/governance/` before commits, with `SKIP_GOVERNANCE=1` and `git commit --no-verify` as escape hatches.
+3. A pre-commit hook (and commit-msg / prepare-commit-msg dispatchers when the selected rules need them) — runs `tests/governance/` before commits, with `SKIP_GOVERNANCE=1` and `git commit --no-verify` as escape hatches.
 4. A GitHub Actions workflow at `.github/workflows/governance.yml` — same tests, enforced in CI on every PR.
+
+Rules are grouped into **packs** — self-contained directories under `assets/packs/` that bundle rules, their constitution snippets, and hook declarations. Two packs ship in-tree today:
+
+- **`core`** — the baseline rules every repo gets by default.
+- **`agent-governance`** — the agent-driven-development rules this kit dogfoods (opt-in for other repos).
 
 Governance evolves: new rules get added to `CONSTITUTION.md` *and* to `tests/governance/` together. The constitution without the tests is just a wishlist.
 
@@ -63,6 +68,16 @@ Also detect hook strategy before you offer or install hook-related rules:
 
 This choice affects whether `hooks-configured` is installed. Do not present `.githooks/` as universal if the repo already has a tracked hook framework.
 
+**Hook-collision survey.** As part of the survey, inspect existing hook files at:
+
+| Location | What to look for |
+|---|---|
+| `.githooks/pre-commit`, `.githooks/commit-msg`, `.githooks/prepare-commit-msg` | grep for the ownership marker `governance-kit:managed` |
+| `.git/hooks/*` | same marker (legacy path — flag even if marker is found) |
+| `.husky/*`, `.pre-commit-config.yaml` | signals Path B below, not a collision |
+
+Record findings for use at Step 6.
+
 ### Step 2 — Classify the project stack
 
 Pick exactly one primary stack from the markers:
@@ -79,70 +94,74 @@ Multiple markers → pick the one the user points to. If unclear, ask once.
 
 **Default** for every stack: also install the universal **bash** test runner from `assets/tests-bash/`. Bash tests are language-agnostic (grep/find/wc based) and work anywhere. The native test runner is a second, stack-idiomatic copy that lets governance rules integrate with the project's normal test command. The user picks in Step 3 whether to install native tests, bash tests, or both.
 
-### Step 3 — Choose a preset, then customize
+### Step 2.5 — Discover rule packs
 
-Before presenting the full rule menu, ask the user for a starting preset. The preset is a starting point, not a lock-in. The user can always add or remove rules in the next step.
+Source the loader and enumerate packs:
 
-Preset choices:
+```sh
+source governance-bootstrap/assets/packs/lib/packs.sh
+list_packs governance-bootstrap/assets/packs
+```
 
-| Preset | Intent | Default starting rules |
-|---|---|---|
-| `minimal` | Smallest credible governance baseline | `constitution-exists`, `no-secrets`, `dotenv-gitignored`, `workflows-hardened`, `no-broken-internal-doc-links`, `no-large-files`, `no-committed-build-artifacts`, `no-merge-conflict-markers`, and `hooks-configured` when using `.githooks/` |
-| `standard` | Recommended default for most repos | `minimal` plus `agents-md-exists`, `conventional-commits`, `doc-freshness` |
-| `strict` | Broad governance coverage for teams that want more structure | `standard` plus `readme-exists`, `security-md-exists`, `architecture-doc-exists`, `ci-workflow-exists`, `no-orphan-todos`, `file-size-limit`, `no-debug-statements` |
-| `custom` | Start from a blank slate | no preselected rules beyond the always-installed set |
+Every `assets/packs/<pack-id>/pack.yaml` is a pack. For each pack, read the manifest and build an in-memory catalog of:
+
+- pack id, name, description, version
+- declared presets (`minimal`, `standard`, `strict`, plus any pack-specific ones)
+- rule list with fields `category`, `recommended`, `summary`, `script`, `constitution`, `surface`, `hook`, `always_install`
+
+No env var or CLI flag controls pack selection in v1 — discovery is in-tree only.
+
+### Step 3 — Choose packs, preset, and customize
+
+Three nested questions. Each subsequent question's option list is computed from the prior answer.
+
+**Q0 — "Which rule packs do you want?"** — multiselect.
+
+- `core` (always included, non-deselectable — present it as pre-checked with a note).
+- Every other pack discovered in Step 2.5, with its description from the manifest.
+
+**Q1 — "Which preset?"** — single-select.
+
+| Preset | Intent |
+|---|---|
+| `minimal` | Smallest credible governance baseline. |
+| `standard` | Recommended default for most repos. |
+| `strict` | Broad governance coverage for teams that want more structure. |
+| `custom` | Start from a blank slate — no preselected rules beyond the always-installed set. |
+
+**Semantics across packs: union.** The preset resolves as the union of the preset's rule ids across the selected packs:
+
+```
+preset_rules = ⋃ { union_preset(<preset>, <pack-dir>) : pack-dir in selected-packs }
+```
+
+A pack that does not declare the chosen preset (for example, `agent-governance` has no `strict` preset that adds new rules) contributes nothing for that preset — **no fallback to `recommended`**. This is deliberate: "my pack has no strict" means "strict adds nothing beyond what I already offer", not "give me everything".
 
 Use `standard` as the recommended preset. If the user does not answer and you must proceed, assume `standard` and label it in the final summary as a material assumption.
 
-After the preset choice, present the rule catalog across **two `AskUserQuestion` calls** (the tool caps at four questions per call). Use `multiSelect: true` for every question. If structured question tools are unavailable, ask concise free-text questions in the same category order and proceed with the user's answers. "Other" appears automatically — if the user picks it and describes a rule, generate a new `.sh` file under `tests/governance/rules/` following the template in `references/RULES_CATALOG.md` and add a matching Invariants subsection to `CONSTITUTION.md`.
+**Q2..Qn — Category menus.** For each category present across the union of selected packs' rules (canonical: `Foundation`, `Security`, `SystemOfRecord`, `CommitHygiene`, `Quality`; `agent-governance` adds `AgentDiscipline`; third-party packs may add more), present one `AskUserQuestion` with:
 
-**Always installed — do not put in the menu:**
-- `no-merge-conflict-markers` — no `<<<<<<<` / `=======` / `>>>>>>>` in any tracked file. Zero false positives, zero config. Install unconditionally.
-- `hooks-configured` — `.githooks/pre-commit` (and `.githooks/commit-msg`, if `conventional-commits` is installed) are tracked and executable, and `core.hooksPath` is set to `.githooks`. Install this only when the repo is using the `.githooks/` strategy. If the repo uses husky or `pre-commit`, skip this rule entirely.
+- Header: the category name.
+- Options: every rule in that category from any selected pack. Pre-check based on the preset union from Q1. Each option's description is the rule's `summary` field from its manifest.
+- `multiSelect: true`.
 
-**First `AskUserQuestion` call — four questions:**
+Split into multiple `AskUserQuestion` calls — the tool caps at four questions per call. Follow the same pattern today's flow does: first call for Foundation / Security / SystemOfRecord / CommitHygiene; second call for Quality / AgentDiscipline / any additional categories. Category menus with only a single rule are fine — do not pad with filler.
 
-**Q1 — "Which foundation rules should the constitution enforce?"** (header: `Foundation`)
-- `constitution-exists` — CONSTITUTION.md exists, non-empty, ≥ 10 lines. *(Recommended — the meta-rule)*
-- `readme-exists` — README.md exists with a heading and ≥ 30 words.
-- `license-exists` — A LICENSE (or variant) exists at the repo root.
-- `agents-md-exists` — AGENTS.md exists at the repo root, 30–250 lines, with ≥ 3 links to other docs. *(Recommended — the harness-engineering agent entry point)*
+If the user picks "Other" and describes a new rule, generate a new `.sh` file under `tests/governance/rules/` following the template in `references/RULES_CATALOG.md` and add a matching Invariants subsection to `CONSTITUTION.md`. The rule joins the target repo directly; it is not retrofitted into a pack (that is a pack-authoring activity, covered in `references/AUTHORING_PACKS.md`).
 
-**Q2 — "Which security rules should the constitution enforce?"** (header: `Security`)
-- `no-secrets` — Heuristic scan for AWS / GCP / GitHub / Slack / Stripe / private-key patterns. *(Recommended)*
-- `dotenv-gitignored` — `.env` is listed in `.gitignore` and not tracked. *(Recommended)*
-- `security-md-exists` — `SECURITY.md` (root, `docs/`, or `.github/`) with a contact email or URL.
-- `workflows-hardened` — GitHub Actions workflows declare a `permissions:` block and pin third-party actions to a commit SHA. *(Recommended)*
+**Always installed — bypass the menu.** Walk every selected pack's `always_install: true` rules and queue them for install regardless of user picks. This flag is **reserved to the `core` pack**; third-party packs declaring it are rejected at install. Today only `no-merge-conflict-markers` carries the flag. `hooks-configured` is conditionally force-installed — only when the repo is using the `.githooks/` strategy.
 
-**Q3 — "Which system-of-record rules should the constitution enforce?"** (header: `SystemOfRecord`)
-- `architecture-doc-exists` — `ARCHITECTURE.md` (root or `docs/`) exists, ≥ 20 lines.
-- `no-broken-internal-doc-links` — Markdown links to local paths resolve. *(Recommended)*
-- `doc-freshness` — Docs opted into `tests/governance/freshness.conf` carry a `<!-- last-verified: YYYY-MM-DD -->` marker within the last 90 days.
-- `ci-workflow-exists` — At least one non-governance workflow exists under `.github/workflows/`.
+**Install resolution.** The final install list is:
 
-**Q4 — "Which commit-hygiene rules should the constitution enforce?"** (header: `CommitHygiene`)
-- `conventional-commits` — Commit messages match `<type>(scope)?!?: subject (#123)`. *(Recommended — installs a `commit-msg` hook)*
-- `no-orphan-todos` — Every `TODO` / `FIXME` references `#123` or `ABC-123`.
+```
+install = always_install_core
+       ∪ preset_rules (from Q1)
+       ∪ user_selected_rules (from Q2..Qn, which may add or remove items)
+```
 
-*(This question has only 2 options; that's valid. Do not pad with filler.)*
+If two packs list the same rule `id`, reject with a clear error before touching the filesystem. The target repo's `tests/governance/rules/` is flat — collisions there would be silent overwrites.
 
-**Second `AskUserQuestion` call — one question:**
-
-**Q5 — "Which quality rules should the constitution enforce?"** (header: `Quality`)
-- `no-debug-statements` — No stray `console.log`, `debugger`, `breakpoint()`, `pdb`, `dbg!`.
-- `file-size-limit` — No source file exceeds 500 lines (configurable).
-- `no-large-files` — No tracked file exceeds 5 MB (configurable). *(Recommended)*
-- `no-committed-build-artifacts` — No `__pycache__`, `*.pyc`, `node_modules/`, `dist/`, `build/`, `target/`, `out/`, `.DS_Store` etc. are tracked. *(Recommended)*
-
-For each selected rule, copy `assets/tests-bash/rules/<rule>.sh` into `tests/governance/rules/` in the target repo. Also copy `assets/tests-bash/rules/no-merge-conflict-markers.sh` regardless of what the user picked. Copy `assets/tests-bash/rules/hooks-configured.sh` only when using the `.githooks/` strategy.
-
-If the user selects `conventional-commits`, remember that `commit-msg` will also be installed in Step 6.
-
-If the user selects `doc-freshness`, also copy `assets/freshness.conf` to `tests/governance/freshness.conf`. The seed file is commented — every path is opt-in by uncommenting. The companion `governance-gardener` skill also checks a built-in baseline set of well-known docs (AGENTS.md, README.md, SECURITY.md, docs/**, plans/**) on top of this config when it walks the Alignment axis, so the seed only lists paths the baseline might miss.
-
-If the user asks for rules that exist in `references/RULES_CATALOG.md` under "Also available" (e.g. `env-example-current`, `no-curl-bash-pipe`, `docs-dir-minimum`), copy those too — they are supported, just not in the default menu.
-
-Before you install any non-trivial or user-described rule, classify its policy surface:
+Before installing, classify any user-described custom rule by surface:
 
 | Policy surface | Use when the intent is | Preferred enforcement shape |
 |---|---|---|
@@ -155,22 +174,18 @@ Ask this explicitly whenever the user requests a custom rule or a rule whose rat
 
 Do not accept a repo-exists proxy for a change-set obligation unless you explicitly tell the user it is only a weak approximation and they approve that tradeoff.
 
+For each rule in the final install list, copy `<pack-dir>/rules/<rule>.sh` into `tests/governance/rules/`. If the user selects `doc-freshness`, also copy `assets/freshness.conf` to `tests/governance/freshness.conf` (the seed file is commented — every path is opt-in by uncommenting; `governance-gardener` complements it with a built-in baseline).
+
 ### Step 4 — Write the constitution
 
 Copy `assets/CONSTITUTION.template.md` to `<repo-root>/CONSTITUTION.md`. Then tailor it:
 
-- The template ships with a **Compliance** section directly under the cardinal-rule callout — leave it intact. It is the prescriptive directive that tells humans, agents, and automation they must satisfy every principle, guideline, and invariant in the document (not just the mechanically enforced ones). Every bootstrapped repo gets it; do not edit unless the user asks.
+- The template ships with a **Compliance** section directly under the cardinal-rule callout — leave it intact. Every bootstrapped repo gets it.
 - Fill the **Principles** section with 3-5 high-level principles inferred from the rules the user picked, plus a generic starter like "Changes to the constitution require changes to the enforcing tests."
-- Under **Invariants**, list one subsection per selected rule. Each subsection must have:
-  - **Rule** (one-sentence statement)
-  - **Rationale** (why this matters)
-  - **Enforced by** (path to the test file, e.g. `tests/governance/rules/no-secrets.sh`)
-  - **Exceptions** (how to document approved deviations)
+- Under **Invariants**, for each rule in the final install list, read the rule's `constitution:` file from its pack (`<pack-dir>/constitution-snippets/<rule>.md`) and splice the snippet verbatim into the **Invariants** section. Every snippet is already in the standard Rule / Rationale / Enforced by / Exceptions shape — do not rewrite.
 - Leave the **Evolution Log** section with a template entry and a note that each amendment needs a commit.
 
-Do not invent principles the user did not pick. It is better to ship a short constitution than a bloated one.
-If you had to infer anything material — stack, preset, or hook strategy — record it under `Assumptions:` in the final summary.
-If you install any custom or change-set-aware rule, make sure the invariant text says what merge it blocks, not just what file shape it checks.
+Do not invent principles the user did not pick. It is better to ship a short constitution than a bloated one. If you had to infer anything material — stack, preset, or hook strategy — record it under `Assumptions:` in the final summary. If you install any custom or change-set-aware rule, make sure the invariant text says what merge it blocks, not just what file shape it checks.
 
 ### Step 4b — Inject the Compliance directive into AGENTS.md
 
@@ -198,26 +213,35 @@ If the user wants **native** tests in addition to bash, read `references/NATIVE_
 
 ### Step 6 — Install the git hooks
 
-Choose one path based on the hook strategy detected in Step 1.
+Hooks are **generated**, not copied. Use the manifest-driven logic in `assets/packs/lib/hooks.sh` (invoked via `generate_hooks <target-repo> <pack-dir>...` with the selected install list). The generator:
 
-**Path A — repo-local `.githooks/`**
+1. Computes the distinct set of `hook:` values across the final install list.
+2. Emits one dispatcher per value — `pre-commit`, `commit-msg`, `prepare-commit-msg`. Dispatchers iterate only the rule scripts that declared that hook and honor `SKIP_GOVERNANCE=1`.
+3. Stamps each dispatcher with a **line-2 ownership marker**:
+   ```sh
+   #!/usr/bin/env bash
+   # governance-kit:managed pack-version=<v> generated=<YYYY-MM-DD>
+   ```
 
-Hook scripts live in a **tracked** directory `.githooks/` — not in `.git/hooks/`, which is per-clone and untracked. This way every contributor's clone gets the same hooks, and the `hooks-configured` rule catches anyone whose `core.hooksPath` is unset.
+Path choice:
 
-Do this:
+**Path A — repo-local `.githooks/`** (default when no other framework is present).
 
-1. Copy `assets/githooks/pre-commit` to `.githooks/pre-commit` in the target repo and `chmod +x` it. The hook:
-   - Skips if `SKIP_GOVERNANCE=1` is set.
-   - Runs `tests/governance/run.sh` (bash mode) and/or the native command (if native tests are installed — detect and run both if present).
-   - On failure, prints the failing rule, the `SKIP_GOVERNANCE=1 git commit` escape hatch, and `git commit --no-verify` as the nuclear option.
-2. **If, and only if, the user selected `conventional-commits`**, also copy `assets/githooks/commit-msg` to `.githooks/commit-msg` and `chmod +x` it. Honors the same escape hatches.
-3. Also install `assets/tests-bash/rules/hooks-configured.sh` to `tests/governance/rules/hooks-configured.sh`.
-4. Run `git config core.hooksPath .githooks` in the target repo. **Tell the user explicitly** that this config is per-clone — every other contributor must run the same command after their first clone. The `hooks-configured` rule will surface that requirement on every commit until they do.
-5. **Do not** create files under `.git/hooks/`. If `.git/hooks/pre-commit` (or `commit-msg`) already exists from a previous bootstrap or another tool, ask the user before deleting — it could be a husky or pre-commit.com hook (see the framework branch below).
+1. Generate `.githooks/pre-commit`, and `.githooks/commit-msg` / `.githooks/prepare-commit-msg` if any selected rule uses them.
+2. `chmod +x` every generated hook.
+3. Install `hooks-configured.sh` (copied from `<core-pack-dir>/rules/hooks-configured.sh`).
+4. Run `git config core.hooksPath .githooks`. **Tell the user explicitly** that this config is per-clone — every other contributor must run the same command after their first clone. The `hooks-configured` rule will surface that requirement on every commit until they do.
+5. **Do not** create files under `.git/hooks/`. If `.git/hooks/pre-commit` (or `commit-msg`) already exists from a previous bootstrap or another tool, ask the user before deleting — it could be a husky or pre-commit.com hook (see Path B).
 
-**Path B — existing hook framework**
+**Pre-existing hook collision (unmarked).** If the survey in Step 1 found a target hook that exists and lacks the ownership marker, STOP before writing. Show the user the existing hook and offer three options:
 
-If the project uses `husky` or the `pre-commit` framework, *do not* set `core.hooksPath` and do not copy into `.githooks/` — those frameworks already have their own tracked hook-config mechanism. Instead, add a hook entry to the existing config (ask the user which framework they use, or infer it from the files you found). See `references/NATIVE_TESTS.md` for the husky / pre-commit.com snippets.
+1. **Wrap** (default) — write the generated hook, rename the existing one to `<name>.userhook`, and exec it at the end of the generated hook. Keeps both behaviors.
+2. **Merge by hand** — print both scripts, skip hook install, rely on CI.
+3. **Overwrite + backup** — back up the existing hook to `<path>.pre-governance.bak`, then write ours. Warn in the final summary.
+
+If the existing hook **has** the marker, overwrite silently — `governance-amend` relies on this. (The marker is a contract: "this file is regeneratable.")
+
+**Path B — existing hook framework.** If the project uses `husky` or the `pre-commit` framework, *do not* set `core.hooksPath` and do not copy into `.githooks/` — those frameworks already have their own tracked hook-config mechanism. Instead, add a hook entry to the existing config (ask the user which framework they use, or infer it from the files you found). See `references/NATIVE_TESTS.md` for the husky / pre-commit.com snippets.
 
 In this path:
 - Do not install `hooks-configured.sh`.
@@ -231,15 +255,17 @@ Copy `assets/governance.yml` to `.github/workflows/governance.yml`. Adjust the t
 ### Step 8 — Report to the user
 
 Print a concise summary:
+- Packs selected.
 - Preset chosen and whether it was explicit or assumed.
 - Hook strategy chosen (`.githooks/`, husky, or `pre-commit`).
 - Stack detected.
-- Rules installed (with file paths).
+- Rules installed (with file paths, grouped by pack if multiple packs were selected).
 - Rules deliberately skipped (with reasons) when that matters.
+- Any pre-existing hook collisions encountered and how they were resolved.
 - How to run locally: `bash tests/governance/run.sh`.
 - How to skip the hook: `SKIP_GOVERNANCE=1 git commit ...` or `git commit --no-verify`.
 - Assumptions made. If none, say `Assumptions: none`.
-- Reminder: **constitution amendments must land with their test.** Point to `references/RULES_CATALOG.md` for the template.
+- Reminder: **constitution amendments must land with their test.** Point to `references/RULES_CATALOG.md` and (if multiple packs were selected) `references/AUTHORING_PACKS.md` for the templates.
 
 Do **not** commit the new files. Leave that to the user — the first commit of their governance system should be intentional, and the pre-commit hook is now active.
 
@@ -247,10 +273,12 @@ Do **not** commit the new files. Leave that to the user — the first commit of 
 
 Every successful run should leave the user with a summary that includes:
 
+- `Packs:` the list of selected packs.
 - `Preset:` chosen preset and whether it was explicit or assumed.
 - `Hook strategy:` `.githooks/`, husky, or `pre-commit`.
 - `Rules installed:` file-backed list or grouped summary.
 - `Rules skipped:` only when the omission is meaningful.
+- `Hook collisions:` the resolution chosen for each pre-existing unmarked hook, or `none`.
 - `Assumptions:` any material assumptions, or `none`.
 - `Next command:` `bash tests/governance/run.sh`
 
@@ -259,19 +287,22 @@ Every successful run should leave the user with a summary that includes:
 ## Key design rules for this skill
 
 - **The constitution and the tests evolve together.** Never add a rule to the constitution without a test. Never add a test without a rule. If the user asks to add one in isolation, push back and do both.
+- **Packs are the extension point.** Adding a rule to a pack is a two-file edit (the `.sh` + the manifest entry); every menu, hook dispatcher, and constitution snippet flows from the manifest. Do not shadow the manifest with hand-written lists in SKILL.md.
+- **`core` is non-optional.** Users can select additional packs but cannot deselect `core`. The `always_install: true` flag is reserved to `core` — third-party packs cannot force-install rules.
+- **Preset semantics are union, not fallback.** If a pack lacks the selected preset, it contributes nothing for that preset.
 - **Escape hatches are a feature, not a bug.** `SKIP_GOVERNANCE=1` exists because governance that blocks emergency hotfixes will get ripped out. CI enforces the rule even when the hook is skipped, which is the right layering.
 - **Bash-first, native as enhancement.** Bash tests work in any repo, in any CI, without install steps. Native tests (pytest etc.) are nicer DX but add friction. Default to bash; offer native.
 - **Respect the repo's existing hook framework.** `.githooks/` is the default only when no tracked hook framework already exists. Do not force repos off husky or `pre-commit`.
-- **Start with a preset, then let the user customize.** Presets reduce setup fatigue; the category menu keeps the result intentional.
-- **State material assumptions explicitly.** If you had to infer the preset, stack, or hook strategy, surface that in the summary.
-- **Match the enforcement surface to the real intent.** If a rule is meant to govern each substantive change, do not implement it as a repo-exists or file-count check. Prefer change-set-aware enforcement where the hook/CI can actually fail the missing behavior.
+- **Hook ownership is explicit.** Every generated hook carries the `governance-kit:managed` marker on line 2. An unmarked hook at a target path is somebody else's file — prompt before touching it.
+- **Match the enforcement surface to the real intent.** If a rule is meant to govern each substantive change, do not implement it as a repo-exists or file-count check.
 - **Reject weak proxies when they create false confidence.** A rule that says "every change must do X" but only checks "the repo contains one X somewhere" is a bad bootstrap output, not a partial success.
-- **Make the bad merge explicit before writing the rule.** For every custom or ambiguous rule, state the concrete failure mode in plain language, then choose the enforcement surface that would actually catch it.
-- **Spell intent into the invariant.** The constitution entry should encode the spirit of the rule in the Rule and Rationale lines, so future amendments do not mistake a companion-artifact obligation for a repo-exists check.
+- **State material assumptions explicitly.** If you had to infer the preset, stack, or hook strategy, surface that in the summary.
 - **No invented rules.** When writing the constitution, only include rules the user selected. Governance loses authority the moment it contains rules nobody signed off on.
 
 ## References
 
 - `../GOVERNANCE_VOCABULARY.md` — shared terms used across the three governance skills.
-- `references/RULES_CATALOG.md` — full list of ready-made rules with descriptions, and the template for adding new ones.
+- `references/RULES_CATALOG.md` — full list of ready-made rules with descriptions, and the template for adding new ones. Notes pack membership per rule.
+- `references/AUTHORING_PACKS.md` — how to write a third-party pack.
 - `references/NATIVE_TESTS.md` — how to port bash rules to pytest / jest / go test, and husky / pre-commit-framework snippets.
+- `references/AGENT_TOKEN_ACCOUNTING.md` — wiring instructions for the `agent-token-accounting` rule shipped by the `agent-governance` pack.
