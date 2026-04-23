@@ -232,21 +232,27 @@ The reader at `scripts/governance/runtimes/claude-code.sh`:
 Same story — `CODEX_THREAD_ID` is already set in Codex sessions, so no
 wrapper is needed. The reader at `scripts/governance/runtimes/codex.sh`:
 
-1. Locates the transcript at `~/.codex/sessions/${CODEX_THREAD_ID}.jsonl`,
-   falling back to the most recently modified `*.jsonl` in the sessions dir.
-   Override with `CODEX_TRANSCRIPT_PATH`.
-2. Derives the session id from `CODEX_THREAD_ID` or from the transcript
-   filename.
-3. Sums tokens across the common shapes — top-level `usage`, `message.usage`,
-   `response.usage` — handling both `input_tokens` / `output_tokens` and
-   `prompt_tokens` / `completion_tokens` key pairs, since Codex's transcript
-   schema varies by version. Also picks up `cache_creation_input_tokens` /
-   `cache_read_input_tokens` when present; zeroes the cache columns when
-   the runtime doesn't expose them.
-4. Tracks `model` from the same containers. Defaults to `unknown` if none
-   of the transcript entries carry it — the ledger's `cost-usd` column
+1. Locates the transcript by searching recursively under
+   `~/.codex/sessions/` and `~/.codex/archived_sessions/` for a filename
+   containing `CODEX_THREAD_ID`, falling back to the most recently modified
+   `*.jsonl` under the sessions dir. Override with `CODEX_TRANSCRIPT_PATH`.
+2. Derives the session id from `CODEX_THREAD_ID`, `session_meta.payload.id`,
+   or finally the transcript filename.
+3. Reads Codex Desktop's cumulative
+   `event_msg.payload.info.total_token_usage` records when present. For
+   OpenAI cached input, `cached_input_tokens` is a subset of `input_tokens`,
+   so the reader emits `input = input_tokens - cached_input_tokens`,
+   `cache_read = cached_input_tokens`, and `cache_create = 0`.
+4. Falls back to summing common API shapes — top-level `usage`,
+   `message.usage`, `response.usage` — handling both `input_tokens` /
+   `output_tokens` and `prompt_tokens` / `completion_tokens` key pairs.
+   It also understands `input_tokens_details.cached_tokens` and
+   `prompt_tokens_details.cached_tokens`.
+5. Tracks `model` from `payload.model`, `collaboration_mode.settings.model`,
+   and the older top-level / nested model fields. Defaults to `unknown` if
+   none of the transcript entries carry it — the ledger's `cost-usd` column
    stays empty in that case.
-5. Prints `<session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output> <model>`.
+6. Prints `<session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output> <model>`.
 
 ### Other runtimes
 

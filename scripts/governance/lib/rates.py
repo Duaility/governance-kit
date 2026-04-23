@@ -5,10 +5,11 @@ Rates are per-million-tokens, split by usage mode:
 
     (base_input, cache_create_5m, cache_read, output)
 
-Source: Anthropic pricing table (Opus 4.x / Sonnet 3.7-4.6 as of 2026-04-23).
-Cache writes assume the **5-minute** TTL, which is Claude Code's default.
-If a runtime ever surfaces 1h cache writes separately we'll need a second
-column — for now cache_create in the ledger is implicitly 5m.
+Source: Anthropic pricing table (Opus 4.x / Sonnet 3.7-4.6) and OpenAI API
+pricing table (GPT-5.4 family) as of 2026-04-23.
+Cache writes assume the **5-minute** TTL for Anthropic models, which is
+Claude Code's default. OpenAI models do not charge a separate cache-write
+rate in this ledger, so their cache-create rate matches base input.
 
 Model lookup is tolerant:
   - lowercase + strip whitespace
@@ -42,6 +43,10 @@ RATES: dict[str, tuple[float, float, float, float]] = {
     "claude-sonnet-4-5": (3.00, 3.75, 0.30, 15.00),
     "claude-sonnet-4":   (3.00, 3.75, 0.30, 15.00),
     "claude-sonnet-3-7": (3.00, 3.75, 0.30, 15.00),
+    # OpenAI GPT-5.4 — standard processing, text tokens
+    "gpt-5.4":      (2.50, 2.50, 0.25, 15.00),
+    "gpt-5.4-mini": (0.75, 0.75, 0.075, 4.50),
+    "gpt-5.4-nano": (0.20, 0.20, 0.02, 1.25),
 }
 
 _DATE_SUFFIX_RE = re.compile(r"-\d{8}$")

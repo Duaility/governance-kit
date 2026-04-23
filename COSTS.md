@@ -50,3 +50,4 @@ Schema:
 | claude-code-b8c3537c-03c-1776934485 | claude-code | b8c3537c-03c3-4ba3-8e42-ceb02b2da58b | #13 | claude-opus-4-7 | 0 | 19641 | 2798442 | 9089 | 28730 | 1.7492 | docs(plans): consolidate PR #14 plans into one umbrella file (#13) |
 | claude-code-d70074d5-c7d-1776937263 | claude-code | d70074d5-c7d9-47e9-872e-d6434ebba353 | #17 | claude-opus-4-7 | 90 | 135005 | 4221982 | 55041 | 190136 | 4.3312 | feat(governance): make agent-token-accounting mandatory on every non-merge commi |
 | claude-code-2ff1de86-c43-1776938847 | claude-code | 2ff1de86-c431-4d9f-b1f6-3207628ac98e | #19 | claude-opus-4-7 | 93 | 183429 | 4516732 | 42054 | 225576 | 4.4566 | feat(governance): replace plan-captured with commit-issue-plan-match (#19) |
+| codex-019db9a2-47d-1776939439 | codex | 019db9a2-47d3-7012-93b5-4b0cbb9adaa8 | #13 | gpt-5.4 | 228312 | 0 | 5097984 | 19716 | 248028 | 2.1410 | fix(governance): complete codex agent accounting (#13) |
