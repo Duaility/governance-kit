@@ -60,3 +60,4 @@ Schema:
 | claude-code-2ee76956-1f7-1776943230 | claude-code | 2ee76956-1f71-48a1-b8ed-5f0da9c878ce | #23 | claude-opus-4-7 | 31 | 32830 | 1417967 | 22284 | 55145 | 1.4714 | feat(packs): manifest-driven hook generator + collision detection (#23) |
 | claude-code-2ee76956-1f7-1776944025 | claude-code | 2ee76956-1f71-48a1-b8ed-5f0da9c878ce | #23 | claude-opus-4-7 | 130 | 444501 | 14455180 | 75254 | 519885 | 11.8877 | test(packs): per-rule evals + CI wiring + portability fix (#23) |
 | claude-code-2ee76956-1f7-1776944107 | claude-code | 2ee76956-1f71-48a1-b8ed-5f0da9c878ce | #23 | claude-opus-4-7 | 12 | 9365 | 1867947 | 4409 | 13786 | 1.1028 | test(packs): per-rule evals + CI wiring + portability fix (#23) |
+| claude-code-2ee76956-1f7-1776944474 | claude-code | 2ee76956-1f71-48a1-b8ed-5f0da9c878ce | #23 | claude-opus-4-7 | 47 | 81166 | 2983542 | 21305 | 102518 | 2.5319 | docs(packs): update catalog + add pack-authoring guide (#23) |

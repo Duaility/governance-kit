@@ -1,4 +1,4 @@
-<!-- last-verified: 2026-04-22 -->
+<!-- last-verified: 2026-04-23 -->
 
 # AGENTS.md
 
@@ -48,7 +48,14 @@ governance-kit/
 ├── governance-bootstrap/        # Skill 1 — scaffolds governance in any repo.
 │   ├── SKILL.md
 │   ├── assets/                  # Templates copied into target repos.
-│   └── references/              # RULES_CATALOG.md, NATIVE_TESTS.md.
+│   │   └── packs/               # Rule packs (core, agent-governance, ...).
+│   │       └── <pack>/
+│   │           ├── pack.yaml           # manifest
+│   │           ├── rules/              # *.sh rule scripts
+│   │           ├── constitution-snippets/  # *.md Invariant subsections
+│   │           └── evals/              # pass/fail eval fixtures
+│   └── references/              # RULES_CATALOG.md, NATIVE_TESTS.md,
+│                                #   AUTHORING_PACKS.md.
 ├── governance-amend/            # Skill 2 — adds/modifies a rule atomically.
 │   ├── SKILL.md
 │   └── ...
@@ -77,9 +84,25 @@ Do not edit [CONSTITUTION.md](CONSTITUTION.md) by hand. Invoke the `governance-a
 
 ### Adding a new rule to the catalog
 
-1. Add the bash test under `governance-bootstrap/assets/tests-bash/rules/<name>.sh`.
-2. Document it in [governance-bootstrap/references/RULES_CATALOG.md](governance-bootstrap/references/RULES_CATALOG.md).
-3. If it belongs in the default menu, surface it in the Step 3 `AskUserQuestion` flow inside [governance-bootstrap/SKILL.md](governance-bootstrap/SKILL.md).
+Rules live inside **packs** under `governance-bootstrap/assets/packs/<pack>/`.
+Two packs ship in-tree today: `core` (general rules) and `agent-governance`
+(rules for repos operating under agent-driven development).
+
+1. Add the bash test under `governance-bootstrap/assets/packs/<pack>/rules/<id>.sh`.
+2. Add a matching Invariant subsection at
+   `governance-bootstrap/assets/packs/<pack>/constitution-snippets/<id>.md`
+   (Rule / Rationale / Enforced by / Exceptions).
+3. Append a rule entry to `governance-bootstrap/assets/packs/<pack>/pack.yaml`
+   — fields: `id`, `category`, `recommended`, `summary`, `script`,
+   `constitution`, `surface` (`repo-state`|`change-set`), `hook`
+   (`pre-commit`|`commit-msg`|`prepare-commit-msg`|`none`), and add it to
+   the relevant preset block if it should be part of `minimal` / `standard`.
+4. Add an eval at `governance-bootstrap/assets/packs/<pack>/evals/<id>/test.sh`
+   — run `bash scripts/test-packs.sh` to confirm it passes pass and fail
+   fixtures.
+5. Document it in [governance-bootstrap/references/RULES_CATALOG.md](governance-bootstrap/references/RULES_CATALOG.md).
+6. For authoring an entirely new pack, see
+   [governance-bootstrap/references/AUTHORING_PACKS.md](governance-bootstrap/references/AUTHORING_PACKS.md).
 
 ### Commit messages
 
@@ -101,5 +124,6 @@ Edits to source files flow to both runtimes live.
 
 - [CONSTITUTION.md](CONSTITUTION.md) — the live rule set and amendment process.
 - [governance-bootstrap/references/RULES_CATALOG.md](governance-bootstrap/references/RULES_CATALOG.md) — every ready-made rule and its check.
+- [governance-bootstrap/references/AUTHORING_PACKS.md](governance-bootstrap/references/AUTHORING_PACKS.md) — writing a third-party pack.
 - [governance-bootstrap/references/NATIVE_TESTS.md](governance-bootstrap/references/NATIVE_TESTS.md) — porting bash rules to pytest / jest / go test, husky / pre-commit.com snippets.
 - [README.md](README.md) — the public-facing overview.
