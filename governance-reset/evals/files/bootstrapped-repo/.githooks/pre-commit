@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# governance-kit:managed pack-version=0.2 generated=2026-01-15
+# Governance pre-commit hook — generated from selected pack rules.
+set -u
+[[ "${SKIP_GOVERNANCE:-0}" == "1" ]] && exit 0
+ROOT="$(git rev-parse --show-toplevel)"
+bash "$ROOT/tests/governance/run.sh"

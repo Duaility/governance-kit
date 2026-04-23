@@ -184,7 +184,25 @@ For each rule in the final install list, use `assets/packs/lib/install.sh`:
 - `install_rule_assets <pack-dir> <rule> <repo-root>` copies optional `install-assets/` files into the target repo without overwriting existing files in augment mode. This is how rules such as `issues-tracked` seed `QUALITY.md` and `agent-token-accounting` seeds `COSTS.md`.
 - If the user selects `doc-freshness`, also copy `assets/freshness.conf` to `tests/governance/freshness.conf` (the seed file is commented — every path is opt-in by uncommenting; `governance-gardener` complements it with a built-in baseline).
 
-After all rules are installed, write `.governance-kit/installed-packs.yaml` via `write_installed_manifest`. It records selected pack ids, pack versions, rule ids, and installed paths for audit/debugging only. Installed rule folders are still user-owned copies; the manifest is not an auto-upgrade contract.
+After all rules are installed, write `.governance-kit/installed-packs.yaml` via `write_installed_manifest`. Pass every flag that applies to the install — `governance-reset` treats this file as the authoritative record of what the kit owns and will key off every field:
+
+```sh
+write_installed_manifest "$repo_root" \
+    --hook-strategy githooks \
+    --stack bash \
+    --ci-workflow .github/workflows/governance.yml \
+    --tests-dir tests/governance \
+    --agents-md-directive \                # add --agents-md-created if Step 4b Case 2 fired
+    --install-asset QUALITY.md \           # repeat per seeded install-asset
+    --install-asset COSTS.md \
+    --collision .githooks/pre-commit:wrap:.githooks/pre-commit.userhook \  # only if Step 6 hit collisions
+    -- \
+    "$core_pack_dir" constitution-exists \
+    "$core_pack_dir" no-secrets \
+    "$agent_pack_dir" agent-token-accounting
+```
+
+`--install-asset` is repeatable (once per seeded file — `install_rule_assets` copied it). `--collision` is `path:resolution[:extra]` where `resolution` ∈ `wrap | skip | overwrite-with-backup` and `extra` is the userhook or `.bak` path. `--path-b-framework` + `--path-b-entry <file>:<fingerprint>` replace `--hook-strategy githooks` when bootstrap took Path B. Omit `--no-constitution` unless the user explicitly asked to skip the constitution (nonstandard). The manifest is `version: "1"`; installed rule folders are still user-owned copies and this file is not an auto-upgrade contract.
 
 ### Step 4 — Write the constitution
 
@@ -201,7 +219,7 @@ Do not invent principles the user did not pick. It is better to ship a short con
 
 The constitution's **Compliance** section is the rule; the AGENTS.md directive is the routing pointer that tells agents to *read* the rule. Without it, agents may never reach the constitution. Inject `assets/AGENTS.directive.md` into the target repo's `AGENTS.md`.
 
-The snippet leads with an HTML marker comment `<!-- governance: rules-to-follow -->` so this step is **idempotent** — always grep for the marker before inserting. If it's already present, skip silently.
+The snippet is bounded by a pair of HTML marker comments — opening `<!-- governance: rules-to-follow -->` on its first line and closing `<!-- /governance: rules-to-follow -->` on its last. Both markers ship together in the template and **both** must be preserved on insert. Idempotency: grep for the opening marker before inserting; if it is already present, skip silently. Do not insert the opening without the closing or vice versa — `governance-reset` relies on the pair to locate the exact block to strip.
 
 Three cases:
 
