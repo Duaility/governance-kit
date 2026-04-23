@@ -295,3 +295,91 @@ taught so the final shape reads with its reasoning intact.
 - **No modification to the runtimes themselves.** If Claude Code or Codex
   later export session id / token counts as env vars natively, the
   per-runtime readers become strictly simpler. The contract stays put.
+
+## Side quest — prerequisite: `hooks-configured` worktree tolerance
+
+Not strictly part of agent-token-accounting, but a blocker we had to clear in
+the same PR because the dogfood branch lives in a git worktree.
+
+**Problem.** `hooks-configured` was comparing `git config core.hooksPath`
+against the literal string `.githooks`. In a worktree the config is shared
+with the main checkout and resolves to an absolute path like
+`/abs/path/to/main/.githooks` — functionally correct (hooks fire) but fails
+the literal-string check. Every local run of the suite was reporting a false
+positive.
+
+**Fix.** Replace the literal comparison in both the live rule
+(`tests/governance/rules/hooks-configured.sh`) and the bootstrap asset
+(`governance-bootstrap/assets/tests-bash/rules/hooks-configured.sh`) with a
+tolerant check:
+
+- Empty → still a violation (the user hasn't run `git config core.hooksPath`
+  yet).
+- Absolute or relative → resolve the path, then require that (a) the
+  basename is `.githooks`, (b) the path is a directory, and (c) that
+  directory contains an executable `pre-commit`.
+
+The separate tracked-and-executable checks for `.githooks/pre-commit` and
+`.githooks/commit-msg` stayed unchanged — they already covered the
+worktree's own hook scripts.
+
+**Why this is a proxy swap, not a rewrite.** The rule's intent was always
+"hooks are configured and fire." The literal-string comparison was right in
+the 99% case but spuriously failed in worktrees; the fix swaps the proxy
+for a check that actually expresses the intent.
+
+## Side quest — follow-on: `governance-amend` skill pivot
+
+Emerged from iterating on this PR with `governance-amend`. Not about
+agent-token-accounting at all — it's about how the skill itself behaves —
+but landed in the same PR because the friction surfaced here.
+
+**Problem.** The skill's default flow staged the three amendment artifacts,
+then asked the user to review-and-commit. That duplicates the PR review
+surface imperfectly: inline approval in a skill transcript has no diff view,
+no comment threads, no reviewer context. And staging-without-committing is a
+footgun — state gets lost in worktrees, collides with other work, and is
+easy to forget about.
+
+**Pivot.** The skill now drafts → smoke-tests → **commits** in one pass.
+Review happens on the PR. Four concrete edits to `governance-amend/SKILL.md`:
+
+1. **Interaction policy.** Dropped the Fast/Interactive dual mode. Fast path
+   is the only mode. Ask a *blocking* clarifying question only when
+   rationale or check shape is genuinely missing.
+2. **Step 3 (draft).** Removed "show the draft and ask whether it's the
+   check they want." Write once syntax-check passes.
+3. **Step 4 (smoke test Exit-1).** One targeted three-choice question before
+   commit — **Loosen / Grandfather / Block** — because the resolution
+   branches on user intent in a way the skill cannot pick mechanically.
+   Committing a red-CI amendment and punting the triage to the PR reviewer
+   would make them debug the rule's collateral damage instead of reviewing
+   the rule.
+4. **Step 6 (commit).** Skill runs `git commit` with a conventional-commit
+   subject (add / update / remove variants), includes violators in the body
+   when Step 4 was grandfather/block, and stops there. Pushing stays with
+   the user.
+
+Key design rules updated: "Don't commit" → "Commit, don't push"; added "PR
+review is the review layer, not the skill" and "Block only on genuinely
+missing inputs."
+
+Evals #1–#3 assertions updated to verify the single-commit outcome and the
+no-draft-approval pause. Evals #4–#5 untouched — they don't depend on the
+approval-loop behavior.
+
+**Why the Exit-1 exception.** "PR review is the gate" does not mean "let
+every rule-amendment PR open with red CI from pre-existing violators." The
+reviewer's job is to decide whether the rule is right, not to reverse-engineer
+why bumping `max-file-size` to 800 suddenly flags three data-pipeline files.
+Exit-1 is the one genuine branching decision the skill cannot make without
+user intent, so it earns one question.
+
+**Non-goals for this side quest.**
+
+- Not automating `git push`. Pushing is a user decision (wrong branch,
+  force-push risk). The skill commits; the user pushes.
+- Not changing skill scope. Still one amendment, three artifacts, one
+  commit. Did not expand to PR creation or CI setup.
+- Not touching `governance-bootstrap` or `governance-gardener`. Bootstrap
+  already behaves this way; gardener is read-only.
