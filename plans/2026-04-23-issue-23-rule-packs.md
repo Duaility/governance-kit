@@ -168,3 +168,6 @@ every step.
 - [ ] No dangling references to `assets/tests-bash/rules/` in tracked
       files after migration.
 - [ ] `bash tests/governance/run.sh` green on this branch.
+- [x] `scripts/test-packs.sh` green in CI (mikefarah yq): loader must
+      fall back to awk when yq's expression dialect rejects the
+      jq-style `.id // ""` form.

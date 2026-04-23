@@ -62,3 +62,5 @@ Schema:
 | claude-code-2ee76956-1f7-1776944107 | claude-code | 2ee76956-1f71-48a1-b8ed-5f0da9c878ce | #23 | claude-opus-4-7 | 12 | 9365 | 1867947 | 4409 | 13786 | 1.1028 | test(packs): per-rule evals + CI wiring + portability fix (#23) |
 | claude-code-2ee76956-1f7-1776944474 | claude-code | 2ee76956-1f71-48a1-b8ed-5f0da9c878ce | #23 | claude-opus-4-7 | 47 | 81166 | 2983542 | 21305 | 102518 | 2.5319 | docs(packs): update catalog + add pack-authoring guide (#23) |
 | claude-code-2ee76956-1f7-1776944546 | claude-code | 2ee76956-1f71-48a1-b8ed-5f0da9c878ce | #23 | claude-opus-4-7 | 14 | 11929 | 618519 | 3330 | 15273 | 0.4671 | docs(governance): record pack refactor in evolution log (#23) |
+| claude-code-3ffd2eba-cd2-1776946025 | claude-code | 3ffd2eba-cd2f-439f-9aa0-7090cbcd3511 | #23 | claude-opus-4-7 | 42 | 127620 | 1549947 | 17406 | 145068 | 2.0080 | fix(packs): fall back to awk when yq expression fails (#23) |
+| claude-code-3ffd2eba-cd2-1776946058 | claude-code | 3ffd2eba-cd2f-439f-9aa0-7090cbcd3511 | #23 | claude-opus-4-7 | 8 | 3347 | 526288 | 1703 | 5058 | 0.3267 | fix(packs): fall back to awk when yq expression fails (#23) |

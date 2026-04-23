@@ -56,17 +56,10 @@ _have_yq() {
     command -v yq >/dev/null 2>&1
 }
 
-# _yaml_scalar <file> <top-level-key>
-# Prints the scalar value of a top-level key. Empty if missing.
-_yaml_scalar() {
+# _yaml_scalar_awk <file> <top-level-key>
+# Pure-awk implementation. Always-available fallback.
+_yaml_scalar_awk() {
     local file="$1" key="$2"
-    if _have_yq; then
-        local v
-        v="$(yq -r ".${key} // \"\"" "$file" 2>/dev/null)"
-        [[ "$v" == "null" ]] && v=""
-        printf '%s' "$v"
-        return 0
-    fi
     awk -v k="$key" '
         BEGIN { in_block = 0 }
         /^[[:space:]]*#/ { next }
@@ -86,6 +79,27 @@ _yaml_scalar() {
             }
         }
     ' "$file"
+}
+
+# _yaml_scalar <file> <top-level-key>
+# Prints the scalar value of a top-level key. Empty if missing.
+#
+# Tries yq first when present, but yq expression dialects differ
+# (mikefarah Go yq vs. python-yq vs. kislyuk/yq), so any failure or
+# empty result falls back to the pure-awk parser. Pack manifests are
+# intentionally regular enough that awk is always sufficient.
+_yaml_scalar() {
+    local file="$1" key="$2"
+    if _have_yq; then
+        local v
+        v="$(yq -r ".${key} // \"\"" "$file" 2>/dev/null || true)"
+        [[ "$v" == "null" ]] && v=""
+        if [[ -n "$v" ]]; then
+            printf '%s' "$v"
+            return 0
+        fi
+    fi
+    _yaml_scalar_awk "$file" "$key"
 }
 
 # _yaml_rules_block <file>
