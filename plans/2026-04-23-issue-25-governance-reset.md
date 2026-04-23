@@ -142,9 +142,10 @@ Every commit closes `(#25)` and touches this plan file to satisfy
    be reviewed without eval-harness noise.
 
 4. **Commit 4 — AGENTS.md + README.md.** Add `governance-reset` to
-   the skills table in `AGENTS.md`, add the reset use case to
-   `README.md`, and update the "Linking the skills into a runtime"
-   snippet.
+   the skills table in `AGENTS.md` (now "four skills"), add the reset
+   use case to the `README.md` skill list, update the repo-layout
+   tree to show the new directory, and update the "Linking the skills
+   into a runtime" snippet to mention the fourth symlink.
 
 ## Out of scope
 

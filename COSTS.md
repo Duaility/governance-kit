@@ -75,3 +75,4 @@ Schema:
 | claude-code-7109f1b4-393-1776961095 | claude-code | 7109f1b4-393a-45ce-8318-02e4f85a277c | #25 | claude-opus-4-7 | 63 | 229719 | 1317336 | 23493 | 253275 | 2.6821 | docs(plan): draft governance-reset skill plan (#25) |
 | claude-code-7109f1b4-393-1776961345 | claude-code | 7109f1b4-393a-45ce-8318-02e4f85a277c | #25 | claude-opus-4-7 | 20 | 33244 | 1757867 | 23650 | 56914 | 1.6781 | feat(reset): add governance-reset skill with uninstall matrix and manifest schem |
 | claude-code-7109f1b4-393-1776961546 | claude-code | 7109f1b4-393a-45ce-8318-02e4f85a277c | #25 | claude-opus-4-7 | 34 | 22205 | 3690592 | 14136 | 36375 | 2.3376 | test(reset): add baseline evals M-bM^@M^T hard-reset, idempotent, dry-run (#25) |
+| claude-code-7109f1b4-393-1776961610 | claude-code | 7109f1b4-393a-45ce-8318-02e4f85a277c | #25 | claude-opus-4-7 | 14 | 13634 | 1706069 | 5285 | 18933 | 1.0704 | docs(reset): list governance-reset in AGENTS.md + README.md (#25) |

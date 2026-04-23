@@ -16,15 +16,16 @@ See the **Compliance** section at the top of [CONSTITUTION.md](CONSTITUTION.md) 
 
 ## What this repo is
 
-`governance-kit` ships three Claude Code / Codex skills that together implement **governance-driven development** — a workflow where every rule in a `CONSTITUTION.md` has a matching executable test, and the two evolve as one commit.
+`governance-kit` ships four Claude Code / Codex skills that together implement **governance-driven development** — a workflow where every rule in a `CONSTITUTION.md` has a matching executable test, and the two evolve as one commit.
 
-The three skills:
+The four skills:
 
 | Skill | Purpose |
 |---|---|
 | [governance-bootstrap](governance-bootstrap/SKILL.md) | Scaffolds CONSTITUTION.md, `tests/governance/`, pre-commit + commit-msg hooks, and a CI workflow. |
 | [governance-amend](governance-amend/SKILL.md) | Adds or modifies a rule atomically across test + constitution + evolution log. |
 | [governance-gardener](governance-gardener/SKILL.md) | Walks the governance surface and produces a Governance Health Report flagging blind spots, dead rules, escape-hatch friction, and doc drift. Optional follow-up actions open PRs. |
+| [governance-reset](governance-reset/SKILL.md) | Cleanly uninstalls a previously bootstrapped setup — reverses every bootstrap side-effect with ownership-marker discipline. Dry-run / soft / hard modes. Use for a clean slate before re-bootstrapping or for opting out. |
 
 ## How governance works here
 
@@ -65,6 +66,10 @@ governance-kit/
 ├── governance-gardener/         # Skill 3 — walks governance, emits a health report.
 │   ├── SKILL.md
 │   └── ...
+├── governance-reset/            # Skill 4 — uninstalls a bootstrapped setup cleanly.
+│   ├── SKILL.md
+│   ├── references/              # UNINSTALL_MATRIX.md, MANIFEST_SCHEMA.md.
+│   └── evals/
 ├── tests/governance/            # Rule tests for THIS repo (dogfood).
 │   ├── run.sh
 │   ├── lib.sh
@@ -128,7 +133,7 @@ This repo's skills are made available to local agent runtimes via symlinks:
 ```sh
 ln -s $(pwd)/governance-bootstrap ~/.claude/skills/governance-bootstrap
 ln -s $(pwd)/governance-bootstrap ~/.codex/skills/governance-bootstrap
-# ...and the same for governance-amend and governance-gardener.
+# ...and the same for governance-amend, governance-gardener, and governance-reset.
 ```
 
 Edits to source files flow to both runtimes live.
