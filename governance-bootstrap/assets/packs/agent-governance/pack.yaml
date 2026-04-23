@@ -1,0 +1,74 @@
+# agent-governance pack
+#
+# Rules for repos that operate under agent-driven development — where
+# every change to the tree is produced through an agent runtime (Codex,
+# Claude Code, Cursor, ...). These rules assume every commit has an
+# issue anchor, a matching plan, and full cost accounting.
+#
+# The four rules form a chain: issues are tracked (`issues-tracked`),
+# every issue has exactly one plan (`plan-per-issue`), every commit
+# matches its plan (`commit-issue-plan-match`), and every commit carries
+# its cost (`agent-token-accounting`). Breaking any link makes the
+# chain non-auditable, so the `standard` preset bundles all four.
+#
+# Category `AgentDiscipline` is introduced by this pack — the
+# bootstrap skill surfaces it as an additional screen when this pack
+# is selected.
+
+id: agent-governance
+name: Agent-governance rules
+version: "0.1"
+min_governance_kit: "0.1"
+description: Rules for repos operating under agent-driven development.
+author: governance-kit
+
+presets:
+  minimal:
+    rules:
+      - plan-per-issue
+      - commit-issue-plan-match
+  standard:
+    extends: minimal
+    rules:
+      - issues-tracked
+      - agent-token-accounting
+  strict:
+    extends: standard
+    rules: []
+
+rules:
+  - id: plan-per-issue
+    category: AgentDiscipline
+    recommended: true
+    summary: Every tracked plans/*.md filename carries a unique issue-<N> token.
+    script: rules/plan-per-issue.sh
+    constitution: constitution-snippets/plan-per-issue.md
+    surface: repo-state
+    hook: pre-commit
+
+  - id: commit-issue-plan-match
+    category: AgentDiscipline
+    recommended: true
+    summary: Each commit's (#N) matches an issue-<N> token on a plan it touches.
+    script: rules/commit-issue-plan-match.sh
+    constitution: constitution-snippets/commit-issue-plan-match.md
+    surface: change-set
+    hook: commit-msg
+
+  - id: issues-tracked
+    category: AgentDiscipline
+    recommended: true
+    summary: QUALITY.md exists at repo root with Open and Resolved sections.
+    script: rules/issues-tracked.sh
+    constitution: constitution-snippets/issues-tracked.md
+    surface: repo-state
+    hook: pre-commit
+
+  - id: agent-token-accounting
+    category: AgentDiscipline
+    recommended: true
+    summary: Every non-merge, non-revert commit carries token trailers + matching COSTS.md row.
+    script: rules/agent-token-accounting.sh
+    constitution: constitution-snippets/agent-token-accounting.md
+    surface: change-set
+    hook: commit-msg

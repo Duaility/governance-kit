@@ -1,0 +1,6 @@
+### commit-issue-plan-match
+
+- **Rule**: For every non-merge, non-revert commit in scope, the issue number in the commit subject's trailing `(#N)` matches an `issue-<N>` token on at least one `plans/*.md` file the commit adds or modifies. A commit that touches no `plans/*.md` fails this rule.
+- **Rationale**: `conventional-commits` pins each commit to an issue and `plan-per-issue` pins each plan to an issue, but nothing cross-checks the two — a commit claiming `(#15)` while touching only issue #42's plan passes both rules in isolation. This rule closes that hole and, in doing so, subsumes the former `plan-captured` "substantive change must touch a plan" obligation under a stricter check (the plan must also be the *right* one for the commit's issue).
+- **Enforced by**: `tests/governance/rules/commit-issue-plan-match.sh` (Mode B — CI walks merge-base → HEAD) and `.githooks/commit-msg` (Mode A — validates the pending commit against its staged diff).
+- **Exceptions**: Merge commits and revert commits are exempt (mirrors `conventional-commits`). Per-commit waiver — a line `governance: allow-commit-issue-plan-match <reason>` in the commit body exempts that commit (reason required; a bare token does not waive).

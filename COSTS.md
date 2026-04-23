@@ -55,3 +55,4 @@ Schema:
 | claude-code-2ee76956-1f7-1776942344 | claude-code | 2ee76956-1f71-48a1-b8ed-5f0da9c878ce | #23 | claude-opus-4-7 | 38 | 51778 | 3910335 | 37949 | 89765 | 3.2277 | feat(packs): add pack manifest schema, loader, and core pack.yaml (#23) |
 | claude-code-2ee76956-1f7-1776942368 | claude-code | 2ee76956-1f71-48a1-b8ed-5f0da9c878ce | #23 | claude-opus-4-7 | 4 | 4567 | 462284 | 3310 | 7881 | 0.3425 | feat(packs): add pack manifest schema, loader, and core pack.yaml (#23) |
 | claude-code-2ee76956-1f7-1776942571 | claude-code | 2ee76956-1f71-48a1-b8ed-5f0da9c878ce | #23 | claude-opus-4-7 | 37 | 22399 | 4651804 | 13535 | 35971 | 2.8045 | refactor(packs): migrate rule scripts into core pack + add snippets (#23) |
+| claude-code-2ee76956-1f7-1776942768 | claude-code | 2ee76956-1f71-48a1-b8ed-5f0da9c878ce | #23 | claude-opus-4-7 | 27 | 33737 | 3958194 | 17384 | 51148 | 2.6247 | feat(packs): promote this repo's rules into agent-governance pack (#23) |

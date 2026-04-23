@@ -135,7 +135,7 @@ every step.
 
 - [x] Step 1 — manifest schema + loader + core pack.yaml
 - [x] Step 2 — directory migration into packs/core/
-- [ ] Step 3 — agent-governance pack
+- [x] Step 3 — agent-governance pack
 - [ ] Step 4 — SKILL.md activation-flow rewrite
 - [ ] Step 5 — hook generation + collision detection
 - [ ] Step 6 — evals infrastructure + CI job
