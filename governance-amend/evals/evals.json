@@ -4,13 +4,13 @@
     {
       "id": 1,
       "prompt": "We had an incident yesterday (INC-4117) — someone committed a private key file (*.pem) and we had to rotate half our credentials. Add a governance rule that blocks committing *.pem, *.key, and *.p12 files. Wire it into the constitution properly.",
-      "expected_output": "Three coordinated artifacts land together in one commit: (a) a new tests/governance/rules/<rule-name>.sh that blocks committing the listed key/cert extensions, (b) a new Invariants subsection in CONSTITUTION.md describing the rule and citing INC-4117, and (c) an Evolution Log entry with today's date summarizing the amendment. The rule is tested against a seeded repo with and without a .pem file. The skill drafts, smoke-tests, and commits in one pass without asking for approval of the draft. The final summary reports the rule name, action type, smoke-test result, the commit sha+subject, and that the next step is `git push` for PR review.",
+      "expected_output": "Three coordinated artifacts land together in one commit: (a) a new tests/governance/rules/<rule-name>/ rule folder with rule.yaml, check.sh, and constitution.md that blocks committing the listed key/cert extensions, (b) a new Invariants subsection in CONSTITUTION.md describing the rule and citing INC-4117, and (c) an Evolution Log entry with today's date summarizing the amendment. The rule is tested against a seeded repo with and without a .pem file. The skill drafts, smoke-tests, and commits in one pass without asking for approval of the draft. The final summary reports the rule name, action type, smoke-test result, the commit sha+subject, and that the next step is `git push` for PR review.",
       "files": ["evals/files/seeded-repo/"],
       "assertions": [
-        "A new rule script was created under tests/governance/rules/ with a name matching the invariant (e.g., no-key-material.sh)",
-        "The rule script blocks at least these extensions: .pem, .key, .p12",
-        "The rule script has a rationale comment naming INC-4117",
-        "The rule script uses rule_start, violation, rule_end, and sources lib.sh (consistent with existing conventions)",
+        "A new rule folder was created under tests/governance/rules/ with a name matching the invariant (e.g., no-key-material/check.sh)",
+        "The rule check blocks at least these extensions: .pem, .key, .p12",
+        "The rule check has a rationale comment naming INC-4117",
+        "The rule check uses rule_start, violation, rule_end, and sources lib.sh (consistent with existing conventions)",
         "CONSTITUTION.md gained a new Invariants subsection that names the rule and cites INC-4117",
         "CONSTITUTION.md's Evolution Log gained a new entry dated today describing the amendment",
         "Running tests/governance/run.sh on a repo containing a staged *.pem file produces a violation referencing the new rule",
@@ -23,14 +23,14 @@
     {
       "id": 2,
       "prompt": "We want to raise our file-size-limit from 500 lines to 800 lines — the old limit is triggering too many false positives in the data-pipeline package. Amend the constitution.",
-      "expected_output": "The existing file-size-limit rule's limit is updated (either directly in the script or via the GOVERNANCE_FILE_SIZE_LIMIT env var convention). The constitution's invariant section for file-size-limit is updated to reflect 800. A new Evolution Log entry records the change with a reason (false positives in data-pipeline). No new rule script is created — this is an amendment to an existing rule, not a new one.",
+      "expected_output": "The existing file-size-limit rule's limit is updated (either directly in check.sh or via the GOVERNANCE_FILE_SIZE_LIMIT env var convention). The constitution's invariant section for file-size-limit is updated to reflect 800. A new Evolution Log entry records the change with a reason (false positives in data-pipeline). No new rule folder is created — this is an amendment to an existing rule, not a new one.",
       "files": ["evals/files/repo-with-file-size-rule/"],
       "assertions": [
-        "The existing file-size-limit rule script was edited (not duplicated)",
-        "The new limit value (800) appears in the rule script or its env var default",
+        "The existing file-size-limit rule folder was edited (not duplicated)",
+        "The new limit value (800) appears in check.sh or its env var default",
         "The CONSTITUTION.md invariant for file-size-limit references 800 (not 500)",
         "A new Evolution Log entry was added with today's date describing the limit change and citing the data-pipeline false-positive reason",
-        "No new rule script file was created",
+        "No new rule folder was created",
         "The skill created exactly one new commit containing the amendment with a conventional-commit subject",
         "The amendment summary reported that this was an update rather than a new rule"
       ]
@@ -38,10 +38,10 @@
     {
       "id": 3,
       "prompt": "Remove the no-console-log rule — we're keeping structured logs via pino and the rule is noisy. Do it properly.",
-      "expected_output": "Three coordinated deletions/edits: the rule script is removed, the corresponding Invariants subsection is removed from CONSTITUTION.md, and an Evolution Log entry records the removal with a reason (structured logging via pino makes the rule redundant). The skill warns if any other docs or code references the removed rule by name.",
+      "expected_output": "Three coordinated deletions/edits: the rule folder is removed, the corresponding Invariants subsection is removed from CONSTITUTION.md, and an Evolution Log entry records the removal with a reason (structured logging via pino makes the rule redundant). The skill warns if any other docs or code references the removed rule by name.",
       "files": ["evals/files/repo-with-console-log-rule/"],
       "assertions": [
-        "tests/governance/rules/no-console-log.sh no longer exists",
+        "tests/governance/rules/no-console-log no longer exists",
         "The Invariants section of CONSTITUTION.md no longer describes no-console-log",
         "A new Evolution Log entry dated today records the removal with the stated reason",
         "Running tests/governance/run.sh still exits 0 on the seeded repo after removal",
@@ -67,8 +67,8 @@
       "files": ["evals/files/seeded-repo/"],
       "assertions": [
         "The final summary explicitly classifies the rule as a change-set obligation or equivalent wording",
-        "The new or updated rule script inspects changed files (for example via git diff --cached or a branch-diff fallback) rather than only checking whether plans/*.md exists",
-        "The rule script can fail when substantive files change without a companion plans/*.md update",
+        "The new or updated rule check inspects changed files (for example via git diff --cached or a branch-diff fallback) rather than only checking whether plans/*.md exists",
+        "The rule check can fail when substantive files change without a companion plans/*.md update",
         "The CONSTITUTION.md invariant for plan-captured describes the blocked bad merge in per-change terms, not just repo structure",
         "The summary includes the chosen enforcement surface and why it fits"
       ]

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Rule: reject committed credentials and private keys.
 set -u
-source "$(dirname "$0")/../lib.sh"
+source "$(dirname "$0")/../../lib.sh"
 rule_start "no-secrets"
 require_git
 while IFS= read -r hit; do

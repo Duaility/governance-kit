@@ -13,7 +13,7 @@ Agents and humans working in this repo must read and follow this document. Mecha
 
 ### file-size-limit
 **Rule.** No single tracked source file may exceed 500 lines.
-**Enforced by.** `tests/governance/rules/file-size-limit.sh` (limit controlled by `GOVERNANCE_FILE_SIZE_LIMIT`, default 500).
+**Enforced by.** `tests/governance/rules/file-size-limit/check.sh` (limit controlled by `GOVERNANCE_FILE_SIZE_LIMIT`, default 500).
 **Waivers.** Append `# governance: allow-file-size-limit <TICKET>` to the first line of the file.
 
 ## Evolution Log

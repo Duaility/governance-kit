@@ -14,7 +14,7 @@ Agents and humans working in this repo must read and follow this document. Mecha
 
 ### no-secrets
 **Rule.** No credentials or private keys in tracked files.
-**Enforced by.** `tests/governance/rules/no-secrets.sh`
+**Enforced by.** `tests/governance/rules/no-secrets/check.sh`
 **Waivers.** `# governance: allow-no-secrets <TICKET>` on the offending line.
 
 ## Evolution Log

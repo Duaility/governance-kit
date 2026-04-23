@@ -1,0 +1,5 @@
+category: Quality
+recommended: true
+summary: Fixture rule for no-console-log.
+surface: repo-state
+hook: pre-commit

@@ -10,7 +10,7 @@ Agents and humans follow this document. Mechanical invariants in `tests/governan
 
 ### no-secrets
 **Rule.** No credentials or private keys in tracked files.
-**Enforced by.** `tests/governance/rules/no-secrets.sh`
+**Enforced by.** `tests/governance/rules/no-secrets/check.sh`
 
 ## Evolution Log
 - 2025-08-15 — Bootstrap with no-secrets.

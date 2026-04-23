@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -u
-source "$(dirname "$0")/../lib.sh"
+source "$(dirname "$0")/../../lib.sh"
 rule_start "no-secrets"
 require_git
 while IFS= read -r hit; do

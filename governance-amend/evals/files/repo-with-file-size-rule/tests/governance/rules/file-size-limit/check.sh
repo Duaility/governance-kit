@@ -2,7 +2,7 @@
 # Rule: no single tracked source file may exceed the limit.
 # Limit is controlled by GOVERNANCE_FILE_SIZE_LIMIT (default 500).
 set -u
-source "$(dirname "$0")/../lib.sh"
+source "$(dirname "$0")/../../lib.sh"
 rule_start "file-size-limit"
 require_git
 
