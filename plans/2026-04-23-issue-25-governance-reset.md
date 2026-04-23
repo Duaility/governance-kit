@@ -147,6 +147,44 @@ Every commit closes `(#25)` and touches this plan file to satisfy
    tree to show the new directory, and update the "Linking the skills
    into a runtime" snippet to mention the fourth symlink.
 
+5. **Commit 5 — Bootstrap symmetry fix.** PR #26 review surfaced two
+   P1 blockers where reset expected bootstrap behaviours that did not
+   exist. We chose Option A (fix bootstrap up to match reset's
+   contract rather than shrink reset). This commit:
+   - Expands `write_installed_manifest` in
+     `governance-bootstrap/assets/packs/lib/install.sh` to emit the v1
+     schema reset reads: `hook_strategy`, `stack`, `ci_workflow`,
+     `tests_dir`, `constitution`, `agents_md_directive`,
+     `agents_md_created`, pack-grouped rules, `install_assets_seeded`,
+     `collisions`, optional `path_b` block. Kwargs-style flags keep the
+     call site readable. Bash 3.2 compatible (no `local -A`).
+   - Adds the closing `<!-- /governance: rules-to-follow -->` marker
+     to `governance-bootstrap/assets/AGENTS.directive.md` so reset can
+     surgically strip the block by paired markers instead of guessing
+     end-of-block from headings.
+   - Updates `governance-bootstrap/SKILL.md` Step 3 to show the new
+     kwarg call shape and Step 4b to describe the paired-marker
+     contract (both markers must be preserved when users edit).
+   - Dogfoods the closing marker in this repo's `AGENTS.md`.
+   - Updates the existing call site in `scripts/test-packs.sh` to the
+     new signature so the fresh-repo contract test still passes.
+
+6. **Commit 6 — Reset alignment.** Makes reset consume what bootstrap
+   now emits and adds legacy fallbacks for repos bootstrapped before
+   commit 5:
+   - Rewrite `governance-reset/references/MANIFEST_SCHEMA.md` around
+     the real v1 schema as the current shape, with a legacy-fallback
+     section covering v0.1 (the pre-PR-#26 flat manifest) and the
+     heuristic fallback when no manifest exists.
+   - Add an opening-marker-only `AGENTS.md` heuristic in the reset
+     SKILL.md: if only the opening marker is present (pre-commit-5
+     bootstrap runs), strip-until-next-`##` at lower confidence and
+     require an extra confirm.
+   - Regenerate
+     `governance-reset/evals/files/bootstrapped-repo/.governance-kit/installed-packs.yaml`
+     to match real v1 output byte-for-byte so the fixture is no longer
+     a strawman for what bootstrap writes.
+
 ## Out of scope
 
 - **Partial reset of individual rules.** That is

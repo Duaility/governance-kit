@@ -257,7 +257,11 @@ EOF
         installed_pairs+=("$core_pack" "$rid")
     done
 
-    write_installed_manifest "$fresh_tmp" "${installed_pairs[@]}"
+    write_installed_manifest "$fresh_tmp" \
+        --hook-strategy githooks \
+        --stack bash \
+        --agents-md-directive \
+        -- "${installed_pairs[@]}"
 
     hook_spec="$fresh_tmp/hook-spec.tsv"
     build_hook_spec_from_installed_rules "$fresh_tmp" "$hook_spec"
