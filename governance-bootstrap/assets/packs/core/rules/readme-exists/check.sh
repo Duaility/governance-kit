@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Rule: README.md exists at repo root with at least a top-level heading and one paragraph.
 set -u
-source "$(dirname "$0")/../lib.sh"
+source "$(dirname "$0")/../../lib.sh"
 rule_start "readme-exists"
 require_git
 

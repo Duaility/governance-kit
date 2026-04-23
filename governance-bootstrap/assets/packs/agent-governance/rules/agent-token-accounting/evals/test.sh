@@ -4,7 +4,7 @@ EVAL_ID="agent-token-accounting"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../../../.." && pwd)"
 source "$ROOT/governance-bootstrap/assets/packs/lib/eval-lib.sh"
 PACK_DIR="$ROOT/governance-bootstrap/assets/packs/agent-governance"
-RULE="tests/governance/rules/$EVAL_ID.sh"
+RULE="tests/governance/rules/$EVAL_ID/check.sh"
 
 command -v python3 >/dev/null 2>&1 || {
     echo "    ⊘ skipped — python3 not available"
@@ -12,14 +12,10 @@ command -v python3 >/dev/null 2>&1 || {
 }
 
 fixture_init
+# install_rule copies the whole rule folder — lib/ (ledger, trailers, rates),
+# hooks/ (pre-commit side effects + prepare-commit-msg stamping) and
+# runtimes/ come with it. Nothing lives outside the rule folder.
 install_rule "$PACK_DIR" "$EVAL_ID"
-
-# The rule shells out to scripts/governance/lib/{ledger,trailers}.py —
-# copy them from the bootstrap asset tree into the fixture.
-mkdir -p scripts/governance/lib
-cp "$ROOT/governance-bootstrap/assets/scripts/governance/lib/ledger.py" scripts/governance/lib/
-cp "$ROOT/governance-bootstrap/assets/scripts/governance/lib/trailers.py" scripts/governance/lib/
-cp "$ROOT/governance-bootstrap/assets/scripts/governance/lib/rates.py" scripts/governance/lib/
 
 # Seed COSTS.md with a well-formed row.
 cat > COSTS.md <<'EOF'

@@ -3,7 +3,7 @@
 # Keeps the reference file in sync so new contributors know what env vars they need.
 # .env itself is assumed to be gitignored — this rule is a no-op when no local .env exists.
 set -u
-source "$(dirname "$0")/../lib.sh"
+source "$(dirname "$0")/../../lib.sh"
 rule_start "env-example-current"
 require_git
 

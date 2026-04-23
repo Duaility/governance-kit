@@ -2,7 +2,7 @@
 # Rule: Every TODO/FIXME must reference a tracker (#123 or ABC-123).
 # Orphan TODOs rot — a TODO without a ticket is a future bug with no owner.
 set -u
-source "$(dirname "$0")/../lib.sh"
+source "$(dirname "$0")/../../lib.sh"
 rule_start "no-orphan-todos"
 require_git
 
@@ -14,7 +14,8 @@ cd "$ROOT" || exit 1
 while IFS=: read -r file line_no match; do
     [[ -z "$file" ]] && continue
     # Skip matches in this rule file itself (it mentions TODO).
-    [[ "$file" == tests/governance/rules/no-orphan-todos.sh ]] && continue
+    [[ "$file" == tests/governance/rules/no-orphan-todos/* ]] && continue
+    [[ "$file" == governance-bootstrap/assets/packs/*/rules/no-orphan-todos/* ]] && continue
     # Skip matches inside the constitution, which documents the rule.
     [[ "$file" == CONSTITUTION.md ]] && continue
     # Accept waiver: `# governance: allow-no-orphan-todos <reason>`
@@ -26,7 +27,8 @@ while IFS=: read -r file line_no match; do
     violation "$file:$line_no — $(echo "$match" | sed 's/^[[:space:]]*//' | cut -c1-80)"
 # `--word-regexp` is portable across GNU and BSD git-grep; `\b` is not.
 done < <(git grep -nwE '(TODO|FIXME)' -- \
-    ':!tests/governance/rules/no-orphan-todos.sh' \
+    ':!tests/governance/rules/no-orphan-todos/**' \
+    ':!governance-bootstrap/assets/packs/*/rules/no-orphan-todos/**' \
     ':!CONSTITUTION.md' 2>/dev/null || true)
 
 rule_end

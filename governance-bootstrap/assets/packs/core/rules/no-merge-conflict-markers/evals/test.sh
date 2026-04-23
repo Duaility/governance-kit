@@ -4,7 +4,7 @@ EVAL_ID="no-merge-conflict-markers"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../../../.." && pwd)"
 source "$ROOT/governance-bootstrap/assets/packs/lib/eval-lib.sh"
 PACK_DIR="$ROOT/governance-bootstrap/assets/packs/core"
-RULE="tests/governance/rules/$EVAL_ID.sh"
+RULE="tests/governance/rules/$EVAL_ID/check.sh"
 
 fixture_init
 install_rule "$PACK_DIR" "$EVAL_ID"

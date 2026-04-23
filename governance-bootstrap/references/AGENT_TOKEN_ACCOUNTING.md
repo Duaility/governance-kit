@@ -63,7 +63,7 @@ without re-deriving rates after the fact:
 - `output` — model output tokens.
 - `new-work = input + cache-create + output` (self-checking invariant).
 - `cost-usd` — the true dollar cost for this row, computed from `model` via
-  `scripts/governance/lib/rates.py` and **all four** token columns
+  the rule's `lib/rates.py` and **all four** token columns
   (`cache-read` included — that's the only place cache rent appears).
   Empty when the model isn't in the rate table. This is the only
   single-number headline that is comparable across commits with different
@@ -101,23 +101,25 @@ Both legacy shapes are validated under the same `new-work` invariant.
 
 ## Installing
 
-Inside the bootstrapped repo:
+The rule ships as a self-contained folder under the `agent-governance` pack.
+The `governance-bootstrap` skill copies it wholesale and the hook generator
+wires its `hooks/pre-commit.sh` and `hooks/prepare-commit-msg.sh` into the
+dispatchers automatically. Manual install is:
 
 ```sh
-cp    <governance-kit>/governance-bootstrap/assets/tests-bash/rules/agent-token-accounting.sh tests/governance/rules/
-cp    <governance-kit>/governance-bootstrap/assets/githooks/pre-commit         .githooks/
-cp    <governance-kit>/governance-bootstrap/assets/githooks/prepare-commit-msg .githooks/
-cp    <governance-kit>/governance-bootstrap/assets/COSTS.template.md           COSTS.md
-cp -r <governance-kit>/governance-bootstrap/assets/scripts/governance          scripts/
-chmod +x tests/governance/rules/agent-token-accounting.sh \
-         .githooks/pre-commit .githooks/prepare-commit-msg \
-         scripts/governance/agent-accounting.sh \
-         scripts/governance/runtimes/*.sh
+cp -r <governance-kit>/governance-bootstrap/assets/packs/agent-governance/rules/agent-token-accounting \
+      tests/governance/rules/
+cp    <governance-kit>/governance-bootstrap/assets/COSTS.template.md COSTS.md
+chmod +x tests/governance/rules/agent-token-accounting/check.sh \
+         tests/governance/rules/agent-token-accounting/hooks/*.sh \
+         tests/governance/rules/agent-token-accounting/runtimes/*.sh
 ```
 
-The `scripts/governance/` tree includes `lib/ledger.py` and `lib/trailers.py`
-— both are stdlib-only Python 3, no `pip install` required. The only
-runtime dependency is `python3` on `$PATH`.
+Everything the rule needs — the `lib/` Python (ledger, trailers, rates),
+the hook-side-effect scripts under `hooks/`, and the per-runtime transcript
+readers under `runtimes/` — lives inside the rule folder. Stdlib-only
+Python 3, no `pip install` required. The only runtime dependency is
+`python3` on `$PATH`.
 
 Then add an `agent-token-accounting` Invariants subsection to `CONSTITUTION.md`
 via the `governance-amend` skill (the rule and the constitutional entry must
@@ -150,12 +152,13 @@ through untouched.
 git commit -m "feat: x (#13)"
       │
       ▼
-pre-commit ──► scripts/governance/agent-accounting.sh
+pre-commit ──► tests/governance/rules/agent-token-accounting/hooks/pre-commit.sh
       │          1. Detect runtime from env (CLAUDECODE / CODEX_THREAD_ID / AGENT_NAME)
       │          2. Read parent argv (/proc/$PPID/cmdline or `ps`) to recover
       │             the -m subject and parse the (#N) issue anchor
-      │          3. Dispatch to scripts/governance/runtimes/<runtime>.sh — returns
-      │             `<session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output> <model>`
+      │          3. Dispatch to runtimes/<runtime>.sh (sibling of the helper)
+      │             — returns `<session_id> <cum_input> <cum_cache_create>
+      │             <cum_cache_read> <cum_output> <model>`
       │          4. Subtract prior rows for this session (via lib/ledger.py
       │             `sum-by-session`) → per-commit delta for all four token fields
       │          5. Compute Cost-Key, append COSTS.md row (lib/ledger.py
@@ -190,7 +193,7 @@ worktree.
 
 ### Runtime detection
 
-`agent-accounting.sh` picks the runtime from environment, in order:
+`hooks/pre-commit.sh` picks the runtime from environment, in order:
 
 | Signal | Runtime |
 |---|---|
@@ -209,7 +212,7 @@ No setup beyond installing the hooks. `CLAUDECODE=1` is already exported to
 every Bash tool invocation, so `git commit -m "feat: x (#13)"` from an
 agent session Just Works.
 
-The reader at `scripts/governance/runtimes/claude-code.sh`:
+The reader at `runtimes/claude-code.sh` inside the rule folder:
 
 1. Finds the session JSONL under `~/.claude/projects/<encoded-cwd>/`, where
    the encoding replaces every `/` and `.` in the absolute path with `-`.
@@ -230,7 +233,7 @@ The reader at `scripts/governance/runtimes/claude-code.sh`:
 ### Codex
 
 Same story — `CODEX_THREAD_ID` is already set in Codex sessions, so no
-wrapper is needed. The reader at `scripts/governance/runtimes/codex.sh`:
+wrapper is needed. The reader at `runtimes/codex.sh` inside the rule folder:
 
 1. Locates the transcript by searching recursively under
    `~/.codex/sessions/` and `~/.codex/archived_sessions/` for a filename
@@ -256,11 +259,11 @@ wrapper is needed. The reader at `scripts/governance/runtimes/codex.sh`:
 
 ### Other runtimes
 
-Drop a reader at `scripts/governance/runtimes/<name>.sh` whose only job is
-to print
+Drop a reader at `runtimes/<name>.sh` inside the rule folder — its only
+job is to print
 `<session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output> <model>`
 on stdout (non-zero exit if it can't find a transcript), and add a branch
-to the runtime-detection block in `agent-accounting.sh`. Emit `0` for the
+to the runtime-detection block in `hooks/pre-commit.sh`. Emit `0` for the
 two cache fields if the runtime doesn't expose them; emit the literal
 `unknown` for `model` if the transcript doesn't surface one.
 `runtimes/codex.sh` is a ~60-line template.
@@ -272,27 +275,29 @@ are optional — cache fields default to `0`, model defaults to `unknown`.
 
 ## What gets enforced where
 
+All paths below are rooted at the installed rule folder
+`tests/governance/rules/agent-token-accounting/`.
+
 | Layer | What it checks |
 |---|---|
-| `scripts/governance/runtimes/<runtime>.sh` | Transcript discovery + 4-field token sum + model extraction for one specific runtime. Prints 6 space-separated values. |
-| `scripts/governance/lib/rates.py` | Model → per-MTok USD rate table (base / cache-create / cache-read / output) + `compute_cost_usd(model, i, cc, cr, o)`. Tolerant model lookup: lowercase, strip date suffix, prefix match. Unknown model → `None` → empty `cost-usd` cell (no cross-check failure). |
-| `scripts/governance/lib/ledger.py` | Stdlib-only Python library that owns the ledger: `LedgerRow` dataclass, `parse`, `sum_by_session`, `append_row` (recomputes `new_work`, looks up `cost_usd` from `rates.py`), `validate`, `find_by_cost_key`. Handles the v3 12-column schema and both legacy shapes (v2: 10 cols, v1: 8 cols). Keeping the schema-sensitive parsing in named-field Python (not `awk -F'\|'`) eliminates the whole class of column-index bugs we ate once already. |
-| `scripts/governance/lib/trailers.py` | Parses commit trailers and cross-checks them against a ledger row — `Token-Input == input + cache_create`, `Token-Output == output`, `Token-Total == Token-Input + Token-Output`, and `Token-Total == row.new_work` (so the trailer headline and the ledger headline can't drift). |
-| `scripts/governance/agent-accounting.sh` (pre-commit) | Bash glue: runtime detection, issue parsing from parent argv, cost-key generation, handoff env-file write. Shells out to `lib/ledger.py` for `sum-by-session` (per-commit delta) and `append-row` (ledger write + `git add`) — **all before** git snapshots the tree. |
-| `prepare-commit-msg` hook | Sources the handoff env file (resolved via `git rev-parse --git-path governance-pending.env` so worktrees work) and stamps all seven trailers. Idempotent on amends (skips if an `Agent:` trailer is already present). Silent no-op if no handoff file exists (human commit, or `--no-verify`). Does not touch `COSTS.md`. |
-| `agent-token-accounting` rule (`run.sh` / CI) | Walks `base..HEAD`. Calls `lib/ledger.py validate` for repo-wide shape checks; for each commit with an `Agent:` trailer calls `lib/trailers.py validate` to require the full trailer set, check `Total = Input + Output`, require exactly one matching `Cost-Key` row in `COSTS.md`, and verify the row's numbers agree with the trailers. Runs independently of `COSTS.md` presence so the ledger stays clean even after branch commits are squashed away. |
+| `runtimes/<runtime>.sh` | Transcript discovery + 4-field token sum + model extraction for one specific runtime. Prints 6 space-separated values. |
+| `lib/rates.py` | Model → per-MTok USD rate table (base / cache-create / cache-read / output) + `compute_cost_usd(model, i, cc, cr, o)`. Tolerant model lookup: lowercase, strip date suffix, prefix match. Unknown model → `None` → empty `cost-usd` cell (no cross-check failure). |
+| `lib/ledger.py` | Stdlib-only Python library that owns the ledger: `LedgerRow` dataclass, `parse`, `sum_by_session`, `append_row` (recomputes `new_work`, looks up `cost_usd` from `rates.py`), `validate`, `find_by_cost_key`. Handles the v3 12-column schema and both legacy shapes (v2: 10 cols, v1: 8 cols). Keeping the schema-sensitive parsing in named-field Python (not `awk -F'\|'`) eliminates the whole class of column-index bugs we ate once already. |
+| `lib/trailers.py` | Parses commit trailers and cross-checks them against a ledger row — `Token-Input == input + cache_create`, `Token-Output == output`, `Token-Total == Token-Input + Token-Output`, and `Token-Total == row.new_work` (so the trailer headline and the ledger headline can't drift). |
+| `hooks/pre-commit.sh` | Bash glue: runtime detection, issue parsing from parent argv, cost-key generation, handoff env-file write. Shells out to `lib/ledger.py` for `sum-by-session` (per-commit delta) and `append-row` (ledger write + `git add`) — **all before** git snapshots the tree. Wired into `.githooks/pre-commit` by the generator. |
+| `hooks/prepare-commit-msg.sh` | Sources the handoff env file (resolved via `git rev-parse --git-path governance-pending.env` so worktrees work) and stamps all seven trailers. Idempotent on amends (skips if an `Agent:` trailer is already present). Silent no-op if no handoff file exists (human commit, or `--no-verify`). Does not touch `COSTS.md`. |
+| `check.sh` (commit-msg + CI) | Walks `base..HEAD`. Calls `lib/ledger.py validate` for repo-wide shape checks; for each commit with an `Agent:` trailer calls `lib/trailers.py validate` to require the full trailer set, check `Total = Input + Output`, require exactly one matching `Cost-Key` row in `COSTS.md`, and verify the row's numbers agree with the trailers. Runs independently of `COSTS.md` presence so the ledger stays clean even after branch commits are squashed away. |
 
 ## What it doesn't try to do
 
 - **No authentication** of token counts. A wrapper that fabricates numbers will pass the math check. That's a trust boundary — the rule makes tampering *visible* (git blame on `COSTS.md`), not impossible.
 - **No squash-merge trailer** on the base-branch commit. The durable anchor is `COSTS.md`, not the merge commit's metadata; keeping the rule to files-in-the-repo avoids a hard coupling to GitHub / GitLab PR tooling.
-- **No invoice reconciliation.** `cost-usd` uses the rate table in
-  `scripts/governance/lib/rates.py` — that's the best we can do from a
-  commit hook without network access. Rates drift, custom enterprise
-  pricing exists, and Anthropic's invoice includes promotional credits
-  and per-workspace overrides we can't see. Treat `cost-usd` as a
-  commit-time estimate for prioritization; reconcile against the real
-  invoice monthly.
+- **No invoice reconciliation.** `cost-usd` uses the rate table in the
+  rule's `lib/rates.py` — that's the best we can do from a commit hook
+  without network access. Rates drift, custom enterprise pricing exists,
+  and Anthropic's invoice includes promotional credits and per-workspace
+  overrides we can't see. Treat `cost-usd` as a commit-time estimate
+  for prioritization; reconcile against the real invoice monthly.
 - **No 1-hour cache pricing.** The rate table assumes the 5-minute TTL
   (Claude Code's default). If a runtime starts reporting 1h cache writes
   separately, `rates.py` will need a second cache-create column.

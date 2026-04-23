@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Rule: A LICENSE file exists at the repo root.
 set -u
-source "$(dirname "$0")/../lib.sh"
+source "$(dirname "$0")/../../lib.sh"
 rule_start "license-exists"
 require_git
 

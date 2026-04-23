@@ -10,9 +10,10 @@ survives squash merges that strip the original commit history.
 **Do not** rewrite or reorder rows. This file is the durable system-of-record
 that the `agent-token-accounting` governance rule validates.
 
-The pre-commit hook (`scripts/governance/agent-accounting.sh`) appends a row
-before git snapshots the tree; the `prepare-commit-msg` hook stamps the
-matching trailers. See
+The `agent-token-accounting` rule's `hooks/pre-commit.sh` appends a row
+before git snapshots the tree; its `hooks/prepare-commit-msg.sh` stamps
+the matching trailers. Both live inside the rule folder at
+`tests/governance/rules/agent-token-accounting/hooks/`. See
 [governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md](governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md)
 for wiring instructions.
 
@@ -31,7 +32,7 @@ Schema:
   turn, not new work — so `new-work` matches `Token-Total` in the commit
   trailer by construction.
 - `cost-usd` — the true dollar cost for this row, computed from `model` via
-  `scripts/governance/lib/rates.py` and all four token columns (cache_read
+  the rule's `lib/rates.py` and all four token columns (cache_read
   included — that's the only place cache rent actually appears). Empty when
   the model isn't in the rate table. This is the only single-number headline
   that's comparable across commits with different cache mixes.
@@ -65,3 +66,4 @@ Schema:
 | claude-code-3ffd2eba-cd2-1776946025 | claude-code | 3ffd2eba-cd2f-439f-9aa0-7090cbcd3511 | #23 | claude-opus-4-7 | 42 | 127620 | 1549947 | 17406 | 145068 | 2.0080 | fix(packs): fall back to awk when yq expression fails (#23) |
 | claude-code-3ffd2eba-cd2-1776946058 | claude-code | 3ffd2eba-cd2f-439f-9aa0-7090cbcd3511 | #23 | claude-opus-4-7 | 8 | 3347 | 526288 | 1703 | 5058 | 0.3267 | fix(packs): fall back to awk when yq expression fails (#23) |
 | claude-code-3ffd2eba-cd2-1776946817 | claude-code | 3ffd2eba-cd2f-439f-9aa0-7090cbcd3511 | #23 | claude-opus-4-7 | 138 | 300744 | 11592692 | 64156 | 365038 | 9.2806 | refactor(packs): model each rule as a self-contained folder (#23) |
+| claude-code-3ffd2eba-cd2-1776954519 | claude-code | 3ffd2eba-cd2f-439f-9aa0-7090cbcd3511 | #23 | claude-opus-4-7 | 306 | 740103 | 26016221 | 136526 | 876935 | 21.0484 | refactor(packs): pull rule dependencies inside the rule folder (#23) |

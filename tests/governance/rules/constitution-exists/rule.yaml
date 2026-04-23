@@ -1,0 +1,6 @@
+# constitution-exists — CONSTITUTION.md exists, non-empty, >= 10 lines.
+category: Foundation
+recommended: true
+summary: CONSTITUTION.md exists, non-empty, >= 10 lines.
+surface: repo-state
+hook: pre-commit

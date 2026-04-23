@@ -4,7 +4,7 @@
 # If the only workflow is governance.yml itself, there's nothing verifying the
 # rest of the project. Governance without CI for the code it protects is honor-system.
 set -u
-source "$(dirname "$0")/../lib.sh"
+source "$(dirname "$0")/../../lib.sh"
 rule_start "ci-workflow-exists"
 require_git
 

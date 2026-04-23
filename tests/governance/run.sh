@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Governance test runner. Discovers every rule under ./rules/ and runs it.
+# Rules are folder-shaped — each rule is `rules/<id>/check.sh`. Anything
+# the rule needs (lib/, hooks/, runtimes/) lives in the same folder.
 # Exits 0 if all rules pass, 1 if any rule fails.
 #
 # Usage:
 #   bash tests/governance/run.sh              # run all rules
-#   bash tests/governance/run.sh no-secrets   # run a single rule by name
+#   bash tests/governance/run.sh no-secrets   # run a single rule by id
 #
 # Environment:
 #   SKIP_GOVERNANCE=1   skip all rules (for emergency commits)
@@ -28,19 +30,20 @@ fi
 rule_files=()
 while IFS= read -r f; do
     [[ -n "$f" ]] && rule_files+=("$f")
-done < <(find "$RULES_DIR" -maxdepth 1 -type f -name '*.sh' | sort)
+done < <(find "$RULES_DIR" -mindepth 2 -maxdepth 2 -type f -name 'check.sh' | sort)
 
 if [[ ${#rule_files[@]} -eq 0 ]]; then
     echo "⊘ no governance rules defined in $RULES_DIR"
     exit 0
 fi
 
-# Single-rule filter: `run.sh no-secrets` only runs no-secrets.sh.
+# Single-rule filter: `run.sh no-secrets` only runs rules/no-secrets/check.sh.
 if [[ $# -gt 0 ]]; then
     filter="$1"
     filtered=()
     for f in "${rule_files[@]}"; do
-        [[ "$(basename "$f" .sh)" == "$filter" ]] && filtered+=("$f")
+        id=$(basename "$(dirname "$f")")
+        [[ "$id" == "$filter" ]] && filtered+=("$f")
     done
     if [[ ${#filtered[@]} -eq 0 ]]; then
         echo "✗ no rule named '$filter' under $RULES_DIR"

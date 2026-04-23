@@ -9,7 +9,7 @@
 #
 # Default staleness window: 90 days. Override with GOVERNANCE_FRESHNESS_DAYS.
 set -u
-source "$(dirname "$0")/../lib.sh"
+source "$(dirname "$0")/../../lib.sh"
 rule_start "doc-freshness"
 require_git
 

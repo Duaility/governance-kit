@@ -130,8 +130,8 @@ For rules that belong in a new pack (not `core` or `agent-governance`), see [AUT
 # Rule: <one-line statement of the rule>
 # Rationale: <why it matters — link to an incident if possible>
 set -u
-source "$(dirname "$0")/../lib.sh"
-rule_start "<rule-id>"    # must match filename without .sh
+source "$(dirname "$0")/../../lib.sh"
+rule_start "<rule-id>"    # must match the parent folder name
 require_git
 
 # ── your check ───────────────────────────────────────────────

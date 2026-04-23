@@ -1,0 +1,6 @@
+# commit-issue-plan-match — Each commit's (
+category: AgentDiscipline
+recommended: true
+summary: Each commit's (
+surface: change-set
+hook: commit-msg

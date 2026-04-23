@@ -1,0 +1,6 @@
+# no-large-files — No tracked file exceeds 5 MB (override via GOVERNANCE_MAX_FILE_SIZE_MB).
+category: Quality
+recommended: true
+summary: No tracked file exceeds 5 MB (override via GOVERNANCE_MAX_FILE_SIZE_MB).
+surface: repo-state
+hook: pre-commit

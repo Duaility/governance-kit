@@ -201,11 +201,11 @@ Three cases:
 
 3. **`AGENTS.md` is missing AND the user did NOT pick `agents-md-exists`.** Skip silently. Do not nag — the user opted out of the rule, and creating a file they didn't ask for is presumptuous.
 
-After injecting, run `bash tests/governance/rules/agents-md-exists.sh` once if the rule is installed, so the user knows whether the file still needs more content.
+After injecting, run `bash tests/governance/rules/agents-md-exists/check.sh` once if the rule is installed, so the user knows whether the file still needs more content.
 
 ### Step 5 — Install the test runner
 
-Copy `assets/tests-bash/run.sh` to `tests/governance/run.sh` and mark it executable (`chmod +x`). This is the entrypoint — it discovers and runs every `*.sh` in `tests/governance/rules/`, prints a summary, and exits non-zero on any failure.
+Copy `assets/tests-bash/run.sh` to `tests/governance/run.sh` and mark it executable (`chmod +x`). This is the entrypoint — it discovers and runs every `rules/<id>/check.sh`, prints a summary, and exits non-zero on any failure.
 
 Copy `assets/tests-bash/lib.sh` to `tests/governance/lib.sh` — shared helpers (pass/fail/skip output, `tracked_files` helper that respects `.gitignore`).
 
@@ -229,7 +229,7 @@ Path choice:
 
 1. Generate `.githooks/pre-commit`, and `.githooks/commit-msg` / `.githooks/prepare-commit-msg` if any selected rule uses them.
 2. `chmod +x` every generated hook.
-3. Install `hooks-configured.sh` (copied from `<core-pack-dir>/rules/hooks-configured/check.sh` to `tests/governance/rules/hooks-configured.sh`).
+3. Install `hooks-configured` (copy `<core-pack-dir>/rules/hooks-configured/` into `tests/governance/rules/hooks-configured/`, excluding `evals/`).
 4. Run `git config core.hooksPath .githooks`. **Tell the user explicitly** that this config is per-clone — every other contributor must run the same command after their first clone. The `hooks-configured` rule will surface that requirement on every commit until they do.
 5. **Do not** create files under `.git/hooks/`. If `.git/hooks/pre-commit` (or `commit-msg`) already exists from a previous bootstrap or another tool, ask the user before deleting — it could be a husky or pre-commit.com hook (see Path B).
 

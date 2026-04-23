@@ -159,13 +159,13 @@ eval_done
 Helpers provided by `eval-lib.sh`:
 
 - `fixture_init` — creates a temp repo with `README.md`, `LICENSE`, `CONSTITUTION.md`, `AGENTS.md`, `ARCHITECTURE.md`, `SECURITY.md`, `.gitignore`, `.env.example`, `.github/workflows/ci.yml`, `.githooks/pre-commit`, all sized to pass the default repo-state rules.
-- `install_rule <pack-dir> <rule-id>` — copies the rule's `check.sh` and `lib.sh` into the fixture's `tests/governance/rules/`.
+- `install_rule <pack-dir> <rule-id>` — copies the full rule folder (everything except `evals/`) into the fixture's `tests/governance/rules/<rule-id>/`, plus the shared `lib.sh`. This picks up any sibling `lib/`, `hooks/`, or `runtimes/` the rule ships with, so atomic rules install as a unit.
 - `stage_all`, `commit_quiet "<msg>"` — git helpers.
 - `expect_pass <rule-path>` — runs the rule and asserts clean exit.
 - `expect_fail <rule-path>` — asserts the rule reports a violation.
 - `fixture_cleanup`, `eval_done` — teardown + report.
 
-Fixtures that need baseline files differ from the default — e.g. a rule that requires Python libraries under `scripts/governance/lib/` — should copy what they need from the pack asset tree rather than inlining content.
+Rules with external dependencies (Python libraries, per-runtime helpers, hook side-effect scripts) should ship those files under the rule folder itself — in sibling `lib/`, `hooks/`, or `runtimes/` directories. `install_rule` copies the whole folder, so the eval picks them up automatically. This is how `agent-token-accounting` is laid out; see that rule's directory for a reference example.
 
 ## Installation flow
 
@@ -175,7 +175,7 @@ At activation the bootstrap skill:
 2. Offers pack selection (`core` is pre-selected and locked).
 3. Offers a preset (`minimal` / `standard` / `strict`) and per-category multi-selects for the remaining rules.
 4. Computes `always_install ∪ preset_rules ∪ user_selections` across the selected packs.
-5. Copies each selected `rules/<id>/check.sh` into the target's `tests/governance/rules/<id>.sh`.
+5. Copies each selected `rules/<id>/` folder (minus `evals/`) into the target's `tests/governance/rules/<id>/`, so `check.sh`, `lib/`, `hooks/`, and `runtimes/` all land as a unit.
 6. Splices each selected `rules/<id>/constitution.md` into the target's `CONSTITUTION.md`.
 7. Generates hook dispatchers (`pre-commit`, `commit-msg`, `prepare-commit-msg`) containing only the selected rules, keyed off their `hook:` declarations. Each hook carries an ownership marker (`# governance-kit:managed pack-version=<v> generated=<date>`). Pre-existing unmarked hooks trigger a collision prompt.
 8. Appends an evolution-log entry in `CONSTITUTION.md`.

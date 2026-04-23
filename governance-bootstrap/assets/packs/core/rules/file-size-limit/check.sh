@@ -2,7 +2,7 @@
 # Rule: No tracked source file exceeds the line-count limit.
 # Default 500 lines. Override with GOVERNANCE_FILE_SIZE_LIMIT in the environment.
 set -u
-source "$(dirname "$0")/../lib.sh"
+source "$(dirname "$0")/../../lib.sh"
 rule_start "file-size-limit"
 require_git
 

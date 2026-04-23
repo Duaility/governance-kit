@@ -177,3 +177,16 @@ every step.
       preset graph — no flat `rules:` block, no sibling
       `constitution-snippets/` or `evals/` directories. Adding /
       removing / reshuffling a rule is one `git mv` of its folder.
+- [x] Atomicity extended to **external dependencies**: a rule that
+      needs Python libs, hook side-effect scripts, or per-runtime
+      helpers puts them inside its own folder under `lib/`, `hooks/`,
+      and `runtimes/`. Install shape switches from flat
+      `tests/governance/rules/<id>.sh` to folder-per-rule
+      `tests/governance/rules/<id>/check.sh`, with `install_rule`
+      copying the whole folder (minus `evals/`). The hook generator
+      discovers rule-owned helpers generically — no hardcoded
+      per-rule paths. `agent-token-accounting` migrated in place:
+      `scripts/governance/{lib,runtimes,agent-accounting.sh}` moved
+      into the rule folder; `assets/scripts/` and pre-generator
+      `assets/githooks/{pre-commit,commit-msg,prepare-commit-msg}`
+      retired.

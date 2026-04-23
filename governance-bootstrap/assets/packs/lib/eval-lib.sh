@@ -16,9 +16,9 @@
 #       Individual evals mutate this baseline for their pass/fail cases.
 #
 #   install_rule <pack-dir> <rule-id>
-#       Copies `assets/tests-bash/lib.sh` and the rule's check script
-#       (`<pack-dir>/rules/<id>/check.sh`) into the fixture's
-#       `tests/governance/rules/<id>.sh`. Idempotent.
+#       Copies `assets/tests-bash/lib.sh` into `tests/governance/lib.sh`
+#       and the entire rule folder (`<pack-dir>/rules/<id>/`) into the
+#       fixture's `tests/governance/rules/<id>/`. Idempotent.
 #
 #   stage_all
 #       git add -A in the fixture.
@@ -216,8 +216,26 @@ install_rule() {
     local pack_dir="$1" rule_id="$2"
     mkdir -p tests/governance/rules
     cp "$_EVAL_LIB_SH" tests/governance/lib.sh
-    cp "$pack_dir/rules/$rule_id/check.sh" "tests/governance/rules/$rule_id.sh"
-    chmod +x "tests/governance/rules/$rule_id.sh"
+    local src="$pack_dir/rules/$rule_id"
+    local dest="tests/governance/rules/$rule_id"
+    rm -rf "$dest"
+    mkdir -p "$dest"
+    # Copy the entire rule folder so siblings (lib/, hooks/, runtimes/) come
+    # with the rule. Skip evals/ — the fixture shouldn't run eval fixtures.
+    for entry in "$src"/*; do
+        [[ -e "$entry" ]] || continue
+        case "$(basename "$entry")" in
+            evals) continue ;;
+        esac
+        cp -R "$entry" "$dest/"
+    done
+    chmod +x "$dest/check.sh"
+    if [[ -d "$dest/hooks" ]]; then
+        chmod +x "$dest/hooks/"*.sh 2>/dev/null || true
+    fi
+    if [[ -d "$dest/runtimes" ]]; then
+        chmod +x "$dest/runtimes/"*.sh 2>/dev/null || true
+    fi
 }
 
 stage_all() {

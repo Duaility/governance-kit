@@ -86,8 +86,17 @@ while IFS=$'\t' read -r pack_id pack_dir; do
         [[ -z "$rid" ]] && continue
         hk=$(rule_field "$pack_dir" "$rid" hook 2>/dev/null || true)
         surface=$(rule_field "$pack_dir" "$rid" surface 2>/dev/null || true)
-        [[ -z "$hk" || "$hk" == "none" ]] && continue
-        printf '%s\t%s\t%s\n' "$rid" "$hk" "$surface" >> "$hook_spec"
+        rule_folder="$pack_dir/rules/$rid"
+        has_helper=0
+        for kind in pre-commit commit-msg prepare-commit-msg; do
+            [[ -f "$rule_folder/hooks/$kind.sh" ]] && has_helper=1
+        done
+        # Include the rule in the spec if it declares a hook OR ships any
+        # rule-owned helper. Both paths route through the generator.
+        if [[ -z "$hk" || "$hk" == "none" ]] && [[ $has_helper -eq 0 ]]; then
+            continue
+        fi
+        printf '%s\t%s\t%s\t%s\n' "$rid" "${hk:-none}" "$surface" "$rule_folder" >> "$hook_spec"
     done < <(rules_for "$pack_dir")
 done < <(list_packs "$PACKS_ROOT")
 

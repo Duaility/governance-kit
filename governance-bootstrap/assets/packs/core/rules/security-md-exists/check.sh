@@ -3,7 +3,7 @@
 # Accepts SECURITY.md at repo root, in docs/, or in .github/ (GitHub community
 # health file). Must contain a contact mechanism — an email address or URL.
 set -u
-source "$(dirname "$0")/../lib.sh"
+source "$(dirname "$0")/../../lib.sh"
 rule_start "security-md-exists"
 require_git
 

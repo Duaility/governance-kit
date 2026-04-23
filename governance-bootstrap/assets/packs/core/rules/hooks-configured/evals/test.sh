@@ -4,7 +4,7 @@ EVAL_ID="hooks-configured"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../../../.." && pwd)"
 source "$ROOT/governance-bootstrap/assets/packs/lib/eval-lib.sh"
 PACK_DIR="$ROOT/governance-bootstrap/assets/packs/core"
-RULE="tests/governance/rules/$EVAL_ID.sh"
+RULE="tests/governance/rules/$EVAL_ID/check.sh"
 
 # The rule skips the core.hooksPath check in CI; force the local branch so
 # this eval exercises both halves regardless of where it runs.

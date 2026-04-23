@@ -68,7 +68,7 @@ governance-kit/
 ├── tests/governance/            # Rule tests for THIS repo (dogfood).
 │   ├── run.sh
 │   ├── lib.sh
-│   └── rules/*.sh
+│   └── rules/<id>/check.sh       # each rule is a self-contained folder
 └── .github/workflows/
     └── governance.yml
 ```
@@ -104,6 +104,13 @@ operating under agent-driven development).
      Enforced by / Exceptions).
    - `evals/test.sh` — pass + fail fixtures. Run `bash scripts/test-packs.sh`
      to confirm.
+   - Optional sibling folders for rules that need external code:
+     `lib/` (stdlib Python or bash shared across the rule's pieces),
+     `hooks/<pre-commit|commit-msg|prepare-commit-msg>.sh` (side-effect
+     scripts wired into the generated dispatcher by the hook generator),
+     `runtimes/<name>.sh` (per-runtime helpers). All three are copied
+     along with `check.sh` when the rule installs, so a rule is one
+     `git mv` away from relocating.
 2. If the rule should be part of `minimal` / `standard` / `strict`,
    add its id to the relevant preset block in the pack's `pack.yaml`.
 3. Document it in [governance-bootstrap/references/RULES_CATALOG.md](governance-bootstrap/references/RULES_CATALOG.md).

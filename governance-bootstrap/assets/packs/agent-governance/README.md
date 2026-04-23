@@ -21,20 +21,20 @@ bundles all four.
 
 ## Installation note — agent-token-accounting
 
-Installing `agent-token-accounting` into a target repo requires the full
-accounting stack:
+The rule is self-contained. Everything it needs ships inside the rule
+folder:
 
-- `scripts/governance/lib/{ledger,trailers,rates}.py`
-- `scripts/governance/agent-accounting.sh`
-- `scripts/governance/runtimes/*.sh`
-- a `prepare-commit-msg` hook that reads the handoff file the pre-commit
-  stage writes
+- `rules/agent-token-accounting/check.sh` — validator (commit-msg + CI)
+- `rules/agent-token-accounting/lib/{ledger,trailers,rates}.py` — ledger + trailer logic
+- `rules/agent-token-accounting/hooks/pre-commit.sh` — writes the ledger row, stages it, hands off via an env file
+- `rules/agent-token-accounting/hooks/prepare-commit-msg.sh` — stamps trailers from the handoff
+- `rules/agent-token-accounting/runtimes/{claude-code,codex}.sh` — per-runtime transcript readers
 
-See [`governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md`](../../references/AGENT_TOKEN_ACCOUNTING.md)
-for the wiring. Landing just the rule script and the constitution snippet
-— without the stack that produces the trailers and ledger rows — will
-block every commit and is not a useful state.
+Bootstrap copies the whole folder into `tests/governance/rules/agent-token-accounting/`
+and the hook generator wires the two `hooks/*.sh` helpers into the
+dispatchers automatically — no separate infrastructure step. A companion
+`COSTS.md` must exist (templated from `governance-bootstrap/assets/COSTS.template.md`);
+the `check.sh` treats it as the ledger of record.
 
-Shipping this stack end-to-end as part of the pack installer is a scoped
-follow-up. Today, bootstrap only copies the rule script + snippet; the
-user is directed to `AGENT_TOKEN_ACCOUNTING.md` for the infrastructure.
+See [`governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md`](../../../../references/AGENT_TOKEN_ACCOUNTING.md)
+for the detailed wiring and runtime-specific behavior.

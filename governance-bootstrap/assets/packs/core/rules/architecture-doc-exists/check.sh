@@ -3,7 +3,7 @@
 # Rationale: The harness-engineering "top-level map of domains and package
 # layering". Without it, agents lack a mental model of the repo.
 set -u
-source "$(dirname "$0")/../lib.sh"
+source "$(dirname "$0")/../../lib.sh"
 rule_start "architecture-doc-exists"
 require_git
 

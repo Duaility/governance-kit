@@ -1,0 +1,6 @@
+# hooks-configured — .githooks/* is tracked + executable and core.hooksPath is set.
+category: Foundation
+recommended: true
+summary: .githooks/* is tracked + executable and core.hooksPath is set.
+surface: repo-state
+hook: pre-commit

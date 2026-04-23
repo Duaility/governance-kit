@@ -41,9 +41,9 @@
       "expected_output": "The Security category rules (no-secrets, dotenv-gitignored, security-md-exists, workflows-hardened) are enabled. Go-specific rules are chosen over Python/JS-specific ones. Stylistic rules are NOT enabled. The skill's summary explains which categories were included and which were deliberately dropped.",
       "files": ["evals/files/go-service-repo/"],
       "assertions": [
-        "tests/governance/rules/no-secrets.sh exists",
-        "tests/governance/rules/dotenv-gitignored.sh exists or was explicitly skipped with a reason (Go services often don't use .env)",
-        "tests/governance/rules/workflows-hardened.sh exists",
+        "tests/governance/rules/no-secrets/check.sh exists",
+        "tests/governance/rules/dotenv-gitignored/check.sh exists or was explicitly skipped with a reason (Go services often don't use .env)",
+        "tests/governance/rules/workflows-hardened/check.sh exists",
         "No rule scripts targeting Python-only or JS-only patterns (e.g., no-pdb, no-console-log) were installed",
         "The skill's summary explicitly names the Security category or an equivalent preset-derived rule set as enabled",
         "tests/governance/run.sh exits 0 on the seeded clean Go repo"

@@ -2,7 +2,7 @@
 # Rule: No leftover debug statements in tracked source files.
 # Covers the common traps: console.log, debugger, print(, pdb, dbg!, fmt.Println.
 set -u
-source "$(dirname "$0")/../lib.sh"
+source "$(dirname "$0")/../../lib.sh"
 rule_start "no-debug-statements"
 require_git
 
@@ -27,7 +27,7 @@ for entry in "${checks[@]}"; do
     while IFS=: read -r file line_no _; do
         [[ -z "$file" ]] && continue
         # Skip this rule file (contains the patterns).
-        [[ "$file" == tests/governance/rules/no-debug-statements.sh ]] && continue
+        [[ "$file" == tests/governance/rules/no-debug-statements/* ]] && continue
         # Skip test files — debug output in tests is sometimes legitimate.
         [[ "$file" == *_test.* ]] && continue
         [[ "$file" == *.test.* ]] && continue
