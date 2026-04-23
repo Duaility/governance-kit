@@ -4,3 +4,4 @@ recommended: true
 summary: .githooks/* is tracked + executable and core.hooksPath is set.
 surface: repo-state
 hook: pre-commit
+requires_hook_strategy: githooks

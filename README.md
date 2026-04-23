@@ -11,6 +11,16 @@ Skills included:
 
 See each skill's `SKILL.md` for activation flows and references.
 
+## After cloning
+
+Once per fresh clone, run:
+
+```sh
+./scripts/setup-clone.sh
+```
+
+It sets `core.hooksPath=.githooks` so the governance pre-commit hook fires. Worktrees (`git worktree add ...`) inherit this config from their parent checkout — no per-worktree action needed.
+
 ## License
 
 MIT
