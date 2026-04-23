@@ -1,0 +1,53 @@
+version: "1"
+generated_at: 2026-04-23T17:08:30Z
+hook_strategy: githooks
+stack: bash
+constitution: true
+ci_workflow: .github/workflows/governance.yml
+tests_dir: tests/governance
+agents_md_directive: true
+agents_md_created: false
+setup_clone_script: scripts/setup-clone.sh
+packs:
+  - id: core
+    version: "0.1"
+    rules:
+      - id: constitution-exists
+        installed_path: tests/governance/rules/constitution-exists
+      - id: no-secrets
+        installed_path: tests/governance/rules/no-secrets
+      - id: dotenv-gitignored
+        installed_path: tests/governance/rules/dotenv-gitignored
+      - id: workflows-hardened
+        installed_path: tests/governance/rules/workflows-hardened
+      - id: no-broken-internal-doc-links
+        installed_path: tests/governance/rules/no-broken-internal-doc-links
+      - id: no-large-files
+        installed_path: tests/governance/rules/no-large-files
+      - id: no-committed-build-artifacts
+        installed_path: tests/governance/rules/no-committed-build-artifacts
+      - id: no-merge-conflict-markers
+        installed_path: tests/governance/rules/no-merge-conflict-markers
+      - id: hooks-configured
+        installed_path: tests/governance/rules/hooks-configured
+      - id: agents-md-exists
+        installed_path: tests/governance/rules/agents-md-exists
+      - id: conventional-commits
+        installed_path: tests/governance/rules/conventional-commits
+      - id: doc-freshness
+        installed_path: tests/governance/rules/doc-freshness
+  - id: agent-governance
+    version: "0.1"
+    rules:
+      - id: plan-per-issue
+        installed_path: tests/governance/rules/plan-per-issue
+      - id: commit-issue-plan-match
+        installed_path: tests/governance/rules/commit-issue-plan-match
+      - id: issues-tracked
+        installed_path: tests/governance/rules/issues-tracked
+      - id: agent-token-accounting
+        installed_path: tests/governance/rules/agent-token-accounting
+install_assets_seeded:
+  - QUALITY.md
+  - COSTS.md
+collisions: []

@@ -18,6 +18,7 @@ ci_workflow: .github/workflows/governance.yml
 tests_dir: tests/governance
 agents_md_directive: true        # true when the marker-bounded block was inserted
 agents_md_created: false         # true only when bootstrap Step 4b Case 2 ran (stub)
+setup_clone_script: scripts/setup-clone.sh  # Path A only; omitted under Path B
 packs:
   - id: core
     version: "0.1"
@@ -71,6 +72,7 @@ Notes on the emitted shape:
 | `agents_md_created` | In hard mode, only delete `AGENTS.md` entirely if this is `true`. |
 | `agents_md_directive` | Whether to attempt the marker-bounded-block strip. If `false`, skip the AGENTS.md step. |
 | `hook_strategy` | Selects the reset branch (`.githooks/*` vs. `path_b.entries` editing). |
+| `setup_clone_script` | Path A only — path of the one-time per-clone setup script to delete (bootstrap Step 6 Path A step 5). Omitted under Path B. |
 | `path_b.framework` / `path_b.entries` | Which framework config to edit instead of `.githooks/`, and which entries to remove. |
 | `collisions[*]` | Which hooks came from Path A wrap/overwrite resolution; drives *restore wrap* and *delete with backup* offers. |
 

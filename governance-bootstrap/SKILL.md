@@ -266,8 +266,9 @@ Path choice:
 1. Generate `.githooks/pre-commit`, `.githooks/commit-msg`, and `.githooks/prepare-commit-msg`.
 2. `chmod +x` every generated hook.
 3. Install `hooks-configured` (copy `<core-pack-dir>/rules/hooks-configured/` into `tests/governance/rules/hooks-configured/`, excluding `evals/`).
-4. Run `git config core.hooksPath .githooks`. **Tell the user explicitly** that this config is per-clone — every other contributor must run the same command after their first clone. The `hooks-configured` rule will surface that requirement on every commit until they do.
-5. **Do not** create files under `.git/hooks/`. If `.git/hooks/pre-commit` (or `commit-msg`) already exists from a previous bootstrap or another tool, ask the user before deleting — it could be a husky or pre-commit.com hook (see Path B).
+4. Run `git config core.hooksPath .githooks` in the bootstrapping clone.
+5. Copy `assets/setup-clone.sh` to `<repo-root>/scripts/setup-clone.sh` (create `scripts/` if missing) and `chmod +x` it. This is the one-command onboarding for every other contributor: they run `./scripts/setup-clone.sh` once per fresh clone and `core.hooksPath` is set. Worktrees inherit `.git/config` from their parent, so the script does not need to run per worktree. In the final report, tell the user to point new contributors at this script (mentioning it in `README.md` or `AGENTS.md` is a good place). Until a contributor runs it, the `hooks-configured` rule nags on every commit with the exact command.
+6. **Do not** create files under `.git/hooks/`. If `.git/hooks/pre-commit` (or `commit-msg`) already exists from a previous bootstrap or another tool, ask the user before deleting — it could be a husky or pre-commit.com hook (see Path B).
 
 **Pre-existing hook collision (unmarked).** If the survey in Step 1 found a target hook that exists and lacks the ownership marker, STOP before writing. Show the user the existing hook and offer three options:
 

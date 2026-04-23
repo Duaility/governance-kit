@@ -36,6 +36,7 @@ copy_tree_without_evals() {
         [[ -e "$entry" ]] || continue
         base="$(basename "$entry")"
         [[ "$base" == "evals" ]] && continue
+        [[ "$base" == "install-assets" ]] && continue
         cp -R "$entry" "$dest/"
     done
 }
@@ -115,6 +116,7 @@ write_installed_manifest() {
     #       [--agents-md-directive] \
     #       [--agents-md-created] \
     #       [--install-asset <path>]     (repeatable)
+    #       [--setup-clone-script <path>] \
     #       [--collision <path>:<resolution>[:<extra>]]  (repeatable)
     #       [--path-b-framework husky|pre-commit] \
     #       [--path-b-entry <file>:<fingerprint>]        (repeatable)
@@ -133,6 +135,7 @@ write_installed_manifest() {
     local constitution_flag="true"
     local agents_md_directive="false" agents_md_created="false"
     local path_b_framework=""
+    local setup_clone_script=""
     local -a install_assets=() collisions=() path_b_entries=()
 
     while [[ $# -gt 0 ]]; do
@@ -145,6 +148,7 @@ write_installed_manifest() {
             --agents-md-directive) agents_md_directive="true"; shift ;;
             --agents-md-created)   agents_md_created="true";   shift ;;
             --install-asset)     install_assets+=("$2"); shift 2 ;;
+            --setup-clone-script) setup_clone_script="$2"; shift 2 ;;
             --collision)         collisions+=("$2");     shift 2 ;;
             --path-b-framework)  path_b_framework="$2";  shift 2 ;;
             --path-b-entry)      path_b_entries+=("$2"); shift 2 ;;
@@ -164,6 +168,9 @@ write_installed_manifest() {
         printf 'tests_dir: %s\n' "$tests_dir"
         printf 'agents_md_directive: %s\n' "$agents_md_directive"
         printf 'agents_md_created: %s\n' "$agents_md_created"
+        if [[ -n "$setup_clone_script" ]]; then
+            printf 'setup_clone_script: %s\n' "$setup_clone_script"
+        fi
 
         # Rules grouped by pack. Iterate input pack_dir/rule_id pairs,
         # bucket by pack id, emit a pack block per unique pack_dir.

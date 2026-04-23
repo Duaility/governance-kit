@@ -21,6 +21,7 @@ Legend:
 | `tests/governance/rules/<id>/` | Step 3 (`install_rule_folder`) | manifest: rule listed under `packs[*].rules[*].id` | delete recursively | delete recursively |
 | `tests/governance/freshness.conf` | Step 3 (`doc-freshness` selected) | manifest: `doc_freshness: true` OR header comment from shipped template | delete | delete |
 | `.github/workflows/governance.yml` | Step 7 | manifest: `ci_workflow: .github/workflows/governance.yml` OR filename match | delete | delete |
+| `scripts/setup-clone.sh` | Step 6 Path A step 5 | manifest: `setup_clone_script: scripts/setup-clone.sh` OR byte match against shipped `assets/setup-clone.sh` | delete; `rmdir scripts/` only if empty (it often is not) | same |
 | `.governance-kit/installed-packs.yaml` | Step 3 (`write_installed_manifest`) | file exists | delete **last** (after it has been read); `rmdir .governance-kit/` if empty | same |
 
 ## Hooks (Path A — `.githooks/`)

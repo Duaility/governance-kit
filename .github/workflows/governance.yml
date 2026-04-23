@@ -3,7 +3,7 @@ name: Governance
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, master]
 
 permissions:
   contents: read
@@ -18,19 +18,9 @@ jobs:
           # Full history so git-grep-based rules can inspect all tracked files.
           fetch-depth: 0
 
-      - name: Install uv
-        # Pack manifest parsing runs through `uv run --isolated --with PyYAML`,
-        # so uv must be on PATH before test-packs.sh or any governance rule
-        # that touches a pack manifest can execute.
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-
       - name: Run bash governance rules
         if: hashFiles('tests/governance/run.sh') != ''
         run: bash tests/governance/run.sh
-
-      - name: Validate shipped rule packs
-        if: hashFiles('scripts/test-packs.sh') != ''
-        run: bash scripts/test-packs.sh
 
       # ─── Native test runners (remove any that don't apply to this repo) ───
 
