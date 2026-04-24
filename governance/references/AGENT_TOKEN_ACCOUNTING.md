@@ -136,9 +136,9 @@ worktree to its own hook directory:
 git config --worktree core.hooksPath .githooks
 ```
 
-The `hooks-configured` rule accepts both forms; the worktree-local override
-just ensures the hooks you are editing in the worktree are the ones that
-actually run.
+The `required-docs` rule's `hooks` sub-check accepts both forms; the
+worktree-local override just ensures the hooks you are editing in the
+worktree are the ones that actually run.
 
 ## How a commit flows
 

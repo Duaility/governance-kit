@@ -51,7 +51,7 @@ Also detect hook strategy before you offer or install hook-related rules:
 - If `.husky/` exists, `package.json` references husky, or `.pre-commit-config.yaml` exists, treat the repo as using an existing hook framework.
 - Otherwise, use the repo-local `.githooks/` strategy described below.
 
-This choice affects whether `hooks-configured` is installed. Do not present `.githooks/` as universal if the repo already has a tracked hook framework.
+This choice is recorded as `hook_strategy:` in `.governance-kit/installed-packs.yaml` (`githooks` | `husky` | `pre-commit`). The `required-docs` rule's `hooks` sub-check inspects that value and only enforces the `.githooks/` scaffolding when `hook_strategy` is `githooks`. Do not present `.githooks/` as universal if the repo already has a tracked hook framework.
 
 **Hook-collision survey.** As part of the survey, inspect existing hook files at:
 
@@ -145,7 +145,7 @@ Split into multiple `AskUserQuestion` calls — the tool caps at four questions 
 
 If the user picks "Other" and describes a new rule, generate a new rule folder under `tests/governance/rules/<id>/` with `rule.yaml`, `check.sh`, and `constitution.md`, following the template in [RULES_CATALOG.md](RULES_CATALOG.md), and add a matching Invariants subsection to `CONSTITUTION.md`. The rule joins the target repo directly; it is not retrofitted into a pack (that is a pack-authoring activity, covered in [AUTHORING_PACKS.md](AUTHORING_PACKS.md)).
 
-**Always installed — bypass the menu.** Walk every selected pack's `always_install: true` rules and queue them for install regardless of user picks. This flag is **reserved to the `core` pack**; third-party packs declaring it are rejected at install. Today only `no-merge-conflict-markers` carries the flag. Apply each rule's optional `requires_hook_strategy:` filter after preset resolution; `hooks-configured` declares `requires_hook_strategy: githooks`, so it is installed only when the repo is using the `.githooks/` strategy.
+**Always installed — bypass the menu.** Walk every selected pack's `always_install: true` rules and queue them for install regardless of user picks. This flag is **reserved to the `core` pack**; third-party packs declaring it are rejected at install.
 
 **Install resolution.** The final install list is:
 
@@ -189,8 +189,8 @@ write_installed_manifest "$repo_root" \
     --install-asset COSTS.md \
     --collision .githooks/pre-commit:wrap:.githooks/pre-commit.userhook \  # only if Step 6 hit collisions
     -- \
-    "$core_pack_dir" constitution-exists \
-    "$core_pack_dir" no-secrets \
+    "$core_pack_dir" required-docs \
+    "$core_pack_dir" secrets-hygiene \
     "$agent_pack_dir" agent-token-accounting
 ```
 
@@ -217,11 +217,11 @@ Three cases:
 
 1. **`AGENTS.md` exists and lacks the marker.** Insert the snippet near the top of the file. The right insertion point is **after the H1 heading and the first intro paragraph (or any frontmatter), and before the first `##` heading**. Use `Edit` — preserve everything else verbatim.
 
-2. **`AGENTS.md` is missing AND the user picked the `agents-md-exists` rule.** Create a stub at `<repo-root>/AGENTS.md` containing: `# AGENTS.md`, a one-line intro, the directive snippet, and a `## What this repo is` placeholder. Tell the user the stub is intentionally minimal — they need to flesh it out (the rule requires 30–250 lines and ≥ 3 internal doc links).
+2. **`AGENTS.md` is missing AND the `required-docs` rule is installed with the `agents` sub-check enabled** (i.e., `agents` is not in `GOVERNANCE_REQUIRED_DOCS_DISABLE`). Create a stub at `<repo-root>/AGENTS.md` containing: `# AGENTS.md`, a one-line intro, the directive snippet, and a `## What this repo is` placeholder. Tell the user the stub is intentionally minimal — they need to flesh it out (`required-docs` enforces 30–250 lines and ≥ 3 internal doc links for AGENTS.md).
 
-3. **`AGENTS.md` is missing AND the user did NOT pick `agents-md-exists`.** Skip silently. Do not nag — the user opted out of the rule, and creating a file they didn't ask for is presumptuous.
+3. **`AGENTS.md` is missing AND the `agents` sub-check is disabled (or `required-docs` itself was not installed).** Skip silently. Do not nag — the user opted out, and creating a file they didn't ask for is presumptuous.
 
-After injecting, run `bash tests/governance/rules/agents-md-exists/check.sh` once if the rule is installed, so the user knows whether the file still needs more content.
+After injecting, run `bash tests/governance/run.sh` once so the user sees whether the newly-seeded AGENTS.md still needs more content.
 
 ### Step 5 — Install the test runner
 
@@ -257,9 +257,9 @@ Path choice:
 
 1. Generate `.githooks/pre-commit`, `.githooks/commit-msg`, and `.githooks/prepare-commit-msg`.
 2. `chmod +x` every generated hook.
-3. Install `hooks-configured` (copy `<core-pack-dir>/rules/hooks-configured/` into `tests/governance/rules/hooks-configured/`, excluding `evals/`).
+3. Record `hook_strategy: githooks` in `.governance-kit/installed-packs.yaml` so `required-docs`' `hooks` sub-check enforces the `.githooks/` scaffolding.
 4. Run `git config core.hooksPath .githooks` in the bootstrapping clone.
-5. Copy `../assets/setup-clone.sh` to `<repo-root>/scripts/setup-clone.sh` (create `scripts/` if missing) and `chmod +x` it. This is the one-command onboarding for every other contributor: they run `./scripts/setup-clone.sh` once per fresh clone and `core.hooksPath` is set. Worktrees inherit `.git/config` from their parent, so the script does not need to run per worktree. In the final report, tell the user to point new contributors at this script (mentioning it in `README.md` or `AGENTS.md` is a good place). Until a contributor runs it, the `hooks-configured` rule nags on every commit with the exact command.
+5. Copy `../assets/setup-clone.sh` to `<repo-root>/scripts/setup-clone.sh` (create `scripts/` if missing) and `chmod +x` it. This is the one-command onboarding for every other contributor: they run `./scripts/setup-clone.sh` once per fresh clone and `core.hooksPath` is set. Worktrees inherit `.git/config` from their parent, so the script does not need to run per worktree. In the final report, tell the user to point new contributors at this script (mentioning it in `README.md` or `AGENTS.md` is a good place). Until a contributor runs it, `required-docs` nags on every commit with the exact command.
 6. **Do not** create files under `.git/hooks/`. If `.git/hooks/pre-commit` (or `commit-msg`) already exists from a previous bootstrap or another tool, ask the user before deleting — it could be a husky or pre-commit.com hook (see Path B).
 
 **Pre-existing hook collision (unmarked).** If the survey in Step 1 found a target hook that exists and lacks the ownership marker, STOP before writing. Show the user the existing hook and offer three options:
@@ -273,8 +273,7 @@ If the existing hook **has** the marker, overwrite silently — `governance rule
 **Path B — existing hook framework.** If the project uses `husky` or the `pre-commit` framework, *do not* set `core.hooksPath` and do not copy into `.githooks/` — those frameworks already have their own tracked hook-config mechanism. Instead, add a hook entry to the existing config (ask the user which framework they use, or infer it from the files you found). See [NATIVE_TESTS.md](NATIVE_TESTS.md) for the husky / pre-commit.com snippets.
 
 In this path:
-- Do not install the `hooks-configured` rule folder.
-- Do not describe `hooks-configured` as part of the constitution.
+- Record `hook_strategy: husky` or `hook_strategy: pre-commit` in `.governance-kit/installed-packs.yaml` so `required-docs`' `hooks` sub-check transparently skips (it only enforces `.githooks/` scaffolding when `hook_strategy` is `githooks`).
 - Tell the user explicitly that the repo is using its existing tracked hook framework instead of `.githooks/`.
 
 ### Step 7 — Install the CI workflow

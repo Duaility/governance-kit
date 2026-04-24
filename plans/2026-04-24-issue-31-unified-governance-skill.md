@@ -126,6 +126,22 @@ target to point at.
   describe only `governance/` and `governance-gardener/`. Both
   `scripts/test-packs.sh` and `tests/governance/run.sh` pass green after
   the move.
+- **Codex review on PR #32:** addressed four findings.
+  (1) `packverb catalog-search` now appends `source.path` to the emitted
+  `gh:` ref so monorepo-hosted packs (like `duaility/agent-governance`)
+  print a ref that `pack add` can actually consume.
+  (2) `packverb fetch_ref` detects raw 40-char commit SHAs and uses
+  `git init + fetch --depth 1 <sha> + checkout FETCH_HEAD` for them;
+  `git clone --branch <sha>` only works for branches and tags.
+  (3) `packverb validate-pack` is now a pass-through to
+  `packctl.validate_pack_dir`, matching what `PACK_VERBS.md` tells
+  agents to run during `pack add`.
+  (4) `INIT_FLOW.md` no longer tells Path A to install the deleted
+  `hooks-configured` rule or branch on the deleted `agents-md-exists`
+  rule — both were rolled into `required-docs` sub-checks. The flow
+  now records `hook_strategy:` in the install manifest so the `hooks`
+  sub-check does the right thing per environment; `AUTHORING_PACKS.md`
+  and `AGENT_TOKEN_ACCOUNTING.md` drop the same stale rule names.
 - **Step 3 — `governance pack *` verbs:** `packctl` now owns ref parsing
   (`gh:owner/repo[/subpath][@rev]`), shared-cache resolution
   (`${GOVERNANCE_KIT_HOME:-$HOME/.governance-kit}/packs/<id>@<sha>/`),

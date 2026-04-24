@@ -23,7 +23,7 @@ from typing import Any
 
 import yaml
 
-from packctl import load_yaml, pack_manifest, scalar
+from packctl import load_yaml, pack_manifest, scalar, validate_pack_dir
 
 LOCK_VERSION = "1"
 
@@ -84,13 +84,39 @@ def fetch_ref(ref: str, cache_dir: Path | None = None) -> dict[str, str]:
     root = cache_dir if cache_dir else cache_root()
     root.mkdir(parents=True, exist_ok=True)
 
+    rev = parsed["rev"]
+    is_sha = bool(re.fullmatch(r"[0-9a-f]{40}", rev))
+
     with tempfile.TemporaryDirectory(prefix="gk-fetch-", dir=str(root)) as tmp:
         tmp_path = Path(tmp) / "checkout"
-        clone_cmd = ["git", "clone", "--depth", "1", "--quiet"]
-        if parsed["rev"] != "HEAD":
-            clone_cmd += ["--branch", parsed["rev"]]
-        clone_cmd += [parsed["url"], str(tmp_path)]
-        subprocess.run(clone_cmd, check=True)
+        if is_sha:
+            # `git clone --branch` does not accept raw commit SHAs on most
+            # servers; init + fetch a single commit by SHA instead. Requires
+            # the remote to allow `uploadpack.allowReachableSHA1InWant`
+            # (GitHub does).
+            tmp_path.mkdir(parents=True)
+            subprocess.run(
+                ["git", "-C", str(tmp_path), "init", "--quiet"],
+                check=True,
+            )
+            subprocess.run(
+                ["git", "-C", str(tmp_path), "remote", "add", "origin", parsed["url"]],
+                check=True,
+            )
+            subprocess.run(
+                ["git", "-C", str(tmp_path), "fetch", "--depth", "1", "--quiet", "origin", rev],
+                check=True,
+            )
+            subprocess.run(
+                ["git", "-C", str(tmp_path), "checkout", "--quiet", "FETCH_HEAD"],
+                check=True,
+            )
+        else:
+            clone_cmd = ["git", "clone", "--depth", "1", "--quiet"]
+            if rev != "HEAD":
+                clone_cmd += ["--branch", rev]
+            clone_cmd += [parsed["url"], str(tmp_path)]
+            subprocess.run(clone_cmd, check=True)
         sha = subprocess.check_output(
             ["git", "-C", str(tmp_path), "rev-parse", "HEAD"], text=True
         ).strip()
@@ -223,6 +249,14 @@ def cmd_cache_root(_: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_validate_pack(args: argparse.Namespace) -> int:
+    errors = validate_pack_dir(Path(args.pack_dir))
+    if errors:
+        print("\n".join(errors), file=sys.stderr)
+        return 1
+    return 0
+
+
 def cmd_capability_check(args: argparse.Namespace) -> int:
     violations = capability_violations(Path(args.rule_dir))
     if violations:
@@ -288,7 +322,13 @@ def cmd_catalog_search(args: argparse.Namespace) -> int:
         if needle and needle not in haystack:
             continue
         source = entry.get("source", {}) or {}
-        ref = f"gh:{source.get('ref', '')}" if source.get("type") == "github" else ""
+        if source.get("type") == "github":
+            ref = f"gh:{source.get('ref', '')}"
+            subpath = source.get("path") or ""
+            if subpath:
+                ref = f"{ref}/{subpath.strip('/')}"
+        else:
+            ref = ""
         print(f"{entry.get('id', '')}\t{ref}\t{entry.get('summary', '')}")
     return 0
 
@@ -307,6 +347,10 @@ def main(argv: list[str]) -> int:
     p = sub.add_parser("fetch")
     p.add_argument("ref")
     p.set_defaults(func=cmd_fetch)
+
+    p = sub.add_parser("validate-pack")
+    p.add_argument("pack_dir")
+    p.set_defaults(func=cmd_validate_pack)
 
     p = sub.add_parser("capability-check")
     p.add_argument("rule_dir")
