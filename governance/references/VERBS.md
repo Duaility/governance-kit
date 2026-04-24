@@ -42,14 +42,20 @@ Full flows live in [PACK_VERBS.md](PACK_VERBS.md). Summary:
 
 **Never** install by hand-copying into `governance-bootstrap/assets/packs/` — that is governance-kit's own in-tree source tree, not a consumer's repo surface. Pack installs for a consumer repo flow through `governance pack add`.
 
-## `rule *` (planned, not yet implemented)
+## `rule *`
 
-Verbs: `rule add`, `rule modify`, `rule remove`. Will replace the
-standalone `governance-amend` skill once parity is reached. Until then,
-redirect the user there.
+Full flows live in [RULE_VERBS.md](RULE_VERBS.md). Summary:
+
+| Verb | Intent |
+|---|---|
+| `rule add <id>` | Draft a new rule (test + constitution subsection + Evolution Log entry) and commit atomically. |
+| `rule modify <id>` | Edit an existing rule's check or rationale; append an Evolution Log entry. |
+| `rule remove <id>` | Delete the rule folder, remove its invariant subsection, log the removal, surface dangling references. |
+
+All three delegate to [../../governance-amend/SKILL.md](../../governance-amend/SKILL.md) Steps 1–6 until that skill is retired. Rules installed via `governance pack add` are off-limits for `rule *` — touch them through the matching `pack *` verb.
 
 ## Trigger words this skill should NOT claim
 
 - "review the constitution", "audit governance", "find dead rules" → `governance-gardener`.
-- "add a rule X", "amend rule Y", "remove rule Z" → `governance-amend` (not yet superseded).
+- "add a rule X", "amend rule Y", "remove rule Z" → this skill's `rule *` verb (delegates to `governance-amend`).
 - "uninstall the governance skill from my machine" → this operates on **repo state**, not on `~/.claude/skills/`. Tell the user to remove the symlink themselves.

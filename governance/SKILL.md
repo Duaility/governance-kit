@@ -1,11 +1,11 @@
 ---
 name: governance
-description: Single entry point for governance-kit's lifecycle verbs — `governance init` (bootstrap a repo), `governance uninstall` (clean tear-down), and the forthcoming `governance pack` and `governance rule` verbs. Use when the user says "governance init", "set up governance", "bootstrap governance", "governance uninstall", "reset governance", "tear down governance", "uninstall governance-kit", or asks to manage governance-kit lifecycle without naming a specific verb. Do not use for reviewing an existing setup (governance-gardener) or for amending a single rule in a governance-amend-installed repo (governance-amend) — those skills still own their surfaces until parity is reached.
+description: Single entry point for governance-kit's lifecycle verbs — `governance init` (bootstrap a repo), `governance uninstall` (clean tear-down), `governance pack {search,add,update,remove,list}` (community-pack lifecycle with SHA pinning + capability enforcement), and `governance rule {add,modify,remove}` (hand-authored rule amendments via the atomic triple). Use when the user says "governance init", "set up governance", "bootstrap governance", "governance uninstall", "reset governance", "tear down governance", "install a pack", "add pack X", "update packs", "remove pack X", "list installed packs", "add a rule", "amend the constitution", "new invariant", "modify rule X", "remove rule X", or otherwise asks to manage governance-kit lifecycle, packs, or rules. Do not use for reviewing an existing setup or hunting dead rules — that is `governance-gardener`.
 license: MIT
 metadata:
   author: governance-kit
-  version: "0.1"
-  supersedes: governance-bootstrap, governance-reset
+  version: "0.2"
+  supersedes: governance-bootstrap, governance-reset, governance-amend
 ---
 
 # governance
@@ -37,7 +37,7 @@ Infer the intended verb from the user's request:
 |---|---|
 | "governance init", "set up governance", "bootstrap governance", "install governance-kit" | `init` |
 | "governance uninstall", "reset governance", "tear down governance", "uninstall governance-kit", "clean slate" | `uninstall` |
-| "add / modify / remove rule X", "amend the constitution" | Route to `governance-amend` for now; say so explicitly. |
+| "add / modify / remove rule X", "amend the constitution", "new invariant" | Route to the matching `rule *` flow in [references/RULE_VERBS.md](references/RULE_VERBS.md). Delegates to the `governance-amend` atomic-triple flow until that skill is retired. |
 | "pack search / add / update / remove / list", "install pack X", "pin pack X", "update all packs" | Route to the matching `pack *` flow in [references/PACK_VERBS.md](references/PACK_VERBS.md). Do **not** fall back to editing the in-tree pack tree by hand. |
 | "is my governance healthy?", "audit governance", "find dead rules" | Route to `governance-gardener`. |
 
@@ -92,7 +92,11 @@ See [references/PACK_VERBS.md](references/PACK_VERBS.md) for step-by-step flows.
 
 ## `governance rule *`
 
-Hand-authored rule flows (`add`, `modify`, `remove`) — land in a follow-up commit on the same PR. Until then, these verbs delegate to the legacy `governance-amend` skill, which already enforces the atomic triple (rule folder + constitution subsection + Evolution Log entry land as one commit). Route the user there when they ask to add, modify, or remove a rule.
+Hand-authored rule flows for adding, modifying, or removing rules. Every amendment is the **atomic triple**: a rule folder at `tests/governance/rules/<id>/`, an **Invariants** subsection in `CONSTITUTION.md`, and an **Evolution Log** entry — all land in one commit or none do.
+
+Per-verb flows in [references/RULE_VERBS.md](references/RULE_VERBS.md). Until the `governance-amend` skill is retired, these verbs delegate to its Step-1-through-6 activation flow verbatim; the templates at `../governance-amend/assets/` and the authoring guide at `../governance-amend/references/RULE_AUTHORING.md` remain the source of truth.
+
+**Don't** use these verbs for rules that came from a community pack (tracked in `.governance/packs.lock`) — use `pack update` / `pack remove` so the lockfile stays consistent.
 
 ## Key design rules
 

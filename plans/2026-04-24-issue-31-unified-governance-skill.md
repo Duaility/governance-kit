@@ -74,6 +74,15 @@ target to point at.
   flows. `pack` and `rule` verbs stubbed with follow-up pointer to #31.
 - `AGENTS.md` updated to route newcomers at the unified skill while the
   legacy skills remain in-tree as the authoritative flows.
+- **Step 4 — `governance rule *` verbs:** `references/RULE_VERBS.md`
+  documents `rule add`, `rule modify`, `rule remove`, delegating to
+  `governance-amend/SKILL.md` Steps 1–6 for the atomic-triple flow
+  (rule folder + constitution subsection + Evolution Log entry landing
+  as one commit). `SKILL.md` promotes these verbs from "coming soon"
+  to active dispatch and adds them to the trigger table; the skill
+  frontmatter now advertises rule-amendment aliases so the unified
+  skill fires on "add a rule" / "amend the constitution" / "new
+  invariant" without needing to mention `governance-amend` by name.
 - **Step 3 — `governance pack *` verbs:** `packctl` now owns ref parsing
   (`gh:owner/repo[/subpath][@rev]`), shared-cache resolution
   (`${GOVERNANCE_KIT_HOME:-$HOME/.governance-kit}/packs/<id>@<sha>/`),
