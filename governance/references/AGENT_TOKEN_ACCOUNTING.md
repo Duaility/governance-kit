@@ -22,8 +22,7 @@ The layered model that works:
 
 ## Trailer schema
 
-Every agent-authored commit carries these seven required trailers plus
-one optional trailer:
+Every agent-authored commit carries these eight required trailers:
 
 ```
 Agent: codex
@@ -44,15 +43,16 @@ Cost-USD: 2.7932
   turn rather than new effort.
 - `Token-Total` **must equal** `Token-Input + Token-Output`.
 - `Cost-Key` must be unique within `COSTS.md`. Convention: `<agent>-<session-short>-<epoch>`.
-- `Cost-USD` is optional. Stamped automatically when the runtime-reported
-  model is in `lib/rates.py`; omitted for unpriced models (no `0.0000`
-  sentinel — it would collide with legitimately-cheap commits). When
-  present, the rule cross-checks it against the ledger row's `cost-usd`
-  cell — same `rates.lookup` call, same token counts, so any divergence
-  means someone hand-edited one side. Surfacing it as a trailer makes
-  the per-commit dollar figure visible in `git log` without having to
-  join against `COSTS.md`, and it survives squash merges alongside
-  `Cost-Key`.
+- `Cost-USD` is required on every new commit. Stamped automatically from
+  `lib/rates.py` using the runtime-reported model; the rule cross-checks
+  it against the ledger row's `cost-usd` cell — same `rates.lookup` call,
+  same token counts, so any divergence means someone hand-edited one side.
+  Surfacing it as a trailer makes the per-commit dollar figure visible in
+  `git log` without having to join against `COSTS.md`, and it survives
+  squash merges alongside `Cost-Key`. A truly-unpriced model (no entry in
+  `RATES` and no family-prefix match) blocks the commit at the pre-commit
+  hook — the operator either adds a pricing row to `lib/rates.py` or uses
+  `SKIP_GOVERNANCE=1` for a genuine hot-fix.
 
 ## Ledger schema
 
@@ -76,19 +76,20 @@ without re-deriving rates after the fact:
 - `cost-usd` — the true dollar cost for this row, computed from `model` via
   the rule's `lib/rates.py` and **all four** token columns
   (`cache-read` included — that's the only place cache rent appears).
-  Empty when the model isn't in the rate table. This is the only
-  single-number headline that is comparable across commits with different
-  cache mixes.
+  Required on every new v3 row; the column is the only single-number
+  headline that's comparable across commits with different cache mixes.
+  Legacy v1/v2 rows and v3 rows predating the cost-mandate (empty
+  `model` cell) are grandfathered to empty `cost-usd`.
 
   `lib/rates.py` keeps **family-prefix fallbacks** (`claude-opus`,
   `claude-sonnet`, `claude-haiku`, `gpt-5`) seeded from the current
   rate card alongside version-specific keys. When a new minor release
   lands between rule updates (e.g. `gpt-5.5`), longest-prefix lookup
-  picks the family row so `cost-usd` stays populated rather than
-  silently falling through to empty. When even the family key misses,
-  the pre-commit hook prints a visible `warning: model 'X' not in rate
-  table` line to stderr — non-blocking (the ledger row is still valid)
-  but no longer silent.
+  picks the family row so `cost-usd` stays populated. When even the
+  family key misses, the pre-commit hook prints a red `✗ model 'X'
+  is not priced` error to stderr and blocks the commit — either add
+  a pricing row to `lib/rates.py` or use `SKIP_GOVERNANCE=1` to get
+  past a one-off.
 
 Why both `new-work` and `cost-usd`:
 
@@ -246,8 +247,9 @@ The reader at `runtimes/claude-code.sh` inside the rule folder:
    billing dollars and cache-hit-rate analyses can be reconstructed later.
 4. Tracks `.message.model` on every assistant entry; the latest non-empty,
    non-`<synthetic>` value wins so mid-session `/model` switches propagate
-   forward. If nothing is seen, emits the literal string `unknown` and the
-   ledger's `cost-usd` column lands empty (no rate lookup).
+   forward. If nothing is seen, emits the literal string `unknown`, which
+   `rates.py` can't price — the pre-commit hook will block with a clear
+   error. Fix the transcript reader, or export `AGENT_MODEL` manually.
 5. Prints `<session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output> <model>`
    for `agent-accounting.sh`.
 
@@ -274,8 +276,9 @@ wrapper is needed. The reader at `runtimes/codex.sh` inside the rule folder:
    `prompt_tokens_details.cached_tokens`.
 5. Tracks `model` from `payload.model`, `collaboration_mode.settings.model`,
    and the older top-level / nested model fields. Defaults to `unknown` if
-   none of the transcript entries carry it — the ledger's `cost-usd` column
-   stays empty in that case.
+   none of the transcript entries carry it; the pre-commit hook then blocks
+   the commit since `unknown` can't be priced. Export `AGENT_MODEL`
+   explicitly to override.
 6. Prints `<session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output> <model>`.
 
 ### Other runtimes
@@ -302,11 +305,11 @@ All paths below are rooted at the installed rule folder
 | Layer | What it checks |
 |---|---|
 | `runtimes/<runtime>.sh` | Transcript discovery + 4-field token sum + model extraction for one specific runtime. Prints 6 space-separated values. |
-| `lib/rates.py` | Model → per-MTok USD rate table (base / cache-create / cache-read / output) + `compute_cost_usd(model, i, cc, cr, o)`. Tolerant model lookup: lowercase, strip date suffix, prefix match. Unknown model → `None` → empty `cost-usd` cell (no cross-check failure). |
+| `lib/rates.py` | Model → per-MTok USD rate table (base / cache-create / cache-read / output) + `compute_cost_usd(model, i, cc, cr, o)`. Tolerant model lookup: lowercase, strip date suffix, longest-prefix match with family fallbacks (`claude-opus`, `claude-sonnet`, `claude-haiku`, `gpt-5`). Unknown model → `None` → `rates cost` exits 3 → pre-commit blocks the commit (Cost-USD is mandatory). |
 | `lib/ledger.py` | Stdlib-only Python library that owns the ledger: `LedgerRow` dataclass, `parse`, `sum_by_session`, `append_row` (recomputes `new_work`, looks up `cost_usd` from `rates.py`), `validate`, `find_by_cost_key`. Handles the v3 12-column schema and both legacy shapes (v2: 10 cols, v1: 8 cols). Keeping the schema-sensitive parsing in named-field Python (not `awk -F'\|'`) eliminates the whole class of column-index bugs we ate once already. |
 | `lib/trailers.py` | Parses commit trailers and cross-checks them against a ledger row — `Token-Input == input + cache_create`, `Token-Output == output`, `Token-Total == Token-Input + Token-Output`, and `Token-Total == row.new_work` (so the trailer headline and the ledger headline can't drift). |
 | `hooks/pre-commit.sh` | Bash glue: runtime detection, issue parsing from parent argv, cost-key generation, handoff env-file write. Shells out to `lib/ledger.py` for `sum-by-session` (per-commit delta) and `append-row` (ledger write + `git add`) — **all before** git snapshots the tree. Wired into `.githooks/pre-commit` by the generator. |
-| `hooks/prepare-commit-msg.sh` | Sources the handoff env file (resolved via `git rev-parse --git-path governance-pending.env` so worktrees work) and stamps all seven trailers. Idempotent on amends (skips if an `Agent:` trailer is already present). Silent no-op if no handoff file exists (human commit, or `--no-verify`). Does not touch `COSTS.md`. |
+| `hooks/prepare-commit-msg.sh` | Sources the handoff env file (resolved via `git rev-parse --git-path governance-pending.env` so worktrees work) and stamps all eight trailers. Idempotent on amends (skips if an `Agent:` trailer is already present). Silent no-op if no handoff file exists (human commit, or `--no-verify`). Does not touch `COSTS.md`. |
 | `check.sh` (commit-msg + CI) | Walks `base..HEAD`. Calls `lib/ledger.py validate` for repo-wide shape checks; for each commit with an `Agent:` trailer calls `lib/trailers.py validate` to require the full trailer set, check `Total = Input + Output`, require exactly one matching `Cost-Key` row in `COSTS.md`, and verify the row's numbers agree with the trailers. Runs independently of `COSTS.md` presence so the ledger stays clean even after branch commits are squashed away. |
 
 ## What it doesn't try to do

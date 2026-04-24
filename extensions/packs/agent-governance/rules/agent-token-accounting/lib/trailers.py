@@ -10,9 +10,10 @@ Trailers stamped onto agent-authored commits:
     Token-Output: non-negative int  (= output_tokens)
     Token-Total:  non-negative int  (= Token-Input + Token-Output == row.new_work)
     Cost-Key:     <agent>-<session-short>-<epoch>
-    Cost-USD:     OPTIONAL 4-decimal dollar figure (= ledger row's cost-usd
-                  cell). Omitted when the runtime-reported model isn't in
-                  the rate table — both sides are empty in that case.
+    Cost-USD:     4-decimal dollar figure (= ledger row's cost-usd cell).
+                  Required on every agent commit — a truly unpriced model
+                  blocks the commit upstream in the pre-commit hook rather
+                  than slipping through as a blank.
 
 This module is the data-processing side of the rule script's Mode A /
 Mode B validators — bash feeds a commit message on stdin or a file path,
@@ -55,6 +56,7 @@ REQUIRED_TRAILERS = (
     "Token-Output",
     "Token-Total",
     "Cost-Key",
+    "Cost-USD",
 )
 
 _INT_RE = re.compile(r"^[0-9]+$")
@@ -169,23 +171,30 @@ def validate(
                 f"for cost-key '{cost_key}'"
             )
 
-    # Cost-USD trailer is optional — if the runtime model isn't priced,
-    # both the ledger cell and the trailer are blank. But if the trailer
-    # is stamped, it must match the ledger cell (same model + tokens +
-    # rate table, so divergence means someone hand-edited one side).
-    cost_trailer = trailers.get("Cost-USD", "").strip()
-    if cost_trailer:
-        if not _COST_USD_RE.match(cost_trailer):
+    # Cost-USD is required (REQUIRED_TRAILERS check above already enforced
+    # presence). Validate shape and, when we have the matching ledger row,
+    # cross-check value. Divergence means someone hand-edited one side.
+    cost_trailer = trailers["Cost-USD"].strip()
+    if not _COST_USD_RE.match(cost_trailer):
+        violations.append(
+            f"{label} — Cost-USD '{cost_trailer}' must be a non-negative decimal"
+        )
+    elif ledger_cost_usd is not None and ledger_row is not None:
+        # Compare at 4dp — both sides are rounded to 4 decimals upstream.
+        if abs(float(cost_trailer) - ledger_cost_usd) > 5e-5:
             violations.append(
-                f"{label} — Cost-USD '{cost_trailer}' must be a non-negative decimal"
+                f"{label} — Cost-USD trailer ({cost_trailer}) disagrees with "
+                f"COSTS.md cost_usd ({ledger_cost_usd:.4f}) for cost-key '{cost_key}'"
             )
-        elif ledger_cost_usd is not None and ledger_row is not None:
-            # Compare at 4dp — both sides are rounded to 4 decimals upstream.
-            if abs(float(cost_trailer) - ledger_cost_usd) > 5e-5:
-                violations.append(
-                    f"{label} — Cost-USD trailer ({cost_trailer}) disagrees with "
-                    f"COSTS.md cost_usd ({ledger_cost_usd:.4f}) for cost-key '{cost_key}'"
-                )
+    elif ledger_row is not None and ledger_cost_usd is None:
+        # Ledger row exists but has empty cost_usd — that's only legal for
+        # legacy/grandfathered rows (empty model). A v3 commit claiming
+        # ownership of such a row is an authoring error, not a pass path.
+        violations.append(
+            f"{label} — Cost-USD trailer is '{cost_trailer}' but COSTS.md "
+            f"row '{cost_key}' has no cost_usd value (grandfathered row; "
+            f"new commits must point at a priced row)"
+        )
 
     return violations
 

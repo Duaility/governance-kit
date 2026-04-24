@@ -205,21 +205,25 @@ COST_KEY="${AGENT_COST_KEY:-${AGENT_NAME}-${SESSION_SHORT}-$(date +%s)}"
 # Keeping this shell-side (instead of letting ledger.py recompute) means
 # the handoff to prepare-commit-msg carries the same 4-decimal string the
 # ledger will write — no cross-check divergence possible.
-COST_USD="$(python3 "$LIB/rates.py" cost "$MODEL" "$TOKEN_INPUT" "$TOKEN_CACHE_CREATE" "$TOKEN_CACHE_READ" "$TOKEN_OUTPUT" 2>/dev/null || echo "")"
-
-# Loud-but-non-blocking warning for unpriced models. Non-blocking so a
-# fresh model release doesn't wedge commits — the ledger row with an empty
-# cost_usd cell is still valid — but no longer silent.
-if [[ -z "$COST_USD" ]]; then
-    if command -v tput >/dev/null 2>&1 && [[ -t 2 ]] && tput setaf 3 >/dev/null 2>&1; then
-        _y="$(tput setaf 3)"; _rst="$(tput sgr0)"
+#
+# Cost-USD is required on every new commit. If the runtime model can't be
+# priced (no family-prefix fallback matches), `rates.py cost` exits 3 with
+# a human-readable reason on stderr; we surface that and block the commit.
+# Escape hatch: `SKIP_GOVERNANCE=1 git commit ...` (at the top of this
+# script) for genuine hot-fixes; the real fix is to add the missing model
+# to `lib/rates.py`.
+if ! COST_USD="$(python3 "$LIB/rates.py" cost "$MODEL" "$TOKEN_INPUT" "$TOKEN_CACHE_CREATE" "$TOKEN_CACHE_READ" "$TOKEN_OUTPUT")"; then
+    if command -v tput >/dev/null 2>&1 && [[ -t 2 ]] && tput setaf 1 >/dev/null 2>&1; then
+        _r="$(tput setaf 1)"; _rst="$(tput sgr0)"
     else
-        _y=""; _rst=""
+        _r=""; _rst=""
     fi
-    printf '%swarning: model %q not in rate table; cost-usd will be blank.%s\n' \
-        "$_y" "$MODEL" "$_rst" >&2
-    printf '         add a family fallback to lib/rates.py (or an override) to fix.\n' >&2
-    unset _y _rst
+    printf '%s✗ agent-token-accounting: model %q is not priced.%s\n' \
+        "$_r" "$MODEL" "$_rst" >&2
+    printf '    add an entry (usually a family-prefix row) to lib/rates.py\n' >&2
+    printf '    or set SKIP_GOVERNANCE=1 for a one-off bypass.\n' >&2
+    unset _r _rst
+    exit 1
 fi
 
 # ── Append the ledger row ─────────────────────────────────────
@@ -243,6 +247,6 @@ AGENT_COST_USD='$COST_USD'
 EOF
 
 printf 'agent-accounting: runtime=%s model=%s session=%s input=+%d cache_create=+%d cache_read=+%d output=+%d cost-key=%s cost-usd=%s\n' \
-    "$RUNTIME" "$MODEL" "$SESSION_ID" "$TOKEN_INPUT" "$TOKEN_CACHE_CREATE" "$TOKEN_CACHE_READ" "$TOKEN_OUTPUT" "$COST_KEY" "${COST_USD:-<unpriced>}" >&2
+    "$RUNTIME" "$MODEL" "$SESSION_ID" "$TOKEN_INPUT" "$TOKEN_CACHE_CREATE" "$TOKEN_CACHE_READ" "$TOKEN_OUTPUT" "$COST_KEY" "$COST_USD" >&2
 
 exit 0

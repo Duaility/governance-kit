@@ -26,19 +26,25 @@ so an estimated-but-present cost beats silently-zero. When an older release
 has its own pricing (Opus 4.0/4.1), keep a version-specific key alongside
 the family key — longest-prefix matching picks the version first.
 
-Unknown model → `lookup()` returns None → `cost_usd` in the ledger is
-written as an empty cell, which `validate()` and the rule script treat
-as "unpriced, don't cross-check." The pre-commit hook prints a visible
-warning in that case so the gap doesn't stay silent.
+Unknown model → `lookup()` returns None. The `cost` CLI exits non-zero
+and emits nothing on stdout, so the pre-commit caller can distinguish
+a real failure from a "cost=0.0000" priced row. Cost-USD is mandatory
+on new commits, so an unknown model blocks the commit — the operator
+either adds the missing entry to `RATES` (usually a family-prefix row)
+or waives via `SKIP_GOVERNANCE=1` for a hot-fix. The rule script's
+ledger validator still tolerates legacy rows with an empty `cost-usd`
+cell (grandfathered — pre-mandate history).
 
 This module is stdlib-only.
 
 CLI:
 
     python3 rates.py cost <model> <input> <cache_create> <cache_read> <output>
-        → prints the 4-decimal dollar cost on stdout, or an empty line
-          if the model isn't priced. Called from the pre-commit hook to
-          keep the ledger row and the Cost-USD trailer in lock-step.
+        → prints the 4-decimal dollar cost on stdout and exits 0 when the
+          model resolves. When the model is unpriced (no family-prefix
+          match either), exits 3 with a human-readable reason on stderr
+          and no stdout — the pre-commit hook propagates that as a hard
+          failure so the commit doesn't land with a missing Cost-USD.
 """
 
 from __future__ import annotations
@@ -146,9 +152,17 @@ def _cmd_cost(argv: list[str]) -> int:
         print("rates cost: token counts must be integers", file=sys.stderr)
         return 2
     cost = compute_cost_usd(model, *tokens)
-    # Empty line = unpriced. Callers treat this as "leave the cell blank,
-    # don't stamp Cost-USD, and optionally warn."
-    print("" if cost is None else f"{cost:.4f}")
+    if cost is None:
+        # Unpriced → exit 3 so the pre-commit hook can distinguish this
+        # from a priced row that happens to total $0. Stderr carries the
+        # human-readable reason; stdout is empty.
+        print(
+            f"rates cost: model {model!r} has no entry in RATES and no "
+            f"family-prefix fallback matches; add an entry to lib/rates.py",
+            file=sys.stderr,
+        )
+        return 3
+    print(f"{cost:.4f}")
     return 0
 
 

@@ -7,7 +7,9 @@
 #
 # `model` is the latest `message.model` seen on any assistant entry; used by
 # lib/rates.py to compute cost_usd. If absent, printed as the literal string
-# `unknown` (the rate lookup returns None and cost-usd lands as an empty cell).
+# `unknown` — which the rate lookup can't price, so the pre-commit hook
+# blocks the commit (Cost-USD is mandatory). Export AGENT_MODEL manually
+# to override when the transcript genuinely doesn't carry a model id.
 #
 # The four token numbers are cumulative across the whole session transcript;
 # the caller (agent-accounting.sh) subtracts prior ledger rows to get the
