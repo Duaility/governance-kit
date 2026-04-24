@@ -35,12 +35,12 @@ $ git commit -m "stuff"
 
 ## What a rule looks like
 
-Every rule is a self-contained folder. Here's `conventional-commits` from the `core` pack:
+Every rule is a self-contained folder. Here's `doc-freshness` from the `core` pack:
 
 ```
-conventional-commits/
+doc-freshness/
 ├── rule.yaml         # category, summary, surface, hook
-├── check.sh          # the executable test (runs in commit-msg + CI)
+├── check.sh          # the executable test (runs in pre-commit + CI)
 ├── constitution.md   # Rule / Rationale / Enforced by / Exceptions
 └── evals/test.sh     # pass + fail fixtures
 ```
@@ -48,17 +48,18 @@ conventional-commits/
 The `constitution.md` carries the *why*:
 
 ```markdown
-### conventional-commits
+### doc-freshness
 
-- **Rule**: Commit messages match `<type>(scope)?!?: subject (#123)`.
-- **Rationale**: A trailing `(#123)` anchors every commit to a GitHub issue;
-  the typed prefix keeps changelogs scannable. Together they make `git log` a
-  readable audit trail instead of a stream of "fix stuff".
-- **Enforced by**: `tests/governance/rules/conventional-commits/check.sh`
-- **Exceptions**: Merge and revert commits are skipped automatically.
+- **Rule**: Docs opted into `tests/governance/freshness.conf` carry a
+  `<!-- last-verified: YYYY-MM-DD -->` marker dated within the last 90 days.
+- **Rationale**: Critical runbooks and onboarding docs decay. A periodic
+  "someone re-read this" checkpoint keeps them honest — if the deadline passes,
+  either the doc still reflects reality (bump the date) or it doesn't (fix it).
+- **Enforced by**: `tests/governance/rules/doc-freshness/check.sh`
+- **Exceptions**: Remove a doc from `freshness.conf` to opt it out entirely.
 ```
 
-When the rule changes, all four files move together — the kit enforces this.
+The rationale is the load-bearing part: an agent reading a doc with a stale marker knows not to trust it as ground truth, and an agent updating a doc knows to bump the date. A bare hook can enforce the date format; only the co-located rationale tells the next agent what the date *means*. When the rule changes, all four files move together — the kit enforces this.
 
 ## Install
 
