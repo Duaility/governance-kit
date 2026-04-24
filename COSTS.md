@@ -87,3 +87,5 @@ Schema:
 | claude-code-8165bc21-e5b-1777005219 | claude-code | 8165bc21-e5be-420c-a7b8-b1ca86e21e68 | #29 | claude-opus-4-7 | 3 | 1839 | 316265 | 1657 | 3499 | 0.2111 | ci(pack-tests): install uv so packctl.py can run (#29) |
 | claude-code-ee6dceb1-16d-1777007136 | claude-code | ee6dceb1-16d7-404c-a5bb-46a72dc01a2b | #31 | claude-opus-4-7 | 81 | 175876 | 3032992 | 27157 | 203114 | 3.2951 | feat(packs): formalize pack contract with kit version + capability schema (#31) |
 | claude-code-ee6dceb1-16d-1777007177 | claude-code | ee6dceb1-16d7-404c-a5bb-46a72dc01a2b | #31 | claude-opus-4-7 | 5 | 5201 | 429176 | 2135 | 7341 | 0.3005 | feat(packs): formalize pack contract with kit version + capability schema (#31) |
+| claude-code-ee6dceb1-16d-1777007224 | claude-code | ee6dceb1-16d7-404c-a5bb-46a72dc01a2b | #31 | claude-opus-4-7 | 8 | 4842 | 721010 | 3443 | 8293 | 0.4769 | feat(extensions): add community pack catalog scaffold (#31) |
+| claude-code-ee6dceb1-16d-1777007241 | claude-code | ee6dceb1-16d7-404c-a5bb-46a72dc01a2b | #31 | claude-opus-4-7 | 3 | 2098 | 277709 | 1513 | 3614 | 0.1898 | feat(extensions): add community pack catalog scaffold (#31) |

@@ -63,3 +63,10 @@ target to point at.
 - SHA pinning of community packs, `.governance/packs.lock`, and
   diff-before-exec UX land with the `governance pack *` follow-up.
 - Shared `~/.governance-kit/packs/<pack-id>@<sha>/` cache likewise.
+
+## Progress
+
+- Pack contract formalized (`KIT_VERSION`, capability schema,
+  `min_governance_kit` enforcement).
+- Community pack catalog scaffolded under `extensions/`.
+- New `governance` skill — pending.

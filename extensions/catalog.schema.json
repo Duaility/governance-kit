@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "governance-kit community pack catalog",
+  "description": "Advisory index of known community packs. Presence in this catalog is not required for `governance pack add` to work with an arbitrary `gh:<owner>/<repo>` ref — the catalog is a discoverability layer, not a gate.",
+  "type": "object",
+  "required": ["version", "packs"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Schema version of this catalog file. Bumped when the entry shape changes incompatibly."
+    },
+    "packs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/pack" }
+    }
+  },
+  "$defs": {
+    "pack": {
+      "type": "object",
+      "required": ["id", "name", "summary", "source", "min_governance_kit"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*$",
+          "description": "Scoped pack id of the form `<author>/<slug>`, e.g. `acme/soc2`."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-friendly pack name."
+        },
+        "summary": {
+          "type": "string",
+          "description": "One-line description of the pack's scope."
+        },
+        "category": {
+          "type": "string",
+          "description": "Grouping label (e.g. `compliance`, `frontend`, `devops`). Advisory; the catalog does not enumerate allowed values."
+        },
+        "source": {
+          "type": "object",
+          "required": ["type", "ref"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "enum": ["github"] },
+            "ref": {
+              "type": "string",
+              "description": "For GitHub, `<owner>/<repo>` (branch/SHA pinning happens in `.governance/packs.lock`, not here)."
+            },
+            "path": {
+              "type": "string",
+              "description": "Optional subpath within the source repo where the pack lives. Defaults to the repo root."
+            }
+          }
+        },
+        "min_governance_kit": {
+          "type": "string",
+          "description": "Minimum governance-kit version the pack declares it needs. Mirrored from the pack's `pack.yaml`."
+        },
+        "homepage": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    }
+  }
+}
