@@ -1,6 +1,0 @@
-# architecture-doc-exists — ARCHITECTURE.md (root or docs/) exists and is >= 20 lines.
-category: SystemOfRecord
-recommended: false
-summary: ARCHITECTURE.md (root or docs/) exists and is >= 20 lines.
-surface: repo-state
-hook: pre-commit

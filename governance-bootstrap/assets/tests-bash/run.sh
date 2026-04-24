@@ -6,7 +6,7 @@
 #
 # Usage:
 #   bash tests/governance/run.sh              # run all rules
-#   bash tests/governance/run.sh no-secrets   # run a single rule by id
+#   bash tests/governance/run.sh required-docs   # run a single rule by id
 #
 # Environment:
 #   SKIP_GOVERNANCE=1   skip all rules (for emergency commits)
@@ -37,7 +37,7 @@ if [[ ${#rule_files[@]} -eq 0 ]]; then
     exit 0
 fi
 
-# Single-rule filter: `run.sh no-secrets` only runs rules/no-secrets/check.sh.
+# Single-rule filter: `run.sh required-docs` only runs rules/required-docs/check.sh.
 if [[ $# -gt 0 ]]; then
     filter="$1"
     filtered=()

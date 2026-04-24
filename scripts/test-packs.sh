@@ -210,6 +210,49 @@ Keep this document boring. The rule under test is the bootstrap contract, not
 the prose in this file.
 EOF
 
+    cat > LICENSE <<'EOF'
+MIT License
+
+Copyright (c) 2026 governance-kit test harness
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files, to deal in the Software
+without restriction.
+EOF
+
+    cat > SECURITY.md <<'EOF'
+# Security
+
+Report vulnerabilities to security@example.com.
+EOF
+
+    cat > ARCHITECTURE.md <<'EOF'
+# Architecture
+
+## Overview
+
+Fixture architecture doc for the fresh-repo install contract. The real
+bootstrap skill writes repo-specific content; this file only exists to
+satisfy `required-docs` at the expected line-count floor.
+
+## Layers
+
+- surface — the tree shape installed by bootstrap
+- rules — executable checks under `tests/governance/rules/<id>/`
+- hooks — `.githooks/*` dispatchers generated from the installed manifest
+
+## Invariants
+
+Rule folders are self-contained. The hook generator discovers installed
+rule metadata at runtime. Adding or removing a rule is a single directory
+operation on `tests/governance/rules/`.
+
+## Notes
+
+This fixture is deliberately terse but long enough to clear the
+`required-docs` line-count floor.
+EOF
+
     cat > .gitignore <<'EOF'
 .env
 *.log

@@ -1,6 +1,0 @@
-# dotenv-gitignored — .env is listed in .gitignore and not tracked.
-category: Security
-recommended: true
-summary: .env is listed in .gitignore and not tracked.
-surface: repo-state
-hook: pre-commit

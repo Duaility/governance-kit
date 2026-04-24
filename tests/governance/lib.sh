@@ -73,7 +73,7 @@ require_git() {
 
 # Allow in-source waivers. Rules that support exceptions should grep for
 # `governance: allow-<rule-name>` on the violating line and skip it.
-# Example: `foo = "AKIA..."  # governance: allow-no-secrets TICKET-123`
+# Example: `foo = "AKIA..."  # governance: allow-secrets-hygiene TICKET-123`
 has_waiver() {
     local file="$1" line_no="$2" rule="$3"
     sed -n "${line_no}p" "$file" | grep -q "governance: allow-${rule}"

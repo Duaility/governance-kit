@@ -1,6 +1,0 @@
-# no-debug-statements — No stray console.log / debugger / pdb / dbg! / breakpoint() in source.
-category: Quality
-recommended: false
-summary: No stray console.log / debugger / pdb / dbg! / breakpoint() in source.
-surface: repo-state
-hook: pre-commit

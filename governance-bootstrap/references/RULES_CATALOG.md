@@ -15,33 +15,26 @@ For authoring a **third-party pack**, see [AUTHORING_PACKS.md](AUTHORING_PACKS.m
 
 ## `core` pack
 
-Minimum floor of hygiene — `CONSTITUTION.md` exists, secrets aren't committed, dotenvs aren't tracked, workflows are pinned, merge markers are caught. The `minimal` / `standard` / `strict` presets select progressively larger subsets.
+Minimum floor of hygiene — required docs exist, secrets aren't committed, workflows are pinned, merge markers are caught. The `minimal` / `standard` / `strict` presets add progressively more commit-time discipline on top of the same baseline.
+
+The three consolidated rules (`required-docs`, `repo-hygiene`, `secrets-hygiene`) each expose a `GOVERNANCE_<NAME>_DISABLE` env var for per-sub-check opt-outs — the catalog below lists the sub-check keys under each entry.
 
 ### Foundation
 | Rule | What it checks |
 |---|---|
-| `constitution-exists`  | `CONSTITUTION.md` exists at the repo root, non-empty, ≥ 10 lines. |
-| `readme-exists`        | `README.md` (or `README.rst`) exists with a heading and ≥ 30 words. |
-| `license-exists`       | `LICENSE` (or variants) exists at the repo root and is non-empty. |
-| `agents-md-exists`     | `AGENTS.md` at repo root, 30–250 lines, with ≥ 3 links to other docs. |
-| `hooks-configured`     | `.githooks/pre-commit` is tracked + executable, `.githooks/commit-msg` likewise if `conventional-commits` is installed, and `core.hooksPath` is set to `.githooks`. Declares `requires_hook_strategy: githooks`, so bootstrap skips it for husky/pre-commit.com repos. |
+| `required-docs` | Rolled-up presence check for repo-root docs and local-hook scaffolding. Sub-checks (all enabled by default, keys for `GOVERNANCE_REQUIRED_DOCS_DISABLE`): `constitution` (`CONSTITUTION.md` ≥ 10 lines); `agents` (`AGENTS.md` at repo root, 30–250 lines, ≥ 3 internal links); `readme` (`README.md`/`.rst` with heading + ≥ 30 words); `license` (`LICENSE`/variants at repo root, non-empty); `security` (`SECURITY.md` with contact); `architecture` (`ARCHITECTURE.md` ≥ 20 lines); `ci-workflow` (≥ 1 non-governance workflow); `env-example` (every key in local `.env` is declared in `.env.example`); `hooks` (`.githooks/pre-commit` tracked + executable, `core.hooksPath=.githooks`; no-ops on non-`githooks` strategies). |
 
 ### Security
 | Rule | What it checks |
 |---|---|
-| `no-secrets`           | Heuristic scan for AWS / GCP / GitHub / Slack / Stripe / generic API keys and private-key blocks. |
-| `dotenv-gitignored`    | `.env` is not tracked **and** is listed in `.gitignore`. |
-| `security-md-exists`   | `SECURITY.md` (root / `docs/` / `.github/`) exists and lists a contact email or URL. |
-| `workflows-hardened`   | Every `.github/workflows/*.yml` declares a `permissions:` block **and** pins third-party actions (anything outside `actions/*` and `github/*`) to a full 40-char commit SHA. |
-| `env-example-current`  | Every key in a local `.env` is declared in `.env.example`. Opt-in; niche. |
+| `secrets-hygiene`    | Rolled-up secret-scanning. Sub-checks (keys for `GOVERNANCE_SECRETS_HYGIENE_DISABLE`): `no-secrets` (heuristic scan for AWS / GCP / GitHub / Slack / Stripe / private-key patterns; waiver `# governance: allow-secrets-hygiene <reason>`); `dotenv` (`.env` is not tracked **and** listed in `.gitignore`). |
+| `workflows-hardened` | Every `.github/workflows/*.yml` declares a `permissions:` block **and** pins third-party actions (anything outside `actions/*` and `github/*`) to a full 40-char commit SHA. |
 
 ### System of record
 | Rule | What it checks |
 |---|---|
-| `architecture-doc-exists`       | `ARCHITECTURE.md` (root or `docs/`) exists, non-empty, ≥ 20 lines. |
 | `no-broken-internal-doc-links`  | Every relative-path markdown link in tracked `.md` files resolves to an existing file. |
 | `doc-freshness`                 | Docs listed in `tests/governance/freshness.conf` carry `<!-- last-verified: YYYY-MM-DD -->` within 90 days (configurable). No-op if the config file is absent. |
-| `ci-workflow-exists`            | `.github/workflows/` contains at least one non-governance workflow. |
 
 ### Commit hygiene
 | Rule | What it checks |
@@ -52,19 +45,15 @@ Minimum floor of hygiene — `CONSTITUTION.md` exists, secrets aren't committed,
 ### Quality
 | Rule | What it checks |
 |---|---|
-| `no-debug-statements`          | No `console.log`, `debugger`, `breakpoint()`, `import pdb`, `dbg!`, or `fmt.Println` left in source (tests excluded). |
-| `file-size-limit`              | No source file exceeds 500 lines. Override via `GOVERNANCE_FILE_SIZE_LIMIT`. |
-| `no-large-files`               | No tracked file exceeds 5 MB. Override via `GOVERNANCE_MAX_FILE_SIZE_MB`. |
-| `no-committed-build-artifacts` | Flags tracked `*.pyc`, `__pycache__/`, `*.class`, `*.o`, `node_modules/`, `dist/`, `build/`, `target/`, `out/`, `.DS_Store`, `Thumbs.db`, editor swap files. |
-| `no-merge-conflict-markers`    | No tracked file contains `<<<<<<<`, `=======`, or `>>>>>>>` at line-start. **`always_install: true`** — bypasses the menu. |
+| `repo-hygiene` | Rolled-up hygiene greps. **`always_install: true`** — bypasses the menu. Sub-checks (keys for `GOVERNANCE_REPO_HYGIENE_DISABLE`): `merge-markers` (no `<<<<<<<` / `=======` / `>>>>>>>` at line start); `large-files` (no tracked file > 5 MB, override via `GOVERNANCE_MAX_FILE_SIZE_MB`); `build-artifacts` (denylist: `*.pyc`, `__pycache__/`, `*.class`, `*.o`, `node_modules/`, `dist/`, `build/`, `target/`, `out/`, `.DS_Store`, `Thumbs.db`, editor swap files); `debug-statements` (no `console.log` / `debugger` / `breakpoint()` / `import pdb` / `dbg!` / `fmt.Println` in non-test source; waiver `# governance: allow-repo-hygiene <reason>`); `file-size-limit` (no source file > 500 lines, override via `GOVERNANCE_FILE_SIZE_LIMIT`). |
 
 ### `core` presets
 
 | Preset | Rules |
 |---|---|
-| `minimal`  | `constitution-exists`, `no-secrets`, `dotenv-gitignored`, `workflows-hardened`, `no-broken-internal-doc-links`, `no-large-files`, `no-committed-build-artifacts`, `no-merge-conflict-markers`, `hooks-configured` |
-| `standard` | *minimal* + `agents-md-exists`, `conventional-commits`, `doc-freshness` |
-| `strict`   | *standard* + `readme-exists`, `security-md-exists`, `architecture-doc-exists`, `ci-workflow-exists`, `no-orphan-todos`, `file-size-limit`, `no-debug-statements` |
+| `minimal`  | `required-docs`, `secrets-hygiene`, `repo-hygiene`, `workflows-hardened`, `no-broken-internal-doc-links` |
+| `standard` | *minimal* + `conventional-commits`, `doc-freshness` |
+| `strict`   | *standard* + `no-orphan-todos` |
 
 ---
 

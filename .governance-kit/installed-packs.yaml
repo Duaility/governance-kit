@@ -12,26 +12,16 @@ packs:
   - id: core
     version: "0.1"
     rules:
-      - id: constitution-exists
-        installed_path: tests/governance/rules/constitution-exists
-      - id: no-secrets
-        installed_path: tests/governance/rules/no-secrets
-      - id: dotenv-gitignored
-        installed_path: tests/governance/rules/dotenv-gitignored
+      - id: required-docs
+        installed_path: tests/governance/rules/required-docs
+      - id: secrets-hygiene
+        installed_path: tests/governance/rules/secrets-hygiene
+      - id: repo-hygiene
+        installed_path: tests/governance/rules/repo-hygiene
       - id: workflows-hardened
         installed_path: tests/governance/rules/workflows-hardened
       - id: no-broken-internal-doc-links
         installed_path: tests/governance/rules/no-broken-internal-doc-links
-      - id: no-large-files
-        installed_path: tests/governance/rules/no-large-files
-      - id: no-committed-build-artifacts
-        installed_path: tests/governance/rules/no-committed-build-artifacts
-      - id: no-merge-conflict-markers
-        installed_path: tests/governance/rules/no-merge-conflict-markers
-      - id: hooks-configured
-        installed_path: tests/governance/rules/hooks-configured
-      - id: agents-md-exists
-        installed_path: tests/governance/rules/agents-md-exists
       - id: conventional-commits
         installed_path: tests/governance/rules/conventional-commits
       - id: doc-freshness

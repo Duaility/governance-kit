@@ -25,26 +25,30 @@ If a specific change cannot satisfy a rule, document the deviation in the PR des
 
 ## Invariants
 
-### constitution-exists
+### required-docs
 
-- **Rule**: `CONSTITUTION.md` exists at the repo root, is non-empty, and is at least 10 lines long.
-- **Rationale**: Governance without a discoverable source of truth is tribal knowledge. Every other invariant points back to this file.
-- **Enforced by**: `tests/governance/rules/constitution-exists/check.sh`
-- **Exceptions**: none.
+- **Rule**: The repo ships the baseline set of root-level documents and local-hook scaffolding expected by governance-kit — each sub-check below is enabled by default and can be opted out of individually via `GOVERNANCE_REQUIRED_DOCS_DISABLE` (comma-separated list of sub-check keys):
+    - `constitution` — `CONSTITUTION.md` at repo root, non-empty, ≥ 10 lines.
+    - `agents` — `AGENTS.md` at repo root, 30–250 lines (configurable via `GOVERNANCE_AGENTS_MD_MIN` / `GOVERNANCE_AGENTS_MD_MAX`), with ≥ 3 links to other repo docs (configurable via `GOVERNANCE_AGENTS_MD_MIN_LINKS`).
+    - `readme` — `README.md`, `README`, or `README.rst` at repo root with a top-level heading and ≥ 30 words.
+    - `license` — `LICENSE`, `LICENSE.md`, `LICENSE.txt`, `COPYING`, or `COPYING.md` exists at repo root and is non-empty.
+    - `security` — `SECURITY.md` (root, `docs/`, or `.github/`) exists and lists a contact email, URL, or vulnerability-disclosure platform.
+    - `architecture` — `ARCHITECTURE.md` (root or `docs/`) exists and is ≥ 20 lines (configurable via `GOVERNANCE_ARCHITECTURE_MIN`).
+    - `ci-workflow` — `.github/workflows/` contains at least one non-governance workflow.
+    - `env-example` — when a local `.env` exists, every key in it is declared in `.env.example`.
+    - `hooks` — when the installed hook strategy is `githooks`, `.githooks/pre-commit` is tracked + executable, `.githooks/commit-msg` likewise if `conventional-commits` is installed, and `core.hooksPath` points at `.githooks`. No-op on `husky` / `pre-commit.com` strategies.
+- **Rationale**: Governance without a discoverable source of truth is tribal knowledge, and a fresh clone with zero local enforcement silently trusts CI for everything. Rolling the individual presence checks into one rule cuts preset sprawl — users who need to carve out a sub-check do so by setting `GOVERNANCE_REQUIRED_DOCS_DISABLE` rather than deselecting nine separate rule ids.
+- **Enforced by**: `tests/governance/rules/required-docs/check.sh`
+- **Exceptions**: Disable individual sub-checks via `GOVERNANCE_REQUIRED_DOCS_DISABLE="key1,key2,..."`. The `hooks` sub-check is a transparent no-op when the installed manifest declares a non-`githooks` hook strategy.
 
-### no-secrets
+### secrets-hygiene
 
-- **Rule**: No tracked file contains a plaintext AWS / GCP / GitHub / Slack / Stripe token or a private-key block matching the rule's patterns.
-- **Rationale**: A leaked credential in git history is a credential compromised — rotation is the only recourse. The cheapest moment to catch it is before the commit lands.
-- **Enforced by**: `tests/governance/rules/no-secrets/check.sh`
-- **Exceptions**: For intentional fixtures or lab credentials, append `# governance: allow-no-secrets <reason>` to the line. The waiver is visible in `git blame`.
-
-### dotenv-gitignored
-
-- **Rule**: `.env` is listed in `.gitignore` and is not tracked.
-- **Rationale**: `.env` is where local secrets live. If it is not in `.gitignore`, one careless `git add .` leaks production credentials.
-- **Enforced by**: `tests/governance/rules/dotenv-gitignored/check.sh`
-- **Exceptions**: none.
+- **Rule**: No tracked file violates either of the following sub-checks. Each is enabled by default and can be opted out of individually via `GOVERNANCE_SECRETS_HYGIENE_DISABLE` (comma-separated list of sub-check keys):
+    - `no-secrets` — no tracked file contains a plaintext AWS / GCP / GitHub / Slack / Stripe token, private-key block, or generic `api_key = "..."` literal, per the rule's heuristic pattern set (line-level waiver: `# governance: allow-secrets-hygiene <reason>`).
+    - `dotenv` — `.env` (and `.env.*` except `.env.example` / `.env.sample` / `.env.template`) is not tracked, and `.gitignore` exists and covers `.env`.
+- **Rationale**: A leaked credential in git history is a credential compromised — rotation is the only recourse. `.env` is where those credentials most commonly live, so closing the door on tracking it complements the pattern scan that catches the ones that slip past into source. Treat the two as one rule: they share a failure mode and both belong on every commit.
+- **Enforced by**: `tests/governance/rules/secrets-hygiene/check.sh`
+- **Exceptions**: Disable individual sub-checks via `GOVERNANCE_SECRETS_HYGIENE_DISABLE="no-secrets,dotenv"`. For documented, intentional fixtures, append `# governance: allow-secrets-hygiene <reason>` to the offending line — the waiver is visible in `git blame` and searchable by design.
 
 ### workflows-hardened
 
@@ -60,40 +64,17 @@ If a specific change cannot satisfy a rule, document the deviation in the PR des
 - **Enforced by**: `tests/governance/rules/no-broken-internal-doc-links/check.sh`
 - **Exceptions**: none.
 
-### no-large-files
+### repo-hygiene
 
-- **Rule**: No tracked file exceeds 5 MB. Override via `GOVERNANCE_MAX_FILE_SIZE_MB`.
-- **Rationale**: Binary blobs in git are a one-way street — history retains them forever, clone times swell, and mirroring slows. Keep large assets in object storage and track the pointer.
-- **Enforced by**: `tests/governance/rules/no-large-files/check.sh`
-- **Exceptions**: Raise the threshold via `GOVERNANCE_MAX_FILE_SIZE_MB` for repo-wide tuning.
-
-### no-committed-build-artifacts
-
-- **Rule**: No tracked file matches the build-artifact denylist: `*.pyc`, `__pycache__/`, `*.class`, `*.o`, `node_modules/`, `dist/`, `build/`, `target/`, `out/`, `.DS_Store`, `Thumbs.db`, editor swap files.
-- **Rationale**: Build output in git is noise — it rots fast, conflicts often, and obscures real changes in diffs. If a build artifact must ship, publish it as a release asset, not a tracked file.
-- **Enforced by**: `tests/governance/rules/no-committed-build-artifacts/check.sh`
-- **Exceptions**: none.
-
-### no-merge-conflict-markers
-
-- **Rule**: No tracked file contains a merge-conflict marker (`<<<<<<<`, `=======`, or `>>>>>>>` at line start).
-- **Rationale**: Merge markers committed to the tree are almost always an accident — the author ran `git add .` before finishing the conflict resolution. Zero-false-positive check, installed unconditionally.
-- **Enforced by**: `tests/governance/rules/no-merge-conflict-markers/check.sh`
-- **Exceptions**: none.
-
-### hooks-configured
-
-- **Rule**: `.githooks/pre-commit` is tracked and executable. If `conventional-commits` is installed, `.githooks/commit-msg` likewise. `core.hooksPath` is set to `.githooks` in the repo's local git config.
-- **Rationale**: Hooks that live under `.git/hooks/` are per-clone and never shared. Tracking them under `.githooks/` and pointing `core.hooksPath` at that directory is what makes every other local check actually fire on a fresh clone.
-- **Enforced by**: `tests/governance/rules/hooks-configured/check.sh`
-- **Exceptions**: Not installed when the repo uses an existing hook framework (husky, pre-commit.com) — that framework has its own tracked hook-config mechanism.
-
-### agents-md-exists
-
-- **Rule**: `AGENTS.md` exists at the repo root, is between 30 and 250 lines long, and contains at least three markdown links to other documents in the repo.
-- **Rationale**: Agents (and humans arriving cold) need a single discoverable entry point that routes them to the rest of the system of record. Too short → useless stub; too long → nobody reads it.
-- **Enforced by**: `tests/governance/rules/agents-md-exists/check.sh`
-- **Exceptions**: none.
+- **Rule**: No tracked file violates any of the following hygiene sub-checks. Each is enabled by default and can be opted out of individually via `GOVERNANCE_REPO_HYGIENE_DISABLE` (comma-separated list of sub-check keys):
+    - `merge-markers` — no `<<<<<<<`, `=======`, or `>>>>>>>` at line start in any tracked file.
+    - `large-files` — no tracked file exceeds 5 MB (override via `GOVERNANCE_MAX_FILE_SIZE_MB`).
+    - `build-artifacts` — no tracked file matches the artefact denylist (`*.pyc`, `__pycache__/`, `*.class`, `*.o`, `node_modules/`, `dist/`, `build/`, `target/`, `out/`, `.DS_Store`, `Thumbs.db`, editor swap files).
+    - `debug-statements` — no stray `console.log`, `debugger`, `breakpoint()`, `import pdb`, `dbg!`, or `fmt.Println` in non-test source (line-level waiver: `# governance: allow-repo-hygiene <reason>`).
+    - `file-size-limit` — no source file exceeds 500 lines (override via `GOVERNANCE_FILE_SIZE_LIMIT`), excluding vendor / generated / migrations / protobuf / node_modules.
+- **Rationale**: Merge markers, oversized binaries, build output in the tree, leftover debug prints, and god-files all corrupt the history in slightly different ways, but they share one property: they are almost always accidental. Rolling them into a single rule keeps the catalog honest about how much work each check is doing — none of them is a load-bearing axis on its own, so `minimal` / `standard` / `strict` do not need three separate entries to pick from.
+- **Enforced by**: `tests/governance/rules/repo-hygiene/check.sh`
+- **Exceptions**: Disable individual sub-checks via `GOVERNANCE_REPO_HYGIENE_DISABLE="key1,key2,..."`. The `debug-statements` sub-check supports line-level waivers (`# governance: allow-repo-hygiene <reason>`). Marked `always_install: true` — the merge-marker sub-check is high-signal and zero-false-positive, and bundling the siblings alongside it keeps hygiene coverage consistent regardless of preset.
 
 ### conventional-commits
 
@@ -169,6 +150,7 @@ If a specific change cannot satisfy a rule, document the deviation in the PR des
 - 2026-04-23 — @srikanth — Make each rule a true self-contained atom. Everything a rule needs — the `check.sh`, the Invariant snippet, the eval, plus any `lib/` (shared Python libs), `hooks/` (per-hook side-effect scripts), and `runtimes/` (per-runtime helpers) — now lives inside `rules/<id>/`. Install shape changed from flat `tests/governance/rules/<id>.sh` to folder-per-rule `tests/governance/rules/<id>/check.sh`, and `install_rule` copies the whole rule folder (minus `evals/`). The hook generator is now generic: it discovers rule-owned helpers by looking for `rules/<id>/hooks/<kind>.sh` and wires them in alongside `check.sh`, with no hardcoded references to any specific rule. Migrated `agent-token-accounting` in place — `scripts/governance/{lib,runtimes,agent-accounting.sh}` moved into the rule folder as `lib/`, `runtimes/`, and `hooks/pre-commit.sh`; the old `assets/scripts/` and `assets/githooks/pre-commit`+`commit-msg` are gone (the generator owns the dispatchers, and `prepare-commit-msg` relocated into the rule's `hooks/`). Adding, moving, or deleting a rule is now a single directory operation; a rule with Python libs no longer leaks into a top-level `scripts/` tree shared across unrelated rules. Still under [#23](https://github.com/Duaility/governance-kit/issues/23).
 - 2026-04-23 — @srikanth — Restructure `governance-bootstrap` around extensible **rule packs**. Rule scripts, Invariant snippets, manifests (`pack.yaml`), and pass/fail evals now live together under `governance-bootstrap/assets/packs/<pack>/`. Two packs ship in-tree: `core` (general-purpose rules, always selected) and `agent-governance` (promoted from this repo's `tests/governance/rules/` — `plan-per-issue`, `commit-issue-plan-match`, `issues-tracked`, `agent-token-accounting`). Bootstrap activation now discovers packs, unions their menus, applies a per-pack preset (`minimal` / `standard` / `strict`), and generates dispatcher hooks from manifest `hook:` declarations carrying an ownership marker (`# governance-kit:managed pack-version=<v>`) so re-runs are idempotent but unmarked pre-existing hooks still trip the collision detector. Introduces `scripts/test-packs.sh` (validates manifests, runs every eval, smoke-tests hook generation) and wires it into CI. Flat `assets/tests-bash/rules/` is gone. New reference `governance-bootstrap/references/AUTHORING_PACKS.md` documents pack schema, eval harness, and versioning for third-party packs. Also fixes a portability bug in `no-orphan-todos` discovered while authoring evals — `\b(TODO|FIXME)\b` is a silent no-op under BSD `git grep` on macOS; switched to portable `git grep -nwE '(TODO|FIXME)'`. Closes [#23](https://github.com/Duaility/governance-kit/issues/23).
 - 2026-04-23 — @srikanth — Re-bootstrap after `governance-reset`: reinstall `core + agent-governance` at the `standard` preset (16 rules including `doc-freshness`, which prior hand-customization had removed). Clean slate for the constitution text; evolution log and principles preserved.
+- 2026-04-23 — @srikanth — Roll up low-signal core rules into three substantive ones. `constitution-exists`, `agents-md-exists`, `readme-exists`, `license-exists`, `security-md-exists`, `architecture-doc-exists`, `ci-workflow-exists`, `env-example-current`, and `hooks-configured` collapse into `required-docs`. `no-large-files`, `no-committed-build-artifacts`, `no-merge-conflict-markers`, `no-debug-statements`, and `file-size-limit` collapse into `repo-hygiene`. `no-secrets` and `dotenv-gitignored` collapse into `secrets-hygiene`. The three new rules expose `GOVERNANCE_<NAME>_DISABLE` env vars as per-sub-check opt-outs — tradeoff acknowledged: one invariant paragraph now justifies a bag of checks, but the `core` pack shrinks from 21 rules to 8 and the `minimal`/`standard`/`strict` presets stop burying the substantive entries alongside a pile of `[ -f X ] || fail` checks. Waiver strings for the formerly-independent rules migrate: `allow-no-secrets` → `allow-secrets-hygiene`, `allow-no-debug-statements` → `allow-repo-hygiene`. Closes [#29](https://github.com/Duaility/governance-kit/issues/29).
 
 ## Escape hatches
 
