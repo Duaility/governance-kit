@@ -1,4 +1,4 @@
-<!-- last-verified: 2026-04-23 -->
+<!-- last-verified: 2026-04-24 -->
 
 # AGENTS.md
 
@@ -17,16 +17,14 @@ See the **Compliance** section of [CONSTITUTION.md](CONSTITUTION.md) for the ful
 
 ## What this repo is
 
-`governance-kit` ships four Claude Code / Codex skills that together implement **governance-driven development** — a workflow where every rule in a `CONSTITUTION.md` has a matching executable test, and the two evolve as one commit.
+`governance-kit` ships Claude Code / Codex skills that together implement **governance-driven development** — a workflow where every rule in a `CONSTITUTION.md` has a matching executable test, and the two evolve as one commit.
 
-The four skills:
+The user-facing entry point is the unified [`governance`](governance/SKILL.md) skill. It exposes four verb families — `init`, `uninstall`, `pack {search,add,update,remove,list}`, `rule {add,modify,remove}` — and is the single writer for every governance-kit lifecycle operation.
 
 | Skill | Purpose |
 |---|---|
-| [governance-bootstrap](governance-bootstrap/SKILL.md) | Scaffolds CONSTITUTION.md, `tests/governance/`, pre-commit + commit-msg hooks, and a CI workflow. |
-| [governance-amend](governance-amend/SKILL.md) | Adds or modifies a rule atomically across test + constitution + evolution log. |
+| [governance](governance/SKILL.md) | **User-facing entry point.** Unified verb surface: `init`, `uninstall`, `pack *`, `rule *`. |
 | [governance-gardener](governance-gardener/SKILL.md) | Walks the governance surface and produces a Governance Health Report flagging blind spots, dead rules, escape-hatch friction, and doc drift. Optional follow-up actions open PRs. |
-| [governance-reset](governance-reset/SKILL.md) | Cleanly uninstalls a previously bootstrapped setup — reverses every bootstrap side-effect with ownership-marker discipline. Dry-run / soft / hard modes. Use for a clean slate before re-bootstrapping or for opting out. |
 
 ## How governance works here
 
@@ -47,11 +45,17 @@ governance-kit/
 ├── CONSTITUTION.md              # Rules + rationale. Edit alongside the tests.
 ├── README.md                    # Short public overview.
 ├── AGENTS.md                    # You are here.
-├── governance-bootstrap/        # Skill 1 — scaffolds governance in any repo.
+├── governance/                  # Unified lifecycle skill — verb entry point.
 │   ├── SKILL.md
 │   ├── assets/                  # Templates copied into target repos.
-│   │   └── packs/               # Rule packs (core, agent-governance, ...).
-│   │       └── <pack>/
+│   │   ├── CONSTITUTION.template.md
+│   │   ├── AGENTS.directive.md
+│   │   ├── governance.yml
+│   │   ├── setup-clone.sh
+│   │   ├── tests-bash/          # Universal bash runner shipped into every target repo.
+│   │   ├── amend/               # Templates for `rule *` (rule.template.sh, invariant-section.template.md).
+│   │   └── packs/               # Kit-bundled packs — today: `core` plus the shared `lib/`.
+│   │       └── core/
 │   │           ├── pack.yaml           # pack id + presets
 │   │           └── rules/
 │   │               └── <rule-id>/      # self-contained rule folder
@@ -59,18 +63,20 @@ governance-kit/
 │   │                   ├── check.sh        # executable test
 │   │                   ├── constitution.md # Invariant subsection
 │   │                   └── evals/test.sh   # pass/fail fixtures
-│   └── references/              # RULES_CATALOG.md, NATIVE_TESTS.md,
-│                                #   AUTHORING_PACKS.md.
-├── governance-amend/            # Skill 2 — adds/modifies a rule atomically.
+│   ├── references/              # INIT_FLOW.md, UNINSTALL_FLOW.md, RULE_AMEND_FLOW.md,
+│   │                            #   VERBS.md, RULE_VERBS.md, PACK_VERBS.md,
+│   │                            #   RULES_CATALOG.md, AUTHORING_PACKS.md, NATIVE_TESTS.md,
+│   │                            #   RULE_AUTHORING.md, UNINSTALL_MATRIX.md,
+│   │                            #   MANIFEST_SCHEMA.md, AGENT_TOKEN_ACCOUNTING.md.
+│   └── evals/                   # Behavioral fixtures for the verbs.
+├── extensions/                  # Community pack catalog + monorepo of community-shaped packs.
+│   ├── catalog.community.json
+│   ├── catalog.schema.json
+│   └── packs/
+│       └── agent-governance/    # duaility/agent-governance — authored as a community pack.
+├── governance-gardener/         # Walks governance, emits a health report.
 │   ├── SKILL.md
 │   └── ...
-├── governance-gardener/         # Skill 3 — walks governance, emits a health report.
-│   ├── SKILL.md
-│   └── ...
-├── governance-reset/            # Skill 4 — uninstalls a bootstrapped setup cleanly.
-│   ├── SKILL.md
-│   ├── references/              # UNINSTALL_MATRIX.md, MANIFEST_SCHEMA.md.
-│   └── evals/
 ├── tests/governance/            # Rule tests for THIS repo (dogfood).
 │   ├── run.sh
 │   ├── lib.sh
@@ -81,7 +87,7 @@ governance-kit/
 
 ## Working in this repo
 
-### Modifying a skill
+### Modifying the governance skill
 
 Each skill is a self-contained directory with a `SKILL.md` (frontmatter + instructions), `assets/` (files copied to target repos), `references/` (deep-dive docs loaded on demand), and `evals/` (behavioral tests).
 
@@ -89,18 +95,19 @@ When editing a skill's behavior, keep the `description:` frontmatter field tight
 
 ### Adding or changing a governance rule
 
-Do not edit [CONSTITUTION.md](CONSTITUTION.md) by hand. Invoke the `governance-amend` skill — it enforces the cardinal rule (test + constitution + evolution-log entry all land together). See [governance-amend/SKILL.md](governance-amend/SKILL.md).
+Do not edit [CONSTITUTION.md](CONSTITUTION.md) by hand. Invoke the `governance` skill's `rule *` verbs — they enforce the cardinal rule (test + constitution + evolution-log entry all land together). See [governance/references/RULE_AMEND_FLOW.md](governance/references/RULE_AMEND_FLOW.md).
 
 ### Adding a new rule to the catalog
 
-Rules live inside **packs** under `governance-bootstrap/assets/packs/<pack>/`.
+Rules live inside **packs**, each at its own pack root. Today:
+`core` lives at `governance/assets/packs/core/` (kit-bundled),
+and `duaility/agent-governance` lives at `extensions/packs/agent-governance/`
+(community-shaped, authored as if hosted in its own repo but colocated
+here under the monorepo layout — see `extensions/README.md`).
 Each rule is a self-contained folder — test, snippet, metadata, and
-eval all live together under `rules/<rule-id>/`. Two packs ship in-tree
-today: `core` (general rules) and `agent-governance` (rules for repos
-operating under agent-driven development).
+eval all live together under `rules/<rule-id>/`.
 
-1. Create `governance-bootstrap/assets/packs/<pack>/rules/<id>/` and
-   populate it with:
+1. Create `<pack-root>/<pack-dir>/rules/<id>/` and populate it with:
    - `rule.yaml` — scalar fields `category`, `recommended`, `summary`,
      `surface` (`repo-state`|`change-set`), `hook`
      (`pre-commit`|`commit-msg`|`prepare-commit-msg`|`none`), optional
@@ -119,9 +126,9 @@ operating under agent-driven development).
      `git mv` away from relocating.
 2. If the rule should be part of `minimal` / `standard` / `strict`,
    add its id to the relevant preset block in the pack's `pack.yaml`.
-3. Document it in [governance-bootstrap/references/RULES_CATALOG.md](governance-bootstrap/references/RULES_CATALOG.md).
+3. Document it in [governance/references/RULES_CATALOG.md](governance/references/RULES_CATALOG.md).
 4. For authoring an entirely new pack, see
-   [governance-bootstrap/references/AUTHORING_PACKS.md](governance-bootstrap/references/AUTHORING_PACKS.md).
+   [governance/references/AUTHORING_PACKS.md](governance/references/AUTHORING_PACKS.md).
 
 ### Commit messages
 
@@ -132,9 +139,10 @@ Conventional Commits are enforced. Prefixes: `feat`, `fix`, `chore`, `docs`, `re
 This repo's skills are made available to local agent runtimes via symlinks:
 
 ```sh
-ln -s $(pwd)/governance-bootstrap ~/.claude/skills/governance-bootstrap
-ln -s $(pwd)/governance-bootstrap ~/.codex/skills/governance-bootstrap
-# ...and the same for governance-amend, governance-gardener, and governance-reset.
+ln -s $(pwd)/governance ~/.claude/skills/governance
+ln -s $(pwd)/governance ~/.codex/skills/governance
+ln -s $(pwd)/governance-gardener ~/.claude/skills/governance-gardener
+ln -s $(pwd)/governance-gardener ~/.codex/skills/governance-gardener
 ```
 
 Edits to source files flow to both runtimes live.
@@ -142,7 +150,7 @@ Edits to source files flow to both runtimes live.
 ## Further reading
 
 - [CONSTITUTION.md](CONSTITUTION.md) — the live rule set and amendment process.
-- [governance-bootstrap/references/RULES_CATALOG.md](governance-bootstrap/references/RULES_CATALOG.md) — every ready-made rule and its check.
-- [governance-bootstrap/references/AUTHORING_PACKS.md](governance-bootstrap/references/AUTHORING_PACKS.md) — writing a third-party pack.
-- [governance-bootstrap/references/NATIVE_TESTS.md](governance-bootstrap/references/NATIVE_TESTS.md) — porting bash rules to pytest / jest / go test, husky / pre-commit.com snippets.
+- [governance/references/RULES_CATALOG.md](governance/references/RULES_CATALOG.md) — every ready-made rule and its check.
+- [governance/references/AUTHORING_PACKS.md](governance/references/AUTHORING_PACKS.md) — writing a third-party pack.
+- [governance/references/NATIVE_TESTS.md](governance/references/NATIVE_TESTS.md) — porting bash rules to pytest / jest / go test, husky / pre-commit.com snippets.
 - [README.md](README.md) — the public-facing overview.

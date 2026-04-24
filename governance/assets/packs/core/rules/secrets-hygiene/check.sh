@@ -31,6 +31,7 @@ if is_enabled no-secrets; then
         ":!tests/governance/rules/secrets-hygiene/**"
         ":!CONSTITUTION.md"
         ":!governance/assets/packs/*/rules/*/evals/**"
+        ":!extensions/packs/*/rules/*/evals/**"
         ":!*.lock"
         ":!*.lockfile"
         ":!package-lock.json"

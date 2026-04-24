@@ -3,7 +3,7 @@
 #
 # Two jobs:
 #   1. Smoke-test the loader against every pack in
-#      governance-bootstrap/assets/packs/*. Confirms the manifest parses,
+#      governance/assets/packs/*. Confirms the manifest parses,
 #      each listed rule resolves, every declared preset unrolls, and
 #      referenced script/snippet files exist on disk.
 #   2. Run every packs/*/evals/*/test.sh — pack-author tests that prove
@@ -15,10 +15,26 @@
 set -u
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-PACKS_ROOT="$ROOT/governance-bootstrap/assets/packs"
+PACKS_ROOT="$ROOT/governance/assets/packs"
+# Pack-search roots. `governance/assets/packs/` hosts the in-tree
+# `core` pack plus the shared lib. `extensions/packs/` is the monorepo home
+# for community-shaped packs (authored in the `<author>/<slug>` id form) that
+# ship alongside the kit.
+PACK_ROOTS=(
+    "$PACKS_ROOT"
+    "$ROOT/extensions/packs"
+)
 LOADER="$PACKS_ROOT/lib/packs.sh"
 HOOKS_LIB="$PACKS_ROOT/lib/hooks.sh"
 INSTALL_LIB="$PACKS_ROOT/lib/install.sh"
+
+list_packs_all() {
+    local root
+    for root in "${PACK_ROOTS[@]}"; do
+        [[ -d "$root" ]] || continue
+        list_packs "$root" || true
+    done
+}
 
 if [[ ! -f "$LOADER" ]]; then
     echo "✗ loader missing: $LOADER" >&2
@@ -77,12 +93,12 @@ while IFS=$'\t' read -r pack_id pack_dir; do
 
     # always_install is reserved to core — validate_pack already enforced
     # this above.
-done < <(list_packs "$PACKS_ROOT")
+done < <(list_packs_all)
 
 pack_dirs=()
 while IFS=$'\t' read -r _ pack_dir; do
     [[ -n "$pack_dir" ]] && pack_dirs+=("$pack_dir")
-done < <(list_packs "$PACKS_ROOT")
+done < <(list_packs_all)
 if ! errors="$(validate_pack_set "${pack_dirs[@]}")"; then
     fail=1
     printf '%s\n' "$errors" | sed 's/^/  ✗ /'
@@ -114,7 +130,7 @@ while IFS=$'\t' read -r pack_id pack_dir; do
         fi
         printf '%s\t%s\t%s\t%s\n' "$rid" "${hk:-none}" "$surface" "$rule_folder" >> "$hook_spec"
     done < <(rules_for "$pack_dir")
-done < <(list_packs "$PACKS_ROOT")
+done < <(list_packs_all)
 
 hook_out="$hook_tmp/hooks"
 mkdir -p "$hook_out"
@@ -272,8 +288,8 @@ jobs:
       - run: bash tests/governance/run.sh
 EOF
 
-    cp "$ROOT/governance-bootstrap/assets/tests-bash/run.sh" tests/governance/run.sh
-    cp "$ROOT/governance-bootstrap/assets/tests-bash/lib.sh" tests/governance/lib.sh
+    cp "$ROOT/governance/assets/tests-bash/run.sh" tests/governance/run.sh
+    cp "$ROOT/governance/assets/tests-bash/lib.sh" tests/governance/lib.sh
     chmod +x tests/governance/run.sh
 
     core_pack="$PACKS_ROOT/core"
@@ -335,13 +351,18 @@ printf '\n── pack evals ─────────────────�
 while IFS= read -r eval_script; do
     [[ -z "$eval_script" ]] && continue
     eval_count=$(( eval_count + 1 ))
-    label="${eval_script#$PACKS_ROOT/}"
+    label="$eval_script"
+    for root in "${PACK_ROOTS[@]}"; do
+        label="${label#$root/}"
+    done
     printf '  eval: %s\n' "$label"
     if ! bash "$eval_script"; then
         fail=1
         printf '    ✗ eval failed\n'
     fi
-done < <(find "$PACKS_ROOT" -type f -path '*/rules/*/evals/test.sh' 2>/dev/null | sort)
+done < <(for root in "${PACK_ROOTS[@]}"; do
+    [[ -d "$root" ]] && find "$root" -type f -path '*/rules/*/evals/test.sh' 2>/dev/null
+done | sort)
 
 printf '\n────────────────────────────────────────\n'
 if [[ $fail -ne 0 ]]; then

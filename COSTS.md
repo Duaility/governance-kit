@@ -14,7 +14,7 @@ The `agent-token-accounting` rule's `hooks/pre-commit.sh` appends a row
 before git snapshots the tree; its `hooks/prepare-commit-msg.sh` stamps
 the matching trailers. Both live inside the rule folder at
 `tests/governance/rules/agent-token-accounting/hooks/`. See
-[governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md](governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md)
+[governance/references/AGENT_TOKEN_ACCOUNTING.md](governance/references/AGENT_TOKEN_ACCOUNTING.md)
 for wiring instructions.
 
 ## Ledger
@@ -85,3 +85,16 @@ Schema:
 | claude-code-8165bc21-e5b-1777004910 | claude-code | 8165bc21-e5be-420c-a7b8-b1ca86e21e68 | #29 | claude-opus-4-7 | 5 | 5831 | 459790 | 2872 | 8708 | 0.3382 | feat(packs): roll up low-signal core rules into substantive ones (#29) |
 | claude-code-8165bc21-e5b-1777005202 | claude-code | 8165bc21-e5be-420c-a7b8-b1ca86e21e68 | #29 | claude-opus-4-7 | 34 | 13674 | 1910958 | 6014 | 19722 | 1.1915 | ci(pack-tests): install uv so packctl.py can run (#29) |
 | claude-code-8165bc21-e5b-1777005219 | claude-code | 8165bc21-e5be-420c-a7b8-b1ca86e21e68 | #29 | claude-opus-4-7 | 3 | 1839 | 316265 | 1657 | 3499 | 0.2111 | ci(pack-tests): install uv so packctl.py can run (#29) |
+| claude-code-ee6dceb1-16d-1777007136 | claude-code | ee6dceb1-16d7-404c-a5bb-46a72dc01a2b | #31 | claude-opus-4-7 | 81 | 175876 | 3032992 | 27157 | 203114 | 3.2951 | feat(packs): formalize pack contract with kit version + capability schema (#31) |
+| claude-code-ee6dceb1-16d-1777007177 | claude-code | ee6dceb1-16d7-404c-a5bb-46a72dc01a2b | #31 | claude-opus-4-7 | 5 | 5201 | 429176 | 2135 | 7341 | 0.3005 | feat(packs): formalize pack contract with kit version + capability schema (#31) |
+| claude-code-ee6dceb1-16d-1777007224 | claude-code | ee6dceb1-16d7-404c-a5bb-46a72dc01a2b | #31 | claude-opus-4-7 | 8 | 4842 | 721010 | 3443 | 8293 | 0.4769 | feat(extensions): add community pack catalog scaffold (#31) |
+| claude-code-ee6dceb1-16d-1777007241 | claude-code | ee6dceb1-16d7-404c-a5bb-46a72dc01a2b | #31 | claude-opus-4-7 | 3 | 2098 | 277709 | 1513 | 3614 | 0.1898 | feat(extensions): add community pack catalog scaffold (#31) |
+| claude-code-ee6dceb1-16d-1777007410 | claude-code | ee6dceb1-16d7-404c-a5bb-46a72dc01a2b | #31 | claude-opus-4-7 | 19 | 17579 | 1926926 | 10166 | 27764 | 1.3276 | feat(governance): scaffold unified governance skill with init and uninstall verb |
+| claude-code-ee6dceb1-16d-1777012955 | claude-code | ee6dceb1-16d7-404c-a5bb-46a72dc01a2b | #31 | claude-opus-4-7 | 304 | 351318 | 19484531 | 154943 | 506565 | 15.8131 | feat(governance): land pack verbs with SHA pinning, lockfile, and capability enf |
+| claude-code-ee6dceb1-16d-1777013078 | claude-code | ee6dceb1-16d7-404c-a5bb-46a72dc01a2b | #31 | claude-opus-4-7 | 18 | 16230 | 2213358 | 10712 | 26960 | 1.4760 | feat(governance): land rule verbs via delegation to governance-amend atomic-trip |
+| claude-code-ee6dceb1-16d-1777013248 | claude-code | ee6dceb1-16d7-404c-a5bb-46a72dc01a2b | #31 | claude-opus-4-7 | 26 | 33321 | 3636818 | 16162 | 49509 | 2.4308 | feat(extensions): seed catalog with forward-looking agent-governance entry (#31) |
+| claude-code-ee6dceb1-16d-1777013411 | claude-code | ee6dceb1-16d7-404c-a5bb-46a72dc01a2b | #31 | claude-opus-4-7 | 18 | 20086 | 2804893 | 16994 | 37098 | 1.9529 | feat(governance): soft-retire legacy lifecycle skills in favor of unified govern |
+| claude-code-ee6dceb1-16d-1777014401 | claude-code | ee6dceb1-16d7-404c-a5bb-46a72dc01a2b | #31 | claude-opus-4-7 | 138 | 212740 | 11001680 | 51364 | 264242 | 8.1153 | feat(packs): adopt monorepo layout for community-shaped packs (#31) |
+| claude-code-9e05791b-0ee-1777016229 | claude-code | 9e05791b-0ee0-423e-b0c8-2234df57840a | #31 | claude-opus-4-7 | 299 | 800940 | 23858935 | 163357 | 964596 | 21.0208 | refactor(governance): physically retire legacy lifecycle skills into unified gov |
+| claude-code-9e05791b-0ee-1777017833 | claude-code | 9e05791b-0ee0-423e-b0c8-2234df57840a | #31 | claude-opus-4-7 | 92 | 180009 | 7092007 | 25609 | 205710 | 5.3117 | fix(governance): address codex review on PR #32 (#31) |
+| claude-code-9e05791b-0ee-1777017859 | claude-code | 9e05791b-0ee0-423e-b0c8-2234df57840a | #31 | claude-opus-4-7 | 4 | 3933 | 462351 | 1887 | 5824 | 0.3030 | fix(governance): address codex review on PR #32 (#31) |
