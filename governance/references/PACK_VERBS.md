@@ -2,7 +2,7 @@
 
 # governance pack * — verb flows
 
-Authoritative flow for the `governance pack {search,add,update,remove,list}` verbs. The unified `governance` skill dispatches to these flows; the supporting helpers live in `governance-bootstrap/assets/packs/lib/packverb.py` (and reuse pack/rule manifest loaders from `packctl.py`).
+Authoritative flow for the `governance pack {search,add,update,remove,list}` verbs. The unified `governance` skill dispatches to these flows; the supporting helpers live in `governance/assets/packs/lib/packverb.py` (and reuse pack/rule manifest loaders from `packctl.py`).
 
 ## Common concepts
 
@@ -70,8 +70,8 @@ If `query` is omitted, print the full catalog. If the catalog file is missing, f
    - If a rule with the same id is already installed (from `.governance-kit/installed-packs.yaml`), show `diff -ruN <installed-rule-dir> <fetched-rule-dir>/<rule-id>` so the user sees exactly what `check.sh` code is about to start running on their commits.
    - If the rule is new, show the rule folder tree and the first 50 lines of `check.sh`.
    - **Confirm before proceeding.** This step is the user's last chance to reject.
-6. **Install.** Reuse `install_rule_folder` from `governance-bootstrap/assets/packs/lib/install.sh`: copy each rule folder into `tests/governance/rules/<rule-id>/` minus the `evals/` directory, make scripts executable, lay down `install-assets/` where applicable.
-7. **Regenerate the hook dispatcher.** Reuse the hook-generation path from `governance-bootstrap/assets/packs/lib/hooks.sh`. A pack add may introduce rules with `hook: commit-msg` or `hook: prepare-commit-msg` that require adding dispatchers.
+6. **Install.** Reuse `install_rule_folder` from `governance/assets/packs/lib/install.sh`: copy each rule folder into `tests/governance/rules/<rule-id>/` minus the `evals/` directory, make scripts executable, lay down `install-assets/` where applicable.
+7. **Regenerate the hook dispatcher.** Reuse the hook-generation path from `governance/assets/packs/lib/hooks.sh`. A pack add may introduce rules with `hook: commit-msg` or `hook: prepare-commit-msg` that require adding dispatchers.
 8. **Update the lockfile.** `packverb lock-add .governance/packs.lock <pack-id> <ref> <sha> [--subpath <s>] [--min-kit <v>] --rule <id> ...` for each installed rule.
 9. **Update the install manifest.** Append the new rules to `.governance-kit/installed-packs.yaml` under the pack id, using the existing `write_installed_manifest` contract. The manifest is the ownership ledger `uninstall` trusts.
 10. **Report.** Print the pinned SHA, the rule ids installed, and the updated hook scripts.

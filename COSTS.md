@@ -14,7 +14,7 @@ The `agent-token-accounting` rule's `hooks/pre-commit.sh` appends a row
 before git snapshots the tree; its `hooks/prepare-commit-msg.sh` stamps
 the matching trailers. Both live inside the rule folder at
 `tests/governance/rules/agent-token-accounting/hooks/`. See
-[governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md](governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md)
+[governance/references/AGENT_TOKEN_ACCOUNTING.md](governance/references/AGENT_TOKEN_ACCOUNTING.md)
 for wiring instructions.
 
 ## Ledger
@@ -95,3 +95,4 @@ Schema:
 | claude-code-ee6dceb1-16d-1777013248 | claude-code | ee6dceb1-16d7-404c-a5bb-46a72dc01a2b | #31 | claude-opus-4-7 | 26 | 33321 | 3636818 | 16162 | 49509 | 2.4308 | feat(extensions): seed catalog with forward-looking agent-governance entry (#31) |
 | claude-code-ee6dceb1-16d-1777013411 | claude-code | ee6dceb1-16d7-404c-a5bb-46a72dc01a2b | #31 | claude-opus-4-7 | 18 | 20086 | 2804893 | 16994 | 37098 | 1.9529 | feat(governance): soft-retire legacy lifecycle skills in favor of unified govern |
 | claude-code-ee6dceb1-16d-1777014401 | claude-code | ee6dceb1-16d7-404c-a5bb-46a72dc01a2b | #31 | claude-opus-4-7 | 138 | 212740 | 11001680 | 51364 | 264242 | 8.1153 | feat(packs): adopt monorepo layout for community-shaped packs (#31) |
+| claude-code-9e05791b-0ee-1777016229 | claude-code | 9e05791b-0ee0-423e-b0c8-2234df57840a | #31 | claude-opus-4-7 | 299 | 800940 | 23858935 | 163357 | 964596 | 21.0208 | refactor(governance): physically retire legacy lifecycle skills into unified gov |

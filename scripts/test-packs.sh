@@ -3,7 +3,7 @@
 #
 # Two jobs:
 #   1. Smoke-test the loader against every pack in
-#      governance-bootstrap/assets/packs/*. Confirms the manifest parses,
+#      governance/assets/packs/*. Confirms the manifest parses,
 #      each listed rule resolves, every declared preset unrolls, and
 #      referenced script/snippet files exist on disk.
 #   2. Run every packs/*/evals/*/test.sh — pack-author tests that prove
@@ -15,8 +15,8 @@
 set -u
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-PACKS_ROOT="$ROOT/governance-bootstrap/assets/packs"
-# Pack-search roots. `governance-bootstrap/assets/packs/` hosts the in-tree
+PACKS_ROOT="$ROOT/governance/assets/packs"
+# Pack-search roots. `governance/assets/packs/` hosts the in-tree
 # `core` pack plus the shared lib. `extensions/packs/` is the monorepo home
 # for community-shaped packs (authored in the `<author>/<slug>` id form) that
 # ship alongside the kit.
@@ -288,8 +288,8 @@ jobs:
       - run: bash tests/governance/run.sh
 EOF
 
-    cp "$ROOT/governance-bootstrap/assets/tests-bash/run.sh" tests/governance/run.sh
-    cp "$ROOT/governance-bootstrap/assets/tests-bash/lib.sh" tests/governance/lib.sh
+    cp "$ROOT/governance/assets/tests-bash/run.sh" tests/governance/run.sh
+    cp "$ROOT/governance/assets/tests-bash/lib.sh" tests/governance/lib.sh
     chmod +x tests/governance/run.sh
 
     core_pack="$PACKS_ROOT/core"

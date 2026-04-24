@@ -111,6 +111,21 @@ target to point at.
   frontmatter now advertises rule-amendment aliases so the unified
   skill fires on "add a rule" / "amend the constitution" / "new
   invariant" without needing to mention `governance-amend` by name.
+- **Step 7 — physical retirement of legacy skills:** `governance-bootstrap/`,
+  `governance-amend/`, and `governance-reset/` are deleted. Their assets
+  (`assets/packs/`, `assets/amend/`, plus each skill's `evals/`) moved under
+  `governance/assets/` and `governance/evals/`; their `references/` merged
+  into `governance/references/`; the per-lifecycle SKILL.md prose was
+  ported into three flow references — `INIT_FLOW.md`, `UNINSTALL_FLOW.md`,
+  `RULE_AMEND_FLOW.md` — that the unified `governance/SKILL.md` now
+  points at directly (no more delegation). Every live reference to
+  `governance-bootstrap/`, `governance-amend/`, `governance-reset/` paths
+  has been rewritten; historical snapshots (`plans/*`, `CONSTITUTION.md`
+  evolution log, `QUALITY.md` debt log) retain their original paths as
+  frozen history. `AGENTS.md`, `README.md`, and `ARCHITECTURE.md` now
+  describe only `governance/` and `governance-gardener/`. Both
+  `scripts/test-packs.sh` and `tests/governance/run.sh` pass green after
+  the move.
 - **Step 3 — `governance pack *` verbs:** `packctl` now owns ref parsing
   (`gh:owner/repo[/subpath][@rev]`), shared-cache resolution
   (`${GOVERNANCE_KIT_HOME:-$HOME/.governance-kit}/packs/<id>@<sha>/`),

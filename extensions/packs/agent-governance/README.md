@@ -43,8 +43,8 @@ folder:
 Bootstrap copies the whole folder into `tests/governance/rules/agent-token-accounting/`
 and the hook generator wires the two `hooks/*.sh` helpers into the
 dispatchers automatically — no separate infrastructure step. A companion
-`COSTS.md` must exist (templated from `governance-bootstrap/assets/COSTS.template.md`);
+`COSTS.md` must exist (templated from `governance/assets/COSTS.template.md`);
 the `check.sh` treats it as the ledger of record.
 
-See [`governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md`](../../../governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md)
+See [`governance/references/AGENT_TOKEN_ACCOUNTING.md`](../../../governance/references/AGENT_TOKEN_ACCOUNTING.md)
 for the detailed wiring and runtime-specific behavior.

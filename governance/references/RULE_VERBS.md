@@ -2,7 +2,7 @@
 
 # governance rule * — verb flows
 
-Authoritative flow for the hand-authored rule verbs: `governance rule add`, `governance rule modify`, `governance rule remove`. These verbs replace the `governance-amend` skill; until that skill is retired, `rule *` delegates to its flow verbatim.
+Authoritative flow for the hand-authored rule verbs: `governance rule add`, `governance rule modify`, `governance rule remove`.
 
 ## The atomic triple
 
@@ -12,16 +12,16 @@ Every rule amendment is **three logical changes, committed atomically**:
 2. An **Invariants** subsection in `CONSTITUTION.md` — the human-readable rule + rationale + enforcement pointer.
 3. A new entry in the `CONSTITUTION.md` **Evolution Log** — dated, one line per amendment.
 
-A commit that touches the rule folder without the matching constitution edits (or vice versa) is a broken amendment. The `governance-amend` flow refuses to finish with partial state on disk; `rule *` inherits that discipline.
+A commit that touches the rule folder without the matching constitution edits (or vice versa) is a broken amendment. The atomic-triple flow refuses to finish with partial state on disk; `rule *` inherits that discipline.
 
 ## `rule add <rule-id>`
 
 - **Aliases a user might type:** "add a governance rule", "new invariant", "amend the constitution", "add rule X".
-- **Authoritative flow:** [../../governance-amend/SKILL.md](../../governance-amend/SKILL.md) Steps 1–6.
+- **Authoritative flow:** [RULE_AMEND_FLOW.md](RULE_AMEND_FLOW.md) Steps 1–7.
 - **Assets used:**
-  - `../../governance-amend/assets/rule.template.sh` — `check.sh` skeleton.
-  - `../../governance-amend/assets/invariant-section.template.md` — constitution subsection skeleton.
-  - `../../governance-amend/references/RULE_AUTHORING.md` — rule-name rules, check patterns, smoke-test guidance.
+  - [`../assets/amend/rule.template.sh`](../assets/amend/rule.template.sh) — `check.sh` skeleton.
+  - [`../assets/amend/invariant-section.template.md`](../assets/amend/invariant-section.template.md) — constitution subsection skeleton.
+  - [RULE_AUTHORING.md](RULE_AUTHORING.md) — rule-name rules, check patterns, smoke-test guidance.
 - **Preconditions:** governance-kit must already be installed (`CONSTITUTION.md` present with `Invariants` + `Evolution Log` headings, `tests/governance/rules/` exists). If the kit is missing, stop and route to `governance init`.
 - **Smoke test before commit:** the drafted `check.sh` must pass against the current tree. If it fails on pre-existing violators, ask the single blocking question — **loosen** (which threshold), **grandfather** (add waivers to specific violators), or **block** (commit as-is, user fixes tree separately) — then act. Never ship a rule that red-lights HEAD.
 
@@ -34,7 +34,7 @@ A commit that touches the rule folder without the matching constitution edits (o
 ## `rule remove <rule-id>`
 
 - **Aliases a user might type:** "remove rule X", "retire rule X", "drop the invariant about X".
-- **Authoritative flow:** [../../governance-amend/SKILL.md](../../governance-amend/SKILL.md) — the removal branch at the end of Step 5.
+- **Authoritative flow:** [RULE_AMEND_FLOW.md](RULE_AMEND_FLOW.md) — the removal branch at the end of Step 5.
 - **Mechanics:**
   1. Delete `tests/governance/rules/<rule-id>/`.
   2. Remove the rule's **Invariants** subsection from `CONSTITUTION.md`.
@@ -45,5 +45,5 @@ A commit that touches the rule folder without the matching constitution edits (o
 ## Boundaries
 
 - `rule *` mutates **hand-authored** rules: things the user wrote for their own repo or that came from `core`. Rules installed via `governance pack add <community-pack>` are owned by the lockfile; edit them with `governance pack update` or by forking the upstream pack.
-- `rule *` does **not** run CI. The governance-amend flow commits the atomic triple; CI runs on the PR.
+- `rule *` does **not** run CI. The atomic-triple flow commits the three artifacts; CI runs on the PR.
 - When the user asks to "review" or "audit" rules rather than change one, route to `governance-gardener`.

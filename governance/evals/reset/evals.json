@@ -1,0 +1,49 @@
+{
+  "skill_name": "governance",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "We bootstrapped governance-kit into this repo months ago and the preset was wrong. I want a clean slate before re-running governance-bootstrap. Remove every governance artifact this repo has, including the seeded QUALITY.md and COSTS.md — we haven't put real content in them yet. Don't touch anything else.",
+      "expected_output": "The skill surveys the repo, detects a fully-installed governance surface driven by the .governance-kit/installed-packs.yaml manifest, classifies the state as fully-installed, asks the user for a mode (dry-run / soft / hard), and — given the user's 'include seeded docs' direction — proceeds in hard mode after explicit confirmation. It deletes every kit-owned artifact (constitution, tests/governance tree, CI workflow, managed hooks, manifest, AGENTS.md directive block, seeded docs). It unsets core.hooksPath only if it still points at .githooks. It leaves changes unstaged for the user to commit. It prints a summary naming mode, classification, source-of-truth, files deleted, and next command.",
+      "files": ["evals/files/bootstrapped-repo/"],
+      "assertions": [
+        "The skill read .governance-kit/installed-packs.yaml and reported 'Source of truth: manifest' (or equivalent)",
+        "The skill asked the user to choose a mode (dry-run / soft / hard) before executing",
+        "CONSTITUTION.md was deleted",
+        "tests/governance/ was deleted recursively (run.sh, lib.sh, every rules/<id>/ folder gone)",
+        ".github/workflows/governance.yml was deleted",
+        ".governance-kit/installed-packs.yaml was deleted (and the .governance-kit/ directory removed if it became empty)",
+        ".githooks/pre-commit, .githooks/commit-msg, and .githooks/prepare-commit-msg were deleted (each carried the line-2 governance-kit:managed marker)",
+        "AGENTS.md was edited in-place: the <!-- governance: rules-to-follow --> marker-bounded block is gone, but every other line of AGENTS.md is byte-identical to the fixture",
+        "QUALITY.md and COSTS.md were deleted (hard mode, as the user requested removing seeded docs)",
+        "The skill did not run git clean, git reset --hard, git stash, or any destructive git operation",
+        "The skill did not auto-commit the changes — the working tree shows the deletions as unstaged (or staged but uncommitted)",
+        "The final summary names the mode (hard), classification (fully-installed), and 'Next command: git status'"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "This repo has no governance setup. Reset it.",
+      "expected_output": "The skill surveys the repo, finds no manifest, no managed hooks, no CONSTITUTION.md, no tests/governance/ — classifies as none-detected — and reports 'nothing to remove' without asking for a mode. No files are modified. Idempotency contract: running reset on a clean repo is a success, not an error.",
+      "files": ["evals/files/clean-repo/"],
+      "assertions": [
+        "No files were created, deleted, or modified in the fixture",
+        "The skill classified the repo as none-detected (or equivalent wording)",
+        "The skill exited without asking the user for a mode, because there is nothing to mode-select over",
+        "The skill's final message tells the user the repo has no governance-kit footprint"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Reset governance. But only show me the plan — don't delete anything yet.",
+      "expected_output": "The skill runs the full survey and builds the execute plan, then honors the user's explicit dry-run request by printing the plan without executing. The working tree is byte-identical before and after. The summary is prefixed with 'would-' verbs so it is unambiguous that nothing happened.",
+      "files": ["evals/files/bootstrapped-repo/"],
+      "assertions": [
+        "No files were deleted or modified in the fixture",
+        "The skill explicitly chose dry-run mode (the user's request made the default obvious; no AskUserQuestion needed)",
+        "The summary lists the files that *would* be deleted, not files that were deleted",
+        "The summary's mode field reads 'dry-run'"
+      ]
+    }
+  ]
+}

@@ -9,14 +9,13 @@ The user-facing entry point is **[governance](governance/)** — a single skill 
 - `governance pack {search,add,update,remove,list}` — install and manage community rule packs. SHA-pinned via `.governance/packs.lock`, capability-enforced (`reads:` / `writes:` globs), diff-before-exec.
 - `governance rule {add,modify,remove}` — author, edit, or retire a rule as an atomic triple (rule folder + constitution subsection + Evolution Log entry, one commit).
 
-The following per-lifecycle skills are in **retirement in progress** under issue [#31](https://github.com/Duaility/governance-kit/issues/31): they still own the authoritative flows and assets that the unified skill delegates to, and will be deleted once the flows are absorbed and assets relocated.
+Companion skill:
 
-- **[governance-bootstrap](governance-bootstrap/)** — authoritative 8-step flow for `governance init`; owns the kit-bundled pack (`core`), templates, hook lib, and CI workflow. Community-shaped packs that ship alongside the kit live under [extensions/packs/](extensions/packs/) (today: `duaility/agent-governance`).
-- **[governance-amend](governance-amend/)** — authoritative atomic-triple flow for `governance rule {add,modify,remove}`.
-- **[governance-gardener](governance-gardener/)** — not superseded. Walks the governance surface and produces a dated Governance Health Report; pairs with the `doc-freshness` rule and hands rule-shaped candidates to `governance rule *`.
-- **[governance-reset](governance-reset/)** — authoritative 6-step flow for `governance uninstall`; owns the ownership-marker discipline and mode logic.
+- **[governance-gardener](governance-gardener/)** — walks the governance surface and produces a dated Governance Health Report; pairs with the `doc-freshness` rule and hands rule-shaped candidates back to `governance rule *`.
 
-See each skill's `SKILL.md` for activation flows and references.
+Community-shaped packs that ship alongside the kit live under [extensions/packs/](extensions/packs/) (today: `duaility/agent-governance`). The kit-bundled `core` pack lives at [governance/assets/packs/core/](governance/assets/packs/core/).
+
+See [governance/SKILL.md](governance/SKILL.md) for the activation flow and references.
 
 ## After cloning
 
