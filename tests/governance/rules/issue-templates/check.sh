@@ -44,23 +44,14 @@ if require_file "$config"; then
 fi
 
 if require_file "$proposal"; then
-    require_pattern "$proposal" '^name:[[:space:]]*Proposal$' "proposal form must be named Proposal"
-    require_pattern "$proposal" '^title:[[:space:]]*"proposal: <short summary>"$' "proposal title must use the proposal: prefix"
-    require_pattern "$proposal" '^labels:[[:space:]]*\["proposal"\]$' "proposal form must apply the proposal label"
     for id in context decision scope acceptance validation open-questions; do
         require_pattern "$proposal" "^[[:space:]]+id:[[:space:]]*$id$" "proposal form missing '$id' field"
-    done
-    for label in Context Decision Scope 'Acceptance criteria' Validation 'Open questions'; do
-        require_pattern "$proposal" "^[[:space:]]+label:[[:space:]]*$label$" "proposal form missing '$label' label"
     done
     require_count_at_least "$proposal" '^[[:space:]]+required:[[:space:]]*true$' 6 "all six proposal handoff fields must be required"
 fi
 
 if require_file "$bug"; then
-    require_pattern "$bug" '^name:[[:space:]]*Bug$' "bug form must be named Bug"
-    require_pattern "$bug" '^title:[[:space:]]*"bug: <short summary>"$' "bug title must use the bug: prefix"
-    require_pattern "$bug" '^labels:[[:space:]]*\["bug"\]$' "bug form must apply the bug label"
-    for id in what-happened expected repro environment notes; do
+    for id in what-happened expected repro environment; do
         require_pattern "$bug" "^[[:space:]]+id:[[:space:]]*$id$" "bug form missing '$id' field"
     done
     require_count_at_least "$bug" '^[[:space:]]+required:[[:space:]]*true$' 4 "core bug-report fields must be required"

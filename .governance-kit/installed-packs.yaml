@@ -27,7 +27,7 @@ packs:
       - id: doc-freshness
         installed_path: tests/governance/rules/doc-freshness
   - id: duaility/agent-governance
-    version: "0.1"
+    version: "0.2"
     rules:
       - id: plan-per-issue
         installed_path: tests/governance/rules/plan-per-issue

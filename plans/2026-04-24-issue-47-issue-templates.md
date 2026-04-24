@@ -32,6 +32,14 @@ with title prefixes that mirror Conventional Commit types so an issue
 - `duaility/agent-governance` pack assets — ship the templates under
   the rule's `install-assets/` tree so newly bootstrapped repos start
   green.
+- Rule scope: check only the load-bearing invariant (required field
+  IDs exist and `required: true` flag count). Leave cosmetic surface
+  (form `name`, `title` placeholder, `labels`, human-readable section
+  labels) free for downstream consumers to customize — the `id` is
+  the structured identifier that keeps the handoff meaningful.
+- Bump `duaility/agent-governance` from `0.1` → `0.2` — adding
+  `issue-templates` to the `standard` preset is a breaking change
+  for existing pack consumers.
 
 ## Non-goals
 

@@ -22,7 +22,7 @@
 
 id: duaility/agent-governance
 name: Agent-governance rules
-version: "0.1"
+version: "0.2"
 min_governance_kit: "0.2"
 description: Rules for repos operating under agent-driven development.
 author: governance-kit

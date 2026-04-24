@@ -62,8 +62,9 @@ body:
       label: Validation
       description: Tests, governance checks, docs, or manual verification that prove completion.
       placeholder: |
-        - `bash tests/governance/run.sh`
-        - New issue picker shows this template
+        - Unit / integration tests pass
+        - Manual check: <what you clicked / ran to confirm>
+        - Governance / lint suite green
     validations:
       required: true
 
