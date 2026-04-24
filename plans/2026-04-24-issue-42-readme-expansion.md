@@ -73,6 +73,9 @@ Apply the issue's priority order:
 - Capability-scoping bullet rephrased as opt-in: `reads:` / `writes:`
   checks only fire when a rule declares them in `rule.yaml`, and no
   current core / `agent-governance` rules do.
+- Quickstart no longer pins `-g` — scope is a deployment choice, so
+  the Install section below shows both project and global variants
+  instead of prescribing one before the reader is oriented.
 - Install surface now leads with [`npx skills add Duaility/governance-kit`](https://github.com/vercel-labs/skills),
   the open CLI for the [Agent Skills](https://agentskills.io) format
   governance-kit already conforms to. Manual `ln -s` snippet kept as

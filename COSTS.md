@@ -115,3 +115,5 @@ Schema:
 | claude-code-cbdb387d-7ce-1777031639 | claude-code | cbdb387d-7ce5-4d1e-811c-554144dfd305 | #42 | claude-opus-4-7 | 27 | 14344 | 1026875 | 5772 | 20143 | 0.7475 | docs(readme): fix pack install ref and soften capability claim (#42) |
 | claude-code-cbdb387d-7ce-1777031677 | claude-code | cbdb387d-7ce5-4d1e-811c-554144dfd305 | #42 | claude-opus-4-7 | 3 | 5955 | 196756 | 1257 | 7215 | 0.1670 | docs(readme): fix pack install ref and soften capability claim (#42) |
 | claude-code-cbdb387d-7ce-1777032172 | claude-code | cbdb387d-7ce5-4d1e-811c-554144dfd305 | #42 | claude-opus-4-7 | 64 | 109038 | 2464308 | 13427 | 122529 | 2.2496 | docs(readme): lead install with npx skills, note Agent Skills conformance (#42) |
+| claude-code-cbdb387d-7ce-1777032452 | claude-code | cbdb387d-7ce5-4d1e-811c-554144dfd305 | #42 | claude-opus-4-7 | 26 | 5941 | 609661 | 3248 | 9215 | 0.4233 | docs(readme): drop -g from quickstart install command (#42) |
+| claude-code-cbdb387d-7ce-1777032488 | claude-code | cbdb387d-7ce5-4d1e-811c-554144dfd305 | #42 | claude-opus-4-7 | 3 | 5970 | 313338 | 1012 | 6985 | 0.2193 | docs(readme): drop -g from quickstart install command (#42) |

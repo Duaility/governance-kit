@@ -20,8 +20,8 @@ governance-kit collapses that triangle into one unit:
 ## Quickstart
 
 ```sh
-# Install the skill into your agent (globally, once)
-npx skills add Duaility/governance-kit -g
+# Install the skill into your agent (see Install below for scope options)
+npx skills add Duaility/governance-kit
 
 # In a fresh repo, launch your agent and ask it to bootstrap
 claude
