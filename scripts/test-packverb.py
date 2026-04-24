@@ -114,12 +114,12 @@ def test_sha_ref_uses_fetch_checkout_path(monkeypatch) -> None:
     assert not any("--branch" in call for call in calls)
 
 
-def test_init_flow_does_not_reference_deleted_required_docs_rules() -> None:
+def test_init_flow_does_not_reference_deleted_required_docs_directives() -> None:
     text = (ROOT / "governance" / "references" / "INIT_FLOW.md").read_text()
     stale = {"hooks-configured", "agents-md-exists"}
     found = sorted(
-        rule for rule in stale
-        if re.search(rf"(?<![\w-]){re.escape(rule)}(?![\w-])", text)
+        directive for directive in stale
+        if re.search(rf"(?<![\w-]){re.escape(directive)}(?![\w-])", text)
     )
     assert found == []
 

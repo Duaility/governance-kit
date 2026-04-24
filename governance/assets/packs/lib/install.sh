@@ -4,12 +4,12 @@
 # These helpers define the installed-repo contract that bootstrap, tests,
 # amend, and generated hooks agree on:
 #
-#   tests/governance/rules/<rule-id>/
-#     rule.yaml
+#   tests/governance/directives/<directive-id>/
+#     directive.yaml
 #     check.sh
 #     constitution.md
 #     hooks/*.sh        # optional hook side-effect helpers
-#     lib/              # optional rule-owned libraries
+#     lib/              # optional directive-owned libraries
 #     runtimes/         # optional runtime adapters
 #
 # Pack evals are author-side tests and are never copied into target repos.
@@ -20,10 +20,10 @@ _INSTALL_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "$_INSTALL_LIB_DIR/packs.sh"
 
-rule_supports_hook_strategy() {
-    local pack_dir="$1" rule_id="$2" hook_strategy="$3"
+directive_supports_hook_strategy() {
+    local pack_dir="$1" directive_id="$2" hook_strategy="$3"
     local required
-    required="$(rule_field "$pack_dir" "$rule_id" requires_hook_strategy)"
+    required="$(directive_field "$pack_dir" "$directive_id" requires_hook_strategy)"
     [[ -z "$required" || "$required" == "$hook_strategy" ]]
 }
 
@@ -41,15 +41,15 @@ copy_tree_without_evals() {
     done
 }
 
-install_rule_folder() {
-    local pack_dir="$1" rule_id="$2" target_repo="$3"
-    local src="$pack_dir/rules/$rule_id"
-    local dest="$target_repo/tests/governance/rules/$rule_id"
+install_directive_folder() {
+    local pack_dir="$1" directive_id="$2" target_repo="$3"
+    local src="$pack_dir/directives/$directive_id"
+    local dest="$target_repo/tests/governance/directives/$directive_id"
     [[ -d "$src" ]] || {
-        echo "install_rule_folder: missing rule folder: $src" >&2
+        echo "install_directive_folder: missing directive folder: $src" >&2
         return 1
     }
-    mkdir -p "$target_repo/tests/governance/rules"
+    mkdir -p "$target_repo/tests/governance/directives"
     copy_tree_without_evals "$src" "$dest"
     chmod +x "$dest/check.sh"
     if [[ -d "$dest/hooks" ]]; then
@@ -60,9 +60,9 @@ install_rule_folder() {
     fi
 }
 
-install_rule_assets() {
-    local pack_dir="$1" rule_id="$2" target_repo="$3" mode="${4:-augment}"
-    local assets_dir="$pack_dir/rules/$rule_id/install-assets"
+install_directive_assets() {
+    local pack_dir="$1" directive_id="$2" target_repo="$3" mode="${4:-augment}"
+    local assets_dir="$pack_dir/directives/$directive_id/install-assets"
     [[ -d "$assets_dir" ]] || return 0
 
     local src rel dest
@@ -78,23 +78,23 @@ install_rule_assets() {
     done < <(find "$assets_dir" -type f | sort)
 }
 
-build_hook_spec_from_installed_rules() {
+build_hook_spec_from_installed_directives() {
     local target_repo="$1" out="$2"
-    local rules_dir="$target_repo/tests/governance/rules"
+    local directives_dir="$target_repo/tests/governance/directives"
     : > "$out"
-    [[ -d "$rules_dir" ]] || return 0
+    [[ -d "$directives_dir" ]] || return 0
 
     local dir id hook surface
-    for dir in "$rules_dir"/*; do
-        [[ -d "$dir" && -f "$dir/rule.yaml" ]] || continue
+    for dir in "$directives_dir"/*; do
+        [[ -d "$dir" && -f "$dir/directive.yaml" ]] || continue
         id="${dir##*/}"
-        hook="$(uv run --quiet --isolated --with PyYAML python - "$dir/rule.yaml" hook <<'PY'
+        hook="$(uv run --quiet --isolated --with PyYAML python - "$dir/directive.yaml" hook <<'PY'
 import sys, yaml
 data = yaml.safe_load(open(sys.argv[1])) or {}
 print(data.get(sys.argv[2]) or "none")
 PY
 )"
-        surface="$(uv run --quiet --isolated --with PyYAML python - "$dir/rule.yaml" surface <<'PY'
+        surface="$(uv run --quiet --isolated --with PyYAML python - "$dir/directive.yaml" surface <<'PY'
 import sys, yaml
 data = yaml.safe_load(open(sys.argv[1])) or {}
 print(data.get(sys.argv[2]) or "")
@@ -120,9 +120,9 @@ write_installed_manifest() {
     #       [--collision <path>:<resolution>[:<extra>]]  (repeatable)
     #       [--path-b-framework husky|pre-commit] \
     #       [--path-b-entry <file>:<fingerprint>]        (repeatable)
-    #       -- <pack_dir> <rule_id> [<pack_dir> <rule_id> ...]
+    #       -- <pack_dir> <directive_id> [<pack_dir> <directive_id> ...]
     #
-    # Rules are grouped by pack in the output. `governance-reset` reads this
+    # Directives are grouped by pack in the output. `governance-reset` reads this
     # manifest as the authoritative record of what the kit owns in the repo;
     # every field below is consumed there. See
     # governance/references/MANIFEST_SCHEMA.md for the full contract.
@@ -172,13 +172,13 @@ write_installed_manifest() {
             printf 'setup_clone_script: %s\n' "$setup_clone_script"
         fi
 
-        # Rules grouped by pack. Iterate input pack_dir/rule_id pairs,
+        # Directives grouped by pack. Iterate input pack_dir/directive_id pairs,
         # bucket by pack id, emit a pack block per unique pack_dir.
         # Uses a space-delimited string as a portable "seen" set so we stay
         # compatible with bash 3.2 (macOS default; no associative arrays).
         local seen_pack=" "
         local pack_order=()
-        local pack_dir rule_id pack_id pack_version
+        local pack_dir directive_id pack_id pack_version
         local i=0
         local pairs=("$@")
         # First pass: collect pack order.
@@ -200,15 +200,15 @@ write_installed_manifest() {
                 pack_version="$(pack_field "$ordered_dir" version)"
                 printf '  - id: %s\n' "$ordered_id"
                 printf '    version: "%s"\n' "$pack_version"
-                printf '    rules:\n'
+                printf '    directives:\n'
                 i=0
                 while (( i < ${#pairs[@]} )); do
                     pack_dir="${pairs[i]}"
-                    rule_id="${pairs[i+1]}"
+                    directive_id="${pairs[i+1]}"
                     pack_id="$(pack_field "$pack_dir" id)"
                     if [[ "$pack_id" == "$ordered_id" ]]; then
-                        printf '      - id: %s\n' "$rule_id"
-                        printf '        installed_path: tests/governance/rules/%s\n' "$rule_id"
+                        printf '      - id: %s\n' "$directive_id"
+                        printf '        installed_path: tests/governance/directives/%s\n' "$directive_id"
                     fi
                     i=$(( i + 2 ))
                 done

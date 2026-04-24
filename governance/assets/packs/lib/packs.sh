@@ -26,17 +26,17 @@ pack_field() {
     _packctl pack-field "$1" "$2"
 }
 
-rule_dir() {
-    local pack_dir="$1" rule_id="$2"
-    printf '%s/rules/%s' "$pack_dir" "$rule_id"
+directive_dir() {
+    local pack_dir="$1" directive_id="$2"
+    printf '%s/directives/%s' "$pack_dir" "$directive_id"
 }
 
-rules_for() {
-    _packctl rules-for "$1"
+directives_for() {
+    _packctl directives-for "$1"
 }
 
-rule_field() {
-    _packctl rule-field "$1" "$2" "$3"
+directive_field() {
+    _packctl directive-field "$1" "$2" "$3"
 }
 
 preset_resolve() {
@@ -49,8 +49,8 @@ union_preset() {
     _packctl union-preset "$preset" "$@"
 }
 
-always_install_rules() {
-    _packctl always-install-rules "$1"
+always_install_directives() {
+    _packctl always-install-directives "$1"
 }
 
 validate_pack() {

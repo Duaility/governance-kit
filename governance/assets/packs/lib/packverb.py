@@ -173,28 +173,28 @@ def _matches_any(path: str, globs: list[str]) -> bool:
     return False
 
 
-def capability_violations(rule_dir: Path) -> list[str]:
-    """Return [] when the rule's check.sh stays within declared reads/writes globs.
+def capability_violations(directive_dir: Path) -> list[str]:
+    """Return [] when the directive's check.sh stays within declared reads/writes globs.
 
-    Rules that declare neither reads: nor writes: opt out of the check.
+    Directives that declare neither reads: nor writes: opt out of the check.
     """
-    rule_yaml = rule_dir / "rule.yaml"
-    if not rule_yaml.is_file():
-        return [f"{rule_dir}: rule.yaml missing"]
-    manifest = load_yaml(rule_yaml)
+    directive_yaml = directive_dir / "directive.yaml"
+    if not directive_yaml.is_file():
+        return [f"{directive_dir}: directive.yaml missing"]
+    manifest = load_yaml(directive_yaml)
     reads = manifest.get("reads") or []
     writes = manifest.get("writes") or []
     if not isinstance(reads, list) or not isinstance(writes, list):
-        return [f"{rule_dir}: reads/writes must be lists of globs"]
+        return [f"{directive_dir}: reads/writes must be lists of globs"]
     if not reads and not writes:
         return []
 
     allowed = [str(g) for g in (*reads, *writes)]
     violations: list[str] = []
-    for token in _collect_referenced_paths(rule_dir / "check.sh"):
+    for token in _collect_referenced_paths(directive_dir / "check.sh"):
         if not _matches_any(token, allowed):
             violations.append(
-                f"{rule_dir}: check.sh references {token!r} outside declared reads/writes globs"
+                f"{directive_dir}: check.sh references {token!r} outside declared reads/writes globs"
             )
     return violations
 
@@ -258,7 +258,7 @@ def cmd_validate_pack(args: argparse.Namespace) -> int:
 
 
 def cmd_capability_check(args: argparse.Namespace) -> int:
-    violations = capability_violations(Path(args.rule_dir))
+    violations = capability_violations(Path(args.directive_dir))
     if violations:
         print("\n".join(violations))
         return 1
@@ -280,7 +280,7 @@ def cmd_lock_add(args: argparse.Namespace) -> int:
         "subpath": args.subpath or "",
         "min_governance_kit": args.min_kit or "",
         "installed_at": _utc_now(),
-        "rules": sorted(args.rules or []),
+        "directives": sorted(args.directives or []),
     }
     data["packs"] = [p for p in data["packs"] if p.get("id") != args.pack_id]
     data["packs"].append(entry)
@@ -353,7 +353,7 @@ def main(argv: list[str]) -> int:
     p.set_defaults(func=cmd_validate_pack)
 
     p = sub.add_parser("capability-check")
-    p.add_argument("rule_dir")
+    p.add_argument("directive_dir")
     p.set_defaults(func=cmd_capability_check)
 
     p = sub.add_parser("lock-read")
@@ -367,7 +367,7 @@ def main(argv: list[str]) -> int:
     p.add_argument("sha")
     p.add_argument("--subpath", default="")
     p.add_argument("--min-kit", dest="min_kit", default="")
-    p.add_argument("--rule", action="append", dest="rules", default=[])
+    p.add_argument("--directive", action="append", dest="directives", default=[])
     p.set_defaults(func=cmd_lock_add)
 
     p = sub.add_parser("lock-remove")

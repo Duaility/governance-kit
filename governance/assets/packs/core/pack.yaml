@@ -1,26 +1,26 @@
 # governance-kit core pack
 #
-# Built-in rules that ship with governance-bootstrap. Every repo that
-# bootstraps governance gets at least the rules listed in
+# Built-in directives that ship with governance-bootstrap. Every repo that
+# bootstraps governance gets at least the directives listed in
 # `presets.minimal` from this pack — the `core` pack cannot be
 # deselected by users.
 #
-# Rule metadata lives inside each rule's folder under `rules/<id>/` —
-# `rule.yaml` (category / recommended / summary / surface / hook /
-# always_install), `check.sh`, `constitution.md`, and optional
-# `evals/`. This file carries only pack-level identity and the presets
-# that select rules by id.
+# Directive metadata lives inside each directive's folder under
+# `directives/<id>/` — `directive.yaml` (category / recommended / summary /
+# surface / hook / always_install), `check.sh`, `constitution.md`, and
+# optional `evals/`. This file carries only pack-level identity and the
+# presets that select directives by id.
 
 id: core
-name: Core governance rules
+name: Core governance directives
 version: "0.1"
 min_governance_kit: "0.1"
-description: Baseline rules shipped with governance-kit.
+description: Baseline directives shipped with governance-kit.
 author: governance-kit
 
 presets:
   minimal:
-    rules:
+    directives:
       - required-docs
       - secrets-hygiene
       - repo-hygiene
@@ -28,10 +28,10 @@ presets:
       - no-broken-internal-doc-links
   standard:
     extends: minimal
-    rules:
+    directives:
       - conventional-commits
       - doc-freshness
   strict:
     extends: standard
-    rules:
+    directives:
       - no-orphan-todos

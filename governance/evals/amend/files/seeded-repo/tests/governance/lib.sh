@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -u
-_RULE_NAME=""; _VIOLATION_COUNT=0; _VIOLATIONS=()
+_DIRECTIVE_NAME=""; _VIOLATION_COUNT=0; _VIOLATIONS=()
 
-rule_start() { _RULE_NAME="$1"; _VIOLATION_COUNT=0; _VIOLATIONS=(); }
+directive_start() { _DIRECTIVE_NAME="$1"; _VIOLATION_COUNT=0; _VIOLATIONS=(); }
 violation()  { _VIOLATION_COUNT=$((_VIOLATION_COUNT + 1)); _VIOLATIONS+=("$1"); }
-rule_end() {
+directive_end() {
     if [[ $_VIOLATION_COUNT -eq 0 ]]; then
-        echo "✓ $_RULE_NAME"; exit 0
+        echo "✓ $_DIRECTIVE_NAME"; exit 0
     fi
-    echo "✗ $_RULE_NAME ($_VIOLATION_COUNT violation(s))"
+    echo "✗ $_DIRECTIVE_NAME ($_VIOLATION_COUNT violation(s))"
     for v in "${_VIOLATIONS[@]}"; do echo "    $v"; done
     exit 1
 }

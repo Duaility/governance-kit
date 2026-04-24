@@ -2,7 +2,7 @@
 
 Scoped id: **`duaility/agent-governance`**.
 
-Rules for repos operating under **agent-driven development** — where every
+Directives for repos operating under **agent-driven development** — where every
 change to the tree is produced through an agent runtime (Codex, Claude
 Code, Cursor, ...). Promoted from this repo's own `tests/governance/`
 suite so any repo can opt into the same discipline.
@@ -15,9 +15,9 @@ suite so any repo can opt into the same discipline.
 > points at `Duaility/governance-kit` with `source.path:
 > extensions/packs/agent-governance` instead of a standalone repo.
 
-## Rules
+## Directives
 
-| Rule | Category | Surface | Hook |
+| Directive | Category | Surface | Hook |
 |---|---|---|---|
 | `plan-per-issue` | AgentDiscipline | repo-state | pre-commit |
 | `commit-issue-plan-match` | AgentDiscipline | change-set | commit-msg |
@@ -25,23 +25,23 @@ suite so any repo can opt into the same discipline.
 | `issues-tracked` | AgentDiscipline | repo-state | pre-commit |
 | `agent-token-accounting` | AgentDiscipline | change-set | commit-msg |
 
-The rules form a chain — issue creation uses a durable template, issues
+The directives form a chain — issue creation uses a durable template, issues
 are tracked, every issue has exactly one plan, every commit matches its
 plan, every commit carries its cost. Breaking any link makes the chain
 non-auditable, so the `standard` preset bundles the full chain.
 
 ## Installation note — agent-token-accounting
 
-The rule is self-contained. Everything it needs ships inside the rule
+The directive is self-contained. Everything it needs ships inside the directive
 folder:
 
-- `rules/agent-token-accounting/check.sh` — validator (commit-msg + CI)
-- `rules/agent-token-accounting/lib/{ledger,trailers,rates}.py` — ledger + trailer logic
-- `rules/agent-token-accounting/hooks/pre-commit.sh` — writes the ledger row, stages it, hands off via an env file
-- `rules/agent-token-accounting/hooks/prepare-commit-msg.sh` — stamps trailers from the handoff
-- `rules/agent-token-accounting/runtimes/{claude-code,codex}.sh` — per-runtime transcript readers
+- `directives/agent-token-accounting/check.sh` — validator (commit-msg + CI)
+- `directives/agent-token-accounting/lib/{ledger,trailers,rates}.py` — ledger + trailer logic
+- `directives/agent-token-accounting/hooks/pre-commit.sh` — writes the ledger row, stages it, hands off via an env file
+- `directives/agent-token-accounting/hooks/prepare-commit-msg.sh` — stamps trailers from the handoff
+- `directives/agent-token-accounting/runtimes/{claude-code,codex}.sh` — per-runtime transcript readers
 
-Bootstrap copies the whole folder into `tests/governance/rules/agent-token-accounting/`
+Bootstrap copies the whole folder into `tests/governance/directives/agent-token-accounting/`
 and the hook generator wires the two `hooks/*.sh` helpers into the
 dispatchers automatically — no separate infrastructure step. A companion
 `COSTS.md` must exist (templated from `governance/assets/COSTS.template.md`);

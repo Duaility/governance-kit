@@ -20,7 +20,7 @@ HOOKS = {"pre-commit", "commit-msg", "prepare-commit-msg", "none"}
 SURFACES = {"repo-state", "change-set"}
 HOOK_STRATEGIES = {"githooks", "husky", "pre-commit"}
 PACK_FIELDS = ("id", "name", "version", "min_governance_kit", "description", "author")
-RULE_FIELDS = ("category", "recommended", "summary", "surface", "hook")
+DIRECTIVE_FIELDS = ("category", "recommended", "summary", "surface", "hook")
 CAPABILITY_FIELDS = ("reads", "writes")
 
 # Governance-kit version advertised to pack manifests. Packs declare
@@ -62,8 +62,8 @@ def pack_manifest(pack_dir: Path) -> dict[str, Any]:
     return load_yaml(pack_dir / "pack.yaml")
 
 
-def rule_manifest(pack_dir: Path, rule_id: str) -> dict[str, Any]:
-    path = pack_dir / "rules" / rule_id / "rule.yaml"
+def directive_manifest(pack_dir: Path, directive_id: str) -> dict[str, Any]:
+    path = pack_dir / "directives" / directive_id / "directive.yaml"
     if not path.exists():
         return {}
     return load_yaml(path)
@@ -77,14 +77,14 @@ def scalar(value: Any) -> str:
     return str(value)
 
 
-def rules_for_pack(pack_dir: Path) -> list[str]:
-    rules_root = pack_dir / "rules"
-    if not rules_root.is_dir():
+def directives_for_pack(pack_dir: Path) -> list[str]:
+    directives_root = pack_dir / "directives"
+    if not directives_root.is_dir():
         return []
     return sorted(
         path.name
-        for path in rules_root.iterdir()
-        if path.is_dir() and (path / "rule.yaml").is_file()
+        for path in directives_root.iterdir()
+        if path.is_dir() and (path / "directive.yaml").is_file()
     )
 
 
@@ -97,10 +97,10 @@ def resolve_preset(pack_dir: Path, preset: str) -> list[str]:
     out: list[str] = []
     seen: set[str] = set()
 
-    def add(rule_id: str) -> None:
-        if rule_id not in seen:
-            seen.add(rule_id)
-            out.append(rule_id)
+    def add(directive_id: str) -> None:
+        if directive_id not in seen:
+            seen.add(directive_id)
+            out.append(directive_id)
 
     def walk(name: str, stack: tuple[str, ...] = ()) -> None:
         if name in stack:
@@ -114,11 +114,11 @@ def resolve_preset(pack_dir: Path, preset: str) -> list[str]:
         parent = node.get("extends")
         if parent:
             walk(str(parent), (*stack, name))
-        rules = node.get("rules") or []
-        if not isinstance(rules, list):
-            raise ValueError(f"preset {name!r} rules must be a list")
-        for rule_id in rules:
-            add(str(rule_id))
+        directives = node.get("directives") or []
+        if not isinstance(directives, list):
+            raise ValueError(f"preset {name!r} directives must be a list")
+        for directive_id in directives:
+            add(str(directive_id))
 
     walk(preset)
     return out
@@ -140,13 +140,13 @@ def cmd_pack_field(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_rules_for(args: argparse.Namespace) -> int:
-    print("\n".join(rules_for_pack(Path(args.pack_dir))))
+def cmd_directives_for(args: argparse.Namespace) -> int:
+    print("\n".join(directives_for_pack(Path(args.pack_dir))))
     return 0
 
 
-def cmd_rule_field(args: argparse.Namespace) -> int:
-    print(scalar(rule_manifest(Path(args.pack_dir), args.rule_id).get(args.field)))
+def cmd_directive_field(args: argparse.Namespace) -> int:
+    print(scalar(directive_manifest(Path(args.pack_dir), args.directive_id).get(args.field)))
     return 0
 
 
@@ -163,22 +163,22 @@ def cmd_union_preset(args: argparse.Namespace) -> int:
     seen: set[str] = set()
     for pack_arg in args.pack_dirs:
         try:
-            rules = resolve_preset(Path(pack_arg), args.preset)
+            directives = resolve_preset(Path(pack_arg), args.preset)
         except KeyError:
             continue
-        for rule_id in rules:
-            if rule_id not in seen:
-                seen.add(rule_id)
-                out.append(rule_id)
+        for directive_id in directives:
+            if directive_id not in seen:
+                seen.add(directive_id)
+                out.append(directive_id)
     print("\n".join(out))
     return 0
 
 
 def cmd_always_install(args: argparse.Namespace) -> int:
     pack_dir = Path(args.pack_dir)
-    for rule_id in rules_for_pack(pack_dir):
-        if rule_manifest(pack_dir, rule_id).get("always_install") is True:
-            print(rule_id)
+    for directive_id in directives_for_pack(pack_dir):
+        if directive_manifest(pack_dir, directive_id).get("always_install") is True:
+            print(directive_id)
     return 0
 
 
@@ -209,14 +209,14 @@ def validate_pack_dir(pack_dir: Path) -> list[str]:
             f"{pack_dir}: min_governance_kit {min_kit!r} is newer than installed kit {KIT_VERSION!r}"
         )
 
-    rules_root = pack_dir / "rules"
-    if not rules_root.is_dir():
-        errors.append(f"{pack_dir}: rules/ directory missing")
+    directives_root = pack_dir / "directives"
+    if not directives_root.is_dir():
+        errors.append(f"{pack_dir}: directives/ directory missing")
         return errors
 
-    rule_ids = set(rules_for_pack(pack_dir))
-    for stray in sorted(path for path in rules_root.iterdir() if not path.is_dir()):
-        errors.append(f"{pack_dir}: stray file under rules/ ({stray.name}) - rules must be folders")
+    directive_ids = set(directives_for_pack(pack_dir))
+    for stray in sorted(path for path in directives_root.iterdir() if not path.is_dir()):
+        errors.append(f"{pack_dir}: stray file under directives/ ({stray.name}) - directives must be folders")
 
     presets = manifest.get("presets") or {}
     if not isinstance(presets, dict):
@@ -229,68 +229,68 @@ def validate_pack_dir(pack_dir: Path) -> list[str]:
         parent = node.get("extends")
         if parent and str(parent) not in presets:
             errors.append(f"{pack_dir}: preset {preset_name!r} extends unknown preset {parent!r}")
-        rules = node.get("rules") or []
-        if not isinstance(rules, list):
-            errors.append(f"{pack_dir}: preset {preset_name!r} rules must be a list")
+        directives = node.get("directives") or []
+        if not isinstance(directives, list):
+            errors.append(f"{pack_dir}: preset {preset_name!r} directives must be a list")
             continue
-        for rule_id in rules:
-            if str(rule_id) not in rule_ids:
-                errors.append(f"{pack_dir}: preset {preset_name!r} references unknown rule {rule_id!r}")
+        for directive_id in directives:
+            if str(directive_id) not in directive_ids:
+                errors.append(f"{pack_dir}: preset {preset_name!r} references unknown directive {directive_id!r}")
         try:
             resolve_preset(pack_dir, str(preset_name))
         except Exception as exc:  # noqa: BLE001 - validation reports all manifest errors.
             errors.append(f"{pack_dir}: preset {preset_name!r} cannot resolve: {exc}")
 
-    for rule_id in sorted(rule_ids):
-        rule_path = rules_root / rule_id
-        rule = rule_manifest(pack_dir, rule_id)
-        for field in RULE_FIELDS:
-            if field not in rule or rule.get(field) in (None, ""):
-                errors.append(f"{pack_dir}/{rule_id}: rule.yaml missing required field {field!r}")
-        hook = scalar(rule.get("hook") or "none")
-        surface = scalar(rule.get("surface"))
-        hook_strategy = scalar(rule.get("requires_hook_strategy"))
+    for directive_id in sorted(directive_ids):
+        directive_path = directives_root / directive_id
+        directive = directive_manifest(pack_dir, directive_id)
+        for field in DIRECTIVE_FIELDS:
+            if field not in directive or directive.get(field) in (None, ""):
+                errors.append(f"{pack_dir}/{directive_id}: directive.yaml missing required field {field!r}")
+        hook = scalar(directive.get("hook") or "none")
+        surface = scalar(directive.get("surface"))
+        hook_strategy = scalar(directive.get("requires_hook_strategy"))
         if hook not in HOOKS:
-            errors.append(f"{pack_dir}/{rule_id}: unknown hook value {hook!r}")
+            errors.append(f"{pack_dir}/{directive_id}: unknown hook value {hook!r}")
         if surface not in SURFACES:
-            errors.append(f"{pack_dir}/{rule_id}: unknown surface value {surface!r}")
+            errors.append(f"{pack_dir}/{directive_id}: unknown surface value {surface!r}")
         if hook_strategy and hook_strategy not in HOOK_STRATEGIES:
             errors.append(
-                f"{pack_dir}/{rule_id}: unknown requires_hook_strategy value {hook_strategy!r}"
+                f"{pack_dir}/{directive_id}: unknown requires_hook_strategy value {hook_strategy!r}"
             )
-        if rule.get("always_install") is True and pack_id != "core":
-            errors.append(f"{pack_dir}/{rule_id}: always_install: true is reserved to the core pack")
+        if directive.get("always_install") is True and pack_id != "core":
+            errors.append(f"{pack_dir}/{directive_id}: always_install: true is reserved to the core pack")
         for capability in CAPABILITY_FIELDS:
-            if capability not in rule:
+            if capability not in directive:
                 continue
-            value = rule.get(capability)
+            value = directive.get(capability)
             if value is None:
                 continue
             if not isinstance(value, list) or not all(isinstance(item, str) and item for item in value):
                 errors.append(
-                    f"{pack_dir}/{rule_id}: {capability!r} must be a list of non-empty path globs"
+                    f"{pack_dir}/{directive_id}: {capability!r} must be a list of non-empty path globs"
                 )
-        check = rule_path / "check.sh"
-        constitution = rule_path / "constitution.md"
+        check = directive_path / "check.sh"
+        constitution = directive_path / "constitution.md"
         if not check.is_file():
-            errors.append(f"{pack_dir}/{rule_id}: check.sh missing")
+            errors.append(f"{pack_dir}/{directive_id}: check.sh missing")
         elif not os.access(check, os.X_OK):
-            errors.append(f"{pack_dir}/{rule_id}: check.sh is not executable")
+            errors.append(f"{pack_dir}/{directive_id}: check.sh is not executable")
         if not constitution.is_file():
-            errors.append(f"{pack_dir}/{rule_id}: constitution.md missing")
+            errors.append(f"{pack_dir}/{directive_id}: constitution.md missing")
         else:
             text = constitution.read_text()
-            expected = f"tests/governance/rules/{rule_id}/check.sh"
+            expected = f"tests/governance/directives/{directive_id}/check.sh"
             if expected not in text:
-                errors.append(f"{pack_dir}/{rule_id}: constitution.md must reference `{expected}`")
-        eval_script = rule_path / "evals" / "test.sh"
+                errors.append(f"{pack_dir}/{directive_id}: constitution.md must reference `{expected}`")
+        eval_script = directive_path / "evals" / "test.sh"
         if not eval_script.is_file():
-            errors.append(f"{pack_dir}/{rule_id}: evals/test.sh missing")
+            errors.append(f"{pack_dir}/{directive_id}: evals/test.sh missing")
         elif not os.access(eval_script, os.X_OK):
-            errors.append(f"{pack_dir}/{rule_id}: evals/test.sh is not executable")
-        for hook_script in sorted((rule_path / "hooks").glob("*.sh")) if (rule_path / "hooks").is_dir() else []:
+            errors.append(f"{pack_dir}/{directive_id}: evals/test.sh is not executable")
+        for hook_script in sorted((directive_path / "hooks").glob("*.sh")) if (directive_path / "hooks").is_dir() else []:
             if not os.access(hook_script, os.X_OK):
-                errors.append(f"{pack_dir}/{rule_id}: hooks/{hook_script.name} is not executable")
+                errors.append(f"{pack_dir}/{directive_id}: hooks/{hook_script.name} is not executable")
     return errors
 
 
@@ -308,11 +308,11 @@ def cmd_validate_pack_set(args: argparse.Namespace) -> int:
     for pack_arg in args.pack_dirs:
         pack_dir = Path(pack_arg)
         errors.extend(validate_pack_dir(pack_dir))
-        for rule_id in rules_for_pack(pack_dir):
-            if rule_id in seen:
-                errors.append(f"duplicate rule id {rule_id!r}: {seen[rule_id]} and {pack_dir}")
+        for directive_id in directives_for_pack(pack_dir):
+            if directive_id in seen:
+                errors.append(f"duplicate directive id {directive_id!r}: {seen[directive_id]} and {pack_dir}")
             else:
-                seen[rule_id] = pack_dir
+                seen[directive_id] = pack_dir
     if errors:
         print("\n".join(errors))
         return 1
@@ -340,15 +340,15 @@ def main(argv: list[str]) -> int:
     p.add_argument("field")
     p.set_defaults(func=cmd_pack_field)
 
-    p = sub.add_parser("rules-for")
+    p = sub.add_parser("directives-for")
     p.add_argument("pack_dir")
-    p.set_defaults(func=cmd_rules_for)
+    p.set_defaults(func=cmd_directives_for)
 
-    p = sub.add_parser("rule-field")
+    p = sub.add_parser("directive-field")
     p.add_argument("pack_dir")
-    p.add_argument("rule_id")
+    p.add_argument("directive_id")
     p.add_argument("field")
-    p.set_defaults(func=cmd_rule_field)
+    p.set_defaults(func=cmd_directive_field)
 
     p = sub.add_parser("preset-resolve")
     p.add_argument("pack_dir")
@@ -360,7 +360,7 @@ def main(argv: list[str]) -> int:
     p.add_argument("pack_dirs", nargs="+")
     p.set_defaults(func=cmd_union_preset)
 
-    p = sub.add_parser("always-install-rules")
+    p = sub.add_parser("always-install-directives")
     p.add_argument("pack_dir")
     p.set_defaults(func=cmd_always_install)
 

@@ -10,7 +10,7 @@
         "The skill read .governance-kit/installed-packs.yaml and reported 'Source of truth: manifest' (or equivalent)",
         "The skill asked the user to choose a mode (dry-run / soft / hard) before executing",
         "CONSTITUTION.md was deleted",
-        "tests/governance/ was deleted recursively (run.sh, lib.sh, every rules/<id>/ folder gone)",
+        "tests/governance/ was deleted recursively (run.sh, lib.sh, every directives/<id>/ folder gone)",
         ".github/workflows/governance.yml was deleted",
         ".governance-kit/installed-packs.yaml was deleted (and the .governance-kit/ directory removed if it became empty)",
         ".githooks/pre-commit, .githooks/commit-msg, and .githooks/prepare-commit-msg were deleted (each carried the line-2 governance-kit:managed marker)",

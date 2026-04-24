@@ -5,7 +5,7 @@ The canonical table of every artifact `governance init` can produce, and the exa
 Legend:
 
 - **Path** — tracked location of the artifact.
-- **Installed by** — the step / rule / flag in [INIT_FLOW.md](INIT_FLOW.md) that creates it.
+- **Installed by** — the step / directive / flag in [INIT_FLOW.md](INIT_FLOW.md) that creates it.
 - **Ownership evidence** — what proves the artifact is kit-owned. Reset refuses to delete without evidence.
 - **Soft** — behavior in `soft` mode (remove managed surface, preserve user-authored).
 - **Hard** — behavior in `hard` mode (remove everything the kit touched).
@@ -18,7 +18,7 @@ Legend:
 | `CONSTITUTION.md` | Step 4 | manifest: `constitution: true` OR header sentinel from the template | delete | delete |
 | `tests/governance/run.sh` | Step 5 | manifest: `tests_dir: tests/governance` OR byte match against shipped `assets/tests-bash/run.sh` | delete | delete |
 | `tests/governance/lib.sh` | Step 5 | manifest OR byte match against shipped `assets/tests-bash/lib.sh` | delete | delete |
-| `tests/governance/rules/<id>/` | Step 3 (`install_rule_folder`) | manifest: rule listed under `packs[*].rules[*].id` | delete recursively | delete recursively |
+| `tests/governance/directives/<id>/` | Step 3 (`install_directive_folder`) | manifest: directive listed under `packs[*].directives[*].id` | delete recursively | delete recursively |
 | `tests/governance/freshness.conf` | Step 3 (`doc-freshness` selected) | manifest: `doc_freshness: true` OR header comment from shipped template | delete | delete |
 | `.github/workflows/governance.yml` | Step 7 | manifest: `ci_workflow: .github/workflows/governance.yml` OR filename match | delete | delete |
 | `scripts/setup-clone.sh` | Step 6 Path A step 5 | manifest: `setup_clone_script: scripts/setup-clone.sh` OR byte match against shipped `assets/setup-clone.sh` | delete; `rmdir scripts/` only if empty (it often is not) | same |
@@ -54,7 +54,7 @@ Reset **never** unsets `core.hooksPath` under Path B — that config was never s
 
 | Target | Installed by | Ownership evidence | Soft | Hard |
 |---|---|---|---|---|
-| The block bounded by `<!-- governance: rules-to-follow -->` | Step 4b | marker present | strip block; byte-diff verify everything else is unchanged | same |
+| The block bounded by `<!-- governance: directives-to-follow -->` | Step 4b | marker present | strip block; byte-diff verify everything else is unchanged | same |
 | The entire `AGENTS.md` file (only when bootstrap created it as a stub, Step 4b Case 2) | Step 4b Case 2 | manifest: `agents_md_created: true` | leave in place (user may have added content) | offer to delete; default to leave if the file has grown past the stub length |
 
 If the byte-diff guard fires (any non-block line changed between read and write), **abort the whole reset** with a loud error. The surgical-edit guarantee is non-negotiable; a partial reset that mangled the user's doc is worse than no reset at all.
@@ -65,9 +65,9 @@ These are user-owned after the copy — bootstrap does not overwrite them in aug
 
 | Path | Seeded by | Ownership evidence | Soft | Hard |
 |---|---|---|---|---|
-| `QUALITY.md` | `issues-tracked` rule | manifest: `install_assets_seeded: [QUALITY.md, …]` | preserve; list as orphaned in the report | delete |
-| `COSTS.md` | `agent-token-accounting` rule | manifest: `install_assets_seeded: […, COSTS.md]` | preserve; list as orphaned in the report | delete |
-| any future `install-assets/<file>` | any future rule | manifest | preserve | delete |
+| `QUALITY.md` | `issues-tracked` directive | manifest: `install_assets_seeded: [QUALITY.md, …]` | preserve; list as orphaned in the report | delete |
+| `COSTS.md` | `agent-token-accounting` directive | manifest: `install_assets_seeded: […, COSTS.md]` | preserve; list as orphaned in the report | delete |
+| any future `install-assets/<file>` | any future directive | manifest | preserve | delete |
 
 Hard mode requires an **extra confirm** on top of the Step 4 confirmation because deleting a user-edited file (likely with hand-written content by the time reset runs) is the most destructive action the skill can take.
 

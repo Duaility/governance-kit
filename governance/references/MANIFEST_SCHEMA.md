@@ -1,8 +1,8 @@
 # Manifest schema
 
-`governance-bootstrap` writes `.governance-kit/installed-packs.yaml` after installing rules. `governance-reset` reads it as the **authoritative** record of what the kit owns in this repo.
+`governance-bootstrap` writes `.governance-kit/installed-packs.yaml` after installing directives. `governance-reset` reads it as the **authoritative** record of what the kit owns in this repo.
 
-The manifest is not an auto-upgrade contract — installed rule folders are user-owned copies, and the user may have edited them. Reset uses the manifest only to learn *what paths to consider*, then confirms ownership via per-file evidence (ownership marker, byte match against the shipped template, etc. — see [UNINSTALL_MATRIX.md](UNINSTALL_MATRIX.md)).
+The manifest is not an auto-upgrade contract — installed directive folders are user-owned copies, and the user may have edited them. Reset uses the manifest only to learn *what paths to consider*, then confirms ownership via per-file evidence (ownership marker, byte match against the shipped template, etc. — see [UNINSTALL_MATRIX.md](UNINSTALL_MATRIX.md)).
 
 ## v1 shape (current)
 
@@ -22,17 +22,17 @@ setup_clone_script: scripts/setup-clone.sh  # Path A only; omitted under Path B
 packs:
   - id: core
     version: "0.1"
-    rules:
+    directives:
       - id: constitution-exists
-        installed_path: tests/governance/rules/constitution-exists
+        installed_path: tests/governance/directives/constitution-exists
       - id: no-secrets
-        installed_path: tests/governance/rules/no-secrets
+        installed_path: tests/governance/directives/no-secrets
   - id: duaility/agent-governance
     version: "0.1"
-    rules:
+    directives:
       - id: agent-token-accounting
-        installed_path: tests/governance/rules/agent-token-accounting
-install_assets_seeded:           # files seeded by rules' install-assets/
+        installed_path: tests/governance/directives/agent-token-accounting
+install_assets_seeded:           # files seeded by directives' install-assets/
   - QUALITY.md
   - COSTS.md
 collisions: []                   # empty list when Step 6 resolved nothing
@@ -56,7 +56,7 @@ path_b:
 Notes on the emitted shape:
 
 - `version` is a **quoted string** (`"1"`), not a bare integer. YAML treats both identically, but fixture byte-diffs depend on the exact form the emitter writes.
-- Rule entries carry only `id` and `installed_path`. `hook` / `always_install` are intentionally **not** duplicated here — reset discovers those at execute time by reading the installed `rule.yaml` under `installed_path`.
+- Directive entries carry only `id` and `installed_path`. `hook` / `always_install` are intentionally **not** duplicated here — reset discovers those at execute time by reading the installed `directive.yaml` under `installed_path`.
 - `collisions[*]` uses a flat `extra` field, not named `backup_path` / `userhook_path` sub-fields. Interpret `extra` based on `resolution`: `wrap` ⇒ userhook sibling path; `overwrite` ⇒ `.pre-governance.bak` backup path; `skip` ⇒ no extra.
 - Keys appear in the emitter's fixed order (metadata → flags → `packs` → `install_assets_seeded` → `collisions` → optional `path_b`). Do not rely on order when parsing, but **do** preserve it when regenerating fixtures — byte-diffs matter for the eval harness.
 
@@ -64,7 +64,7 @@ Notes on the emitted shape:
 
 | Field | Purpose in reset |
 |---|---|
-| `packs[*].rules[*].installed_path` | The list of `tests/governance/rules/<id>/` folders to remove. |
+| `packs[*].directives[*].installed_path` | The list of `tests/governance/directives/<id>/` folders to remove. |
 | `constitution` | Whether to remove `CONSTITUTION.md`. |
 | `ci_workflow` | Path of the workflow file to delete. |
 | `tests_dir` | Parent directory whose `run.sh`, `lib.sh`, and empty-after-cleanup shell are removed. |
@@ -86,15 +86,15 @@ Repos bootstrapped before the v1 schema landed carry a flatter manifest. Shape i
 # (no version key, or version: "0.1")
 packs:
   core:
-    rules: [constitution-exists, no-secrets, ...]
+    directives: [constitution-exists, no-secrets, ...]
   agent-governance:
-    rules: [agent-token-accounting]
+    directives: [agent-token-accounting]
 ```
 
 When reset reads a manifest whose top-level `version` field is absent or not `"1"`:
 
 1. Log a one-line warning: *"manifest schema v<found>; falling back to heuristic detection for fields absent in this version"*.
-2. Treat the `packs:` entries as an authoritative rule list (still trustworthy — this is what the repo actually has installed).
+2. Treat the `packs:` entries as an authoritative directive list (still trustworthy — this is what the repo actually has installed).
 3. Fill every missing v1 field from **heuristic evidence** (see below), with each assumption called out in the Step 6 report's `Assumptions:` line.
 4. Do **not** refuse the reset. The alternative is a repo the user cannot uninstall, which is worse than a partial clean-up they can finish by hand.
 
@@ -106,14 +106,14 @@ A repo where the manifest was never written, or was deleted manually, is a **leg
    - Hooks: line-2 `governance-kit:managed` marker.
    - `CONSTITUTION.md`: the template's header sentinel line (look for the literal phrase from `assets/CONSTITUTION.template.md`'s lead paragraph).
    - `tests/governance/run.sh` / `lib.sh`: byte-for-byte match against the shipped copies in `governance/assets/tests-bash/`.
-   - Rule folders under `tests/governance/rules/`: presence of a `check.sh` shebang line identical to the shipped one is a weak signal; absence of user-added sibling files is a stronger one.
+   - Directive folders under `tests/governance/directives/`: presence of a `check.sh` shebang line identical to the shipped one is a weak signal; absence of user-added sibling files is a stronger one.
    - `AGENTS.md`: see *opening-marker-only* heuristic below.
 2. **Default mode = dry-run.** Present the plan and list each artifact with the evidence that classified it as kit-owned. Require explicit user confirmation to proceed in a destructive mode.
 3. **No manifest, no artifacts ⇒ `none-detected`.** Report "nothing to remove" and exit.
 
 ### AGENTS.md opening-marker-only heuristic
 
-The v1 directive template (`governance/assets/AGENTS.directive.md`) ships with **both** `<!-- governance: rules-to-follow -->` and `<!-- /governance: rules-to-follow -->` markers, so reset can strip the block by paired markers. Earlier bootstrap runs inserted only the opening marker.
+The v1 directive template (`governance/assets/AGENTS.directive.md`) ships with **both** `<!-- governance: directives-to-follow -->` and `<!-- /governance: directives-to-follow -->` markers, so reset can strip the block by paired markers. Earlier bootstrap runs inserted only the opening marker.
 
 When an AGENTS.md file contains the opening marker but **not** the closing one:
 
