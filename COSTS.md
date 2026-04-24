@@ -98,3 +98,8 @@ Schema:
 | claude-code-9e05791b-0ee-1777016229 | claude-code | 9e05791b-0ee0-423e-b0c8-2234df57840a | #31 | claude-opus-4-7 | 299 | 800940 | 23858935 | 163357 | 964596 | 21.0208 | refactor(governance): physically retire legacy lifecycle skills into unified gov |
 | claude-code-9e05791b-0ee-1777017833 | claude-code | 9e05791b-0ee0-423e-b0c8-2234df57840a | #31 | claude-opus-4-7 | 92 | 180009 | 7092007 | 25609 | 205710 | 5.3117 | fix(governance): address codex review on PR #32 (#31) |
 | claude-code-9e05791b-0ee-1777017859 | claude-code | 9e05791b-0ee0-423e-b0c8-2234df57840a | #31 | claude-opus-4-7 | 4 | 3933 | 462351 | 1887 | 5824 | 0.3030 | fix(governance): address codex review on PR #32 (#31) |
+| codex-019dbe8d-0a4-1777018919 | codex | 019dbe8d-0a49-7f30-9dbd-470aae006dff | #33 | gpt-5.5 | 209357 | 0 | 2008064 | 9510 | 218867 |  | test(pack): cover packverb contract drift (#33) |
+| codex-019dbe8d-0a4-1777019641 | codex | 019dbe8d-0a49-7f30-9dbd-470aae006dff | #33 | gpt-5.5 | 162470 | 0 | 6231424 | 14698 | 177168 |  | test(hooks): require pack tests in pre-commit (#33) |
+| claude-code-ae9c2998-434-1777020372 | claude-code | ae9c2998-4343-4f9e-a176-dfb594b1647d | #33 | claude-opus-4-7 | 125 | 155093 | 4472564 | 33986 | 189204 | 4.0559 | fix(hooks): address review feedback on PR #34 (#33) |
+| claude-code-eb65db20-283-1777021586 | claude-code | eb65db20-283c-42f0-919f-bc589beea322 | #34 | claude-opus-4-7 | 34 | 38587 | 466265 | 13836 | 52457 | 0.8204 | test(governance): cover pack contract drift (#34) |
+| claude-code-eb65db20-283-1777021689 | claude-code | eb65db20-283c-42f0-919f-bc589beea322 | #34 | claude-opus-4-7 | 13 | 22257 | 601497 | 11913 | 34183 | 0.7377 | test(governance): cover pack contract drift (#34) |

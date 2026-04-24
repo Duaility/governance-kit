@@ -346,6 +346,15 @@ else
 fi
 rm -rf "$fresh_tmp"
 
+printf '\n── pack verb contract ────────────────────────────────────\n'
+
+if uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-packverb.py"; then
+    printf '  ✓ packverb public contract smoke passed\n'
+else
+    printf '  ✗ packverb public contract smoke failed\n'
+    fail=1
+fi
+
 printf '\n── pack evals ────────────────────────────────────────────\n'
 
 while IFS= read -r eval_script; do
