@@ -94,3 +94,10 @@ This repo's governance install migrates to the new rule set:
   test data; updating them is cosmetic. Flag as a separate pass.
 - Downstream-consumer migration note in the project README — not shipped
   here; pack versioning will handle this at the next release bump.
+
+## Amendments
+
+- 2026-04-24 — Added `astral-sh/setup-uv` install step to the new
+  `pack-tests.yml` workflow. `scripts/test-packs.sh` invokes
+  `packctl.py` through `uv run`, which is not preinstalled on
+  `ubuntu-latest`. Pinned by 40-char SHA to satisfy `workflows-hardened`.

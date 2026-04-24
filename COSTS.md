@@ -83,3 +83,5 @@ Schema:
 | claude-code-8165bc21-e5b-1777004833 | claude-code | 8165bc21-e5be-420c-a7b8-b1ca86e21e68 | #29 | claude-opus-4-7 | 13 | 8606 | 1124679 | 5011 | 13630 | 0.7415 | feat(packs): roll up low-signal core rules into substantive ones (#29) |
 | claude-code-8165bc21-e5b-1777004862 | claude-code | 8165bc21-e5be-420c-a7b8-b1ca86e21e68 | #29 | claude-opus-4-7 | 8 | 3748 | 718563 | 1686 | 5442 | 0.4249 | feat(packs): roll up low-signal core rules into substantive ones (#29) |
 | claude-code-8165bc21-e5b-1777004910 | claude-code | 8165bc21-e5be-420c-a7b8-b1ca86e21e68 | #29 | claude-opus-4-7 | 5 | 5831 | 459790 | 2872 | 8708 | 0.3382 | feat(packs): roll up low-signal core rules into substantive ones (#29) |
+| claude-code-8165bc21-e5b-1777005202 | claude-code | 8165bc21-e5be-420c-a7b8-b1ca86e21e68 | #29 | claude-opus-4-7 | 34 | 13674 | 1910958 | 6014 | 19722 | 1.1915 | ci(pack-tests): install uv so packctl.py can run (#29) |
+| claude-code-8165bc21-e5b-1777005219 | claude-code | 8165bc21-e5be-420c-a7b8-b1ca86e21e68 | #29 | claude-opus-4-7 | 3 | 1839 | 316265 | 1657 | 3499 | 0.2111 | ci(pack-tests): install uv so packctl.py can run (#29) |
