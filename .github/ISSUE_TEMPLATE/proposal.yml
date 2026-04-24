@@ -1,0 +1,60 @@
+name: Proposal
+description: A fleshed-out change (feature, refactor, or chore) ready for an implementing agent to pick up.
+title: "proposal: <short summary>"
+labels: ["proposal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template when a brainstorm has converged on a concrete change. The goal is a handoff an implementing agent (or future you) can act on without re-deriving context.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why now? What problem or observation prompted this? Link prior issues, PRs, or discussions.
+      placeholder: |
+        Today, users have to do X manually. We noticed this during Y. Related: #123.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What, concretely, are we doing? Describe the change at a level an engineer could start from.
+      placeholder: |
+        Add a `governance foo` verb that does Z. Wire it into the skill verb table. Touch:
+        - governance/SKILL.md
+        - governance/references/VERBS.md
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checklist the implementing agent will ground against. Each item should be independently verifiable at PR review time.
+      value: |
+        - [ ]
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: What this issue explicitly does NOT cover. Prevents scope creep during implementation.
+      placeholder: |
+        - Renaming existing verbs
+        - Community-pack changes
+
+  - type: textarea
+    id: open-questions
+    attributes:
+      label: Open questions
+      description: Unresolved decisions the implementer should flag before coding, if any.
+      placeholder: |
+        - Should this land as a new verb or a flag on an existing one?

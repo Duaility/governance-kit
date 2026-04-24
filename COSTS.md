@@ -121,3 +121,5 @@ Schema:
 | codex-019dbf52-2f5-1777033274 | codex | 019dbf52-2f52-7471-bfbe-26508d5f165a | #42 | gpt-5.5 | 136035 | 0 | 2682752 | 10209 | 146244 | 1.1639 | docs(readme): clarify direction-setting philosophy (#42) -m Tightens the governa |
 | claude-code-1e9311de-d96-1777033786 | claude-code | 1e9311de-d964-43a7-b5c3-589a068ad926 | #44 | claude-opus-4-7 | 53 | 61177 | 655272 | 9396 | 70626 | 0.9452 | docs(readme): swap example to doc-freshness (#44) |
 | claude-code-1e9311de-d96-1777033852 | claude-code | 1e9311de-d964-43a7-b5c3-589a068ad926 | #44 | claude-opus-4-7 | 7 | 12331 | 345455 | 3266 | 15604 | 0.3315 | docs(readme): swap rule example to doc-freshness (#44) |
+| claude-code-4cd3e3d3-c4a-1777043703 | claude-code | 4cd3e3d3-c4a6-4a3a-a008-1bf541c71e85 | #47 | claude-opus-4-7 | 59 | 43051 | 607507 | 7431 | 50541 | 0.7589 | docs(github): add issue templates for proposal and bug flows (#47) |
+| claude-code-4cd3e3d3-c4a-1777043757 | claude-code | 4cd3e3d3-c4a6-4a3a-a008-1bf541c71e85 | #47 | claude-opus-4-7 | 7 | 9385 | 279110 | 1680 | 11072 | 0.2402 | docs(github): add issue templates for proposal and bug flows (#47) |
