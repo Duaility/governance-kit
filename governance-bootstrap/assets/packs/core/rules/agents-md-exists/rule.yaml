@@ -1,6 +1,0 @@
-# agents-md-exists — AGENTS.md exists at root, 30-250 lines, with >= 3 doc links.
-category: Foundation
-recommended: true
-summary: AGENTS.md exists at root, 30-250 lines, with >= 3 doc links.
-surface: repo-state
-hook: pre-commit

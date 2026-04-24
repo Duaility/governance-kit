@@ -20,7 +20,7 @@ workflows=(.github/workflows/*.yml .github/workflows/*.yaml)
 shopt -u nullglob
 
 if [[ ${#workflows[@]} -eq 0 ]]; then
-    # No workflows is the domain of ci-workflow-exists; this rule is a no-op.
+    # No workflows is the domain of required-docs (ci-workflow sub-check); this rule is a no-op.
     rule_end
 fi
 

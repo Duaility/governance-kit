@@ -21,28 +21,17 @@ author: governance-kit
 presets:
   minimal:
     rules:
-      - constitution-exists
-      - no-secrets
-      - dotenv-gitignored
+      - required-docs
+      - secrets-hygiene
+      - repo-hygiene
       - workflows-hardened
       - no-broken-internal-doc-links
-      - no-large-files
-      - no-committed-build-artifacts
-      - no-merge-conflict-markers
-      - hooks-configured
   standard:
     extends: minimal
     rules:
-      - agents-md-exists
       - conventional-commits
       - doc-freshness
   strict:
     extends: standard
     rules:
-      - readme-exists
-      - security-md-exists
-      - architecture-doc-exists
-      - ci-workflow-exists
       - no-orphan-todos
-      - file-size-limit
-      - no-debug-statements

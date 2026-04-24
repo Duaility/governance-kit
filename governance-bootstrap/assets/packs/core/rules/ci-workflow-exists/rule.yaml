@@ -1,6 +1,0 @@
-# ci-workflow-exists — At least one non-governance workflow exists under .github/workflows/.
-category: SystemOfRecord
-recommended: false
-summary: At least one non-governance workflow exists under .github/workflows/.
-surface: repo-state
-hook: pre-commit
