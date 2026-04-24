@@ -74,6 +74,15 @@ target to point at.
   flows. `pack` and `rule` verbs stubbed with follow-up pointer to #31.
 - `AGENTS.md` updated to route newcomers at the unified skill while the
   legacy skills remain in-tree as the authoritative flows.
+- **Step 5 — agent-governance catalog seed:** `extensions/catalog.community.json`
+  now carries a `duaility/agent-governance` entry pointing at the
+  future `Duaility/governance-pack-agent-governance` repo. A relocation
+  notice in the in-tree pack README flags the move. The physical
+  out-of-tree extraction happens in a follow-up PR, once the external
+  repo is published — it is outside this repo's boundary. Until then,
+  the in-tree copy at `governance-bootstrap/assets/packs/agent-governance/`
+  remains the installation source for `governance init` and for this
+  repo's own dogfood suite, so fresh bootstraps don't regress.
 - **Step 4 — `governance rule *` verbs:** `references/RULE_VERBS.md`
   documents `rule add`, `rule modify`, `rule remove`, delegating to
   `governance-amend/SKILL.md` Steps 1–6 for the atomic-triple flow

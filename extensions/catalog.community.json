@@ -1,5 +1,18 @@
 {
   "$schema": "./catalog.schema.json",
   "version": "1",
-  "packs": []
+  "packs": [
+    {
+      "id": "duaility/agent-governance",
+      "name": "Agent Governance",
+      "summary": "Rules for repos operating under agent-driven development: issue tracking, plan-per-issue, commit-issue-plan match, and per-commit token accounting.",
+      "category": "agent-discipline",
+      "source": {
+        "type": "github",
+        "ref": "Duaility/governance-pack-agent-governance"
+      },
+      "min_governance_kit": "0.2",
+      "homepage": "https://github.com/Duaility/governance-kit/issues/31"
+    }
+  ]
 }

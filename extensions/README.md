@@ -11,9 +11,13 @@ works against any GitHub ref, with or without a matching catalog entry.
 
 `catalog.schema.json` is the JSON Schema for catalog entries.
 
-The catalog ships empty today. It will be populated as community packs
-appear in follow-up work — the first planned entry is the out-of-tree
-form of the currently in-tree `agent-governance` pack.
+The catalog seeds with one forward-looking entry: `duaility/agent-governance`.
+That is the target id for the `agent-governance` pack once it moves
+out-of-tree to its own repo (issue #31, step 5). The in-tree copy at
+`governance-bootstrap/assets/packs/agent-governance/` remains the
+installation source until the external repo is published; after that,
+`governance init` will point users at `governance pack add
+gh:Duaility/governance-pack-agent-governance` instead.
 
 ## Adding a community pack
 

@@ -5,6 +5,15 @@ change to the tree is produced through an agent runtime (Codex, Claude
 Code, Cursor, ...). Promoted from this repo's own `tests/governance/`
 suite so any repo can opt into the same discipline.
 
+> **Relocation notice (issue #31).** This pack is scheduled to move
+> out-of-tree under the scoped id `duaility/agent-governance`, hosted at
+> [`Duaility/governance-pack-agent-governance`](https://github.com/Duaility/governance-pack-agent-governance).
+> A catalog entry already exists at
+> [`extensions/catalog.community.json`](../../../../extensions/catalog.community.json);
+> the physical move lands once the external repo is published. Until
+> then, this in-tree copy remains the installation source for both
+> `governance init` and this repo's own dogfood suite.
+
 ## Rules
 
 | Rule | Category | Surface | Hook |
