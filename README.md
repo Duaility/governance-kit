@@ -14,7 +14,7 @@ governance-kit collapses that triangle into one unit:
 
 - **Rules carry their rationale.** Each rule folder bundles `check.sh`, a `constitution.md` subsection (Rule / Rationale / Enforced by / Exceptions), and `evals/` fixtures.
 - **Amendments are atomic.** Adding, modifying, or removing a rule lands the test, the CONSTITUTION update, and an Evolution Log entry in a single commit — enforced by the kit itself.
-- **Packs are SHA-pinned and capability-scoped.** Community rule packs declare `reads:` / `writes:` globs; the skill statically sweeps `check.sh` for out-of-bound paths before running anything.
+- **Packs are SHA-pinned, with opt-in capability scoping.** Community rule packs can declare `reads:` / `writes:` globs in `rule.yaml`; when a rule declares them, the skill statically sweeps its `check.sh` for out-of-bound paths and aborts the install on any violation.
 - **Agents author rules via verbs, not by editing markdown.** The `governance rule *` verbs are the single writer — no hand-edits to `CONSTITUTION.md`.
 
 ## Quickstart
@@ -109,7 +109,7 @@ Full catalog: [governance/references/RULES_CATALOG.md](governance/references/RUL
 
 | Pack | Purpose | Install |
 |---|---|---|
-| [duaility/agent-governance](https://github.com/Duaility/governance-kit/tree/main/extensions/packs/agent-governance) | Agent-driven development discipline: issue tracking, plan-per-issue, commit-issue-plan match, per-commit token accounting. | `governance pack add duaility/agent-governance` |
+| [duaility/agent-governance](https://github.com/Duaility/governance-kit/tree/main/extensions/packs/agent-governance) | Agent-driven development discipline: issue tracking, plan-per-issue, commit-issue-plan match, per-commit token accounting. | `governance pack add gh:Duaility/governance-kit/extensions/packs/agent-governance` |
 
 Authoring your own pack: [governance/references/AUTHORING_PACKS.md](governance/references/AUTHORING_PACKS.md).
 

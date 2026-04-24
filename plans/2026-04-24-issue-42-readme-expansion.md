@@ -65,6 +65,15 @@ Apply the issue's priority order:
 - **Editing `extensions/catalog.community.json` or skill frontmatter.**
   This PR touches `README.md` only.
 
+## Review follow-ups
+
+- Community-packs install command uses the `gh:owner/repo/subpath`
+  form that `packverb parse-ref` actually accepts — the catalog id
+  (`duaility/agent-governance`) is not a valid pack ref.
+- Capability-scoping bullet rephrased as opt-in: `reads:` / `writes:`
+  checks only fire when a rule declares them in `rule.yaml`, and no
+  current core / `agent-governance` rules do.
+
 ## Validation
 
 - `bash tests/governance/run.sh` passes — in particular
