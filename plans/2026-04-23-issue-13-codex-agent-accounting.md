@@ -1,3 +1,4 @@
+<!-- governance: allow-plan-validation legacy -->
 # 2026-04-23 — Complete Codex Agent Accounting
 
 ## Goal

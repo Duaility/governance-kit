@@ -1,3 +1,4 @@
+<!-- governance: allow-plan-validation legacy -->
 # Plan — issue-37: Remove governance-gardener skill
 
 Closes [#37](https://github.com/Duaility/governance-kit/issues/37).

@@ -107,3 +107,4 @@ Schema:
 | claude-code-35defae4-ca7-1777023627 | claude-code | 35defae4-ca70-47d2-adbb-4db6e0489b11 | #35 | claude-opus-4-7 | 136 | 306699 | 11526635 | 79456 | 386291 | 9.6673 | feat(accounting): make Cost-USD mandatory (#35) |
 | claude-code-04b28aac-fc8-1777024974 | claude-code | 04b28aac-fc85-4c80-8c94-9734e26101ac | #37 | claude-opus-4-7 | 10228 | 116988 | 4594193 | 31105 | 158321 | 3.8570 | chore(gardener): remove governance-gardener skill (#37) |
 | claude-code-04b28aac-fc8-1777025034 | claude-code | 04b28aac-fc85-4c80-8c94-9734e26101ac | #37 | claude-opus-4-7 | 6 | 10552 | 488065 | 3333 | 13891 | 0.3933 | chore(gardener): remove governance-gardener skill (#37) |
+| claude-code-b5006e23-eec-1777028604 | claude-code | b5006e23-eec5-490f-a729-b1b521ef6d7c | #39 | claude-opus-4-7 | 113 | 141430 | 6236287 | 40440 | 181983 | 5.0136 | feat(governance): roll harness-engineering lessons into existing rules (#39) |

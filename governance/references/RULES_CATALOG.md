@@ -24,7 +24,7 @@ The three consolidated rules (`required-docs`, `repo-hygiene`, `secrets-hygiene`
 ### Foundation
 | Rule | What it checks |
 |---|---|
-| `required-docs` | Rolled-up presence check for repo-root docs and local-hook scaffolding. Sub-checks (all enabled by default, keys for `GOVERNANCE_REQUIRED_DOCS_DISABLE`): `constitution` (`CONSTITUTION.md` ≥ 10 lines); `agents` (`AGENTS.md` at repo root, 30–250 lines, ≥ 3 internal links); `readme` (`README.md`/`.rst` with heading + ≥ 30 words); `license` (`LICENSE`/variants at repo root, non-empty); `security` (`SECURITY.md` with contact); `architecture` (`ARCHITECTURE.md` ≥ 20 lines); `ci-workflow` (≥ 1 non-governance workflow); `env-example` (every key in local `.env` is declared in `.env.example`); `hooks` (`.githooks/pre-commit` tracked + executable, `core.hooksPath=.githooks`; no-ops on non-`githooks` strategies). |
+| `required-docs` | Rolled-up presence check for repo-root docs and local-hook scaffolding. Sub-checks (all enabled by default, keys for `GOVERNANCE_REQUIRED_DOCS_DISABLE`): `constitution` (`CONSTITUTION.md` ≥ 10 lines); `agents` (`AGENTS.md` at repo root, 30–250 lines, ≥ 3 internal links, **and a link to `CONSTITUTION.md`** so the file is a map to the bedrock durable docs rather than a standalone manual); `readme` (`README.md`/`.rst` with heading + ≥ 30 words); `license` (`LICENSE`/variants at repo root, non-empty); `security` (`SECURITY.md` with contact); `architecture` (`ARCHITECTURE.md` ≥ 20 lines); `ci-workflow` (≥ 1 non-governance workflow); `env-example` (every key in local `.env` is declared in `.env.example`); `hooks` (`.githooks/pre-commit` tracked + executable, `core.hooksPath=.githooks`; no-ops on non-`githooks` strategies). |
 
 ### Security
 | Rule | What it checks |
@@ -66,7 +66,7 @@ For repos where every tree-change is produced through an agent runtime (Codex, C
 ### Agent discipline
 | Rule | What it checks |
 |---|---|
-| `plan-per-issue`           | Every tracked `plans/*.md` filename carries a unique `issue-<N>` token. |
+| `plan-per-issue`           | Every tracked `plans/*.md` file carries a unique `issue-<N>` token in its filename **and** includes a `## Validation`, `## Verification`, or `## Acceptance` section naming how completion will be judged. Per-file waivers: `governance: allow-plan-per-issue` (skips filename/duplicate checks) and `governance: allow-plan-validation` (skips the validation-section check only) — both bare or inside an HTML comment. |
 | `commit-issue-plan-match`  | Each commit's `(#N)` subject anchor matches an `issue-<N>` token on a plan file it touches. Installs a `commit-msg` hook. |
 | `issues-tracked`           | `QUALITY.md` exists at repo root with `Open` and `Resolved` sections. Ships `install-assets/QUALITY.md` so a newly bootstrapped repo starts green. |
 | `agent-token-accounting`   | Every non-merge, non-revert commit carries the full trailer set (`Agent`, `Issue`, `Session`, `Token-Input`, `Token-Output`, `Token-Total`, `Cost-Key`), satisfies `Total = Input + Output`, and has exactly one matching append-only row in `COSTS.md`. Ships `install-assets/COSTS.md` plus rule-owned pre-commit and prepare-commit-msg helpers. Runtime-agnostic — see [AGENT_TOKEN_ACCOUNTING.md](AGENT_TOKEN_ACCOUNTING.md) for Codex / Claude Code wiring. |

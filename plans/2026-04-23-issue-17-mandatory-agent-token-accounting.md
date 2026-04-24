@@ -1,3 +1,4 @@
+<!-- governance: allow-plan-validation legacy -->
 # Make `agent-token-accounting` mandatory on every non-merge commit
 
 Tracks [#17](https://github.com/Duaility/governance-kit/issues/17).

@@ -1,3 +1,4 @@
+<!-- governance: allow-plan-validation legacy -->
 <!-- governance: allow-plan-per-issue predates-rule -->
 
 # Author evals for all three skills

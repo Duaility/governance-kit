@@ -12,25 +12,62 @@ install_rule "$PACK_DIR" "$EVAL_ID"
 # pass — no plans/ directory, rule is a no-op
 EVAL_LABEL="$EVAL_ID no-plans" expect_pass "$RULE"
 
-# pass — two plans, distinct issue numbers
+# pass — two plans, distinct issue numbers, each with a validation section
 mkdir -p plans
-printf '# Plan one\n' > plans/2026-04-23-issue-1-alpha.md
-printf '# Plan two\n' > plans/2026-04-23-issue-2-beta.md
+cat > plans/2026-04-23-issue-1-alpha.md <<'EOF'
+# Plan one
+
+## Validation
+
+Rule evals pass.
+EOF
+cat > plans/2026-04-23-issue-2-beta.md <<'EOF'
+# Plan two
+
+## Acceptance
+
+Ship it when tests go green.
+EOF
 stage_all
 commit_quiet "docs: add two plans"
 EVAL_LABEL="$EVAL_ID distinct" expect_pass "$RULE"
 
 # fail — a plan filename missing the issue token
-printf '# Rogue plan\n' > plans/rogue.md
+printf '# Rogue plan\n\n## Validation\n\nok\n' > plans/rogue.md
 stage_all
 commit_quiet "docs: add untokened plan"
 EVAL_LABEL="$EVAL_ID no-token" expect_fail "$RULE"
 
 # fail — duplicate issue number across two plans
 rm plans/rogue.md
-printf '# Plan three\n' > plans/2026-04-23-issue-1-duplicate.md
+cat > plans/2026-04-23-issue-1-duplicate.md <<'EOF'
+# Plan three
+
+## Verification
+
+done.
+EOF
 stage_all
 commit_quiet "docs: dup plan"
 EVAL_LABEL="$EVAL_ID dup" expect_fail "$RULE"
+
+# fail — validation/verification/acceptance section missing
+rm plans/2026-04-23-issue-1-duplicate.md
+printf '# Plan four\n\nbody without validation heading.\n' > plans/2026-04-23-issue-3-gamma.md
+stage_all
+commit_quiet "docs: plan without validation"
+EVAL_LABEL="$EVAL_ID missing-validation" expect_fail "$RULE"
+
+# pass — validation waiver grandfathers the missing-section plan
+cat > plans/2026-04-23-issue-3-gamma.md <<'EOF'
+# Plan four
+
+<!-- governance: allow-plan-validation legacy -->
+
+Body without a validation heading, waived.
+EOF
+stage_all
+commit_quiet "docs: waive validation on legacy plan"
+EVAL_LABEL="$EVAL_ID validation-waiver" expect_pass "$RULE"
 
 eval_done

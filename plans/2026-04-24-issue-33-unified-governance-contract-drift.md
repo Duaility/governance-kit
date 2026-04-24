@@ -1,3 +1,4 @@
+<!-- governance: allow-plan-validation legacy -->
 <!-- last-verified: 2026-04-24 -->
 
 # 2026-04-24 — Fix unified governance skill contract drift

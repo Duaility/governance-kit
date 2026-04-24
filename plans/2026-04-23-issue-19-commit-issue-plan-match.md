@@ -1,3 +1,4 @@
+<!-- governance: allow-plan-validation legacy -->
 <!-- last-verified: 2026-04-23 -->
 
 # 2026-04-23 — Add `commit-issue-plan-match`, retire `plan-captured`
