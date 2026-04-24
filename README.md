@@ -1,27 +1,131 @@
 # governance-kit
 
-A set of Claude Code skills for governance-driven development — where invariants, guidelines, and non-negotiables live in a versioned `CONSTITUTION.md` and are enforced by tests in `tests/governance/`.
+**Rules your agents can't ignore.** Every invariant ships as `rule + test + rationale` in a single folder, so the reason a rule exists travels with the script that enforces it — and lands in one atomic commit when it changes.
 
-The user-facing entry point is **[governance](governance/)** — a single skill with a verb surface:
+Works with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [Codex](https://github.com/openai/codex). MIT-licensed.
 
-- `governance init` — bootstrap governance-driven development into a fresh repo.
-- `governance uninstall [--dry-run|--soft|--hard]` — tear down a previously bootstrapped setup with ownership-marker discipline.
-- `governance pack {search,add,update,remove,list}` — install and manage community rule packs. SHA-pinned via `.governance/packs.lock`, capability-enforced (`reads:` / `writes:` globs), diff-before-exec.
-- `governance rule {add,modify,remove}` — author, edit, or retire a rule as an atomic triple (rule folder + constitution subsection + Evolution Log entry, one commit).
+---
 
-Community-shaped packs that ship alongside the kit live under [extensions/packs/](extensions/packs/) (today: `duaility/agent-governance`). The kit-bundled `core` pack lives at [governance/assets/packs/core/](governance/assets/packs/core/).
+## Why governance-driven development?
 
-See [governance/SKILL.md](governance/SKILL.md) for the activation flow and references.
+Prose rules in `CLAUDE.md` / `AGENTS.md` are unenforceable — an agent can read them and still skip them. Pre-commit configs enforce rules but strip the *why*: six months later nobody remembers which rule was a paranoid overreaction and which one caught a real incident. And when you do change a rule, the test, the docs, and the rationale drift out of sync across three PRs.
 
-## After cloning
+governance-kit collapses that triangle into one unit:
 
-Once per fresh clone, run:
+- **Rules carry their rationale.** Each rule folder bundles `check.sh`, a `constitution.md` subsection (Rule / Rationale / Enforced by / Exceptions), and `evals/` fixtures.
+- **Amendments are atomic.** Adding, modifying, or removing a rule lands the test, the CONSTITUTION update, and an Evolution Log entry in a single commit — enforced by the kit itself.
+- **Packs are SHA-pinned and capability-scoped.** Community rule packs declare `reads:` / `writes:` globs; the skill statically sweeps `check.sh` for out-of-bound paths before running anything.
+- **Agents author rules via verbs, not by editing markdown.** The `governance rule *` verbs are the single writer — no hand-edits to `CONSTITUTION.md`.
+
+## Quickstart
+
+> [!NOTE]
+> Assumes Claude Code or Codex with the `governance` skill linked in. See [Install](#install) below.
 
 ```sh
-./scripts/setup-clone.sh
+# In a fresh repo
+claude
+> governance init
 ```
 
-It sets `core.hooksPath=.githooks` so the governance pre-commit hook fires. Worktrees (`git worktree add ...`) inherit this config from their parent checkout — no per-worktree action needed.
+This bootstraps `CONSTITUTION.md`, `tests/governance/`, a pre-commit hook, and the `core` pack. Then make a bad commit to see it fire:
+
+```sh
+$ git commit -m "stuff"
+[FAIL] conventional-commits — pending commit — 'stuff' does not match
+       Conventional Commits with an issue suffix (<type>(scope)?: <subject> (#123))
+```
+
+## What a rule looks like
+
+Every rule is a self-contained folder. Here's `conventional-commits` from the `core` pack:
+
+```
+conventional-commits/
+├── rule.yaml         # category, summary, surface, hook
+├── check.sh          # the executable test (runs in commit-msg + CI)
+├── constitution.md   # Rule / Rationale / Enforced by / Exceptions
+└── evals/test.sh     # pass + fail fixtures
+```
+
+The `constitution.md` carries the *why*:
+
+```markdown
+### conventional-commits
+
+- **Rule**: Commit messages match `<type>(scope)?!?: subject (#123)`.
+- **Rationale**: A trailing `(#123)` anchors every commit to a GitHub issue;
+  the typed prefix keeps changelogs scannable. Together they make `git log` a
+  readable audit trail instead of a stream of "fix stuff".
+- **Enforced by**: `tests/governance/rules/conventional-commits/check.sh`
+- **Exceptions**: Merge and revert commits are skipped automatically.
+```
+
+When the rule changes, all four files move together — the kit enforces this.
+
+## Install
+
+Symlink the skill into your agent runtime:
+
+```sh
+git clone https://github.com/Duaility/governance-kit
+cd governance-kit
+ln -s "$(pwd)/governance" ~/.claude/skills/governance   # Claude Code
+ln -s "$(pwd)/governance" ~/.codex/skills/governance    # Codex
+```
+
+Edits in the cloned repo flow to both runtimes live. From any other repo, invoking Claude Code / Codex and typing `governance init` will trigger the skill.
+
+## Verbs
+
+```
+governance init                                    # bootstrap a repo
+governance uninstall [--dry-run|--soft|--hard]     # tear-down
+governance pack {search,add,update,remove,list}    # community pack lifecycle
+governance rule {add,modify,remove}                # atomic rule amendments
+```
+
+> [!IMPORTANT]
+> Don't edit `CONSTITUTION.md` or files under `tests/governance/rules/` by hand. The `rule *` verbs enforce the atomic-triple invariant — hand-edits will drift the constitution out of sync with the tests.
+
+## Core pack
+
+The kit-bundled `core` pack ships these rules:
+
+| Rule | What it checks |
+|---|---|
+| `conventional-commits` | Commit messages match `<type>(scope)?: subject (#123)`. |
+| `doc-freshness` | Opted-in docs carry a `<!-- last-verified: YYYY-MM-DD -->` marker within 90 days. |
+| `no-broken-internal-doc-links` | Markdown links to local paths resolve. |
+| `no-orphan-todos` | Every `TODO` / `FIXME` references an issue. |
+| `repo-hygiene` | No merge markers, oversized files, build artefacts, debug statements, or overlong source files. |
+| `required-docs` | Baseline root-level docs and hook scaffolding exist. |
+| `secrets-hygiene` | No plaintext secrets in tracked files; `.env` is gitignored and untracked. |
+| `workflows-hardened` | GitHub Actions workflows declare `permissions:` and pin third-party actions to a SHA. |
+
+Full catalog: [governance/references/RULES_CATALOG.md](governance/references/RULES_CATALOG.md).
+
+## Community packs
+
+| Pack | Purpose | Install |
+|---|---|---|
+| [duaility/agent-governance](https://github.com/Duaility/governance-kit/tree/main/extensions/packs/agent-governance) | Agent-driven development discipline: issue tracking, plan-per-issue, commit-issue-plan match, per-commit token accounting. | `governance pack add duaility/agent-governance` |
+
+Authoring your own pack: [governance/references/AUTHORING_PACKS.md](governance/references/AUTHORING_PACKS.md).
+
+## Why not just pre-commit / husky / lefthook?
+
+Those tools run hooks. governance-kit runs hooks *and* keeps the rule's rationale, tests, and evolution history co-located with the hook — so a new maintainer reading `CONSTITUTION.md` can trace any rule back to the commit that introduced it and the test that enforces it. The `check.sh` scripts are plain bash; you can drop them into pre-commit / husky directly if you only want the enforcement half. See [governance/references/NATIVE_TESTS.md](governance/references/NATIVE_TESTS.md).
+
+## Contributing
+
+See [AGENTS.md](AGENTS.md) for repo layout, how to add rules to the `core` pack, and the dogfooding setup. One-time-per-clone:
+
+```sh
+./scripts/setup-clone.sh   # sets core.hooksPath=.githooks
+```
+
+Worktrees inherit this config — no per-worktree action needed.
 
 ## License
 
