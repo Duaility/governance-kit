@@ -2,7 +2,7 @@
 # install.sh — installer-facing helpers for pack-based governance bootstrap.
 #
 # These helpers define the installed-repo contract that bootstrap, tests,
-# amend, gardener, and generated hooks agree on:
+# amend, and generated hooks agree on:
 #
 #   tests/governance/rules/<rule-id>/
 #     rule.yaml

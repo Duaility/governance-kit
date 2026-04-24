@@ -46,4 +46,4 @@ A commit that touches the rule folder without the matching constitution edits (o
 
 - `rule *` mutates **hand-authored** rules: things the user wrote for their own repo or that came from `core`. Rules installed via `governance pack add <community-pack>` are owned by the lockfile; edit them with `governance pack update` or by forking the upstream pack.
 - `rule *` does **not** run CI. The atomic-triple flow commits the three artifacts; CI runs on the PR.
-- When the user asks to "review" or "audit" rules rather than change one, route to `governance-gardener`.
+- When the user asks to "review" or "audit" rules rather than change one, answer directly rather than mutating files.

@@ -4,8 +4,8 @@ How `governance-kit` is organised, and how the pieces fit together.
 
 ## Surfaces
 
-`governance-kit` ships two agent-runtime skills plus the pack tree.
-Each skill is a self-contained directory with frontmatter
+`governance-kit` ships one agent-runtime skill plus the pack tree.
+The skill is a self-contained directory with frontmatter
 (`SKILL.md`), optional `assets/`, `references/`, and `evals/`.
 
 - `governance/` — the unified lifecycle skill. Exposes four verb
@@ -16,8 +16,6 @@ Each skill is a self-contained directory with frontmatter
   under `governance/references/`: `INIT_FLOW.md` (8 steps),
   `UNINSTALL_FLOW.md` (6 steps), `RULE_AMEND_FLOW.md` (atomic-triple),
   and `PACK_VERBS.md` (community-pack lifecycle).
-- `governance-gardener/` — walks the installed governance surface and
-  emits a Governance Health Report.
 
 ## Rule packs
 

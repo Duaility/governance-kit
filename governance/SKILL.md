@@ -1,6 +1,6 @@
 ---
 name: governance
-description: Single entry point for governance-kit's lifecycle verbs — `governance init` (bootstrap a repo), `governance uninstall` (clean tear-down), `governance pack {search,add,update,remove,list}` (community-pack lifecycle with SHA pinning + capability enforcement), and `governance rule {add,modify,remove}` (hand-authored rule amendments via the atomic triple). Use when the user says "governance init", "set up governance", "bootstrap governance", "governance uninstall", "reset governance", "tear down governance", "install a pack", "add pack X", "update packs", "remove pack X", "list installed packs", "add a rule", "amend the constitution", "new invariant", "modify rule X", "remove rule X", or otherwise asks to manage governance-kit lifecycle, packs, or rules. Do not use for reviewing an existing setup or hunting dead rules — that is `governance-gardener`.
+description: Single entry point for governance-kit's lifecycle verbs — `governance init` (bootstrap a repo), `governance uninstall` (clean tear-down), `governance pack {search,add,update,remove,list}` (community-pack lifecycle with SHA pinning + capability enforcement), and `governance rule {add,modify,remove}` (hand-authored rule amendments via the atomic triple). Use when the user says "governance init", "set up governance", "bootstrap governance", "governance uninstall", "reset governance", "tear down governance", "install a pack", "add pack X", "update packs", "remove pack X", "list installed packs", "add a rule", "amend the constitution", "new invariant", "modify rule X", "remove rule X", or otherwise asks to manage governance-kit lifecycle, packs, or rules.
 license: MIT
 metadata:
   author: governance-kit
@@ -38,7 +38,6 @@ Infer the intended verb from the user's request:
 | "governance uninstall", "reset governance", "tear down governance", "uninstall governance-kit", "clean slate" | `uninstall` |
 | "add / modify / remove rule X", "amend the constitution", "new invariant" | `rule *` — see [references/RULE_VERBS.md](references/RULE_VERBS.md). |
 | "pack search / add / update / remove / list", "install pack X", "pin pack X", "update all packs" | `pack *` — see [references/PACK_VERBS.md](references/PACK_VERBS.md). Do **not** fall back to editing the in-tree pack tree by hand. |
-| "is my governance healthy?", "audit governance", "find dead rules" | Route to `governance-gardener`. |
 
 If the user's intent is ambiguous between `init` and `uninstall`, look at the repo state: `CONSTITUTION.md` + `tests/governance/` both present → `uninstall` is more likely; both absent → `init`. Ask once when still ambiguous.
 

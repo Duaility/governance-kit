@@ -2,7 +2,7 @@
 
 # Governance Vocabulary
 
-Shared terms used by `governance-bootstrap`, `governance-amend`, and `governance-gardener`.
+Shared terms used by the `governance` skill's verbs (`init`, `uninstall`, `pack *`, `rule *`).
 
 ## Core terms
 
@@ -38,14 +38,6 @@ Misalignment between two things that should agree. Common examples:
 - doc drift: a doc's `last-verified` stamp is older than the code it describes
 - evolution-log drift: a logged amendment was not made atomically with its test change
 
-### signal
-
-A gardener finding pattern such as `A3`, `F2`, or `C5`. Signals are evidence-backed observations, not automatic amendments.
-
-### watched scope
-
-The file set a doc or rule is considered responsible for. The gardener uses watched scopes to decide whether a doc has drifted or whether a rule is dormant. Canonical resolution lives in [governance-gardener/references/WATCH_SCOPES.md](governance-gardener/references/WATCH_SCOPES.md).
-
 ## Execution terms
 
 ### bootstrap
@@ -55,18 +47,6 @@ Initial installation of the governance kit into a repo that does not yet have it
 ### amend
 
 A targeted change to an existing governance installation: add, modify, or remove a specific rule while keeping the constitution and enforcing test in sync.
-
-### gardener
-
-A periodic health check over an existing governance installation. The gardener writes a report and may optionally open follow-up PRs after user review.
-
-### report-only mode
-
-Gardener mode that writes the health report but does not create branches or PRs. Dirty working trees are acceptable here.
-
-### follow-up mode
-
-Gardener mode that may create branches or PRs after the report is written. Requires a clean working tree.
 
 ### material assumption
 
