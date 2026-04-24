@@ -71,6 +71,7 @@ For repos where every tree-change is produced through an agent runtime (Codex, C
 | `issue-templates`          | `.github/ISSUE_TEMPLATE/` contains proposal and bug issue forms plus config. Blank issues are disabled, proposal issues require Context / Decision / Scope / Acceptance criteria / Validation / Open questions, and bug issues require the core defect-report fields. Ships the templates under `install-assets/.github/ISSUE_TEMPLATE/`. |
 | `issues-tracked`           | `QUALITY.md` exists at repo root with `Open` and `Resolved` sections. Ships `install-assets/QUALITY.md` so a newly bootstrapped repo starts green. |
 | `agent-token-accounting`   | Every non-merge, non-revert commit carries the full trailer set (`Agent`, `Issue`, `Session`, `Token-Input`, `Token-Output`, `Token-Total`, `Cost-Key`), satisfies `Total = Input + Output`, and has exactly one matching append-only row in `COSTS.md`. Ships `install-assets/COSTS.md` plus directive-owned pre-commit and prepare-commit-msg helpers. Runtime-agnostic — see [AGENT_TOKEN_ACCOUNTING.md](AGENT_TOKEN_ACCOUNTING.md) for Codex / Claude Code wiring. |
+| `agent-decision-accounting` | Opt-in. Commits that reference load-bearing human decisions carry paired `Decision-Key:` + `Decision-Diverged: M/N` trailers matching append-only rows in `DECISIONS.md` at repo root. Row schema (11 columns) encodes `phase ∈ {scoping, plan-review, pr-review, post-merge}`, `diverged ∈ {agreed, overrode, reframed, deferred}`, and an optional `cost-key` cross-ref into `COSTS.md` so cost-of-divergence is a join away. Commits without a trailer are exempt — only the *inconsistency* between trailer and ledger is a violation. Ships `install-assets/DECISIONS.md`. Runtime-agnostic with no per-runtime reader (rows are authored at question time, not mined from transcripts) — see [AGENT_DECISION_ACCOUNTING.md](AGENT_DECISION_ACCOUNTING.md) for the question-ask contract and Codex / Claude Code worked examples. |
 
 ### `agent-governance` presets
 
@@ -79,6 +80,10 @@ For repos where every tree-change is produced through an agent runtime (Codex, C
 | `minimal`  | `plan-per-issue`, `commit-issue-plan-match` |
 | `standard` | *minimal* + `issue-templates`, `issues-tracked`, `agent-token-accounting` |
 | `strict`   | same as `standard` |
+
+`agent-decision-accounting` is opt-in — not in any preset yet. Promote
+once divergence rates prove the signal is worth the install cost for
+the target repo.
 
 ---
 

@@ -65,13 +65,25 @@ mirrored into commit trailers that survive squash merges. Implements
   - `evals/test.sh` — six assertions (two pass, four fail) exercising
     trailer-ledger cross-check, exemption paths, and ledger vocab.
 
-## Follow-ups not in this PR
+## Follow-ups landed in this PR (second commit)
 
 - Reference doc `governance/references/AGENT_DECISION_ACCOUNTING.md`
   with Codex + Claude Code worked examples for the question-ask contract.
 - Catalog entry in `governance/references/DIRECTIVES_CATALOG.md`.
+- Broadened evals from 6 → 13 assertions: adds bad-phase, duplicate-key,
+  bad-column-count, bad-issue-format, dangling-cost-key,
+  cost-key-resolved, and cost-key-no-costs-md cases.
+
+## Deferred to a later issue
+
 - Decision on whether a `governance decision record` verb is worth
   adding, or whether pure hook+agent-write stays the path.
+- Promotion into `agent-governance.standard` preset once divergence
+  rates prove the install cost is justified.
+- Aggregation / analytics tooling over `DECISIONS.md`.
+- Comment-thread (non-commit) decision capture.
+- Machine-readable `replaces:` column for reconstructing
+  reframe → replacement question chains.
 
 ## Acceptance
 
@@ -81,7 +93,7 @@ mirrored into commit trailers that survive squash merges. Implements
 - [x] `check.sh` rejects: wrong numerator, missing ledger key, trailer inconsistency (only one of the pair).
 - [x] `check.sh` accepts: no trailer, revert commits, merge commits, consistent trailer+ledger.
 - [x] `lib/ledger.py validate` flags bad `diverged`, bad `phase`, non-unique keys, bad column count.
-- [ ] Reference doc + catalog entry (follow-up commit).
+- [x] Reference doc + catalog entry landed.
 
 ## Validation
 
