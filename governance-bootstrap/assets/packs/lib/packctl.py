@@ -21,6 +21,31 @@ SURFACES = {"repo-state", "change-set"}
 HOOK_STRATEGIES = {"githooks", "husky", "pre-commit"}
 PACK_FIELDS = ("id", "name", "version", "min_governance_kit", "description", "author")
 RULE_FIELDS = ("category", "recommended", "summary", "surface", "hook")
+CAPABILITY_FIELDS = ("reads", "writes")
+
+# Governance-kit version advertised to pack manifests. Packs declare
+# `min_governance_kit` to express the minimum kit version they need; validation
+# refuses packs whose minimum is newer than this constant. The comparison uses a
+# lexicographic SemVer-ish tuple (split on `.`, numeric segments compared as
+# ints, non-numeric segments as strings) — see `_version_tuple`.
+KIT_VERSION = "0.2"
+
+
+def _version_tuple(value: str) -> tuple[Any, ...]:
+    parts: list[Any] = []
+    for segment in str(value).split("."):
+        try:
+            parts.append((0, int(segment)))
+        except ValueError:
+            parts.append((1, segment))
+    return tuple(parts)
+
+
+def kit_supports(min_required: str) -> bool:
+    """Return True when KIT_VERSION >= min_required."""
+    if not min_required:
+        return True
+    return _version_tuple(KIT_VERSION) >= _version_tuple(min_required)
 
 
 def load_yaml(path: Path) -> dict[str, Any]:
@@ -171,6 +196,12 @@ def validate_pack_dir(pack_dir: Path) -> list[str]:
     if pack_id and pack_id != pack_dir.name:
         errors.append(f"{pack_dir}: pack id {pack_id!r} does not match directory name {pack_dir.name!r}")
 
+    min_kit = scalar(manifest.get("min_governance_kit"))
+    if min_kit and not kit_supports(min_kit):
+        errors.append(
+            f"{pack_dir}: min_governance_kit {min_kit!r} is newer than installed kit {KIT_VERSION!r}"
+        )
+
     rules_root = pack_dir / "rules"
     if not rules_root.is_dir():
         errors.append(f"{pack_dir}: rules/ directory missing")
@@ -222,6 +253,16 @@ def validate_pack_dir(pack_dir: Path) -> list[str]:
             )
         if rule.get("always_install") is True and pack_id != "core":
             errors.append(f"{pack_dir}/{rule_id}: always_install: true is reserved to the core pack")
+        for capability in CAPABILITY_FIELDS:
+            if capability not in rule:
+                continue
+            value = rule.get(capability)
+            if value is None:
+                continue
+            if not isinstance(value, list) or not all(isinstance(item, str) and item for item in value):
+                errors.append(
+                    f"{pack_dir}/{rule_id}: {capability!r} must be a list of non-empty path globs"
+                )
         check = rule_path / "check.sh"
         constitution = rule_path / "constitution.md"
         if not check.is_file():
@@ -271,9 +312,17 @@ def cmd_validate_pack_set(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_kit_version(_: argparse.Namespace) -> int:
+    print(KIT_VERSION)
+    return 0
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd", required=True)
+
+    p = sub.add_parser("kit-version")
+    p.set_defaults(func=cmd_kit_version)
 
     p = sub.add_parser("list-packs")
     p.add_argument("root")

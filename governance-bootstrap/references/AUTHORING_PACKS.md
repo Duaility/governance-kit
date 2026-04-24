@@ -32,10 +32,10 @@ In-tree packs live under `governance-bootstrap/assets/packs/<pack>/`. Out-of-tre
 
 | Field | Required | Notes |
 |---|---|---|
-| `id` | yes | Pack slug. Must match the directory name. Unique across all packs installed into a single target repo. |
+| `id` | yes | Pack slug. Must match the directory name. In-tree packs (`core`, vendored forks) use a flat id (`core`, `soc2`); community packs distributed out-of-tree use a scoped id of the form `<author>/<slug>` (e.g. `acme/soc2`). The scoped form prevents collisions across the community catalog. |
 | `name` | yes | Human label shown in the pack-selection screen. |
 | `version` | yes | SemVer-ish string, e.g. `"0.1"`. Stamped into hook ownership markers. |
-| `min_governance_kit` | yes | Minimum `governance-kit` version the pack depends on. |
+| `min_governance_kit` | yes | Minimum `governance-kit` version the pack depends on. Validated against the kit's built-in `KIT_VERSION` constant (`governance-bootstrap/assets/packs/lib/packctl.py`). Packs declaring a minimum newer than the installed kit are rejected at install. |
 | `description` | yes | One-line summary of what this pack covers. |
 | `author` | yes | Pack author / org. |
 | `presets` | yes | See below. |
@@ -68,8 +68,12 @@ recommended: true | false
 summary: <one-line menu description>
 surface: repo-state | change-set
 hook: pre-commit | commit-msg | prepare-commit-msg | none
-always_install: true            # optional; see below
+always_install: true            # optional; reserved to core
 requires_hook_strategy: githooks # optional; githooks | husky | pre-commit
+reads:                          # optional capability declaration
+  - .github/workflows/**
+  - tests/governance/**
+writes: []                      # optional; most rules are read-only
 ```
 
 | Field | Notes |
@@ -81,6 +85,7 @@ requires_hook_strategy: githooks # optional; githooks | husky | pre-commit
 | `hook` | Hook kind the rule wants to run in. Drives dispatcher generation. Use `none` only if the rule runs exclusively in CI. |
 | `always_install` | Reserved to `core`. Skips the menu. If you need an unconditionally installed rule in a third-party pack, file an issue first — the guarantee only holds for `core`. |
 | `requires_hook_strategy` | Optional environment filter. Use this for rules that only make sense under one hook strategy, e.g. `hooks-configured` requires `githooks` and is skipped for husky/pre-commit.com repos. |
+| `reads` / `writes` | Optional capability declaration. List of path globs the rule's `check.sh` inspects (`reads`) or mutates (`writes`) relative to the target repo root. Most rules declare a short `reads:` list and an empty `writes:` — governance rules are overwhelmingly read-only. The schema is validated at install time (each entry must be a non-empty string); semantic enforcement (refusing install when a rule reaches outside its declared bounds) is scheduled for the `governance pack add` verb. Declare capabilities now so community packs are forward-compatible. |
 
 There is no `id`, `script`, or `constitution` field — the id is the folder name, the script is always `check.sh`, and the snippet is always `constitution.md`. Keeping the shape rigid means a new rule folder can be dropped in without editing any index.
 

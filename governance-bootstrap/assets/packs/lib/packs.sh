@@ -14,6 +14,10 @@ _packctl() {
     uv run --quiet --isolated --with PyYAML python "$_PACKCTL" "$@"
 }
 
+kit_version() {
+    _packctl kit-version
+}
+
 list_packs() {
     _packctl list-packs "$1"
 }
