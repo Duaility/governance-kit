@@ -57,5 +57,4 @@ All three follow [RULE_AMEND_FLOW.md](RULE_AMEND_FLOW.md) Steps 1–7. Rules ins
 
 ## Trigger words this skill should NOT claim
 
-- "review the constitution", "audit governance", "find dead rules" → `governance-gardener`.
 - "uninstall the governance skill from my machine" → this operates on **repo state**, not on `~/.claude/skills/`. Tell the user to remove the symlink themselves.

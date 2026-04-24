@@ -52,12 +52,12 @@
     {
       "id": 4,
       "prompt": "Can you run a governance health check and tell me if any of these rules look stale?",
-      "expected_output": "The skill recognizes that this is a health-check request, not a targeted amendment. It does not edit files, does not stage changes, and redirects the user to governance-gardener or answers directly.",
+      "expected_output": "The skill recognizes that this is a health-check request, not a targeted amendment. It does not edit files, does not stage changes, and answers directly.",
       "files": ["evals/files/seeded-repo/"],
       "assertions": [
         "No files under tests/governance/rules/ or CONSTITUTION.md were modified",
         "The skill explicitly identified the request as a review/health-check rather than an amendment request",
-        "The skill redirected to governance-gardener or answered directly without staging changes"
+        "The skill answered directly without staging changes"
       ]
     },
     {

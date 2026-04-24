@@ -14,7 +14,7 @@
 set -u
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SKILLS=(governance-bootstrap governance-amend governance-gardener)
+SKILLS=(governance-bootstrap governance-amend)
 
 OUT=""
 FORMAT="md"

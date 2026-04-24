@@ -18,7 +18,7 @@ The flow stages and **commits** the amendment in one conventional commit. Review
 | Situation | Action |
 |---|---|
 | Governance kit is missing | Stop and tell the user to run `governance init` first. |
-| User asks for a general review or health check | Do not amend. Redirect to `governance-gardener`. |
+| User asks for a general review or health check | Do not amend. Answer directly rather than mutating files. |
 | Request has enough info to draft the rule | Draft, smoke-test, commit. No approval loop — PR review is the review layer. |
 | Request is missing rationale or check logic | Ask only the blocking question(s). Do not ask for approval of drafts that are already unambiguous. |
 | Request updates an existing rule | Preserve the existing rationale unless the user explicitly changes the policy intent. Note the update in the summary. |
@@ -99,7 +99,7 @@ Choose the inspection surface to match the intent map:
 
 Create or update `tests/governance/rules/<name>/rule.yaml` with at least `category`, `recommended`, `summary`, `surface`, and `hook` fields. Use `hook: pre-commit` for ordinary repo-state rules, `hook: commit-msg` only for rules that validate the pending commit message, and `hook: none` for CI-only checks.
 
-Create or update `tests/governance/rules/<name>/constitution.md` with the same Invariants subsection you add to `CONSTITUTION.md`; this keeps the installed rule folder self-describing for future `init` / gardener work.
+Create or update `tests/governance/rules/<name>/constitution.md` with the same Invariants subsection you add to `CONSTITUTION.md`; this keeps the installed rule folder self-describing for future `init` work.
 
 Syntax-check it: `bash -n tests/governance/rules/<name>/check.sh`. If it fails, fix and re-check. Never ship syntactically broken bash.
 

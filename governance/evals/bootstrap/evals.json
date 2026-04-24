@@ -52,12 +52,12 @@
     {
       "id": 4,
       "prompt": "This repo already has governance. Can you review whether the constitution is missing anything obvious? Do not rewrite or reinstall anything.",
-      "expected_output": "The skill does not bootstrap. It recognizes that the request is for review rather than installation, leaves files untouched, and either answers directly or points the user to governance-gardener/governance-amend as the better fit.",
+      "expected_output": "The skill does not bootstrap. It recognizes that the request is for review rather than installation, leaves files untouched, and either answers directly or points the user to `governance rule *` as the better fit for targeted changes.",
       "files": ["evals/files/already-bootstrapped-repo/"],
       "assertions": [
         "No governance files were rewritten",
         "The skill explicitly recognized this as a review/explanation request rather than an installation request",
-        "The skill either answered directly or redirected to governance-gardener or governance-amend",
+        "The skill either answered directly or redirected to `governance rule *` for targeted changes",
         "The skill did not create new hook files, a new CONSTITUTION.md, or a replacement tests/governance/ runner"
       ]
     },

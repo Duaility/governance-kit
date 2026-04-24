@@ -24,7 +24,6 @@ The user-facing entry point is the unified [`governance`](governance/SKILL.md) s
 | Skill | Purpose |
 |---|---|
 | [governance](governance/SKILL.md) | **User-facing entry point.** Unified verb surface: `init`, `uninstall`, `pack *`, `rule *`. |
-| [governance-gardener](governance-gardener/SKILL.md) | Walks the governance surface and produces a Governance Health Report flagging blind spots, dead rules, escape-hatch friction, and doc drift. Optional follow-up actions open PRs. |
 
 ## How governance works here
 
@@ -74,9 +73,6 @@ governance-kit/
 │   ├── catalog.schema.json
 │   └── packs/
 │       └── agent-governance/    # duaility/agent-governance — authored as a community pack.
-├── governance-gardener/         # Walks governance, emits a health report.
-│   ├── SKILL.md
-│   └── ...
 ├── tests/governance/            # Rule tests for THIS repo (dogfood).
 │   ├── run.sh
 │   ├── lib.sh
@@ -141,8 +137,6 @@ This repo's skills are made available to local agent runtimes via symlinks:
 ```sh
 ln -s $(pwd)/governance ~/.claude/skills/governance
 ln -s $(pwd)/governance ~/.codex/skills/governance
-ln -s $(pwd)/governance-gardener ~/.claude/skills/governance-gardener
-ln -s $(pwd)/governance-gardener ~/.codex/skills/governance-gardener
 ```
 
 Edits to source files flow to both runtimes live.

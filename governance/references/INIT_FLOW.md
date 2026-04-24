@@ -23,7 +23,7 @@ Governance evolves: new rules get added to `CONSTITUTION.md` *and* to `tests/gov
 |---|---|
 | Repo is not a git repo | Stop and tell the user `governance init` requires git. |
 | Repo already has governance artifacts and the user asked for setup | Continue in augment/overwrite mode; default to augment. |
-| Repo already has governance artifacts and the user asked for review, explanation, or one targeted change | Do not run `init`. Answer directly or route to `governance rule *` / `governance-gardener`. |
+| Repo already has governance artifacts and the user asked for review, explanation, or one targeted change | Do not run `init`. Answer directly or route to `governance rule *`. |
 | Multiple plausible primary stacks exist | Ask once. If no answer is available, fall back to bash-first generic setup and label it as an assumption. |
 | Hook framework is unclear | Infer from tracked files. If still unclear, assume `.githooks/` and label that as an assumption. |
 | Structured question tools are unavailable | Ask concise free-text questions, then proceed with defaults if the user does not provide more detail. |
@@ -174,7 +174,7 @@ For each rule in the final install list, use `../assets/packs/lib/install.sh`:
 
 - `install_rule_folder <pack-dir> <rule> <repo-root>` copies `<pack-dir>/rules/<rule>/` into `tests/governance/rules/<rule>/`, excluding `evals/`, and marks `check.sh` plus rule-owned hooks/runtimes executable.
 - `install_rule_assets <pack-dir> <rule> <repo-root>` copies optional `install-assets/` files into the target repo without overwriting existing files in augment mode. This is how rules such as `issues-tracked` seed `QUALITY.md` and `agent-token-accounting` seeds `COSTS.md`.
-- If the user selects `doc-freshness`, also copy `../assets/freshness.conf` to `tests/governance/freshness.conf` (the seed file is commented — every path is opt-in by uncommenting; `governance-gardener` complements it with a built-in baseline).
+- If the user selects `doc-freshness`, also copy `../assets/freshness.conf` to `tests/governance/freshness.conf` (the seed file is commented — every path is opt-in by uncommenting).
 
 After all rules are installed, write `.governance-kit/installed-packs.yaml` via `write_installed_manifest`. Pass every flag that applies to the install — `governance uninstall` treats this file as the authoritative record of what the kit owns and will key off every field:
 
