@@ -25,18 +25,23 @@ with title prefixes that mirror Conventional Commit types so an issue
 - `.github/ISSUE_TEMPLATE/bug.yml` — standard defect form. Sections:
   What happened, Expected, Repro, Environment, Notes. Title prefixed
   `bug:`.
-- `.github/ISSUE_TEMPLATE/config.yml` — keep blank issues enabled,
-  point open-ended questions to Discussions.
+- `.github/ISSUE_TEMPLATE/config.yml` — disable blank issues and point
+  open-ended questions to Discussions.
+- `issue-templates` governance rule — require the tracked GitHub issue
+  forms and config so the handoff standard stays enforced after this PR.
+- `duaility/agent-governance` pack assets — ship the templates under
+  the rule's `install-assets/` tree so newly bootstrapped repos start
+  green.
 
 ## Non-goals
 
 - A `chore` template — can be added later if the need surfaces.
-- Any change to the PR template, commit conventions, or governance
-  rules.
-- Wiring issue-title format into a governance rule.
+- Any change to the PR template or commit conventions.
 
 ## Validation
 
 - `bash tests/governance/run.sh` passes.
+- `bash tests/governance/run.sh issue-templates` passes.
+- `bash scripts/test-packs.sh` passes.
 - After merge, the GitHub new-issue picker shows both `proposal` and
   `bug` templates.

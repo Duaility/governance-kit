@@ -61,13 +61,14 @@ The three consolidated rules (`required-docs`, `repo-hygiene`, `secrets-hygiene`
 
 ## `agent-governance` pack
 
-For repos where every tree-change is produced through an agent runtime (Codex, Claude Code, Cursor, ...). The four rules form a chain: issues are tracked, every issue has exactly one plan, every commit matches its plan, and every commit carries its cost. Breaking any link makes the chain non-auditable — the `standard` preset bundles all four.
+For repos where every tree-change is produced through an agent runtime (Codex, Claude Code, Cursor, ...). The rules form a chain: issue creation uses a durable template, issues are tracked, every issue has exactly one plan, every commit matches its plan, and every commit carries its cost. Breaking any link makes the chain non-auditable — the `standard` preset bundles the full chain.
 
 ### Agent discipline
 | Rule | What it checks |
 |---|---|
 | `plan-per-issue`           | Every tracked `plans/*.md` file carries a unique `issue-<N>` token in its filename **and** includes a `## Validation`, `## Verification`, or `## Acceptance` section naming how completion will be judged. Per-file waivers: `governance: allow-plan-per-issue` (skips filename/duplicate checks) and `governance: allow-plan-validation` (skips the validation-section check only) — both bare or inside an HTML comment. |
 | `commit-issue-plan-match`  | Each commit's `(#N)` subject anchor matches an `issue-<N>` token on a plan file it touches. Installs a `commit-msg` hook. |
+| `issue-templates`          | `.github/ISSUE_TEMPLATE/` contains proposal and bug issue forms plus config. Blank issues are disabled, proposal issues require Context / Decision / Scope / Acceptance criteria / Validation / Open questions, and bug issues require the core defect-report fields. Ships the templates under `install-assets/.github/ISSUE_TEMPLATE/`. |
 | `issues-tracked`           | `QUALITY.md` exists at repo root with `Open` and `Resolved` sections. Ships `install-assets/QUALITY.md` so a newly bootstrapped repo starts green. |
 | `agent-token-accounting`   | Every non-merge, non-revert commit carries the full trailer set (`Agent`, `Issue`, `Session`, `Token-Input`, `Token-Output`, `Token-Total`, `Cost-Key`), satisfies `Total = Input + Output`, and has exactly one matching append-only row in `COSTS.md`. Ships `install-assets/COSTS.md` plus rule-owned pre-commit and prepare-commit-msg helpers. Runtime-agnostic — see [AGENT_TOKEN_ACCOUNTING.md](AGENT_TOKEN_ACCOUNTING.md) for Codex / Claude Code wiring. |
 
@@ -76,7 +77,7 @@ For repos where every tree-change is produced through an agent runtime (Codex, C
 | Preset | Rules |
 |---|---|
 | `minimal`  | `plan-per-issue`, `commit-issue-plan-match` |
-| `standard` | *minimal* + `issues-tracked`, `agent-token-accounting` |
+| `standard` | *minimal* + `issue-templates`, `issues-tracked`, `agent-token-accounting` |
 | `strict`   | same as `standard` |
 
 ---

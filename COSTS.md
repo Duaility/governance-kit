@@ -123,3 +123,4 @@ Schema:
 | claude-code-1e9311de-d96-1777033852 | claude-code | 1e9311de-d964-43a7-b5c3-589a068ad926 | #44 | claude-opus-4-7 | 7 | 12331 | 345455 | 3266 | 15604 | 0.3315 | docs(readme): swap rule example to doc-freshness (#44) |
 | claude-code-4cd3e3d3-c4a-1777043703 | claude-code | 4cd3e3d3-c4a6-4a3a-a008-1bf541c71e85 | #47 | claude-opus-4-7 | 59 | 43051 | 607507 | 7431 | 50541 | 0.7589 | docs(github): add issue templates for proposal and bug flows (#47) |
 | claude-code-4cd3e3d3-c4a-1777043757 | claude-code | 4cd3e3d3-c4a6-4a3a-a008-1bf541c71e85 | #47 | claude-opus-4-7 | 7 | 9385 | 279110 | 1680 | 11072 | 0.2402 | docs(github): add issue templates for proposal and bug flows (#47) |
+| codex-019dc008-577-1777044965 | codex | 019dc008-5775-7431-8505-18d9039f905f | #47 | gpt-5.5 | 117361 | 0 | 2965760 | 17486 | 134847 | 1.2971 |  |

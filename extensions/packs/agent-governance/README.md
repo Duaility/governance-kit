@@ -21,13 +21,14 @@ suite so any repo can opt into the same discipline.
 |---|---|---|---|
 | `plan-per-issue` | AgentDiscipline | repo-state | pre-commit |
 | `commit-issue-plan-match` | AgentDiscipline | change-set | commit-msg |
+| `issue-templates` | AgentDiscipline | repo-state | pre-commit |
 | `issues-tracked` | AgentDiscipline | repo-state | pre-commit |
 | `agent-token-accounting` | AgentDiscipline | change-set | commit-msg |
 
-The four rules form a chain — issues are tracked, every issue has exactly
-one plan, every commit matches its plan, every commit carries its cost.
-Breaking any link makes the chain non-auditable, so the `standard` preset
-bundles all four.
+The rules form a chain — issue creation uses a durable template, issues
+are tracked, every issue has exactly one plan, every commit matches its
+plan, every commit carries its cost. Breaking any link makes the chain
+non-auditable, so the `standard` preset bundles the full chain.
 
 ## Installation note — agent-token-accounting
 
