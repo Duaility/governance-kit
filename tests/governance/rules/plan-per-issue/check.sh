@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # Rule: Each tracked plans/*.md file carries an `issue-<N>` token in its
-# filename, and no two plan files share the same issue number.
+# filename, no two plan files share the same issue number, and every plan
+# includes at least one validation-intent section heading
+# (`## Validation`, `## Verification`, or `## Acceptance`).
 # Rationale: Plans are the durable record of intent behind a change set. A
 # one-to-one binding between plan and issue keeps the system of record
 # unambiguous — reviewers jump from an issue to its single plan, and agents
 # can detect whether an issue already has a plan before drafting a duplicate.
+# A validation-intent section tells a reviewer (human or agent) how the plan
+# will be judged complete before any code is written.
 set -u
 source "$(dirname "$0")/../../lib.sh"
 rule_start "plan-per-issue"
@@ -53,6 +57,16 @@ for f in "${plan_files[@]}"; do
         fi
     else
         violation "$f — plan filename must include an 'issue-<N>' token (e.g. 2026-04-23-issue-15-summary.md)"
+    fi
+
+    # Validation-intent section. Legacy plans opt out with a
+    # `governance: allow-plan-validation` waiver so the rule takes effect
+    # for new plans without forcing a mass rewrite of historical records.
+    if grep -qE '^[[:space:]]*(<!--)?[[:space:]]*governance:[[:space:]]*allow-plan-validation' "$f"; then
+        continue
+    fi
+    if ! grep -qE '^##[[:space:]]+(Validation|Verification|Acceptance)\b' "$f"; then
+        violation "$f — plan is missing a '## Validation', '## Verification', or '## Acceptance' section describing how completion will be judged"
     fi
 done
 

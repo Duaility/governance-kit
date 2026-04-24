@@ -1,3 +1,4 @@
+<!-- governance: allow-plan-validation legacy -->
 <!-- last-verified: 2026-04-23 -->
 
 # 2026-04-23 — Ship `scripts/setup-clone.sh` and fix `install-assets/` leak

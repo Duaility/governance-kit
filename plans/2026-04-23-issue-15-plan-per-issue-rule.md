@@ -1,3 +1,4 @@
+<!-- governance: allow-plan-validation legacy -->
 # Require One Plan File Per Issue
 
 ## Goal

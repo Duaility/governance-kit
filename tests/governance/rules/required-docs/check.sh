@@ -53,6 +53,14 @@ if is_enabled agents; then
         if [[ $link_count -lt $MIN_LINKS ]]; then
             violation "AGENTS.md has $link_count internal links — an index should link out (min: $MIN_LINKS)"
         fi
+        # AGENTS.md should be a map to the bedrock durable docs. The
+        # `constitution` sub-check already mandates CONSTITUTION.md at
+        # root — require AGENTS.md to link to it so a fresh reader has
+        # one anchored hop to the rule set.
+        if [[ -f "$ROOT/CONSTITUTION.md" ]] \
+            && ! grep -qE '\]\((\./)?CONSTITUTION\.md(#[^)]*)?\)' "$FILE"; then
+            violation "AGENTS.md does not link to CONSTITUTION.md — an index should point at the bedrock durable docs"
+        fi
     fi
 fi
 

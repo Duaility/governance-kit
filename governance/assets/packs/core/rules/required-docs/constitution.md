@@ -2,7 +2,7 @@
 
 - **Rule**: The repo ships the baseline set of root-level documents and local-hook scaffolding expected by governance-kit — each sub-check below is enabled by default and can be opted out of individually via `GOVERNANCE_REQUIRED_DOCS_DISABLE` (comma-separated list of sub-check keys):
     - `constitution` — `CONSTITUTION.md` at repo root, non-empty, ≥ 10 lines.
-    - `agents` — `AGENTS.md` at repo root, 30–250 lines (configurable via `GOVERNANCE_AGENTS_MD_MIN` / `GOVERNANCE_AGENTS_MD_MAX`), with ≥ 3 links to other repo docs (configurable via `GOVERNANCE_AGENTS_MD_MIN_LINKS`).
+    - `agents` — `AGENTS.md` at repo root, 30–250 lines (configurable via `GOVERNANCE_AGENTS_MD_MIN` / `GOVERNANCE_AGENTS_MD_MAX`), with ≥ 3 links to other repo docs (configurable via `GOVERNANCE_AGENTS_MD_MIN_LINKS`), and a link to `CONSTITUTION.md` so the file functions as a map to the bedrock durable docs rather than a standalone manual.
     - `readme` — `README.md`, `README`, or `README.rst` at repo root with a top-level heading and ≥ 30 words.
     - `license` — `LICENSE`, `LICENSE.md`, `LICENSE.txt`, `COPYING`, or `COPYING.md` exists at repo root and is non-empty.
     - `security` — `SECURITY.md` (root, `docs/`, or `.github/`) exists and lists a contact email, URL, or vulnerability-disclosure platform.

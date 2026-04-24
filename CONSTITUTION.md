@@ -29,7 +29,7 @@ If a specific change cannot satisfy a rule, document the deviation in the PR des
 
 - **Rule**: The repo ships the baseline set of root-level documents and local-hook scaffolding expected by governance-kit — each sub-check below is enabled by default and can be opted out of individually via `GOVERNANCE_REQUIRED_DOCS_DISABLE` (comma-separated list of sub-check keys):
     - `constitution` — `CONSTITUTION.md` at repo root, non-empty, ≥ 10 lines.
-    - `agents` — `AGENTS.md` at repo root, 30–250 lines (configurable via `GOVERNANCE_AGENTS_MD_MIN` / `GOVERNANCE_AGENTS_MD_MAX`), with ≥ 3 links to other repo docs (configurable via `GOVERNANCE_AGENTS_MD_MIN_LINKS`).
+    - `agents` — `AGENTS.md` at repo root, 30–250 lines (configurable via `GOVERNANCE_AGENTS_MD_MIN` / `GOVERNANCE_AGENTS_MD_MAX`), with ≥ 3 links to other repo docs (configurable via `GOVERNANCE_AGENTS_MD_MIN_LINKS`), and a link to `CONSTITUTION.md` so the file functions as a map to the bedrock durable docs rather than a standalone manual.
     - `readme` — `README.md`, `README`, or `README.rst` at repo root with a top-level heading and ≥ 30 words.
     - `license` — `LICENSE`, `LICENSE.md`, `LICENSE.txt`, `COPYING`, or `COPYING.md` exists at repo root and is non-empty.
     - `security` — `SECURITY.md` (root, `docs/`, or `.github/`) exists and lists a contact email, URL, or vulnerability-disclosure platform.
@@ -99,10 +99,14 @@ If a specific change cannot satisfy a rule, document the deviation in the PR des
 
 ### plan-per-issue
 
-- **Rule**: Every tracked `plans/*.md` filename includes an `issue-<N>` token identifying the GitHub issue it plans for, and no two plan files share the same issue number.
-- **Rationale**: Plans are the durable record of intent behind a change set. A one-to-one binding between plan and issue keeps the system of record unambiguous — reviewers jump from an issue to its single plan, and agents can detect whether an issue already has a plan before drafting a duplicate.
+- **Rule**: Every tracked `plans/*.md` file satisfies two shape requirements:
+    1. The filename includes an `issue-<N>` token identifying the GitHub issue it plans for, and no two plans share the same issue number.
+    2. The body contains at least one `## Validation`, `## Verification`, or `## Acceptance` section describing how completion will be judged.
+- **Rationale**: Plans are the durable record of intent behind a change set. A one-to-one binding between plan and issue keeps the system of record unambiguous — reviewers jump from an issue to its single plan, and agents can detect whether an issue already has a plan before drafting a duplicate. A validation-intent section forces the author to name the exit criterion before code is written, which is what distinguishes a plan from a running commentary.
 - **Enforced by**: `tests/governance/rules/plan-per-issue/check.sh`
-- **Exceptions**: Per-file waiver — a line matching `governance: allow-plan-per-issue` (bare or inside an HTML comment) anywhere in the file exempts that plan. Used to grandfather plans that predate this rule.
+- **Exceptions**: Two per-file waivers, each matched as a bare line or inside an HTML comment anywhere in the file:
+    - `governance: allow-plan-per-issue` — exempts the plan from the filename-token and duplicate-issue checks. Used to grandfather plans that predate this rule.
+    - `governance: allow-plan-validation` — exempts the plan from the validation-section check only. Used to grandfather legacy plans imported before the validation requirement existed; new plans should carry the section instead.
 
 ### commit-issue-plan-match
 
@@ -159,6 +163,7 @@ If a specific change cannot satisfy a rule, document the deviation in the PR des
 - 2026-04-23 — @srikanth — Re-bootstrap after `governance-reset`: reinstall `core + agent-governance` at the `standard` preset (16 rules including `doc-freshness`, which prior hand-customization had removed). Clean slate for the constitution text; evolution log and principles preserved.
 - 2026-04-23 — @srikanth — Roll up low-signal core rules into three substantive ones. `constitution-exists`, `agents-md-exists`, `readme-exists`, `license-exists`, `security-md-exists`, `architecture-doc-exists`, `ci-workflow-exists`, `env-example-current`, and `hooks-configured` collapse into `required-docs`. `no-large-files`, `no-committed-build-artifacts`, `no-merge-conflict-markers`, `no-debug-statements`, and `file-size-limit` collapse into `repo-hygiene`. `no-secrets` and `dotenv-gitignored` collapse into `secrets-hygiene`. The three new rules expose `GOVERNANCE_<NAME>_DISABLE` env vars as per-sub-check opt-outs — tradeoff acknowledged: one invariant paragraph now justifies a bag of checks, but the `core` pack shrinks from 21 rules to 8 and the `minimal`/`standard`/`strict` presets stop burying the substantive entries alongside a pile of `[ -f X ] || fail` checks. Waiver strings for the formerly-independent rules migrate: `allow-no-secrets` → `allow-secrets-hygiene`, `allow-no-debug-statements` → `allow-repo-hygiene`. Closes [#29](https://github.com/Duaility/governance-kit/issues/29).
 - 2026-04-24 — @srikanth — Add `pre-commit-test-gate`: require the governance-kit source repo's tracked pre-commit hook to run `scripts/test-packs.sh`, with `scripts/test-packverb.py` included in that pack test gate, so the pack helper and pack-author contracts run locally before commit instead of relying on manual execution. Closes [#33](https://github.com/Duaility/governance-kit/issues/33).
+- 2026-04-24 — @srikanth — Fold the Harness Engineering ideas into rules that already own the surface: `required-docs`' `agents` sub-check now additionally requires `AGENTS.md` to link to `CONSTITUTION.md`, making the file's "map to durable docs" contract mechanically checkable rather than aspirational; `plan-per-issue` now additionally requires every tracked plan to carry a `## Validation`, `## Verification`, or `## Acceptance` section so the exit criterion is named before code is written. Legacy plans are grandfathered via a new `governance: allow-plan-validation` per-file waiver — deliberately separate from `allow-plan-per-issue` so future rewrites can drop the legacy waiver without touching the filename-token exemption. Draft standalone rule names `agent-docs-map` and `plan-validation-evidence` are discarded: both describe refinements to policy the existing rules already own, and a separate rule would split ownership of one file's shape across two checks. Closes [#39](https://github.com/Duaility/governance-kit/issues/39).
 
 ## Escape hatches
 
