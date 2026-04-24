@@ -27,17 +27,22 @@ packs:
       - id: doc-freshness
         installed_path: tests/governance/rules/doc-freshness
   - id: duaility/agent-governance
-    version: "0.1"
+    version: "0.2"
     rules:
       - id: plan-per-issue
         installed_path: tests/governance/rules/plan-per-issue
       - id: commit-issue-plan-match
         installed_path: tests/governance/rules/commit-issue-plan-match
+      - id: issue-templates
+        installed_path: tests/governance/rules/issue-templates
       - id: issues-tracked
         installed_path: tests/governance/rules/issues-tracked
       - id: agent-token-accounting
         installed_path: tests/governance/rules/agent-token-accounting
 install_assets_seeded:
+  - .github/ISSUE_TEMPLATE/config.yml
+  - .github/ISSUE_TEMPLATE/proposal.yml
+  - .github/ISSUE_TEMPLATE/bug.yml
   - QUALITY.md
   - COSTS.md
 collisions: []

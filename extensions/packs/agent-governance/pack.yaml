@@ -3,13 +3,14 @@
 # Rules for repos that operate under agent-driven development — where
 # every change to the tree is produced through an agent runtime (Codex,
 # Claude Code, Cursor, ...). These rules assume every commit has an
-# issue anchor, a matching plan, and full cost accounting.
+# issue templates, an issue anchor, a matching plan, and full cost accounting.
 #
-# The four rules form a chain: issues are tracked (`issues-tracked`),
-# every issue has exactly one plan (`plan-per-issue`), every commit
-# matches its plan (`commit-issue-plan-match`), and every commit carries
-# its cost (`agent-token-accounting`). Breaking any link makes the
-# chain non-auditable, so the `standard` preset bundles all four.
+# The rules form a chain: issue creation uses a durable template
+# (`issue-templates`), issues are tracked (`issues-tracked`), every issue
+# has exactly one plan (`plan-per-issue`), every commit matches its plan
+# (`commit-issue-plan-match`), and every commit carries its cost
+# (`agent-token-accounting`). Breaking any link makes the chain
+# non-auditable, so the `standard` preset bundles the full chain.
 #
 # Category `AgentDiscipline` is introduced by this pack — the
 # bootstrap skill surfaces it as an additional screen when this pack
@@ -21,7 +22,7 @@
 
 id: duaility/agent-governance
 name: Agent-governance rules
-version: "0.1"
+version: "0.2"
 min_governance_kit: "0.2"
 description: Rules for repos operating under agent-driven development.
 author: governance-kit
@@ -34,6 +35,7 @@ presets:
   standard:
     extends: minimal
     rules:
+      - issue-templates
       - issues-tracked
       - agent-token-accounting
   strict:
