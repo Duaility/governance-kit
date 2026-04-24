@@ -99,3 +99,4 @@ Schema:
 | claude-code-9e05791b-0ee-1777017833 | claude-code | 9e05791b-0ee0-423e-b0c8-2234df57840a | #31 | claude-opus-4-7 | 92 | 180009 | 7092007 | 25609 | 205710 | 5.3117 | fix(governance): address codex review on PR #32 (#31) |
 | claude-code-9e05791b-0ee-1777017859 | claude-code | 9e05791b-0ee0-423e-b0c8-2234df57840a | #31 | claude-opus-4-7 | 4 | 3933 | 462351 | 1887 | 5824 | 0.3030 | fix(governance): address codex review on PR #32 (#31) |
 | codex-019dbe8d-0a4-1777018919 | codex | 019dbe8d-0a49-7f30-9dbd-470aae006dff | #33 | gpt-5.5 | 209357 | 0 | 2008064 | 9510 | 218867 |  | test(pack): cover packverb contract drift (#33) |
+| codex-019dbe8d-0a4-1777019641 | codex | 019dbe8d-0a49-7f30-9dbd-470aae006dff | #33 | gpt-5.5 | 162470 | 0 | 6231424 | 14698 | 177168 |  | test(hooks): require pack tests in pre-commit (#33) |

@@ -183,6 +183,16 @@ while IFS= read -r id; do
     bash "$RULES_DIR/$id/check.sh" || fail=1
 done < <(rule_ids_for_hook pre-commit check)
 
+if [[ -x "$ROOT/scripts/test-packs.sh" && -d "$ROOT/governance/assets/packs" ]]; then
+    (
+        cd "$ROOT" || exit 1
+        while IFS= read -r name; do
+            [[ -n "$name" ]] && unset "$name"
+        done < <(git rev-parse --local-env-vars)
+        bash "$ROOT/scripts/test-packs.sh"
+    ) || fail=1
+fi
+
 if [[ $fail -ne 0 ]]; then
     cat >&2 <<EOF
 

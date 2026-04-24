@@ -27,3 +27,13 @@ Closes [#33](https://github.com/Duaility/governance-kit/issues/33).
    catalog, validation, init-doc, or SHA-ref behavior.
 3. Run pack tests and the governance suite.
 
+## Follow-up
+
+After review of the first draft PR, the local hook contract was tightened:
+
+- Add `pre-commit-test-gate` to the constitution and governance rules.
+- Make the generated pre-commit hook, and this repo's tracked
+  `.githooks/pre-commit`, run `scripts/test-packs.sh` when the pack-author
+  test suite is present.
+- Keep `scripts/test-packverb.py` inside `scripts/test-packs.sh`, so packverb
+  contract coverage is part of every normal local commit.
