@@ -28,22 +28,19 @@ full rearchitecture context.
 - **Source-of-truth ladder:** install manifest → `governance-kit:managed` line-2 marker → heuristic fallback (forces dry-run).
 - **Invariant:** never delete a file without ownership evidence.
 
-## `pack *` (planned, not yet implemented)
+## `pack *`
 
-These verbs are tracked under issue #31 and will land in a subsequent
-PR. Surface sketch:
+Full flows live in [PACK_VERBS.md](PACK_VERBS.md). Summary:
 
 | Verb | Intent |
 |---|---|
-| `pack search [query]` | Search `extensions/catalog.community.json` and return matching entries. |
-| `pack add <ref>` | Install a pack from a GitHub ref. Default to SHA pinning via `.governance/packs.lock`. Show `check.sh` diffs before writing (diff-before-exec). Refuse if a rule's `reads:` / `writes:` declarations reach outside the pack's own folder or the declared globs. |
-| `pack update [<pack-id>]` | Resolve to a new SHA, re-run diff-before-exec, update the lock. |
-| `pack remove <pack-id>` | Remove installed rule folders owned by the pack, prune the lock entry. |
-| `pack list` | Print installed packs from `.governance/packs.lock` with their pinned SHAs. |
+| `pack search [query]` | Search `extensions/catalog.community.json` and return matching entries via `packverb catalog-search`. |
+| `pack add <ref>` | Fetch a pack from a GitHub ref (`gh:owner/repo[/subpath][@rev]`), resolve to a concrete SHA, validate, show `check.sh` diffs before writing (diff-before-exec), install rule folders, and record the pin in `.governance/packs.lock`. Refuse if any rule declares `reads:`/`writes:` globs and the rule's `check.sh` references paths outside those globs. |
+| `pack update [<pack-id>]` | Resolve the ref to a newer SHA, re-run diff-before-exec, rewrite rule folders, update the lock. |
+| `pack remove <pack-id>` | Remove installed rule folders owned by the pack (from `.governance-kit/installed-packs.yaml`), regenerate the hook dispatcher, prune the lock entry. |
+| `pack list` | Print installed packs with their pinned SHAs from `.governance/packs.lock`. |
 
-Until these land, do not fall back to manually editing
-`governance-bootstrap/assets/packs/` — that is the in-tree source tree,
-not the user's repo surface.
+**Never** install by hand-copying into `governance-bootstrap/assets/packs/` — that is governance-kit's own in-tree source tree, not a consumer's repo surface. Pack installs for a consumer repo flow through `governance pack add`.
 
 ## `rule *` (planned, not yet implemented)
 

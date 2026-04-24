@@ -18,16 +18,16 @@ Tracking issue: [Duaility/governance-kit#31](https://github.com/Duaility/governa
 
 ```
 governance init                                    # bootstrap a repo
-governance pack search [query]                     # (coming) search community catalog
-governance pack add <ref>                          # (coming) e.g. gh:acme/soc2@<sha>
-governance pack update [<pack-id>]                 # (coming)
-governance pack remove <pack-id>                   # (coming)
-governance pack list                               # (coming)
-governance rule add|modify|remove <rule-id>        # (coming) hand-authored rules
+governance pack search [query]                     # search community catalog
+governance pack add <ref>                          # e.g. gh:acme/soc2-pack@main
+governance pack update [<pack-id>]                 # re-pin SHAs, diff-before-exec
+governance pack remove <pack-id>                   # uninstall a community pack
+governance pack list                               # enumerate installed packs
+governance rule add|modify|remove <rule-id>        # hand-authored rules (delegates to governance-amend until retirement)
 governance uninstall [--dry-run|--soft|--hard]     # tear-down
 ```
 
-Today this skill implements `init` and `uninstall`. The `pack` and `rule` verbs are being ported in follow-up PRs on the same tracking issue; until those land, the legacy `governance-amend` skill remains the authoritative path for hand-authored rule changes. Redirect users there when they ask for rule amendments.
+`pack *` verbs run through `packverb` helpers (`fetch`, `parse-ref`, `capability-check`, `lock-*`, `catalog-search`) in `governance-bootstrap/assets/packs/lib/packverb.py` — see [references/PACK_VERBS.md](references/PACK_VERBS.md) for the full flow of each verb.
 
 ## Verb dispatch
 
@@ -38,7 +38,7 @@ Infer the intended verb from the user's request:
 | "governance init", "set up governance", "bootstrap governance", "install governance-kit" | `init` |
 | "governance uninstall", "reset governance", "tear down governance", "uninstall governance-kit", "clean slate" | `uninstall` |
 | "add / modify / remove rule X", "amend the constitution" | Route to `governance-amend` for now; say so explicitly. |
-| "pack search / add / update / remove / list" | Not yet implemented. Tell the user the verb is tracked under issue #31 and stop. Do **not** fall back to editing the pack tree by hand. |
+| "pack search / add / update / remove / list", "install pack X", "pin pack X", "update all packs" | Route to the matching `pack *` flow in [references/PACK_VERBS.md](references/PACK_VERBS.md). Do **not** fall back to editing the in-tree pack tree by hand. |
 | "is my governance healthy?", "audit governance", "find dead rules" | Route to `governance-gardener`. |
 
 If the user's intent is ambiguous between `init` and `uninstall`, look at the repo state: `CONSTITUTION.md` + `tests/governance/` both present → `uninstall` is more likely; both absent → `init`. Ask once when still ambiguous.
@@ -79,14 +79,20 @@ Key invariants preserved:
 - No destructive git ops — no `git clean`, no `git reset --hard`, no stash.
 - Leave changes unstaged; the user's first post-uninstall commit is intentional.
 
-## Pack and rule verbs (coming soon)
+## `governance pack *`
 
-`governance pack *` and `governance rule *` are tracked under [issue #31](https://github.com/Duaility/governance-kit/issues/31) and not yet implemented in this skill. Until they land:
+Install, update, list, and remove community packs. Packs are resolved from GitHub refs (`gh:owner/repo[/subpath][@rev]`), validated, capability-checked, and pinned by resolved SHA in `.governance/packs.lock`. Shared cache at `${GOVERNANCE_KIT_HOME:-$HOME/.governance-kit}/packs/<id>@<sha>/`.
 
-- **Rule add / modify / remove** → use the `governance-amend` skill. It already enforces the atomic triple (test + constitution subsection + evolution-log entry).
-- **Pack add from a community source** → not yet supported. Tell the user the feature is in-flight and do not attempt to bolt it on by hand-copying a pack folder into `governance-bootstrap/assets/packs/`.
+See [references/PACK_VERBS.md](references/PACK_VERBS.md) for step-by-step flows. Key guarantees:
 
-When those verbs land they will own `.governance/packs.lock` (SHA-pinned community packs), diff-before-exec UX for `check.sh`, and the capability-declaration enforcement scheduled against the schema in this PR.
+- **SHA-pinned.** `pack add gh:acme/soc2@main` resolves `main` once and records the SHA; subsequent `check.sh` runs never chase a moving branch.
+- **Diff-before-exec.** Every install / update shows the `check.sh` diff before writing. The user sees the code that will start running on their commits.
+- **Capability-enforced.** Rules that declare `reads:`/`writes:` globs in `rule.yaml` have their `check.sh` statically swept for out-of-bound path references; a single violation aborts the install.
+- **No network at commit time.** All fetching happens inside verbs. Hook dispatchers never invoke `packctl fetch`.
+
+## `governance rule *`
+
+Hand-authored rule flows (`add`, `modify`, `remove`) — land in a follow-up commit on the same PR. Until then, these verbs delegate to the legacy `governance-amend` skill, which already enforces the atomic triple (rule folder + constitution subsection + Evolution Log entry land as one commit). Route the user there when they ask to add, modify, or remove a rule.
 
 ## Key design rules
 

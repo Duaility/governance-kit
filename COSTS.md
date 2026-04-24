@@ -90,3 +90,4 @@ Schema:
 | claude-code-ee6dceb1-16d-1777007224 | claude-code | ee6dceb1-16d7-404c-a5bb-46a72dc01a2b | #31 | claude-opus-4-7 | 8 | 4842 | 721010 | 3443 | 8293 | 0.4769 | feat(extensions): add community pack catalog scaffold (#31) |
 | claude-code-ee6dceb1-16d-1777007241 | claude-code | ee6dceb1-16d7-404c-a5bb-46a72dc01a2b | #31 | claude-opus-4-7 | 3 | 2098 | 277709 | 1513 | 3614 | 0.1898 | feat(extensions): add community pack catalog scaffold (#31) |
 | claude-code-ee6dceb1-16d-1777007410 | claude-code | ee6dceb1-16d7-404c-a5bb-46a72dc01a2b | #31 | claude-opus-4-7 | 19 | 17579 | 1926926 | 10166 | 27764 | 1.3276 | feat(governance): scaffold unified governance skill with init and uninstall verb |
+| claude-code-ee6dceb1-16d-1777012955 | claude-code | ee6dceb1-16d7-404c-a5bb-46a72dc01a2b | #31 | claude-opus-4-7 | 304 | 351318 | 19484531 | 154943 | 506565 | 15.8131 | feat(governance): land pack verbs with SHA pinning, lockfile, and capability enf |

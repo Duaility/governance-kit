@@ -74,3 +74,11 @@ target to point at.
   flows. `pack` and `rule` verbs stubbed with follow-up pointer to #31.
 - `AGENTS.md` updated to route newcomers at the unified skill while the
   legacy skills remain in-tree as the authoritative flows.
+- **Step 3 — `governance pack *` verbs:** `packctl` now owns ref parsing
+  (`gh:owner/repo[/subpath][@rev]`), shared-cache resolution
+  (`${GOVERNANCE_KIT_HOME:-$HOME/.governance-kit}/packs/<id>@<sha>/`),
+  shallow git fetch with SHA pinning, static capability-glob enforcement
+  (`reads:`/`writes:` vs. paths referenced in `check.sh`), lockfile I/O
+  on `.governance/packs.lock`, and catalog search. Per-verb flow recipes
+  land in `governance/references/PACK_VERBS.md`; `SKILL.md` promotes the
+  verbs from "coming soon" to live and points the dispatch table at them.
