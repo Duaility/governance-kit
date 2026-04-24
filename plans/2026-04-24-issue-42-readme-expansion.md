@@ -76,6 +76,16 @@ Apply the issue's priority order:
 - Quickstart no longer pins `-g` — scope is a deployment choice, so
   the Install section below shows both project and global variants
   instead of prescribing one before the reader is oriented.
+- Reframed the opening around the actual thesis: frontier models do
+  the heavy lifting, humans supply direction, rules are the
+  steering signal. Tagline swapped from the adversarial "Rules
+  your agents can't ignore" to "Frontier models do the work. You
+  set the direction." The old "Why" section is now "What is
+  governance-driven development?" — a three-paragraph hook, with
+  mechanism-level bullets extracted into a new late "Core
+  Philosophy" section (4 principles that survive a rewrite:
+  agents execute / rationale is alignment data / atomic evolution
+  / single-writer).
 - Install surface now leads with [`npx skills add Duaility/governance-kit`](https://github.com/vercel-labs/skills),
   the open CLI for the [Agent Skills](https://agentskills.io) format
   governance-kit already conforms to. Manual `ln -s` snippet kept as

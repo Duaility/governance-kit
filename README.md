@@ -1,21 +1,18 @@
 # governance-kit
 
-**Rules your agents can't ignore.** Every invariant ships as `rule + test + rationale` in a single folder, so the reason a rule exists travels with the script that enforces it — and lands in one atomic commit when it changes.
+**Frontier models do the work. You set the direction.** governance-kit turns a repo's rules, invariants, and principles into the steering signal a capable coding agent actually reads — versioned alongside the code, legible to the next agent that touches it, and enforced at every commit.
 
 Conforms to the [Agent Skills](https://agentskills.io) format, so it installs into [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), Cursor, OpenCode, and 40+ other skills-compatible agents via a single [`npx skills`](https://github.com/vercel-labs/skills) command. MIT-licensed.
 
 ---
 
-## Why governance-driven development?
+## What is governance-driven development?
 
-Prose rules in `CLAUDE.md` / `AGENTS.md` are unenforceable — an agent can read them and still skip them. Pre-commit configs enforce rules but strip the *why*: six months later nobody remembers which rule was a paranoid overreaction and which one caught a real incident. And when you do change a rule, the test, the docs, and the rationale drift out of sync across three PRs.
+Frontier models can ship real work. What they need from their human collaborators isn't supervision — it's **direction**: what "done" looks like, what must never regress, which trade-offs are non-negotiable. Governance-driven development treats that direction as a first-class artifact — versioned, machine-readable, and executable — instead of leaving it as ambient prose nobody updates.
 
-governance-kit collapses that triangle into one unit:
+The status quo scatters the steering signal. Prose in `CLAUDE.md` or `AGENTS.md` drifts out of attention. Pre-commit configs enforce checks but strip the *why*, so an agent hitting an edge case can't generalize from the rule's intent. And when direction changes, the rule, the test, and the rationale land in different PRs and decay at different rates.
 
-- **Rules carry their rationale.** Each rule folder bundles `check.sh`, a `constitution.md` subsection (Rule / Rationale / Enforced by / Exceptions), and `evals/` fixtures.
-- **Amendments are atomic.** Adding, modifying, or removing a rule lands the test, the CONSTITUTION update, and an Evolution Log entry in a single commit — enforced by the kit itself.
-- **Packs are SHA-pinned, with opt-in capability scoping.** Community rule packs can declare `reads:` / `writes:` globs in `rule.yaml`; when a rule declares them, the skill statically sweeps its `check.sh` for out-of-bound paths and aborts the install on any violation.
-- **Agents author rules via verbs, not by editing markdown.** The `governance rule *` verbs are the single writer — no hand-edits to `CONSTITUTION.md`.
+governance-kit collapses all three into one unit. Every invariant ships as `rule + test + rationale` in a single folder, evolves in one atomic commit, and stays legible to the agent that reads it next week.
 
 ## Quickstart
 
@@ -125,6 +122,13 @@ Full catalog: [governance/references/RULES_CATALOG.md](governance/references/RUL
 | [duaility/agent-governance](https://github.com/Duaility/governance-kit/tree/main/extensions/packs/agent-governance) | Agent-driven development discipline: issue tracking, plan-per-issue, commit-issue-plan match, per-commit token accounting. | `governance pack add gh:Duaility/governance-kit/extensions/packs/agent-governance` |
 
 Authoring your own pack: [governance/references/AUTHORING_PACKS.md](governance/references/AUTHORING_PACKS.md).
+
+## Core Philosophy
+
+- **Agents execute. Humans steer.** Frontier models take on the heavy lifting — writing, editing, refactoring. The human contribution is *direction*. governance-kit is the channel for that direction, not a tripwire set against an untrusted worker.
+- **Rationale is alignment data.** A rule without a *why* is a pattern to match. A rule with a *why* is a principle a capable agent can apply to edge cases the rule-author never imagined. Every rule folder ships both.
+- **Direction evolves atomically.** When an invariant changes, the check, the `CONSTITUTION.md` entry, and the Evolution Log entry land in one commit. The steering signal never drifts away from the code it's steering.
+- **Agents are authors, not bypass routes.** The `rule *` verbs are the single writer. Agents amend rules by invoking the verb, not by quietly editing `CONSTITUTION.md` — the steering surface stays auditable commit-by-commit.
 
 ## Why not just pre-commit / husky / lefthook?
 
