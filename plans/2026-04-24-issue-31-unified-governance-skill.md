@@ -74,6 +74,19 @@ target to point at.
   flows. `pack` and `rule` verbs stubbed with follow-up pointer to #31.
 - `AGENTS.md` updated to route newcomers at the unified skill while the
   legacy skills remain in-tree as the authoritative flows.
+- **Step 6 — soft retirement of legacy skills:** `governance-bootstrap`,
+  `governance-amend`, and `governance-reset` now declare
+  `status: retirement-in-progress` and `superseded-by: governance` in
+  frontmatter, narrow their descriptions to internal-delegation language
+  (so the unified skill wins activation), and carry a retirement notice
+  linking to the unified skill. `AGENTS.md` and `README.md` reframe the
+  per-lifecycle skills as retired internals owned by the unified skill.
+  Physical deletion + asset relocation (moving
+  `governance-bootstrap/assets/` under `governance/assets/` and inlining
+  the delegated-to flows) is a follow-up PR — doing it here would
+  break the current delegation and the dogfood install simultaneously,
+  with no intermediate reviewable state. `governance-gardener` is out
+  of scope per the issue itself.
 - **Step 5 — agent-governance catalog seed:** `extensions/catalog.community.json`
   now carries a `duaility/agent-governance` entry pointing at the
   future `Duaility/governance-pack-agent-governance` repo. A relocation

@@ -1,13 +1,17 @@
 ---
 name: governance-reset
-description: Cleanly uninstalls a governance-kit setup from a repo that was previously bootstrapped. Reverses every side-effect `governance-bootstrap` produces — tracked `CONSTITUTION.md`, `tests/governance/` tree, CI workflow, install manifest, managed `.githooks/` dispatchers, `AGENTS.md` directive block, and `git config core.hooksPath` — with ownership-marker discipline that refuses to delete any file it did not install. Offers three modes (dry-run, soft, hard) and defaults to dry-run when the install manifest is missing but governance artifacts are detected. Use when the user wants to undo governance bootstrap, says "reset governance", "uninstall governance-kit", "tear down the governance setup", or wants a clean slate before re-bootstrapping. Do not use for removing individual rules (that is `governance-amend`) or for a governance health check (that is `governance-gardener`).
+description: Internal activation flow for `governance uninstall`. Owns the 6-step uninstall recipe, the three-layer source-of-truth ladder (install manifest → `governance-kit:managed` line-2 marker → heuristic fallback that forces dry-run), the `UNINSTALL_MATRIX` / `MANIFEST_SCHEMA` references, and the dry-run / soft / hard mode logic. **Superseded by the unified `governance` skill** (issue #31) — which delegates here. Do not auto-trigger on user phrases like "uninstall governance" or "reset governance"; the unified skill owns the user-facing surface and dispatches in.
 license: MIT
 metadata:
   author: governance-kit
   version: "0.1"
+  status: retirement-in-progress
+  superseded-by: governance
 ---
 
 # governance-reset
+
+> **Status: retirement in progress (issue [#31](https://github.com/Duaility/governance-kit/issues/31)).** This skill is the authoritative implementation of `governance uninstall`. The unified [`governance`](../governance/SKILL.md) skill is the user-facing entry point and delegates here. New asks should flow through `governance uninstall`; the 6-step flow and references below remain the source of truth until the legacy skill tree is deleted.
 
 This skill **uninstalls** `governance-kit` from the current repository. It is the inverse of `governance-bootstrap` — for every side-effect bootstrap can produce, reset knows how to reverse it, and it refuses to touch anything it does not recognize as kit-owned.
 

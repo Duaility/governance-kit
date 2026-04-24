@@ -1,13 +1,17 @@
 ---
 name: governance-bootstrap
-description: Bootstraps governance-driven development in a repository that does not yet have the kit installed — scaffolds an initial CONSTITUTION.md, a test suite under tests/governance/ that enforces it, tracked git hooks, and a GitHub Actions workflow. Ships with rule packs — `core` (Conventional Commits, secret scanning, .env hygiene, GitHub Actions hardening, AGENTS.md / ARCHITECTURE.md / SECURITY.md checks, broken-link detection, doc freshness, merge-conflict-marker detection) and `agent-governance` (plan-per-issue, commit-issue-plan-match, issues-tracked, agent-token-accounting for repos under agent-driven development). Users pick packs, a preset (minimal/standard/strict/custom), and then customize per-category. Use when the user wants initial governance setup, says "bootstrap governance", "set up governance tests", or wants to install this governance kit into a repo. Do not use for amending an existing rule set; use governance-amend for that.
+description: Internal activation flow for `governance init`. Owns the 8-step bootstrap recipe, the pack tree under `assets/packs/`, the `CONSTITUTION.template.md` / `AGENTS.directive.md` assets, the hook lib, and the CI workflow template. **Superseded by the unified `governance` skill** (issue #31) — which delegates here for the actual init flow. Do not auto-trigger on user phrases like "bootstrap governance" or "set up governance"; the unified skill owns the user-facing surface and dispatches in.
 license: MIT
 metadata:
   author: governance-kit
   version: "0.2"
+  status: retirement-in-progress
+  superseded-by: governance
 ---
 
 # governance-bootstrap
+
+> **Status: retirement in progress (issue [#31](https://github.com/Duaility/governance-kit/issues/31)).** This skill is the authoritative implementation of `governance init`. The unified [`governance`](../governance/SKILL.md) skill is the user-facing entry point and delegates here. New asks should flow through `governance`; the prose, assets, and 8-step flow below remain the source of truth until the legacy skill tree is deleted.
 
 This skill sets up **governance-driven development** in the current repository:
 

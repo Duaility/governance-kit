@@ -1,14 +1,18 @@
 ---
 name: governance-amend
-description: Amends an existing governance-kit setup by adding, modifying, or removing a specific governance rule atomically across the enforcing test and the constitution's invariant/log entries. Use when the repo already has governance-kit installed and the user wants a concrete rule change such as "add a governance rule", "add a new invariant", "amend the constitution", "modify rule X", or "remove rule Y". Do not use for initial setup; use governance-bootstrap for that. Do not use for general health reviews; use governance-gardener for that.
+description: Internal activation flow for `governance rule {add,modify,remove}`. Owns the atomic-triple recipe (rule folder + CONSTITUTION.md invariant subsection + Evolution Log entry, committed as one), the `rule.template.sh` / `invariant-section.template.md` assets, and the RULE_AUTHORING reference. **Superseded by the unified `governance` skill** (issue #31) — which delegates here. Do not auto-trigger on user phrases like "add a rule" or "amend the constitution"; the unified skill owns the user-facing surface and dispatches in.
 license: MIT
 metadata:
   author: governance-kit
   version: "0.1"
   companion-of: governance-bootstrap
+  status: retirement-in-progress
+  superseded-by: governance
 ---
 
 # governance-amend
+
+> **Status: retirement in progress (issue [#31](https://github.com/Duaility/governance-kit/issues/31)).** This skill is the authoritative implementation of `governance rule add|modify|remove`. The unified [`governance`](../governance/SKILL.md) skill is the user-facing entry point and delegates here. New asks should flow through `governance rule *`; the atomic-triple flow and assets below remain the source of truth until the legacy skill tree is deleted.
 
 The `governance-bootstrap` skill sets up the system of record. **This skill evolves it.**
 

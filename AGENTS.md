@@ -19,15 +19,15 @@ See the **Compliance** section of [CONSTITUTION.md](CONSTITUTION.md) for the ful
 
 `governance-kit` ships Claude Code / Codex skills that together implement **governance-driven development** — a workflow where every rule in a `CONSTITUTION.md` has a matching executable test, and the two evolve as one commit.
 
-The unified entry point is the [`governance`](governance/SKILL.md) skill, which exposes verbs (`init`, `uninstall`, and the forthcoming `pack` / `rule` families — see [issue #31](https://github.com/Duaility/governance-kit/issues/31)). The verb-based surface is being ported in stages; the per-lifecycle skills below remain authoritative until the port reaches parity.
+The unified entry point is the [`governance`](governance/SKILL.md) skill. It exposes four verb families — `init`, `uninstall`, `pack {search,add,update,remove,list}`, `rule {add,modify,remove}` — and is the user-facing surface for every governance-kit lifecycle operation. The per-lifecycle skills below are in **retirement in progress** (issue [#31](https://github.com/Duaility/governance-kit/issues/31)): they still own the authoritative flows and assets that the unified skill delegates to, and they will be deleted once the unified skill absorbs the prose and relocates the assets under `governance/`.
 
 | Skill | Purpose |
 |---|---|
-| [governance](governance/SKILL.md) | **Preferred entry point.** Unified verb surface — `governance init` delegates to bootstrap, `governance uninstall` delegates to reset, and `pack` / `rule` verbs are coming. |
-| [governance-bootstrap](governance-bootstrap/SKILL.md) | Scaffolds CONSTITUTION.md, `tests/governance/`, pre-commit + commit-msg hooks, and a CI workflow. Invoked by `governance init`. |
-| [governance-amend](governance-amend/SKILL.md) | Adds or modifies a rule atomically across test + constitution + evolution log. Will be superseded by `governance rule add|modify|remove`. |
-| [governance-gardener](governance-gardener/SKILL.md) | Walks the governance surface and produces a Governance Health Report flagging blind spots, dead rules, escape-hatch friction, and doc drift. Optional follow-up actions open PRs. |
-| [governance-reset](governance-reset/SKILL.md) | Cleanly uninstalls a previously bootstrapped setup — reverses every bootstrap side-effect with ownership-marker discipline. Dry-run / soft / hard modes. Invoked by `governance uninstall`. |
+| [governance](governance/SKILL.md) | **User-facing entry point.** Unified verb surface: `init`, `uninstall`, `pack *`, `rule *`. |
+| [governance-bootstrap](governance-bootstrap/SKILL.md) | *(Retirement in progress.)* Authoritative 8-step flow for `governance init`; owns the pack tree, templates, hook lib, and CI workflow. |
+| [governance-amend](governance-amend/SKILL.md) | *(Retirement in progress.)* Authoritative atomic-triple flow for `governance rule {add,modify,remove}`; owns the rule + invariant templates. |
+| [governance-gardener](governance-gardener/SKILL.md) | Walks the governance surface and produces a Governance Health Report flagging blind spots, dead rules, escape-hatch friction, and doc drift. Optional follow-up actions open PRs. Not in scope for the issue #31 rework. |
+| [governance-reset](governance-reset/SKILL.md) | *(Retirement in progress.)* Authoritative 6-step flow for `governance uninstall`; owns the ownership-marker discipline, install-manifest schema, and dry-run / soft / hard mode logic. |
 
 ## How governance works here
 
