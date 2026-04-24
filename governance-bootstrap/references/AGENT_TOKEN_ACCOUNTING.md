@@ -107,7 +107,7 @@ wires its `hooks/pre-commit.sh` and `hooks/prepare-commit-msg.sh` into the
 dispatchers automatically. Manual install is:
 
 ```sh
-cp -r <governance-kit>/governance-bootstrap/assets/packs/agent-governance/rules/agent-token-accounting \
+cp -r <governance-kit>/extensions/packs/agent-governance/rules/agent-token-accounting \
       tests/governance/rules/
 cp    <governance-kit>/governance-bootstrap/assets/COSTS.template.md COSTS.md
 chmod +x tests/governance/rules/agent-token-accounting/check.sh \

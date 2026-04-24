@@ -1,18 +1,19 @@
 # agent-governance pack
 
+Scoped id: **`duaility/agent-governance`**.
+
 Rules for repos operating under **agent-driven development** — where every
 change to the tree is produced through an agent runtime (Codex, Claude
 Code, Cursor, ...). Promoted from this repo's own `tests/governance/`
 suite so any repo can opt into the same discipline.
 
-> **Relocation notice (issue #31).** This pack is scheduled to move
-> out-of-tree under the scoped id `duaility/agent-governance`, hosted at
-> [`Duaility/governance-pack-agent-governance`](https://github.com/Duaility/governance-pack-agent-governance).
-> A catalog entry already exists at
-> [`extensions/catalog.community.json`](../../../../extensions/catalog.community.json);
-> the physical move lands once the external repo is published. Until
-> then, this in-tree copy remains the installation source for both
-> `governance init` and this repo's own dogfood suite.
+> **Monorepo note.** This pack lives under `extensions/packs/` as a
+> community-shaped pack that ships alongside the kit (see issue #31). It
+> is authored, validated, and installed through the same flow as a
+> pack hosted in its own repo — the only difference is that the catalog
+> entry at [`extensions/catalog.community.json`](../../catalog.community.json)
+> points at `Duaility/governance-kit` with `source.path:
+> extensions/packs/agent-governance` instead of a standalone repo.
 
 ## Rules
 
@@ -45,5 +46,5 @@ dispatchers automatically — no separate infrastructure step. A companion
 `COSTS.md` must exist (templated from `governance-bootstrap/assets/COSTS.template.md`);
 the `check.sh` treats it as the ledger of record.
 
-See [`governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md`](../../../../references/AGENT_TOKEN_ACCOUNTING.md)
+See [`governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md`](../../../governance-bootstrap/references/AGENT_TOKEN_ACCOUNTING.md)
 for the detailed wiring and runtime-specific behavior.

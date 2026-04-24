@@ -51,14 +51,16 @@ governance-kit/
 ├── governance/                  # Unified lifecycle skill — verb entry point.
 │   ├── SKILL.md
 │   └── references/              # VERBS.md (per-verb reference).
-├── extensions/                  # Community pack catalog + JSON schema.
+├── extensions/                  # Community pack catalog + monorepo of community-shaped packs.
 │   ├── catalog.community.json
-│   └── catalog.schema.json
+│   ├── catalog.schema.json
+│   └── packs/
+│       └── agent-governance/    # duaility/agent-governance — authored as a community pack.
 ├── governance-bootstrap/        # Skill 1 — scaffolds governance in any repo.
 │   ├── SKILL.md
 │   ├── assets/                  # Templates copied into target repos.
-│   │   └── packs/               # Rule packs (core, agent-governance, ...).
-│   │       └── <pack>/
+│   │   └── packs/               # Kit-bundled packs — today: `core` plus the shared `lib/`.
+│   │       └── core/
 │   │           ├── pack.yaml           # pack id + presets
 │   │           └── rules/
 │   │               └── <rule-id>/      # self-contained rule folder
@@ -100,14 +102,15 @@ Do not edit [CONSTITUTION.md](CONSTITUTION.md) by hand. Invoke the `governance-a
 
 ### Adding a new rule to the catalog
 
-Rules live inside **packs** under `governance-bootstrap/assets/packs/<pack>/`.
+Rules live inside **packs**, each at its own pack root. Today:
+`core` lives at `governance-bootstrap/assets/packs/core/` (kit-bundled),
+and `duaility/agent-governance` lives at `extensions/packs/agent-governance/`
+(community-shaped, authored as if hosted in its own repo but colocated
+here under the monorepo layout — see `extensions/README.md`).
 Each rule is a self-contained folder — test, snippet, metadata, and
-eval all live together under `rules/<rule-id>/`. Two packs ship in-tree
-today: `core` (general rules) and `agent-governance` (rules for repos
-operating under agent-driven development).
+eval all live together under `rules/<rule-id>/`.
 
-1. Create `governance-bootstrap/assets/packs/<pack>/rules/<id>/` and
-   populate it with:
+1. Create `<pack-root>/<pack-dir>/rules/<id>/` and populate it with:
    - `rule.yaml` — scalar fields `category`, `recommended`, `summary`,
      `surface` (`repo-state`|`change-set`), `hook`
      (`pre-commit`|`commit-msg`|`prepare-commit-msg`|`none`), optional

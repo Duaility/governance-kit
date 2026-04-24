@@ -1,6 +1,6 @@
 # Authoring a governance pack
 
-A **pack** is a self-contained bundle of governance rules that `governance-bootstrap` can discover, offer, and install into a target repo. This doc covers the layout, manifest schema, and conventions for writing one — whether you ship it in-tree alongside `core` / `agent-governance` or distribute it out-of-tree.
+A **pack** is a self-contained bundle of governance rules that `governance-bootstrap` can discover, offer, and install into a target repo. This doc covers the layout, manifest schema, and conventions for writing one — whether you ship it in-tree under `governance-bootstrap/assets/packs/` (kit-bundled) or `extensions/packs/` (community-shaped, monorepo-hosted) or distribute it out-of-tree.
 
 Read [RULES_CATALOG.md](RULES_CATALOG.md) first for what each existing rule does and what the surface distinction means.
 
@@ -22,7 +22,7 @@ Rules are **atoms**. Each rule is a self-contained folder that owns its test, it
 
 Adding, moving, deleting, or shipping a rule to another pack is a single `git mv` of its folder. The folder name **is** the rule id — there is no separate registry to update.
 
-In-tree packs live under `governance-bootstrap/assets/packs/<pack>/`. Out-of-tree packs live anywhere the bootstrap skill is pointed at.
+Kit-bundled packs (today: `core`) live under `governance-bootstrap/assets/packs/<pack>/`. Community-shaped packs that ship alongside the kit live under `extensions/packs/<slug>/` — `<slug>` is the slug half of a scoped `<author>/<slug>` id. Out-of-tree packs live anywhere the bootstrap skill is pointed at.
 
 ## `pack.yaml` schema
 
@@ -32,7 +32,7 @@ In-tree packs live under `governance-bootstrap/assets/packs/<pack>/`. Out-of-tre
 
 | Field | Required | Notes |
 |---|---|---|
-| `id` | yes | Pack slug. Must match the directory name. In-tree packs (`core`, vendored forks) use a flat id (`core`, `soc2`); community packs distributed out-of-tree use a scoped id of the form `<author>/<slug>` (e.g. `acme/soc2`). The scoped form prevents collisions across the community catalog. |
+| `id` | yes | Pack id. Kit-bundled packs (e.g. `core`) use a flat id that matches the directory name. Community packs — whether monorepo-hosted under `extensions/packs/` or out-of-tree — use a scoped id of the form `<author>/<slug>` (e.g. `duaility/agent-governance`); the validator accepts these when the slug half matches the directory name. The scoped form prevents collisions across the community catalog. |
 | `name` | yes | Human label shown in the pack-selection screen. |
 | `version` | yes | SemVer-ish string, e.g. `"0.1"`. Stamped into hook ownership markers. |
 | `min_governance_kit` | yes | Minimum `governance-kit` version the pack depends on. Validated against the kit's built-in `KIT_VERSION` constant (`governance-bootstrap/assets/packs/lib/packctl.py`). Packs declaring a minimum newer than the installed kit are rejected at install. |
@@ -78,7 +78,7 @@ writes: []                      # optional; most rules are read-only
 
 | Field | Notes |
 |---|---|
-| `category` | Menu grouping. Canonical values: `Foundation`, `Security`, `SystemOfRecord`, `CommitHygiene`, `Quality`. Packs may introduce new categories (`agent-governance` adds `AgentDiscipline`); the skill renders each category as its own menu screen. |
+| `category` | Menu grouping. Canonical values: `Foundation`, `Security`, `SystemOfRecord`, `CommitHygiene`, `Quality`. Packs may introduce new categories (`duaility/agent-governance` adds `AgentDiscipline`); the skill renders each category as its own menu screen. |
 | `recommended` | Pre-ticks the rule in the category menu. Presets override this per-preset. |
 | `summary` | Shown next to the id in the multi-select picker. Keep it to one line. |
 | `surface` | `repo-state` for rules that inspect the tree at rest; `change-set` for rules that inspect a specific commit or diff. Documented for the authoring guardrail (see RULES_CATALOG.md). |

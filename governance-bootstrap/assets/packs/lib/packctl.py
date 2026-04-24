@@ -193,8 +193,15 @@ def validate_pack_dir(pack_dir: Path) -> list[str]:
     for field in PACK_FIELDS:
         if field not in manifest or manifest.get(field) in (None, ""):
             errors.append(f"{pack_dir}: pack.yaml missing required field {field!r}")
-    if pack_id and pack_id != pack_dir.name:
-        errors.append(f"{pack_dir}: pack id {pack_id!r} does not match directory name {pack_dir.name!r}")
+    # Unscoped ids (e.g. `core`) must match the directory name. Scoped community
+    # ids (`<author>/<slug>`) match against the slug portion — the author
+    # namespace doesn't need to surface in the filesystem layout.
+    if pack_id:
+        expected = pack_id.split("/", 1)[-1] if "/" in pack_id else pack_id
+        if expected != pack_dir.name:
+            errors.append(
+                f"{pack_dir}: pack id {pack_id!r} does not match directory name {pack_dir.name!r}"
+            )
 
     min_kit = scalar(manifest.get("min_governance_kit"))
     if min_kit and not kit_supports(min_kit):

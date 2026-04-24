@@ -27,7 +27,7 @@ packs:
         installed_path: tests/governance/rules/constitution-exists
       - id: no-secrets
         installed_path: tests/governance/rules/no-secrets
-  - id: agent-governance
+  - id: duaility/agent-governance
     version: "0.1"
     rules:
       - id: agent-token-accounting

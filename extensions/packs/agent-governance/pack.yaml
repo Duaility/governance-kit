@@ -19,10 +19,10 @@
 # `rules/<id>/`. This file carries only pack-level identity and the
 # presets that select rules by id.
 
-id: agent-governance
+id: duaility/agent-governance
 name: Agent-governance rules
 version: "0.1"
-min_governance_kit: "0.1"
+min_governance_kit: "0.2"
 description: Rules for repos operating under agent-driven development.
 author: governance-kit
 

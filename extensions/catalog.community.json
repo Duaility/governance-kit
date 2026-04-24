@@ -9,10 +9,11 @@
       "category": "agent-discipline",
       "source": {
         "type": "github",
-        "ref": "Duaility/governance-pack-agent-governance"
+        "ref": "Duaility/governance-kit",
+        "path": "extensions/packs/agent-governance"
       },
       "min_governance_kit": "0.2",
-      "homepage": "https://github.com/Duaility/governance-kit/issues/31"
+      "homepage": "https://github.com/Duaility/governance-kit/tree/main/extensions/packs/agent-governance"
     }
   ]
 }

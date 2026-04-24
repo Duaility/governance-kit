@@ -1,13 +1,15 @@
 # Rules Catalog
 
-Every rule lives in a **pack** under `governance-bootstrap/assets/packs/<pack>/`. Each rule is a self-contained folder at `rules/<rule-id>/` carrying its metadata (`rule.yaml`), the executable test (`check.sh`), its Invariant snippet (`constitution.md`), and pass/fail evals (`evals/test.sh`). The pack's top-level `pack.yaml` carries only pack identity and presets. The bootstrap skill discovers packs at activation, unions their menus, and installs the selected subset.
+Every rule lives in a **pack**. Each rule is a self-contained folder at `rules/<rule-id>/` carrying its metadata (`rule.yaml`), the executable test (`check.sh`), its Invariant snippet (`constitution.md`), and pass/fail evals (`evals/test.sh`). The pack's top-level `pack.yaml` carries only pack identity and presets. The bootstrap skill discovers packs at activation, unions their menus, and installs the selected subset.
 
-Two packs ship in-tree:
+Two packs ship in-tree, each at its own root:
 
-| Pack | Purpose | Default? |
-|---|---|---|
-| `core` | General-purpose rules usable in any repo. | Always selected — cannot be deselected. |
-| `agent-governance` | Rules for repos operating under agent-driven development (issue anchors, plans, token accounting). | Opt-in per-repo. |
+| Pack | Location | Purpose | Default? |
+|---|---|---|---|
+| `core` | `governance-bootstrap/assets/packs/core/` | General-purpose rules usable in any repo. | Always selected — cannot be deselected. |
+| `duaility/agent-governance` | `extensions/packs/agent-governance/` | Rules for repos operating under agent-driven development (issue anchors, plans, token accounting). | Opt-in per-repo. |
+
+`core` is the kit's bundled-in pack. `extensions/packs/` is the monorepo home for community-shaped packs — authored with scoped `<author>/<slug>` ids and installed through `governance pack add` as if hosted in their own repo.
 
 For authoring a **third-party pack**, see [AUTHORING_PACKS.md](AUTHORING_PACKS.md).
 
@@ -93,7 +95,7 @@ Waivers are visible in `git blame` and searchable by design. Only use them for d
 
 ## Adding a new rule to an existing pack
 
-1. Create `governance-bootstrap/assets/packs/<pack>/rules/<id>/` and populate it:
+1. Create `<pack-root>/<pack>/rules/<id>/` (where `<pack-root>` is `governance-bootstrap/assets/packs/` for `core`, or `extensions/packs/` for community-shaped packs) and populate it:
    - `check.sh` — the bash test, `chmod +x`.
    - `constitution.md` — four sections: **Rule**, **Rationale**, **Enforced by**, **Exceptions**.
    - `rule.yaml` — scalar fields:
@@ -112,7 +114,7 @@ Waivers are visible in `git blame` and searchable by design. Only use them for d
 3. Run `bash scripts/test-packs.sh` — it validates every rule folder, installs `core.standard` into a fresh repo and runs it, runs every eval, and smoke-tests hook generation.
 4. Document the rule in this file under the pack's category table.
 
-For rules that belong in a new pack (not `core` or `agent-governance`), see [AUTHORING_PACKS.md](AUTHORING_PACKS.md).
+For rules that belong in a new pack, see [AUTHORING_PACKS.md](AUTHORING_PACKS.md).
 
 ### Rule template
 

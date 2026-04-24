@@ -1,5 +1,6 @@
 <!-- last-verified: 2026-04-24 -->
 
+
 # 2026-04-24 — Collapse skills to one `governance` verb surface + community packs
 
 ## Goal
@@ -87,15 +88,20 @@ target to point at.
   break the current delegation and the dogfood install simultaneously,
   with no intermediate reviewable state. `governance-gardener` is out
   of scope per the issue itself.
-- **Step 5 — agent-governance catalog seed:** `extensions/catalog.community.json`
-  now carries a `duaility/agent-governance` entry pointing at the
-  future `Duaility/governance-pack-agent-governance` repo. A relocation
-  notice in the in-tree pack README flags the move. The physical
-  out-of-tree extraction happens in a follow-up PR, once the external
-  repo is published — it is outside this repo's boundary. Until then,
-  the in-tree copy at `governance-bootstrap/assets/packs/agent-governance/`
-  remains the installation source for `governance init` and for this
-  repo's own dogfood suite, so fresh bootstraps don't regress.
+- **Step 5 — agent-governance as a monorepo-hosted community pack:**
+  Rejected the original plan of extracting `agent-governance` into a
+  separate repo. Instead, the pack moved to `extensions/packs/agent-governance/`
+  and adopted the scoped id `duaility/agent-governance`, authored and
+  validated exactly as if it were a standalone community pack. The
+  catalog entry in `extensions/catalog.community.json` points at
+  `Duaility/governance-kit` with `source.path: extensions/packs/agent-governance`
+  — the monorepo layout is a publishing convenience, not a contract
+  difference. `packctl.py`'s validator now accepts scoped ids whose
+  slug half matches the directory name (so `id: duaility/agent-governance`
+  in a folder named `agent-governance` validates), and
+  `scripts/test-packs.sh` walks both pack roots. `core` stays kit-bundled
+  under `governance-bootstrap/assets/packs/core/` because it is an
+  invariant part of the bootstrap surface, not a community extension.
 - **Step 4 — `governance rule *` verbs:** `references/RULE_VERBS.md`
   documents `rule add`, `rule modify`, `rule remove`, delegating to
   `governance-amend/SKILL.md` Steps 1–6 for the atomic-triple flow

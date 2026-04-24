@@ -34,8 +34,12 @@ Each pack is a directory under `governance-bootstrap/assets/packs/`:
   - Optional siblings: `install-assets/` (seed files), `hooks/*.sh`
     (rule-owned hook helpers), `runtimes/*.sh` (per-runtime logic).
 
-Two packs ship in-tree: `core` (general-purpose) and `agent-governance`
-(issue/plan/commit/cost chain for agent-driven repos).
+Two packs ship in-tree. `core` is kit-bundled under
+`governance-bootstrap/assets/packs/core/` — general-purpose rules,
+always selected. `duaility/agent-governance` is community-shaped and
+lives under `extensions/packs/agent-governance/` (the monorepo home for
+community packs that ship alongside the kit) — the issue/plan/commit/
+cost chain for agent-driven repos, opt-in per-repo.
 
 ## Rule lifecycle
 

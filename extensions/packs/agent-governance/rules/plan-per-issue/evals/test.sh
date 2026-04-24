@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -u
 EVAL_ID="plan-per-issue"
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../../../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../../.." && pwd)"
 source "$ROOT/governance-bootstrap/assets/packs/lib/eval-lib.sh"
-PACK_DIR="$ROOT/governance-bootstrap/assets/packs/agent-governance"
+PACK_DIR="$ROOT/extensions/packs/agent-governance"
 RULE="tests/governance/rules/$EVAL_ID/check.sh"
 
 fixture_init

@@ -20,10 +20,10 @@ This skill sets up **governance-driven development** in the current repository:
 3. A pre-commit hook (and commit-msg / prepare-commit-msg dispatchers when the selected rules need them) — runs `tests/governance/` before commits, with `SKIP_GOVERNANCE=1` and `git commit --no-verify` as escape hatches.
 4. A GitHub Actions workflow at `.github/workflows/governance.yml` — same tests, enforced in CI on every PR.
 
-Rules are grouped into **packs** — self-contained directories under `assets/packs/` that bundle rules, their constitution snippets, and hook declarations. Two packs ship in-tree today:
+Rules are grouped into **packs** — self-contained directories that bundle rules, their constitution snippets, and hook declarations. Two packs ship in-tree today, each at its own root:
 
-- **`core`** — the baseline rules every repo gets by default.
-- **`agent-governance`** — the agent-driven-development rules this kit dogfoods (opt-in for other repos).
+- **`core`** at `governance-bootstrap/assets/packs/core/` — the baseline rules every repo gets by default.
+- **`duaility/agent-governance`** at `extensions/packs/agent-governance/` — the agent-driven-development rules this kit dogfoods (opt-in for other repos), authored as a community-shaped pack in the monorepo's `extensions/packs/` tree.
 
 Governance evolves: new rules get added to `CONSTITUTION.md` *and* to `tests/governance/` together. The constitution without the tests is just a wishlist.
 
@@ -100,18 +100,23 @@ Multiple markers → pick the one the user points to. If unclear, ask once.
 
 ### Step 2.5 — Discover rule packs
 
-Source the loader and enumerate packs:
+Source the loader and enumerate packs from every pack root the kit ships
+(today: `governance-bootstrap/assets/packs/` for `core`, and
+`extensions/packs/` for community-shaped packs like
+`duaility/agent-governance`):
 
 ```sh
 source governance-bootstrap/assets/packs/lib/packs.sh
 list_packs governance-bootstrap/assets/packs
+list_packs extensions/packs
 ```
 
-The loader is a bash wrapper around `uv run --isolated --with PyYAML`, so pack
-manifests are parsed as real YAML. If `uv` is unavailable, stop and tell the
-user pack discovery requires `uv` (or install it before continuing).
+Union the results. The loader is a bash wrapper around
+`uv run --isolated --with PyYAML`, so pack manifests are parsed as real
+YAML. If `uv` is unavailable, stop and tell the user pack discovery
+requires `uv` (or install it before continuing).
 
-Every `assets/packs/<pack-id>/pack.yaml` is a pack. Rule metadata lives inside each rule's folder (`assets/packs/<pack-id>/rules/<rule-id>/rule.yaml`) — the loader surfaces it via `rules_for` and `rule_field`. For each pack, build an in-memory catalog of:
+Every `<root>/<pack-dir>/pack.yaml` is a pack. Pack ids may be flat (`core`) or scoped (`duaility/agent-governance`); for scoped ids the directory name is the slug half. Rule metadata lives inside each rule's folder (`<pack-dir>/rules/<rule-id>/rule.yaml`) — the loader surfaces it via `rules_for` and `rule_field`. For each pack, build an in-memory catalog of:
 
 - pack id, name, description, version (from `pack.yaml`)
 - declared presets (`minimal`, `standard`, `strict`, plus any pack-specific ones — from `pack.yaml`)
@@ -143,11 +148,11 @@ Three nested questions. Each subsequent question's option list is computed from 
 preset_rules = ⋃ { union_preset(<preset>, <pack-dir>) : pack-dir in selected-packs }
 ```
 
-A pack that does not declare the chosen preset (for example, `agent-governance` has no `strict` preset that adds new rules) contributes nothing for that preset — **no fallback to `recommended`**. This is deliberate: "my pack has no strict" means "strict adds nothing beyond what I already offer", not "give me everything".
+A pack that does not declare the chosen preset (for example, `duaility/agent-governance` has no `strict` preset that adds new rules) contributes nothing for that preset — **no fallback to `recommended`**. This is deliberate: "my pack has no strict" means "strict adds nothing beyond what I already offer", not "give me everything".
 
 Use `standard` as the recommended preset. If the user does not answer and you must proceed, assume `standard` and label it in the final summary as a material assumption.
 
-**Q2..Qn — Category menus.** For each category present across the union of selected packs' rules (canonical: `Foundation`, `Security`, `SystemOfRecord`, `CommitHygiene`, `Quality`; `agent-governance` adds `AgentDiscipline`; third-party packs may add more), present one `AskUserQuestion` with:
+**Q2..Qn — Category menus.** For each category present across the union of selected packs' rules (canonical: `Foundation`, `Security`, `SystemOfRecord`, `CommitHygiene`, `Quality`; `duaility/agent-governance` adds `AgentDiscipline`; third-party packs may add more), present one `AskUserQuestion` with:
 
 - Header: the category name.
 - Options: every rule in that category from any selected pack. Pre-check based on the preset union from Q1. Each option's description is the rule's `summary` field from its manifest.
@@ -346,4 +351,4 @@ Every successful run should leave the user with a summary that includes:
 - `references/RULES_CATALOG.md` — full list of ready-made rules with descriptions, and the template for adding new ones. Notes pack membership per rule.
 - `references/AUTHORING_PACKS.md` — how to write a third-party pack.
 - `references/NATIVE_TESTS.md` — how to port bash rules to pytest / jest / go test, and husky / pre-commit-framework snippets.
-- `references/AGENT_TOKEN_ACCOUNTING.md` — wiring instructions for the `agent-token-accounting` rule shipped by the `agent-governance` pack.
+- `references/AGENT_TOKEN_ACCOUNTING.md` — wiring instructions for the `agent-token-accounting` rule shipped by the `duaility/agent-governance` pack.

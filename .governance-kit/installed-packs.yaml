@@ -26,7 +26,7 @@ packs:
         installed_path: tests/governance/rules/conventional-commits
       - id: doc-freshness
         installed_path: tests/governance/rules/doc-freshness
-  - id: agent-governance
+  - id: duaility/agent-governance
     version: "0.1"
     rules:
       - id: plan-per-issue

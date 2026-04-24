@@ -13,7 +13,8 @@ full rearchitecture context.
 - **Assets used:**
   - `../../governance-bootstrap/assets/CONSTITUTION.template.md`
   - `../../governance-bootstrap/assets/AGENTS.directive.md`
-  - `../../governance-bootstrap/assets/packs/` (pack tree with `core` and `agent-governance`)
+  - `../../governance-bootstrap/assets/packs/` (kit-bundled pack tree — today: `core` plus the shared `lib/`)
+  - `../../extensions/packs/` (monorepo of community-shaped packs — today: `duaility/agent-governance`)
   - `../../governance-bootstrap/assets/tests-bash/`
   - `../../governance-bootstrap/assets/governance.yml`
   - `../../governance-bootstrap/assets/setup-clone.sh`

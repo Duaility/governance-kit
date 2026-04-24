@@ -11,7 +11,7 @@ The user-facing entry point is **[governance](governance/)** — a single skill 
 
 The following per-lifecycle skills are in **retirement in progress** under issue [#31](https://github.com/Duaility/governance-kit/issues/31): they still own the authoritative flows and assets that the unified skill delegates to, and will be deleted once the flows are absorbed and assets relocated.
 
-- **[governance-bootstrap](governance-bootstrap/)** — authoritative 8-step flow for `governance init`; owns the pack tree, templates, hook lib, and CI workflow.
+- **[governance-bootstrap](governance-bootstrap/)** — authoritative 8-step flow for `governance init`; owns the kit-bundled pack (`core`), templates, hook lib, and CI workflow. Community-shaped packs that ship alongside the kit live under [extensions/packs/](extensions/packs/) (today: `duaility/agent-governance`).
 - **[governance-amend](governance-amend/)** — authoritative atomic-triple flow for `governance rule {add,modify,remove}`.
 - **[governance-gardener](governance-gardener/)** — not superseded. Walks the governance surface and produces a dated Governance Health Report; pairs with the `doc-freshness` rule and hands rule-shaped candidates to `governance rule *`.
 - **[governance-reset](governance-reset/)** — authoritative 6-step flow for `governance uninstall`; owns the ownership-marker discipline and mode logic.
