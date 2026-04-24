@@ -108,3 +108,5 @@ Schema:
 | claude-code-04b28aac-fc8-1777024974 | claude-code | 04b28aac-fc85-4c80-8c94-9734e26101ac | #37 | claude-opus-4-7 | 10228 | 116988 | 4594193 | 31105 | 158321 | 3.8570 | chore(gardener): remove governance-gardener skill (#37) |
 | claude-code-04b28aac-fc8-1777025034 | claude-code | 04b28aac-fc85-4c80-8c94-9734e26101ac | #37 | claude-opus-4-7 | 6 | 10552 | 488065 | 3333 | 13891 | 0.3933 | chore(gardener): remove governance-gardener skill (#37) |
 | claude-code-b5006e23-eec-1777028604 | claude-code | b5006e23-eec5-490f-a729-b1b521ef6d7c | #39 | claude-opus-4-7 | 113 | 141430 | 6236287 | 40440 | 181983 | 5.0136 | feat(governance): roll harness-engineering lessons into existing rules (#39) |
+| claude-code-b5006e23-eec-1777029177 | claude-code | b5006e23-eec5-490f-a729-b1b521ef6d7c | #39 | claude-opus-4-7 | 28 | 21717 | 1893284 | 8376 | 30121 | 1.2919 | fix(plan-per-issue): make the two per-file waivers independent (#39) |
+| claude-code-b5006e23-eec-1777029213 | claude-code | b5006e23-eec5-490f-a729-b1b521ef6d7c | #39 | claude-opus-4-7 | 3 | 1986 | 332667 | 1939 | 3928 | 0.2272 | fix(plan-per-issue): make the two per-file waivers independent (#39) |

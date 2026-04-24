@@ -57,6 +57,10 @@ they duplicate ownership the existing rules already have.
   `extensions/packs/agent-governance/rules/plan-per-issue/evals/test.sh`.
 - No legacy plan file is reported as a violation — each is either
   updated or carries the `allow-plan-validation` waiver.
+- The two `plan-per-issue` waivers are independent: `allow-plan-per-issue`
+  alone must not silence the validation-section check. Covered by a
+  dedicated fail eval (`filename-waiver-still-checks-validation`) plus a
+  pass eval for the both-waivers case.
 
 ## Non-goals
 

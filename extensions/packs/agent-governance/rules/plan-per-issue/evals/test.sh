@@ -70,4 +70,31 @@ stage_all
 commit_quiet "docs: waive validation on legacy plan"
 EVAL_LABEL="$EVAL_ID validation-waiver" expect_pass "$RULE"
 
+# fail — `allow-plan-per-issue` waiver exempts the filename check only and
+# must NOT silence the validation-section check. Plan has a rogue filename
+# + the filename waiver + no validation section → validation block fires.
+cat > plans/rogue-with-filename-waiver.md <<'EOF'
+# Rogue plan with only the filename waiver
+
+<!-- governance: allow-plan-per-issue intentional -->
+
+Body without a validation heading.
+EOF
+stage_all
+commit_quiet "docs: waive filename only"
+EVAL_LABEL="$EVAL_ID filename-waiver-still-checks-validation" expect_fail "$RULE"
+
+# pass — both waivers together exempt the plan entirely.
+cat > plans/rogue-with-filename-waiver.md <<'EOF'
+# Rogue plan waived on both axes
+
+<!-- governance: allow-plan-per-issue intentional -->
+<!-- governance: allow-plan-validation legacy -->
+
+Body without a validation heading.
+EOF
+stage_all
+commit_quiet "docs: waive both"
+EVAL_LABEL="$EVAL_ID both-waivers" expect_pass "$RULE"
+
 eval_done

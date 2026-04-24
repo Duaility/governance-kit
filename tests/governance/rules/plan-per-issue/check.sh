@@ -34,39 +34,46 @@ fi
 seen_nums=()
 seen_files=()
 for f in "${plan_files[@]}"; do
-    # Per-file waiver: `governance: allow-plan-per-issue` anywhere in the file.
+    # Two independent per-file waivers — each covers only its own block so a
+    # plan that opts out of the filename check is still held to the
+    # validation-section check (and vice versa).
+    waive_filename=0
+    waive_validation=0
     if grep -qE '^[[:space:]]*(<!--)?[[:space:]]*governance:[[:space:]]*allow-plan-per-issue' "$f"; then
-        continue
+        waive_filename=1
     fi
-
-    base="${f##*/}"
-    if [[ "$base" =~ issue-([0-9]+) ]]; then
-        num="${BASH_REMATCH[1]}"
-        dup_of=""
-        for i in "${!seen_nums[@]}"; do
-            if [[ "${seen_nums[$i]}" == "$num" ]]; then
-                dup_of="${seen_files[$i]}"
-                break
-            fi
-        done
-        if [[ -n "$dup_of" ]]; then
-            violation "$f — issue #$num already has a plan at $dup_of"
-        else
-            seen_nums+=("$num")
-            seen_files+=("$f")
-        fi
-    else
-        violation "$f — plan filename must include an 'issue-<N>' token (e.g. 2026-04-23-issue-15-summary.md)"
-    fi
-
-    # Validation-intent section. Legacy plans opt out with a
-    # `governance: allow-plan-validation` waiver so the rule takes effect
-    # for new plans without forcing a mass rewrite of historical records.
     if grep -qE '^[[:space:]]*(<!--)?[[:space:]]*governance:[[:space:]]*allow-plan-validation' "$f"; then
-        continue
+        waive_validation=1
     fi
-    if ! grep -qE '^##[[:space:]]+(Validation|Verification|Acceptance)\b' "$f"; then
-        violation "$f — plan is missing a '## Validation', '## Verification', or '## Acceptance' section describing how completion will be judged"
+
+    # Filename-token + duplicate-issue check.
+    if [[ $waive_filename -eq 0 ]]; then
+        base="${f##*/}"
+        if [[ "$base" =~ issue-([0-9]+) ]]; then
+            num="${BASH_REMATCH[1]}"
+            dup_of=""
+            for i in "${!seen_nums[@]}"; do
+                if [[ "${seen_nums[$i]}" == "$num" ]]; then
+                    dup_of="${seen_files[$i]}"
+                    break
+                fi
+            done
+            if [[ -n "$dup_of" ]]; then
+                violation "$f — issue #$num already has a plan at $dup_of"
+            else
+                seen_nums+=("$num")
+                seen_files+=("$f")
+            fi
+        else
+            violation "$f — plan filename must include an 'issue-<N>' token (e.g. 2026-04-23-issue-15-summary.md)"
+        fi
+    fi
+
+    # Validation-intent section check.
+    if [[ $waive_validation -eq 0 ]]; then
+        if ! grep -qE '^##[[:space:]]+(Validation|Verification|Acceptance)\b' "$f"; then
+            violation "$f — plan is missing a '## Validation', '## Verification', or '## Acceptance' section describing how completion will be judged"
+        fi
     fi
 done
 
