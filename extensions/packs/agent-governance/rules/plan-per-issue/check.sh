@@ -34,29 +34,32 @@ fi
 seen_nums=()
 seen_files=()
 for f in "${plan_files[@]}"; do
+    skip_issue_check=0
     # Per-file waiver: `governance: allow-plan-per-issue` anywhere in the file.
     if grep -qE '^[[:space:]]*(<!--)?[[:space:]]*governance:[[:space:]]*allow-plan-per-issue' "$f"; then
-        continue
+        skip_issue_check=1
     fi
 
-    base="${f##*/}"
-    if [[ "$base" =~ issue-([0-9]+) ]]; then
-        num="${BASH_REMATCH[1]}"
-        dup_of=""
-        for i in "${!seen_nums[@]}"; do
-            if [[ "${seen_nums[$i]}" == "$num" ]]; then
-                dup_of="${seen_files[$i]}"
-                break
+    if [[ $skip_issue_check -eq 0 ]]; then
+        base="${f##*/}"
+        if [[ "$base" =~ issue-([0-9]+) ]]; then
+            num="${BASH_REMATCH[1]}"
+            dup_of=""
+            for i in "${!seen_nums[@]}"; do
+                if [[ "${seen_nums[$i]}" == "$num" ]]; then
+                    dup_of="${seen_files[$i]}"
+                    break
+                fi
+            done
+            if [[ -n "$dup_of" ]]; then
+                violation "$f — issue #$num already has a plan at $dup_of"
+            else
+                seen_nums+=("$num")
+                seen_files+=("$f")
             fi
-        done
-        if [[ -n "$dup_of" ]]; then
-            violation "$f — issue #$num already has a plan at $dup_of"
         else
-            seen_nums+=("$num")
-            seen_files+=("$f")
+            violation "$f — plan filename must include an 'issue-<N>' token (e.g. 2026-04-23-issue-15-summary.md)"
         fi
-    else
-        violation "$f — plan filename must include an 'issue-<N>' token (e.g. 2026-04-23-issue-15-summary.md)"
     fi
 
     # Validation-intent section. Legacy plans opt out with a

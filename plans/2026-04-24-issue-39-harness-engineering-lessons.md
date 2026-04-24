@@ -55,6 +55,9 @@ they duplicate ownership the existing rules already have.
 - New negative assertions exist in
   `governance/assets/packs/core/rules/required-docs/evals/test.sh` and
   `extensions/packs/agent-governance/rules/plan-per-issue/evals/test.sh`.
+- Follow-up regression: a plan with `allow-plan-per-issue` but no
+  validation-intent section must still fail unless it also carries
+  `allow-plan-validation`.
 - No legacy plan file is reported as a violation — each is either
   updated or carries the `allow-plan-validation` waiver.
 

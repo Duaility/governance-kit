@@ -58,6 +58,18 @@ stage_all
 commit_quiet "docs: plan without validation"
 EVAL_LABEL="$EVAL_ID missing-validation" expect_fail "$RULE"
 
+# fail — filename waiver does not waive the validation-section check
+cat > plans/legacy-without-validation.md <<'EOF'
+# Legacy plan
+
+<!-- governance: allow-plan-per-issue predates-rule -->
+
+Body without a validation heading.
+EOF
+stage_all
+commit_quiet "docs: add legacy plan without validation"
+EVAL_LABEL="$EVAL_ID issue-waiver-still-needs-validation" expect_fail "$RULE"
+
 # pass — validation waiver grandfathers the missing-section plan
 cat > plans/2026-04-23-issue-3-gamma.md <<'EOF'
 # Plan four
@@ -66,6 +78,7 @@ cat > plans/2026-04-23-issue-3-gamma.md <<'EOF'
 
 Body without a validation heading, waived.
 EOF
+rm plans/legacy-without-validation.md
 stage_all
 commit_quiet "docs: waive validation on legacy plan"
 EVAL_LABEL="$EVAL_ID validation-waiver" expect_pass "$RULE"
