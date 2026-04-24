@@ -103,3 +103,4 @@ Schema:
 | claude-code-ae9c2998-434-1777020372 | claude-code | ae9c2998-4343-4f9e-a176-dfb594b1647d | #33 | claude-opus-4-7 | 125 | 155093 | 4472564 | 33986 | 189204 | 4.0559 | fix(hooks): address review feedback on PR #34 (#33) |
 | claude-code-eb65db20-283-1777021586 | claude-code | eb65db20-283c-42f0-919f-bc589beea322 | #34 | claude-opus-4-7 | 34 | 38587 | 466265 | 13836 | 52457 | 0.8204 | test(governance): cover pack contract drift (#34) |
 | claude-code-eb65db20-283-1777021689 | claude-code | eb65db20-283c-42f0-919f-bc589beea322 | #34 | claude-opus-4-7 | 13 | 22257 | 601497 | 11913 | 34183 | 0.7377 | test(governance): cover pack contract drift (#34) |
+| claude-code-35defae4-ca7-1777022426 | claude-code | 35defae4-ca70-47d2-adbb-4db6e0489b11 | #35 | claude-opus-4-7 | 160 | 214277 | 12552159 | 106227 | 320664 | 10.2718 | feat(accounting): family-fallback rates + Cost-USD trailer + tput colors (#35) |

@@ -18,6 +18,10 @@ fixture_init
 install_rule "$PACK_DIR" "$EVAL_ID"
 
 # Seed COSTS.md with a well-formed row.
+# Row 1 has no model/cost-usd (legacy-ish) → Cost-USD trailer must stay empty.
+# Row 2 is model-priced so we can exercise the Cost-USD cross-check.
+# 100 input + 200 cache-create + 50 output at claude-sonnet-4-6
+# = (100·3 + 200·3.75 + 0·0.30 + 50·15) / 1e6 = 0.0018 USD.
 cat > COSTS.md <<'EOF'
 <!-- COSTS.md — append-only agent token-accounting ledger -->
 
@@ -28,6 +32,7 @@ cat > COSTS.md <<'EOF'
 | cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | eval-sess-1000 | claude-code | sess-abc | #7 |  | 100 | 200 | 0 | 50 | 350 |  | eval fixture |
+| eval-sess-2000 | claude-code | sess-xyz | #7 | claude-sonnet-4-6 | 100 | 200 | 0 | 50 | 350 | 0.0018 | priced fixture |
 EOF
 stage_all
 commit_quiet "chore: seed ledger"
@@ -65,6 +70,36 @@ EVAL_LABEL="$EVAL_ID bad-total" expect_fail "$RULE" "$msg"
 # fail — no Agent: trailer at all on a non-merge/revert commit
 printf 'feat: untrailered (#7)\n' > "$msg"
 EVAL_LABEL="$EVAL_ID no-trailer" expect_fail "$RULE" "$msg"
+
+# pass — Cost-USD trailer matches the priced ledger row
+cat > "$msg" <<'EOF'
+feat: priced change (#7)
+
+Agent: claude-code
+Issue: #7
+Session: sess-xyz
+Token-Input: 300
+Token-Output: 50
+Token-Total: 350
+Cost-Key: eval-sess-2000
+Cost-USD: 0.0018
+EOF
+EVAL_LABEL="$EVAL_ID cost-usd match" expect_pass "$RULE" "$msg"
+
+# fail — Cost-USD trailer disagrees with the priced ledger row
+cat > "$msg" <<'EOF'
+feat: tampered cost (#7)
+
+Agent: claude-code
+Issue: #7
+Session: sess-xyz
+Token-Input: 300
+Token-Output: 50
+Token-Total: 350
+Cost-Key: eval-sess-2000
+Cost-USD: 9.9999
+EOF
+EVAL_LABEL="$EVAL_ID cost-usd mismatch" expect_fail "$RULE" "$msg"
 
 # pass — revert commits are exempt
 printf 'Revert "feat: something"\n' > "$msg"

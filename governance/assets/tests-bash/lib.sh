@@ -4,13 +4,16 @@
 
 set -u
 
-# Color output only when stdout is a terminal.
-if [[ -t 1 ]]; then
-    readonly C_RED=$'\033[31m'
-    readonly C_GREEN=$'\033[32m'
-    readonly C_YELLOW=$'\033[33m'
-    readonly C_BOLD=$'\033[1m'
-    readonly C_RESET=$'\033[0m'
+# Color output only when stdout is a terminal AND terminfo reports a usable
+# palette. Using tput (rather than raw \033[…] escapes) means TERM=dumb and
+# stripped CI shells get empty strings — no ANSI garbage in logs. tput ships
+# with ncurses on macOS and every mainstream Linux, so no new deps.
+if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && tput setaf 1 >/dev/null 2>&1; then
+    readonly C_RED=$(tput setaf 1)
+    readonly C_GREEN=$(tput setaf 2)
+    readonly C_YELLOW=$(tput setaf 3)
+    readonly C_BOLD=$(tput bold)
+    readonly C_RESET=$(tput sgr0)
 else
     readonly C_RED=""
     readonly C_GREEN=""

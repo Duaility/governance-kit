@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
-# Rule: For every non-merge, non-revert commit in scope, the issue number in
-# the commit subject's trailing `(#N)` must match at least one `issue-<N>`
-# token on a `plans/*.md` file that the commit added or modified. A commit
-# that touches no `plans/*.md` also fails.
+# Rule: For every non-merge, non-revert commit in scope, **some** issue
+# number the commit anchors — either the trailing `(#N)` in the subject OR
+# any `Issue: #N` trailer in the body (plural permitted) — must match an
+# `issue-<N>` token on a `plans/*.md` file the commit adds or modifies.
+# A commit that touches no `plans/*.md` also fails.
+#
+# Why the body-trailer anchor: squash-merged PRs naturally end up with a
+# subject carrying the *PR* number while the folded sub-commits keep their
+# original `Issue:` trailers (stamped by agent-token-accounting). Treating
+# those trailers as legitimate anchors means the rule doesn't false-positive
+# on post-squash history where the plan is correctly for the underlying
+# issue but the subject line references the PR id.
 #
 # Rationale: `conventional-commits` pins each commit to an issue, and
 # `plan-per-issue` pins each plan file to an issue, but nothing cross-checks
@@ -40,6 +48,18 @@ extract_issue_num() {
     if [[ "$subject" =~ \(#([1-9][0-9]*)\)[[:space:]]*$ ]]; then
         printf '%s' "${BASH_REMATCH[1]}"
     fi
+}
+
+# Echoes space-separated issue numbers harvested from `Issue: #N` trailers
+# in the commit body. Repeated trailers (one per folded sub-commit after a
+# squash merge) all contribute.
+extract_body_issue_nums() {
+    local body="$1"
+    # grep is portable across BSD/GNU; gawk's capture-group `match(..., m)`
+    # isn't on BSD awk (macOS default), so we stay in the grep-sed lane.
+    printf '%s\n' "$body" \
+        | grep -E '^[[:space:]]*Issue:[[:space:]]*#[1-9][0-9]*[[:space:]]*$' \
+        | sed -E 's/^[[:space:]]*Issue:[[:space:]]*#([1-9][0-9]*)[[:space:]]*$/\1/'
 }
 
 # Echoes space-separated `issue-<N>` numbers harvested from the basenames
@@ -80,12 +100,30 @@ validate() {
         return 0
     fi
 
-    local issue_num
-    issue_num="$(extract_issue_num "$subject")"
-    if [[ -z "$issue_num" ]]; then
-        # `conventional-commits` will flag the shape separately; we still
-        # emit a targeted violation so the root cause is clear to readers.
-        violation "$label — subject has no trailing '(#N)' issue suffix: '$subject'"
+    # Collect every issue the commit anchors: the subject's trailing `(#N)`
+    # plus any `Issue: #N` body trailer. Squash merges keep the folded
+    # sub-commits' `Issue:` trailers, so this is how we recover the real
+    # anchor when the subject carries the PR id instead.
+    local subject_num body_nums
+    subject_num="$(extract_issue_num "$subject")"
+    body_nums="$(extract_body_issue_nums "$body")"
+
+    local commit_issues=""
+    [[ -n "$subject_num" ]] && commit_issues+="$subject_num "
+    local n
+    for n in $body_nums; do
+        # De-dup — repeated `Issue: #33` trailers after a squash are normal.
+        case " $commit_issues " in
+            *" $n "*) ;;
+            *) commit_issues+="$n " ;;
+        esac
+    done
+    commit_issues="${commit_issues% }"
+
+    if [[ -z "$commit_issues" ]]; then
+        # `conventional-commits` will flag the subject shape separately; we
+        # still emit a targeted violation so the root cause is clear.
+        violation "$label — no issue anchor found: subject has no trailing '(#N)' and body has no 'Issue: #N' trailer ('$subject')"
         return 0
     fi
 
@@ -97,22 +135,30 @@ validate() {
     done
 
     if [[ ${#plan_files[@]} -eq 0 ]]; then
-        violation "$label — commit claims (#$issue_num) but touches no plans/*.md (add the plan for this issue, or use 'governance: allow-commit-issue-plan-match <reason>' in the body)"
+        local anchor_human
+        if [[ -n "$subject_num" ]]; then
+            anchor_human="(#$subject_num)"
+        else
+            anchor_human="Issue: #${commit_issues%% *}"
+        fi
+        violation "$label — commit anchors $anchor_human but touches no plans/*.md (add the plan for this issue, or use 'governance: allow-commit-issue-plan-match <reason>' in the body)"
         return 0
     fi
 
-    local plan_issues n match=0
+    local plan_issues match=0 ci pn
     plan_issues="$(collect_plan_issues "${plan_files[@]}")"
-    for n in $plan_issues; do
-        if [[ "$n" == "$issue_num" ]]; then
-            match=1
-            break
-        fi
+    for ci in $commit_issues; do
+        for pn in $plan_issues; do
+            if [[ "$pn" == "$ci" ]]; then
+                match=1
+                break 2
+            fi
+        done
     done
 
     if [[ "$match" == "0" ]]; then
         local touched="${plan_files[*]}"
-        violation "$label — subject issue #$issue_num not found among plan issue numbers [${plan_issues% }] (plans touched: ${touched})"
+        violation "$label — commit issue anchors [${commit_issues}] not found among plan issue numbers [${plan_issues% }] (plans touched: ${touched})"
     fi
 }
 

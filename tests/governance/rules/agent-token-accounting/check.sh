@@ -11,6 +11,8 @@
 #   Token-Output:  non-negative integer (= output)
 #   Token-Total:   non-negative integer, == Token-Input + Token-Output
 #   Cost-Key:      <agent>-<session-short>-<epoch>, unique within COSTS.md
+#   Cost-USD:      OPTIONAL decimal — present when the model is in the rate
+#                  table; cross-checked against COSTS.md's cost_usd column.
 #
 # COSTS.md ledger format — one row per agent-authored commit, append-only:
 #   | cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | note |
@@ -93,10 +95,10 @@ validate_commit_message() {
     cost_key="$(printf '%s\n' "$msg" | awk -F': *' '/^Cost-Key:[[:space:]]/ {val=$2} END {print val}')"
 
     # Look up the ledger row.
-    local found=0 row_input=0 row_cc=0 row_cr=0 row_output=0 row_new_work=0
+    local found=0 row_input=0 row_cc=0 row_cr=0 row_output=0 row_new_work=0 row_cost_usd="-"
     if [[ -n "$cost_key" && -f "$LEDGER" ]]; then
         if row_output_line="$(python3 "$LIB/ledger.py" find-by-cost-key "$LEDGER" "$cost_key" 2>/dev/null)"; then
-            read -r row_input row_cc row_cr row_output row_new_work <<<"$row_output_line"
+            read -r row_input row_cc row_cr row_output row_new_work row_cost_usd <<<"$row_output_line"
             found=1
         fi
     fi
@@ -122,6 +124,7 @@ validate_commit_message() {
         printf '%s' "$msg" | python3 "$LIB/trailers.py" validate \
             "$label" "$found" \
             "$row_input" "$row_cc" "$row_cr" "$row_output" "$row_new_work" \
+            "$row_cost_usd" \
             - 2>/dev/null || true
     )
 }

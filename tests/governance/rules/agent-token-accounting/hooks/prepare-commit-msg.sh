@@ -49,6 +49,13 @@ fi
     printf 'Token-Output: %s\n' "$AGENT_TOKEN_OUTPUT"
     printf 'Token-Total: %s\n'  "$AGENT_TOKEN_TOTAL"
     printf 'Cost-Key: %s\n'     "$AGENT_COST_KEY"
+    # Cost-USD is only stamped when the model is priced — no `0.0000`
+    # sentinel for unpriced models (it would collide with legitimately-
+    # cheap commits). An empty trailer on one side and an empty ledger
+    # cell on the other are the contract.
+    if [[ -n "${AGENT_COST_USD:-}" ]]; then
+        printf 'Cost-USD: %s\n' "$AGENT_COST_USD"
+    fi
 } > "$MSG_FILE.new"
 mv "$MSG_FILE.new" "$MSG_FILE"
 

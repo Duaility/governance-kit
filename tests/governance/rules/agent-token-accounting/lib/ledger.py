@@ -51,8 +51,10 @@ CLI shims (called from bash):
         → prints one violation per line; exits non-zero if any.
 
     python3 -m ledger find-by-cost-key <ledger> <cost_key>
-        → prints "<input> <cache_create> <cache_read> <output> <new_work>"
-          (cost_usd is not part of the cross-check) or exits 2 on miss.
+        → prints "<input> <cache_create> <cache_read> <output> <new_work> <cost_usd>"
+          where cost_usd is a 4-decimal float or the literal string "-"
+          (unpriced / legacy row). Exits 2 on miss. The bash caller passes
+          cost_usd through to trailers.py for the Cost-USD cross-check.
 """
 
 from __future__ import annotations
@@ -461,7 +463,8 @@ def _cmd_find_by_cost_key(args: list[str]) -> int:
         print(f"expected 1 row for cost-key '{args[1]}', found {len(hits)}", file=sys.stderr)
         return 2
     r = hits[0]
-    print(f"{r.input} {r.cache_create} {r.cache_read} {r.output} {r.new_work}")
+    cost = "-" if r.cost_usd is None else f"{r.cost_usd:.4f}"
+    print(f"{r.input} {r.cache_create} {r.cache_read} {r.output} {r.new_work} {cost}")
     return 0
 
 

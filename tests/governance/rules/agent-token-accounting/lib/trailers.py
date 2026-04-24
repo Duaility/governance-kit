@@ -10,6 +10,9 @@ Trailers stamped onto agent-authored commits:
     Token-Output: non-negative int  (= output_tokens)
     Token-Total:  non-negative int  (= Token-Input + Token-Output == row.new_work)
     Cost-Key:     <agent>-<session-short>-<epoch>
+    Cost-USD:     OPTIONAL 4-decimal dollar figure (= ledger row's cost-usd
+                  cell). Omitted when the runtime-reported model isn't in
+                  the rate table — both sides are empty in that case.
 
 This module is the data-processing side of the rule script's Mode A /
 Mode B validators — bash feeds a commit message on stdin or a file path,
@@ -17,11 +20,15 @@ Python returns a JSON blob with `trailers` and `violations`.
 
 CLI:
 
-    python3 -m trailers validate <cost_key_found_in_ledger? 0|1> \\
+    python3 -m trailers validate <label> <cost_key_found_in_ledger? 0|1> \\
                                  <ledger_input> <ledger_cache_create> \\
                                  <ledger_cache_read> <ledger_output> \\
-                                 <ledger_total> \\
+                                 <ledger_total> <ledger_cost_usd> \\
                                  [msg_file | -]
+
+        <ledger_cost_usd> is either a 4-decimal string or "-" meaning the
+        row has no cost_usd (legacy row or unpriced model) — in that case
+        the Cost-USD trailer cross-check is skipped.
 
         Stdin or file → commit message. Remaining args → the matching
         ledger row's numeric columns (if cost_key_found_in_ledger == 1).
@@ -52,6 +59,7 @@ REQUIRED_TRAILERS = (
 
 _INT_RE = re.compile(r"^[0-9]+$")
 _COST_KEY_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+_COST_USD_RE = re.compile(r"^\d+(?:\.\d+)?$")
 
 
 @dataclass
@@ -85,6 +93,7 @@ def validate(
     label: str,
     *,
     ledger_row: tuple[int, int, int, int, int] | None = None,
+    ledger_cost_usd: float | None = None,
 ) -> list[str]:
     """Validate trailer set on a commit message.
 
@@ -160,6 +169,24 @@ def validate(
                 f"for cost-key '{cost_key}'"
             )
 
+    # Cost-USD trailer is optional — if the runtime model isn't priced,
+    # both the ledger cell and the trailer are blank. But if the trailer
+    # is stamped, it must match the ledger cell (same model + tokens +
+    # rate table, so divergence means someone hand-edited one side).
+    cost_trailer = trailers.get("Cost-USD", "").strip()
+    if cost_trailer:
+        if not _COST_USD_RE.match(cost_trailer):
+            violations.append(
+                f"{label} — Cost-USD '{cost_trailer}' must be a non-negative decimal"
+            )
+        elif ledger_cost_usd is not None and ledger_row is not None:
+            # Compare at 4dp — both sides are rounded to 4 decimals upstream.
+            if abs(float(cost_trailer) - ledger_cost_usd) > 5e-5:
+                violations.append(
+                    f"{label} — Cost-USD trailer ({cost_trailer}) disagrees with "
+                    f"COSTS.md cost_usd ({ledger_cost_usd:.4f}) for cost-key '{cost_key}'"
+                )
+
     return violations
 
 
@@ -173,21 +200,32 @@ def _read_msg(path_or_dash: str) -> str:
 
 
 def _cmd_validate(argv: list[str]) -> int:
-    if len(argv) < 8:
+    if len(argv) < 9:
         print(
             "trailers validate: <label> <cost_key_found_in_ledger: 0|1> "
             "<input> <cache_create> <cache_read> <output> <total> "
-            "[msg_file | -]",
+            "<cost_usd|-> [msg_file | -]",
             file=sys.stderr,
         )
         return 2
     label = argv[0]
     found = argv[1] == "1"
     row_ints = [int(x) for x in argv[2:7]]
-    msg_src = argv[7] if len(argv) > 7 else "-"
+    cost_arg = argv[7]
+    msg_src = argv[8] if len(argv) > 8 else "-"
     msg = _read_msg(msg_src)
     ledger_row = tuple(row_ints) if found else None  # type: ignore[assignment]
-    violations = validate(msg, label, ledger_row=ledger_row)  # type: ignore[arg-type]
+    ledger_cost_usd: float | None
+    if not found or cost_arg in ("", "-"):
+        ledger_cost_usd = None
+    else:
+        try:
+            ledger_cost_usd = float(cost_arg)
+        except ValueError:
+            ledger_cost_usd = None
+    violations = validate(  # type: ignore[arg-type]
+        msg, label, ledger_row=ledger_row, ledger_cost_usd=ledger_cost_usd,
+    )
     for v in violations:
         print(v)
     return 1 if violations else 0

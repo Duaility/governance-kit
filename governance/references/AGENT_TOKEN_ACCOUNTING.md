@@ -22,7 +22,8 @@ The layered model that works:
 
 ## Trailer schema
 
-Every agent-authored commit carries these seven trailers:
+Every agent-authored commit carries these seven required trailers plus
+one optional trailer:
 
 ```
 Agent: codex
@@ -32,6 +33,7 @@ Token-Input: 1200
 Token-Output: 450
 Token-Total: 1650
 Cost-Key: codex-01HXYZabcdef-1713800000
+Cost-USD: 2.7932
 ```
 
 - `Agent` is a free-form identifier — whatever name you want to report in the ledger.
@@ -42,6 +44,15 @@ Cost-Key: codex-01HXYZabcdef-1713800000
   turn rather than new effort.
 - `Token-Total` **must equal** `Token-Input + Token-Output`.
 - `Cost-Key` must be unique within `COSTS.md`. Convention: `<agent>-<session-short>-<epoch>`.
+- `Cost-USD` is optional. Stamped automatically when the runtime-reported
+  model is in `lib/rates.py`; omitted for unpriced models (no `0.0000`
+  sentinel — it would collide with legitimately-cheap commits). When
+  present, the rule cross-checks it against the ledger row's `cost-usd`
+  cell — same `rates.lookup` call, same token counts, so any divergence
+  means someone hand-edited one side. Surfacing it as a trailer makes
+  the per-commit dollar figure visible in `git log` without having to
+  join against `COSTS.md`, and it survives squash merges alongside
+  `Cost-Key`.
 
 ## Ledger schema
 
@@ -68,6 +79,16 @@ without re-deriving rates after the fact:
   Empty when the model isn't in the rate table. This is the only
   single-number headline that is comparable across commits with different
   cache mixes.
+
+  `lib/rates.py` keeps **family-prefix fallbacks** (`claude-opus`,
+  `claude-sonnet`, `claude-haiku`, `gpt-5`) seeded from the current
+  rate card alongside version-specific keys. When a new minor release
+  lands between rule updates (e.g. `gpt-5.5`), longest-prefix lookup
+  picks the family row so `cost-usd` stays populated rather than
+  silently falling through to empty. When even the family key misses,
+  the pre-commit hook prints a visible `warning: model 'X' not in rate
+  table` line to stderr — non-blocking (the ledger row is still valid)
+  but no longer silent.
 
 Why both `new-work` and `cost-usd`:
 
