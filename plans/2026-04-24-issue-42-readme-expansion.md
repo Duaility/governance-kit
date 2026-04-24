@@ -86,6 +86,10 @@ Apply the issue's priority order:
   Philosophy" section (4 principles that survive a rewrite:
   agents execute / rationale is alignment data / atomic evolution
   / single-writer).
+- Tightened the philosophy wording from "isn't supervision" to
+  "isn't constant supervision" and "durable direction" so the README
+  still leaves room for human review, approval, and constraints while
+  keeping the direction-setting thesis.
 - Install surface now leads with [`npx skills add Duaility/governance-kit`](https://github.com/vercel-labs/skills),
   the open CLI for the [Agent Skills](https://agentskills.io) format
   governance-kit already conforms to. Manual `ln -s` snippet kept as

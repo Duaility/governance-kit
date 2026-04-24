@@ -118,3 +118,4 @@ Schema:
 | claude-code-cbdb387d-7ce-1777032452 | claude-code | cbdb387d-7ce5-4d1e-811c-554144dfd305 | #42 | claude-opus-4-7 | 26 | 5941 | 609661 | 3248 | 9215 | 0.4233 | docs(readme): drop -g from quickstart install command (#42) |
 | claude-code-cbdb387d-7ce-1777032488 | claude-code | cbdb387d-7ce5-4d1e-811c-554144dfd305 | #42 | claude-opus-4-7 | 3 | 5970 | 313338 | 1012 | 6985 | 0.2193 | docs(readme): drop -g from quickstart install command (#42) |
 | claude-code-cbdb387d-7ce-1777032949 | claude-code | cbdb387d-7ce5-4d1e-811c-554144dfd305 | #42 | claude-opus-4-7 | 56 | 25257 | 2445714 | 20567 | 45880 | 1.8952 | docs(readme): reframe around direction-setting for frontier agents (#42) |
+| codex-019dbf52-2f5-1777033274 | codex | 019dbf52-2f52-7471-bfbe-26508d5f165a | #42 | gpt-5.5 | 136035 | 0 | 2682752 | 10209 | 146244 | 1.1639 | docs(readme): clarify direction-setting philosophy (#42) -m Tightens the governa |

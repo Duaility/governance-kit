@@ -8,7 +8,7 @@ Conforms to the [Agent Skills](https://agentskills.io) format, so it installs in
 
 ## What is governance-driven development?
 
-Frontier models can ship real work. What they need from their human collaborators isn't supervision — it's **direction**: what "done" looks like, what must never regress, which trade-offs are non-negotiable. Governance-driven development treats that direction as a first-class artifact — versioned, machine-readable, and executable — instead of leaving it as ambient prose nobody updates.
+Frontier models can ship real work. What they need from their human collaborators isn't constant supervision — it's **durable direction**: what "done" looks like, what must never regress, which trade-offs are non-negotiable. Governance-driven development treats that direction as a first-class artifact — versioned, machine-readable, and executable — instead of leaving it as ambient prose nobody updates.
 
 The status quo scatters the steering signal. Prose in `CLAUDE.md` or `AGENTS.md` drifts out of attention. Pre-commit configs enforce checks but strip the *why*, so an agent hitting an edge case can't generalize from the rule's intent. And when direction changes, the rule, the test, and the rationale land in different PRs and decay at different rates.
 
