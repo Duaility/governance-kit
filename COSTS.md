@@ -125,3 +125,7 @@ Schema:
 | claude-code-4cd3e3d3-c4a-1777043757 | claude-code | 4cd3e3d3-c4a6-4a3a-a008-1bf541c71e85 | #47 | claude-opus-4-7 | 7 | 9385 | 279110 | 1680 | 11072 | 0.2402 | docs(github): add issue templates for proposal and bug flows (#47) |
 | codex-019dc008-577-1777044965 | codex | 019dc008-5775-7431-8505-18d9039f905f | #47 | gpt-5.5 | 117361 | 0 | 2965760 | 17486 | 134847 | 1.2971 |  |
 | claude-code-4cd3e3d3-c4a-1777046888 | claude-code | 4cd3e3d3-c4a6-4a3a-a008-1bf541c71e85 | #47 | claude-opus-4-7 | 73 | 58593 | 3042815 | 27233 | 85899 | 2.5688 | refactor(issue-templates): loosen rule to required IDs only (#47) |
+| claude-code-1782a181-dbb-1777053507 | claude-code | 1782a181-dbb9-4a92-95c7-a7d085823ca8 | #49 | claude-opus-4-7 | 574 | 1069629 | 50379524 | 248735 | 1318938 | 38.0962 |  |
+| claude-code-1782a181-dbb-1777053566 | claude-code | 1782a181-dbb9-4a92-95c7-a7d085823ca8 | #49 | claude-opus-4-7 | 8 | 6560 | 1005003 | 3341 | 9909 | 0.6271 |  |
+| claude-code-1782a181-dbb-1777053617 | claude-code | 1782a181-dbb9-4a92-95c7-a7d085823ca8 | #49 | claude-opus-4-7 | 6 | 3995 | 774485 | 2100 | 6101 | 0.4647 | feat!: rename rule/invariant vocabulary to directive (#49) -m Breaking vocabular |
+| claude-code-1782a181-dbb-1777053699 | claude-code | 1782a181-dbb9-4a92-95c7-a7d085823ca8 | #49 | claude-opus-4-7 | 8 | 6302 | 1057490 | 4140 | 10450 | 0.6717 | feat!: rename rule/invariant vocabulary to directive (#49) -m Breaking vocabular |

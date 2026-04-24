@@ -14,9 +14,9 @@ if [[ "${SKIP_GOVERNANCE:-0}" == "1" ]]; then
 fi
 
 ROOT="$(git rev-parse --show-toplevel)"
-RULES_DIR="$ROOT/tests/governance/rules"
+DIRECTIVES_DIR="$ROOT/tests/governance/directives"
 
-rule_field() {
+directive_field() {
     local manifest="$1" field="$2"
     [[ -f "$manifest" ]] || return 0
     awk -v k="$field" '
@@ -36,14 +36,14 @@ rule_field() {
     ' "$manifest"
 }
 
-rule_ids_for_hook() {
+directive_ids_for_hook() {
     local kind="$1" mode="$2"
     local dir id hook helper
-    [[ -d "$RULES_DIR" ]] || return 0
-    for dir in "$RULES_DIR"/*; do
-        [[ -d "$dir" && -f "$dir/rule.yaml" ]] || continue
+    [[ -d "$DIRECTIVES_DIR" ]] || return 0
+    for dir in "$DIRECTIVES_DIR"/*; do
+        [[ -d "$dir" && -f "$dir/directive.yaml" ]] || continue
         id="${dir##*/}"
-        hook="$(rule_field "$dir/rule.yaml" hook)"
+        hook="$(directive_field "$dir/directive.yaml" hook)"
         helper="$dir/hooks/$kind.sh"
         case "$mode" in
             helper)
@@ -57,14 +57,14 @@ rule_ids_for_hook() {
 }
 while IFS= read -r id; do
     [[ -z "$id" ]] && continue
-    bash "$RULES_DIR/$id/hooks/pre-commit.sh" || exit 1
-done < <(rule_ids_for_hook pre-commit helper)
+    bash "$DIRECTIVES_DIR/$id/hooks/pre-commit.sh" || exit 1
+done < <(directive_ids_for_hook pre-commit helper)
 
 fail=0
 while IFS= read -r id; do
     [[ -z "$id" ]] && continue
-    bash "$RULES_DIR/$id/check.sh" || fail=1
-done < <(rule_ids_for_hook pre-commit check)
+    bash "$DIRECTIVES_DIR/$id/check.sh" || fail=1
+done < <(directive_ids_for_hook pre-commit check)
 
 if [[ -x "$ROOT/scripts/test-packs.sh" && -d "$ROOT/governance/assets/packs" ]]; then
     if ! command -v uv >/dev/null 2>&1; then

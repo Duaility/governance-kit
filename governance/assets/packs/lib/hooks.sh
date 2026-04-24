@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 # hooks.sh — manifest-driven git-hook generator for governance-bootstrap.
 #
-# Emits dispatcher hooks that discover installed rule folders at runtime.
+# Emits dispatcher hooks that discover installed directive folders at runtime.
 # Two things drive what a dispatcher invokes:
 #
-#   1. The rule's `hook:` field — tells the generator which dispatcher
-#      should invoke `check.sh`. (A rule declaring `hook: commit-msg`
+#   1. The directive's `hook:` field — tells the generator which dispatcher
+#      should invoke `check.sh`. (A directive declaring `hook: commit-msg`
 #      has its validator wired into the commit-msg dispatcher.)
-#   2. Any file at `rules/<id>/hooks/<kind>.sh` inside the rule folder —
-#      a rule-owned side-effect helper for that hook kind. The
-#      agent-token-accounting rule, for example, validates in
+#   2. Any file at `directives/<id>/hooks/<kind>.sh` inside the directive
+#      folder — a directive-owned side-effect helper for that hook kind. The
+#      agent-token-accounting directive, for example, validates in
 #      commit-msg but ALSO writes the ledger row from pre-commit and
 #      stamps trailers from prepare-commit-msg; both side effects are
 #      shipped as sibling `hooks/pre-commit.sh` and
-#      `hooks/prepare-commit-msg.sh` inside the rule folder, so the
+#      `hooks/prepare-commit-msg.sh` inside the directive folder, so the
 #      generator wires them in without the generator itself knowing
-#      anything about that rule.
+#      anything about that directive.
 #
 # Every generated hook carries an ownership marker on line 2:
 #   # governance-kit:managed pack-version=<v> generated=<YYYY-MM-DD>
@@ -24,18 +24,18 @@
 # the skill prompts the user (wrap / merge / overwrite).
 #
 # The contract with callers:
-#   generate_hooks <target-hooks-dir> <pack-version> <rule-spec-file>
+#   generate_hooks <target-hooks-dir> <pack-version> <directive-spec-file>
 #       Writes dispatchers for pre-commit, commit-msg, and
 #       prepare-commit-msg. The spec file is still accepted so callers can
 #       validate the selected install set before generation, but generated
-#       hooks do not bake in selected rule ids. They scan installed
-#       `tests/governance/rules/<id>/rule.yaml` files on every invocation.
-#       This keeps user-owned post-install amendments working without
-#       perfect hook regeneration.
+#       hooks do not bake in selected directive ids. They scan installed
+#       `tests/governance/directives/<id>/directive.yaml` files on every
+#       invocation. This keeps user-owned post-install amendments working
+#       without perfect hook regeneration.
 #
-#         <rule-id>\t<hook>\t<surface>\t<rule-folder>
+#         <directive-id>\t<hook>\t<surface>\t<directive-folder>
 #
-#       <rule-folder> is the absolute path to the installed rule folder.
+#       <directive-folder> is the absolute path to the installed directive folder.
 #       Already-existing marker-bearing hooks are overwritten silently;
 #       unmarked files are left alone (caller handles collision).
 #
@@ -82,21 +82,21 @@ _write_marker() {
 }
 
 # _check_ids_for_hook <spec-file> <hook-kind>
-#   prints rule ids whose hook field (col 2) matches — these get check.sh run.
+#   prints directive ids whose hook field (col 2) matches — these get check.sh run.
 _check_ids_for_hook() {
     local spec="$1" kind="$2"
     awk -F'\t' -v k="$kind" '$2 == k { print $1 }' "$spec"
 }
 
 # _helper_ids_for_hook <spec-file> <hook-kind>
-#   prints rule ids that ship a rules/<id>/hooks/<kind>.sh helper. Detected
-#   by inspecting col 4 (the rule folder) at generation time.
+#   prints directive ids that ship a directives/<id>/hooks/<kind>.sh helper. Detected
+#   by inspecting col 4 (the directive folder) at generation time.
 _helper_ids_for_hook() {
     local spec="$1" kind="$2"
-    local id rule_dir
-    while IFS=$'\t' read -r id _ _ rule_dir; do
-        [[ -z "$id" || -z "$rule_dir" ]] && continue
-        if [[ -f "$rule_dir/hooks/$kind.sh" ]]; then
+    local id directive_dir
+    while IFS=$'\t' read -r id _ _ directive_dir; do
+        [[ -z "$id" || -z "$directive_dir" ]] && continue
+        if [[ -f "$directive_dir/hooks/$kind.sh" ]]; then
             printf '%s\n' "$id"
         fi
     done < "$spec"
@@ -104,7 +104,7 @@ _helper_ids_for_hook() {
 
 _emit_runtime_discovery_helpers() {
     cat <<'HEADER'
-rule_field() {
+directive_field() {
     local manifest="$1" field="$2"
     [[ -f "$manifest" ]] || return 0
     awk -v k="$field" '
@@ -124,14 +124,14 @@ rule_field() {
     ' "$manifest"
 }
 
-rule_ids_for_hook() {
+directive_ids_for_hook() {
     local kind="$1" mode="$2"
     local dir id hook helper
-    [[ -d "$RULES_DIR" ]] || return 0
-    for dir in "$RULES_DIR"/*; do
-        [[ -d "$dir" && -f "$dir/rule.yaml" ]] || continue
+    [[ -d "$DIRECTIVES_DIR" ]] || return 0
+    for dir in "$DIRECTIVES_DIR"/*; do
+        [[ -d "$dir" && -f "$dir/directive.yaml" ]] || continue
         id="${dir##*/}"
-        hook="$(rule_field "$dir/rule.yaml" hook)"
+        hook="$(directive_field "$dir/directive.yaml" hook)"
         helper="$dir/hooks/$kind.sh"
         case "$mode" in
             helper)
@@ -167,21 +167,21 @@ if [[ "${SKIP_GOVERNANCE:-0}" == "1" ]]; then
 fi
 
 ROOT="$(git rev-parse --show-toplevel)"
-RULES_DIR="$ROOT/tests/governance/rules"
+DIRECTIVES_DIR="$ROOT/tests/governance/directives"
 
 HEADER
         _emit_runtime_discovery_helpers
         cat <<'FOOTER'
 while IFS= read -r id; do
     [[ -z "$id" ]] && continue
-    bash "$RULES_DIR/$id/hooks/pre-commit.sh" || exit 1
-done < <(rule_ids_for_hook pre-commit helper)
+    bash "$DIRECTIVES_DIR/$id/hooks/pre-commit.sh" || exit 1
+done < <(directive_ids_for_hook pre-commit helper)
 
 fail=0
 while IFS= read -r id; do
     [[ -z "$id" ]] && continue
-    bash "$RULES_DIR/$id/check.sh" || fail=1
-done < <(rule_ids_for_hook pre-commit check)
+    bash "$DIRECTIVES_DIR/$id/check.sh" || fail=1
+done < <(directive_ids_for_hook pre-commit check)
 
 if [[ $fail -ne 0 ]]; then
     cat >&2 <<EOF
@@ -223,23 +223,23 @@ if [[ "${SKIP_GOVERNANCE:-0}" == "1" ]]; then
 fi
 
 ROOT="$(git rev-parse --show-toplevel)"
-RULES_DIR="$ROOT/tests/governance/rules"
+DIRECTIVES_DIR="$ROOT/tests/governance/directives"
 MSG_FILE="$1"
 HEADER
         _emit_runtime_discovery_helpers
         cat <<'FOOTER'
 while IFS= read -r id; do
     [[ -z "$id" ]] && continue
-    bash "$RULES_DIR/$id/hooks/commit-msg.sh" "$MSG_FILE" || exit 1
-done < <(rule_ids_for_hook commit-msg helper)
+    bash "$DIRECTIVES_DIR/$id/hooks/commit-msg.sh" "$MSG_FILE" || exit 1
+done < <(directive_ids_for_hook commit-msg helper)
 
 while IFS= read -r id; do
     [[ -z "$id" ]] && continue
-    if ! bash "$RULES_DIR/$id/check.sh" "$MSG_FILE"; then
+    if ! bash "$DIRECTIVES_DIR/$id/check.sh" "$MSG_FILE"; then
         echo "✗ commit blocked by governance (${id})" >&2
         exit 1
     fi
-done < <(rule_ids_for_hook commit-msg check)
+done < <(directive_ids_for_hook commit-msg check)
 
 exit 0
 FOOTER
@@ -263,7 +263,7 @@ if [[ "${SKIP_GOVERNANCE:-0}" == "1" ]]; then
 fi
 
 ROOT="$(git rev-parse --show-toplevel)"
-RULES_DIR="$ROOT/tests/governance/rules"
+DIRECTIVES_DIR="$ROOT/tests/governance/directives"
 MSG_FILE="$1"
 SOURCE="${2:-}"
 SHA="${3:-}"
@@ -272,13 +272,13 @@ HEADER
         cat <<'FOOTER'
 while IFS= read -r id; do
     [[ -z "$id" ]] && continue
-    bash "$RULES_DIR/$id/hooks/prepare-commit-msg.sh" "$MSG_FILE" "$SOURCE" "$SHA" || exit 1
-done < <(rule_ids_for_hook prepare-commit-msg helper)
+    bash "$DIRECTIVES_DIR/$id/hooks/prepare-commit-msg.sh" "$MSG_FILE" "$SOURCE" "$SHA" || exit 1
+done < <(directive_ids_for_hook prepare-commit-msg helper)
 
 while IFS= read -r id; do
     [[ -z "$id" ]] && continue
-    bash "$RULES_DIR/$id/check.sh" "$MSG_FILE" "$SOURCE" "$SHA" || exit 1
-done < <(rule_ids_for_hook prepare-commit-msg check)
+    bash "$DIRECTIVES_DIR/$id/check.sh" "$MSG_FILE" "$SOURCE" "$SHA" || exit 1
+done < <(directive_ids_for_hook prepare-commit-msg check)
 
 exit 0
 FOOTER

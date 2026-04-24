@@ -17,7 +17,7 @@ extensions/
 
 `packs/` is a **monorepo** of community-shaped packs that ship alongside
 the kit. The kit's bundled-in `core` pack lives elsewhere
-(`governance/assets/packs/core/`) because it is an invariant
+(`governance/assets/packs/core/`) because it is a non-negotiable
 part of the bootstrap surface, not a community extension. Everything in
 `extensions/packs/` is authored, validated, and consumed as if it were an
 independently published community pack — the monorepo layout is a
@@ -52,7 +52,7 @@ External packs hosted in their own repo drop the `path` field and point
 
 1. Create `extensions/packs/<slug>/` with a `pack.yaml` that declares
    `id: <author>/<slug>`, `min_governance_kit`, and presets.
-2. Populate `rules/<rule-id>/` folders as described in
+2. Populate `directives/<directive-id>/` folders as described in
    [governance/references/AUTHORING_PACKS.md](../governance/references/AUTHORING_PACKS.md).
 3. Append a catalog entry to `catalog.community.json` pointing at the
    monorepo path.

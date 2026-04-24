@@ -1,11 +1,11 @@
 # agent-governance pack
 #
-# Rules for repos that operate under agent-driven development — where
+# Directives for repos that operate under agent-driven development — where
 # every change to the tree is produced through an agent runtime (Codex,
-# Claude Code, Cursor, ...). These rules assume every commit has an
-# issue templates, an issue anchor, a matching plan, and full cost accounting.
+# Claude Code, Cursor, ...). These directives assume every commit has an
+# issue template, an issue anchor, a matching plan, and full cost accounting.
 #
-# The rules form a chain: issue creation uses a durable template
+# The directives form a chain: issue creation uses a durable template
 # (`issue-templates`), issues are tracked (`issues-tracked`), every issue
 # has exactly one plan (`plan-per-issue`), every commit matches its plan
 # (`commit-issue-plan-match`), and every commit carries its cost
@@ -16,28 +16,28 @@
 # bootstrap skill surfaces it as an additional screen when this pack
 # is selected.
 #
-# Rule metadata and artefacts live inside each rule's folder under
-# `rules/<id>/`. This file carries only pack-level identity and the
-# presets that select rules by id.
+# Directive metadata and artefacts live inside each directive's folder under
+# `directives/<id>/`. This file carries only pack-level identity and the
+# presets that select directives by id.
 
 id: duaility/agent-governance
-name: Agent-governance rules
+name: Agent-governance directives
 version: "0.2"
 min_governance_kit: "0.2"
-description: Rules for repos operating under agent-driven development.
+description: Directives for repos operating under agent-driven development.
 author: governance-kit
 
 presets:
   minimal:
-    rules:
+    directives:
       - plan-per-issue
       - commit-issue-plan-match
   standard:
     extends: minimal
-    rules:
+    directives:
       - issue-templates
       - issues-tracked
       - agent-token-accounting
   strict:
     extends: standard
-    rules: []
+    directives: []

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Shared helpers for governance rule tests.
-# Source this from every rule file: `source "$(dirname "$0")/../lib.sh"`
+# Shared helpers for governance directive tests.
+# Source this from every directive check: `source "$(dirname "$0")/../../lib.sh"`
 
 set -u
 
@@ -22,15 +22,16 @@ else
     readonly C_RESET=""
 fi
 
-# Track violations for the current rule. Each rule should call `rule_start`
-# at the top, then `violation` for each problem found, then `rule_end` at the
-# bottom. `rule_end` exits 0 if no violations, 1 otherwise.
-_RULE_NAME=""
+# Track violations for the current directive. Each directive should call
+# `directive_start` at the top, then `violation` for each problem found, then
+# `directive_end` at the bottom. `directive_end` exits 0 if no violations,
+# 1 otherwise.
+_DIRECTIVE_NAME=""
 _VIOLATION_COUNT=0
 _VIOLATIONS=()
 
-rule_start() {
-    _RULE_NAME="$1"
+directive_start() {
+    _DIRECTIVE_NAME="$1"
     _VIOLATION_COUNT=0
     _VIOLATIONS=()
 }
@@ -40,12 +41,12 @@ violation() {
     _VIOLATIONS+=("$1")
 }
 
-rule_end() {
+directive_end() {
     if [[ $_VIOLATION_COUNT -eq 0 ]]; then
-        printf "%s✓%s %s\n" "$C_GREEN" "$C_RESET" "$_RULE_NAME"
+        printf "%s✓%s %s\n" "$C_GREEN" "$C_RESET" "$_DIRECTIVE_NAME"
         exit 0
     fi
-    printf "%s✗ %s%s (%d violation%s)\n" "$C_RED" "$_RULE_NAME" "$C_RESET" \
+    printf "%s✗ %s%s (%d violation%s)\n" "$C_RED" "$_DIRECTIVE_NAME" "$C_RESET" \
         "$_VIOLATION_COUNT" "$([[ $_VIOLATION_COUNT -eq 1 ]] || echo s)"
     for v in "${_VIOLATIONS[@]}"; do
         printf "    %s\n" "$v"
@@ -69,15 +70,15 @@ tracked_files() {
 require_git() {
     if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
         printf "%s⊘%s %s (not a git repo — skipped)\n" \
-            "$C_YELLOW" "$C_RESET" "$_RULE_NAME"
+            "$C_YELLOW" "$C_RESET" "$_DIRECTIVE_NAME"
         exit 0
     fi
 }
 
-# Allow in-source waivers. Rules that support exceptions should grep for
-# `governance: allow-<rule-name>` on the violating line and skip it.
+# Allow in-source waivers. Directives that support exceptions should grep for
+# `governance: allow-<directive-name>` on the violating line and skip it.
 # Example: `foo = "AKIA..."  # governance: allow-secrets-hygiene TICKET-123`
 has_waiver() {
-    local file="$1" line_no="$2" rule="$3"
-    sed -n "${line_no}p" "$file" | grep -q "governance: allow-${rule}"
+    local file="$1" line_no="$2" directive="$3"
+    sed -n "${line_no}p" "$file" | grep -q "governance: allow-${directive}"
 }

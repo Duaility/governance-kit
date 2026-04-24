@@ -7,7 +7,7 @@ The 6-step recipe `governance uninstall` runs. Dispatched from
 
 Three source-of-truth layers drive what `uninstall` deletes, in priority order:
 
-1. **Install manifest** at `.governance-kit/installed-packs.yaml` — the authoritative record of packs, rules, and paths `init` installed.
+1. **Install manifest** at `.governance-kit/installed-packs.yaml` — the authoritative record of packs, directives, and paths `init` installed.
 2. **Ownership marker** — `.githooks/` dispatchers carry the line-2 marker `# governance-kit:managed pack-version=<v> generated=<date>`. The marker is a contract that the file is regeneratable, and symmetrically, safe to delete.
 3. **Heuristic fallback** — when neither manifest nor marker is present but governance artifacts are detected, `uninstall` defaults to **dry-run** and requires explicit opt-in before deleting anything.
 
@@ -21,7 +21,7 @@ Leaving intact: files the user owns (pack-seeded docs like `QUALITY.md` / `COSTS
 | Manifest present, artifacts present, markers consistent | Proceed. Manifest is the source of truth. |
 | Manifest missing, artifacts detected (`CONSTITUTION.md` + `tests/governance/` + marked hooks) | Force **dry-run** by default. Require explicit opt-in before executing a destructive mode. |
 | Manifest present but `version` ≠ `"1"` (legacy v0.1 shape) | Fall back to heuristic detection for fields absent in v0.1. Proceed; log every assumption in the Step 6 report. See [MANIFEST_SCHEMA.md](MANIFEST_SCHEMA.md#legacy-fallback--v01--pre-pr-26-manifests). |
-| `AGENTS.md` has the opening `<!-- governance: rules-to-follow -->` but **not** the matching closing marker | Classify as `directive-block-unbounded`. Strip from the opening marker up to the next `^## ` heading. Require an extra confirm (the block boundary is inferred, not marker-bounded). See [MANIFEST_SCHEMA.md](MANIFEST_SCHEMA.md#agentsmd-opening-marker-only-heuristic). |
+| `AGENTS.md` has the opening `<!-- governance: directives-to-follow -->` but **not** the matching closing marker | Classify as `directive-block-unbounded`. Strip from the opening marker up to the next `^## ` heading. Require an extra confirm (the block boundary is inferred, not marker-bounded). See [MANIFEST_SCHEMA.md](MANIFEST_SCHEMA.md#agentsmd-opening-marker-only-heuristic). |
 | Manifest missing, no artifacts detected | Report "nothing to remove" and exit. Idempotent no-op. |
 | Unmarked hook at a path we would delete | Stop. Offer the same three choices `init`'s collision flow offers (wrap, skip, overwrite with backup) — but here they are *restore wrap*, *leave alone*, *delete with backup*. |
 | `core.hooksPath` points somewhere other than `.githooks/` | Do **not** unset. The user changed it themselves. Warn in the report. |
@@ -42,14 +42,14 @@ Before touching anything, run these in parallel:
 - `ls -la` at the root and at `.githooks/`, `.github/workflows/`, `tests/governance/`.
 - Check for each artifact in the uninstall matrix (see [UNINSTALL_MATRIX.md](UNINSTALL_MATRIX.md)):
   - `CONSTITUTION.md`
-  - `tests/governance/run.sh`, `tests/governance/lib.sh`, every `tests/governance/rules/<id>/`
+  - `tests/governance/run.sh`, `tests/governance/lib.sh`, every `tests/governance/directives/<id>/`
   - `tests/governance/freshness.conf`
   - `.github/workflows/governance.yml`
   - `.governance-kit/installed-packs.yaml`
   - `.githooks/pre-commit`, `.githooks/commit-msg`, `.githooks/prepare-commit-msg`
   - `.githooks/*.userhook` (Path A wrap leftovers)
   - `<any>.pre-governance.bak` files (Path A overwrite backups)
-  - `AGENTS.md` and whether it contains `<!-- governance: rules-to-follow -->`
+  - `AGENTS.md` and whether it contains `<!-- governance: directives-to-follow -->`
   - `.husky/` or `.pre-commit-config.yaml` with governance entries (Path B)
 - Read `git config --get core.hooksPath` (empty string is fine — it means no override).
 
@@ -94,8 +94,8 @@ Files to delete:
   CONSTITUTION.md
   tests/governance/run.sh
   tests/governance/lib.sh
-  tests/governance/rules/<rule-a>/          (4 files)
-  tests/governance/rules/<rule-b>/          (4 files)
+  tests/governance/directives/<directive-a>/          (4 files)
+  tests/governance/directives/<directive-b>/          (4 files)
   .github/workflows/governance.yml
   .governance-kit/installed-packs.yaml
   .githooks/pre-commit       (marker present)
@@ -105,7 +105,7 @@ Hooks to restore (Path A userhook wraps):
   .githooks/pre-commit.userhook → .githooks/pre-commit  [original filename]
 
 AGENTS.md edit:
-  strip block bounded by <!-- governance: rules-to-follow --> … <!-- /governance: rules-to-follow -->
+  strip block bounded by <!-- governance: directives-to-follow --> … <!-- /governance: directives-to-follow -->
   byte-diff verify: ensure every other line is identical pre/post
 
 Git config:
@@ -133,7 +133,7 @@ Delete and restore in this order (deliberate — the manifest is read last so it
 1. **Hooks first.** Delete `.githooks/<name>` that carry the marker. Rename `<name>.userhook` siblings back to `<name>`. Never delete unmarked hooks — those were resolved in Step 4 or skipped.
 2. **Git config.** If `core.hooksPath` still equals `.githooks`, run `git config --unset core.hooksPath`. If the value changed since install or was cleared manually, leave it alone and note in the report.
 3. **AGENTS.md surgery.** Read the file and remove the directive block.
-   - **Paired-marker path (v1 directive):** locate `<!-- governance: rules-to-follow -->` and `<!-- /governance: rules-to-follow -->` and delete the span (inclusive of both marker lines, plus the blank line immediately after the closing marker if present).
+   - **Paired-marker path (v1 directive):** locate `<!-- governance: directives-to-follow -->` and `<!-- /governance: directives-to-follow -->` and delete the span (inclusive of both marker lines, plus the blank line immediately after the closing marker if present).
    - **Opening-marker-only path (pre-PR-#26 directive):** if only the opening marker is present, strip from that line up to — but not including — the next `^## ` heading (or end-of-file). Record the heuristic in the report's `Assumptions:` line.
    - Run a byte-diff on the remainder and abort the whole `uninstall` if any non-block line changed.
    - If the manifest records `agents_md_created: true` (init's Step 4b Case 2), offer to delete the file entirely in hard mode; keep it in soft mode.
@@ -182,7 +182,7 @@ Every successful `uninstall` run should leave the user with a summary that inclu
 
 ---
 
-## Key design rules
+## Key design principles
 
 - **Symmetry with `init`.** Every file `init` can create, `uninstall` can remove. Every config mutation `init` performs, `uninstall` can reverse. If `init` adds a new artifact class, `uninstall` must learn it in the same PR.
 - **Manifest first, marker second, heuristic last.** The manifest is authoritative; the ownership marker is the contract; heuristics are a fallback and degrade to dry-run by default.

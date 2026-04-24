@@ -11,34 +11,34 @@ setup_clone_script: scripts/setup-clone.sh
 packs:
   - id: core
     version: "0.1"
-    rules:
+    directives:
       - id: required-docs
-        installed_path: tests/governance/rules/required-docs
+        installed_path: tests/governance/directives/required-docs
       - id: secrets-hygiene
-        installed_path: tests/governance/rules/secrets-hygiene
+        installed_path: tests/governance/directives/secrets-hygiene
       - id: repo-hygiene
-        installed_path: tests/governance/rules/repo-hygiene
+        installed_path: tests/governance/directives/repo-hygiene
       - id: workflows-hardened
-        installed_path: tests/governance/rules/workflows-hardened
+        installed_path: tests/governance/directives/workflows-hardened
       - id: no-broken-internal-doc-links
-        installed_path: tests/governance/rules/no-broken-internal-doc-links
+        installed_path: tests/governance/directives/no-broken-internal-doc-links
       - id: conventional-commits
-        installed_path: tests/governance/rules/conventional-commits
+        installed_path: tests/governance/directives/conventional-commits
       - id: doc-freshness
-        installed_path: tests/governance/rules/doc-freshness
+        installed_path: tests/governance/directives/doc-freshness
   - id: duaility/agent-governance
     version: "0.2"
-    rules:
+    directives:
       - id: plan-per-issue
-        installed_path: tests/governance/rules/plan-per-issue
+        installed_path: tests/governance/directives/plan-per-issue
       - id: commit-issue-plan-match
-        installed_path: tests/governance/rules/commit-issue-plan-match
+        installed_path: tests/governance/directives/commit-issue-plan-match
       - id: issue-templates
-        installed_path: tests/governance/rules/issue-templates
+        installed_path: tests/governance/directives/issue-templates
       - id: issues-tracked
-        installed_path: tests/governance/rules/issues-tracked
+        installed_path: tests/governance/directives/issues-tracked
       - id: agent-token-accounting
-        installed_path: tests/governance/rules/agent-token-accounting
+        installed_path: tests/governance/directives/agent-token-accounting
 install_assets_seeded:
   - .github/ISSUE_TEMPLATE/config.yml
   - .github/ISSUE_TEMPLATE/proposal.yml

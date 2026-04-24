@@ -1,39 +1,39 @@
 #!/usr/bin/env bash
 # eval-lib.sh — shared harness for pack evals.
 #
-# Each eval at `packs/<pack>/evals/<rule>/test.sh` sources this library,
-# spins up a temp git repo, installs the rule under test into
-# `tests/governance/rules/<rule>/check.sh`, then drives pass + fail fixtures
-# through `expect_pass` / `expect_fail`.
+# Each eval at `packs/<pack>/evals/<directive>/test.sh` sources this library,
+# spins up a temp git repo, installs the directive under test into
+# `tests/governance/directives/<directive>/check.sh`, then drives pass + fail
+# fixtures through `expect_pass` / `expect_fail`.
 #
 # The harness is intentionally small. The contract:
 #
 #   fixture_init
 #       Creates a fresh temp git repo, `cd`s into it, seeds a minimal
-#       tree that satisfies the standard-baseline rules (README, LICENSE,
+#       tree that satisfies the standard-baseline directives (README, LICENSE,
 #       CONSTITUTION, AGENTS, ARCHITECTURE, SECURITY, `.gitignore`,
 #       `.env.example`, a dummy CI workflow, `.githooks/pre-commit`).
 #       Individual evals mutate this baseline for their pass/fail cases.
 #
-#   install_rule <pack-dir> <rule-id>
+#   install_directive <pack-dir> <directive-id>
 #       Copies `assets/tests-bash/lib.sh` into `tests/governance/lib.sh`
-#       and the entire rule folder (`<pack-dir>/rules/<id>/`) into the
-#       fixture's `tests/governance/rules/<id>/`. Idempotent.
+#       and the entire directive folder (`<pack-dir>/directives/<id>/`) into
+#       the fixture's `tests/governance/directives/<id>/`. Idempotent.
 #
 #   stage_all
 #       git add -A in the fixture.
 #
 #   commit_quiet <subject>
-#       Make a non-empty commit so HEAD exists. Used by rules that
+#       Make a non-empty commit so HEAD exists. Used by directives that
 #       inspect git history. Uses `--no-verify` so fixture repos don't
 #       need governance hooks.
 #
-#   expect_pass <rule-path> [args...]
-#       Runs the rule script, asserts exit 0. Prints ✓ on success,
-#       ✗ + rule stderr/stdout on failure, and bumps `eval_failures`.
+#   expect_pass <check-path> [args...]
+#       Runs the check script, asserts exit 0. Prints ✓ on success,
+#       ✗ + check stderr/stdout on failure, and bumps `eval_failures`.
 #
-#   expect_fail <rule-path> [args...]
-#       Runs the rule script, asserts non-zero exit. Symmetric.
+#   expect_fail <check-path> [args...]
+#       Runs the check script, asserts non-zero exit. Symmetric.
 #
 #   fixture_cleanup
 #       `rm -rf` the fixture. Called automatically on EXIT via trap.
@@ -64,12 +64,12 @@ fixture_init() {
 
 Minimal seed for the governance pack eval harness. Every eval under
 governance/assets/packs/\*/evals/\*/test.sh spins up a copy of
-this tree, installs exactly one rule under test, and then mutates the
-parts of the fixture the rule cares about — pass then fail assertions
+this tree, installs exactly one directive under test, and then mutates the
+parts of the fixture the directive cares about — pass then fail assertions
 run through the same harness.
 
 This README intentionally carries enough words and structure to clear
-the readme-exists rule's word-count and heading checks without any
+the readme-exists directive's word-count and heading checks without any
 per-eval tuning.
 EOF
 
@@ -96,9 +96,9 @@ Placeholder principle.
 
 Placeholder guideline.
 
-## Invariants
+## Directives
 
-Placeholder invariant.
+Placeholder directive.
 
 ## Evolution Log
 
@@ -115,27 +115,27 @@ lives in the documents it links to.
 ## Quick links
 
 - [README](README.md) — public-facing overview of the fixture
-- [CONSTITUTION](CONSTITUTION.md) — the governance rules in force here
+- [CONSTITUTION](CONSTITUTION.md) — the governance directives in force here
 - [Architecture](ARCHITECTURE.md) — top-level layering and domains
 - [Security](SECURITY.md) — how to report a vulnerability
 - [LICENSE](LICENSE) — terms this code is distributed under
 
 ## Working in this repo
 
-Every change must satisfy the rules in `CONSTITUTION.md`. The mechanical
-invariants are enforced by the governance test suite; the principles
+Every change must satisfy the directives in `CONSTITUTION.md`. The mechanical
+directives are enforced by the governance test suite; the principles
 are enforced by human and agent review.
 
 ## Notes
 
 More placeholder body so the file clears the minimum line count for the
-agents-md-exists rule. Governance rule tests care about shape and length,
-not about the actual prose of this file.
+agents-md-exists directive. Governance directive tests care about shape and
+length, not about the actual prose of this file.
 
-Every eval copies this baseline and then mutates only what the rule
-under test cares about. Downstream rules (no-broken-internal-doc-links,
+Every eval copies this baseline and then mutates only what the directive
+under test cares about. Downstream directives (no-broken-internal-doc-links,
 agents-md-exists itself) depend on the shape of this document, so extend
-it here rather than in per-rule evals.
+it here rather than in per-directive evals.
 EOF
 
     cat > ARCHITECTURE.md <<'EOF'
@@ -145,7 +145,7 @@ EOF
 
 Placeholder architecture doc for the fixture repo. Describes the top-level
 map of domains and package layering expected by the architecture-doc-exists
-rule. The real content does not matter for the eval — only that the file
+directive. The real content does not matter for the eval — only that the file
 is present, non-empty, has a top-level heading, and clears the minimum
 line count.
 
@@ -155,7 +155,7 @@ line count.
 - service — domain logic, transaction boundaries, invariants
 - api — HTTP transport, authentication, rate limiting
 
-## Invariants
+## Directives
 
 Domain objects do not cross layer boundaries in the wrong direction. The
 api layer depends on service; service depends on data; data has no
@@ -206,22 +206,22 @@ EOF
     chmod +x .githooks/pre-commit
     git config core.hooksPath .githooks
 
-    # Stage and commit the baseline so rules that use `git ls-files` see it
+    # Stage and commit the baseline so directives that use `git ls-files` see it
     # (hooks-configured, dotenv-gitignored, no-secrets, etc.).
     git add -A
     git commit --quiet --no-verify -m "chore: baseline fixture"
 }
 
-install_rule() {
-    local pack_dir="$1" rule_id="$2"
-    mkdir -p tests/governance/rules
+install_directive() {
+    local pack_dir="$1" directive_id="$2"
+    mkdir -p tests/governance/directives
     cp "$_EVAL_LIB_SH" tests/governance/lib.sh
-    local src="$pack_dir/rules/$rule_id"
-    local dest="tests/governance/rules/$rule_id"
+    local src="$pack_dir/directives/$directive_id"
+    local dest="tests/governance/directives/$directive_id"
     rm -rf "$dest"
     mkdir -p "$dest"
-    # Copy the entire rule folder so siblings (lib/, hooks/, runtimes/) come
-    # with the rule. Skip evals/ — the fixture shouldn't run eval fixtures.
+    # Copy the entire directive folder so siblings (lib/, hooks/, runtimes/) come
+    # with the directive. Skip evals/ — the fixture shouldn't run eval fixtures.
     for entry in "$src"/*; do
         [[ -e "$entry" ]] || continue
         case "$(basename "$entry")" in
@@ -247,19 +247,19 @@ commit_quiet() {
     git commit --quiet --no-verify --allow-empty -m "$subject"
 }
 
-_run_rule() {
-    local rule="$1"
+_run_check() {
+    local check="$1"
     shift
-    bash "$rule" "$@"
+    bash "$check" "$@"
 }
 
 expect_pass() {
     eval_assertions=$(( eval_assertions + 1 ))
-    local rule="$1"
+    local check="$1"
     shift
-    local label="${EVAL_LABEL:-$(basename "$rule" .sh)}"
+    local label="${EVAL_LABEL:-$(basename "$check" .sh)}"
     local out
-    if out=$(_run_rule "$rule" "$@" 2>&1); then
+    if out=$(_run_check "$check" "$@" 2>&1); then
         printf '    ✓ %s — pass case\n' "$label"
     else
         printf '    ✗ %s — expected PASS, got FAIL\n' "$label"
@@ -270,11 +270,11 @@ expect_pass() {
 
 expect_fail() {
     eval_assertions=$(( eval_assertions + 1 ))
-    local rule="$1"
+    local check="$1"
     shift
-    local label="${EVAL_LABEL:-$(basename "$rule" .sh)}"
+    local label="${EVAL_LABEL:-$(basename "$check" .sh)}"
     local out
-    if out=$(_run_rule "$rule" "$@" 2>&1); then
+    if out=$(_run_check "$check" "$@" 2>&1); then
         printf '    ✗ %s — expected FAIL, got PASS\n' "$label"
         printf '%s\n' "$out" | sed 's/^/        /'
         eval_failures=$(( eval_failures + 1 ))

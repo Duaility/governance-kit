@@ -1,6 +1,6 @@
 # governance-kit
 
-**Frontier models do the work. You set the direction.** governance-kit turns a repo's rules, invariants, and principles into the steering signal a capable coding agent actually reads — versioned alongside the code, legible to the next agent that touches it, and enforced at every commit.
+**Frontier models do the work. You set the direction.** governance-kit turns a repo's directives, guidelines, and principles into the steering signal a capable coding agent actually reads — versioned alongside the code, legible to the next agent that touches it, and enforced at every commit.
 
 Conforms to the [Agent Skills](https://agentskills.io) format, so it installs into [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), Cursor, OpenCode, and 40+ other skills-compatible agents via a single [`npx skills`](https://github.com/vercel-labs/skills) command. MIT-licensed.
 
@@ -10,9 +10,9 @@ Conforms to the [Agent Skills](https://agentskills.io) format, so it installs in
 
 Frontier models can ship real work. What they need from their human collaborators isn't constant supervision — it's **durable direction**: what "done" looks like, what must never regress, which trade-offs are non-negotiable. Governance-driven development treats that direction as a first-class artifact — versioned, machine-readable, and executable — instead of leaving it as ambient prose nobody updates.
 
-The status quo scatters the steering signal. Prose in `CLAUDE.md` or `AGENTS.md` drifts out of attention. Pre-commit configs enforce checks but strip the *why*, so an agent hitting an edge case can't generalize from the rule's intent. And when direction changes, the rule, the test, and the rationale land in different PRs and decay at different rates.
+The status quo scatters the steering signal. Prose in `CLAUDE.md` or `AGENTS.md` drifts out of attention. Pre-commit configs enforce checks but strip the *why*, so an agent hitting an edge case can't generalize from the directive's intent. And when direction changes, the directive, the test, and the rationale land in different PRs and decay at different rates.
 
-governance-kit collapses all three into one unit. Every invariant ships as `rule + test + rationale` in a single folder, evolves in one atomic commit, and stays legible to the agent that reads it next week.
+governance-kit collapses all three into one unit. Every directive ships as `directive + test + rationale` in a single folder, evolves in one atomic commit, and stays legible to the agent that reads it next week.
 
 ## Quickstart
 
@@ -33,15 +33,15 @@ $ git commit -m "stuff"
        Conventional Commits with an issue suffix (<type>(scope)?: <subject> (#123))
 ```
 
-## What a rule looks like
+## What a directive looks like
 
-Every rule is a self-contained folder. Here's `doc-freshness` from the `core` pack:
+Every directive is a self-contained folder. Here's `doc-freshness` from the `core` pack:
 
 ```
 doc-freshness/
-├── rule.yaml         # category, summary, surface, hook
+├── directive.yaml    # category, summary, surface, hook
 ├── check.sh          # the executable test (runs in pre-commit + CI)
-├── constitution.md   # Rule / Rationale / Enforced by / Exceptions
+├── constitution.md   # Directive / Rationale / Enforced by / Exceptions
 └── evals/test.sh     # pass + fail fixtures
 ```
 
@@ -50,16 +50,16 @@ The `constitution.md` carries the *why*:
 ```markdown
 ### doc-freshness
 
-- **Rule**: Docs opted into `tests/governance/freshness.conf` carry a
+- **Directive**: Docs opted into `tests/governance/freshness.conf` carry a
   `<!-- last-verified: YYYY-MM-DD -->` marker dated within the last 90 days.
 - **Rationale**: Critical runbooks and onboarding docs decay. A periodic
   "someone re-read this" checkpoint keeps them honest — if the deadline passes,
   either the doc still reflects reality (bump the date) or it doesn't (fix it).
-- **Enforced by**: `tests/governance/rules/doc-freshness/check.sh`
+- **Enforced by**: `tests/governance/directives/doc-freshness/check.sh`
 - **Exceptions**: Remove a doc from `freshness.conf` to opt it out entirely.
 ```
 
-The rationale is the load-bearing part: an agent reading a doc with a stale marker knows not to trust it as ground truth, and an agent updating a doc knows to bump the date. A bare hook can enforce the date format; only the co-located rationale tells the next agent what the date *means*. When the rule changes, all four files move together — the kit enforces this.
+The rationale is the load-bearing part: an agent reading a doc with a stale marker knows not to trust it as ground truth, and an agent updating a doc knows to bump the date. A bare hook can enforce the date format; only the co-located rationale tells the next agent what the date *means*. When the directive changes, all four files move together — the kit enforces this.
 
 ## Install
 
@@ -90,20 +90,20 @@ Edits in the clone flow to both runtimes live — handy when contributing to gov
 ## Verbs
 
 ```
-governance init                                    # bootstrap a repo
-governance uninstall [--dry-run|--soft|--hard]     # tear-down
-governance pack {search,add,update,remove,list}    # community pack lifecycle
-governance rule {add,modify,remove}                # atomic rule amendments
+governance init                                       # bootstrap a repo
+governance uninstall [--dry-run|--soft|--hard]        # tear-down
+governance pack {search,add,update,remove,list}       # community pack lifecycle
+governance directive {add,modify,remove}              # atomic directive amendments
 ```
 
 > [!IMPORTANT]
-> Don't edit `CONSTITUTION.md` or files under `tests/governance/rules/` by hand. The `rule *` verbs enforce the atomic-triple invariant — hand-edits will drift the constitution out of sync with the tests.
+> Don't edit `CONSTITUTION.md` or files under `tests/governance/directives/` by hand. The `directive *` verbs enforce the atomic-triple invariant — hand-edits will drift the constitution out of sync with the tests.
 
 ## Core pack
 
-The kit-bundled `core` pack ships these rules:
+The kit-bundled `core` pack ships these directives:
 
-| Rule | What it checks |
+| Directive | What it checks |
 |---|---|
 | `conventional-commits` | Commit messages match `<type>(scope)?: subject (#123)`. |
 | `doc-freshness` | Opted-in docs carry a `<!-- last-verified: YYYY-MM-DD -->` marker within 90 days. |
@@ -114,7 +114,7 @@ The kit-bundled `core` pack ships these rules:
 | `secrets-hygiene` | No plaintext secrets in tracked files; `.env` is gitignored and untracked. |
 | `workflows-hardened` | GitHub Actions workflows declare `permissions:` and pin third-party actions to a SHA. |
 
-Full catalog: [governance/references/RULES_CATALOG.md](governance/references/RULES_CATALOG.md).
+Full catalog: [governance/references/DIRECTIVES_CATALOG.md](governance/references/DIRECTIVES_CATALOG.md).
 
 ## Community packs
 
@@ -127,17 +127,17 @@ Authoring your own pack: [governance/references/AUTHORING_PACKS.md](governance/r
 ## Core Philosophy
 
 - **Agents execute. Humans steer.** Frontier models take on the heavy lifting — writing, editing, refactoring. The human contribution is *direction*. governance-kit is the channel for that direction, not a tripwire set against an untrusted worker.
-- **Rationale is alignment data.** A rule without a *why* is a pattern to match. A rule with a *why* is a principle a capable agent can apply to edge cases the rule-author never imagined. Every rule folder ships both.
-- **Direction evolves atomically.** When an invariant changes, the check, the `CONSTITUTION.md` entry, and the Evolution Log entry land in one commit. The steering signal never drifts away from the code it's steering.
-- **Agents are authors, not bypass routes.** The `rule *` verbs are the single writer. Agents amend rules by invoking the verb, not by quietly editing `CONSTITUTION.md` — the steering surface stays auditable commit-by-commit.
+- **Rationale is alignment data.** A directive without a *why* is a pattern to match. A directive with a *why* is a principle a capable agent can apply to edge cases the directive-author never imagined. Every directive folder ships both.
+- **Direction evolves atomically.** When a directive changes, the check, the `CONSTITUTION.md` entry, and the Evolution Log entry land in one commit. The steering signal never drifts away from the code it's steering.
+- **Agents are authors, not bypass routes.** The `directive *` verbs are the single writer. Agents amend directives by invoking the verb, not by quietly editing `CONSTITUTION.md` — the steering surface stays auditable commit-by-commit.
 
 ## Why not just pre-commit / husky / lefthook?
 
-Those tools run hooks. governance-kit runs hooks *and* keeps the rule's rationale, tests, and evolution history co-located with the hook — so a new maintainer reading `CONSTITUTION.md` can trace any rule back to the commit that introduced it and the test that enforces it. The `check.sh` scripts are plain bash; you can drop them into pre-commit / husky directly if you only want the enforcement half. See [governance/references/NATIVE_TESTS.md](governance/references/NATIVE_TESTS.md).
+Those tools run hooks. governance-kit runs hooks *and* keeps the directive's rationale, tests, and evolution history co-located with the hook — so a new maintainer reading `CONSTITUTION.md` can trace any directive back to the commit that introduced it and the test that enforces it. The `check.sh` scripts are plain bash; you can drop them into pre-commit / husky directly if you only want the enforcement half. See [governance/references/NATIVE_TESTS.md](governance/references/NATIVE_TESTS.md).
 
 ## Contributing
 
-See [AGENTS.md](AGENTS.md) for repo layout, how to add rules to the `core` pack, and the dogfooding setup. One-time-per-clone:
+See [AGENTS.md](AGENTS.md) for repo layout, how to add directives to the `core` pack, and the dogfooding setup. One-time-per-clone:
 
 ```sh
 ./scripts/setup-clone.sh   # sets core.hooksPath=.githooks

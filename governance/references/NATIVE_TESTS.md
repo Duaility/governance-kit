@@ -1,15 +1,15 @@
 # Native tests & alternative hook frameworks
 
-The bash rules in `tests/governance/rules/` are the baseline — they work in any repo without dependencies. This doc shows how to **also** run governance rules through the project's native test framework so they show up in the normal test report, and how to wire the pre-commit hook into frameworks the repo may already use.
+The bash directives in `tests/governance/directives/` are the baseline — they work in any repo without dependencies. This doc shows how to **also** run governance directives through the project's native test framework so they show up in the normal test report, and how to wire the pre-commit hook into frameworks the repo may already use.
 
 ## When to add native tests
 
 Add native tests when:
 
 - The repo already runs `pytest` / `jest` / `go test` in CI — governance violations should appear in the same report.
-- A rule is easier to express in code than in bash (e.g. AST checks on Python imports, TypeScript type assertions).
+- A directive is easier to express in code than in bash (e.g. AST checks on Python imports, TypeScript type assertions).
 
-The bash rules stay either way. Native tests are additive, not a replacement.
+The bash directives stay either way. Native tests are additive, not a replacement.
 
 ## pytest (Python)
 
@@ -19,25 +19,25 @@ Create `tests/governance/test_governance.py`:
 import subprocess
 from pathlib import Path
 
-RULES_DIR = Path(__file__).parent / "rules"
+DIRECTIVES_DIR = Path(__file__).parent / "directives"
 
-def _rules():
-    return sorted(p for p in RULES_DIR.glob("*/check.sh"))
+def _directives():
+    return sorted(p for p in DIRECTIVES_DIR.glob("*/check.sh"))
 
-def test_rules_exist():
-    assert _rules(), "no governance rules defined"
+def test_directives_exist():
+    assert _directives(), "no governance directives defined"
 
-def test_each_rule(tmp_path, pytestconfig):
+def test_each_directive(tmp_path, pytestconfig):
     failures = []
-    for rule in _rules():
-        result = subprocess.run(["bash", str(rule)], capture_output=True, text=True)
+    for directive in _directives():
+        result = subprocess.run(["bash", str(directive)], capture_output=True, text=True)
         if result.returncode != 0:
-            failures.append(f"{rule.name}:\n{result.stdout}{result.stderr}")
+            failures.append(f"{directive.name}:\n{result.stdout}{result.stderr}")
     if failures:
         raise AssertionError("\n\n".join(failures))
 ```
 
-For AST-level rules, skip the bash wrapper and write a direct pytest test. Example — no wildcard imports:
+For AST-level directives, skip the bash wrapper and write a direct pytest test. Example — no wildcard imports:
 
 ```python
 import ast
@@ -64,18 +64,18 @@ const { execSync } = require('node:child_process');
 const { readdirSync } = require('node:fs');
 const { join } = require('node:path');
 
-const RULES_DIR = join(__dirname, 'rules');
+const DIRECTIVES_DIR = join(__dirname, 'directives');
 
-describe('governance rules', () => {
-  const rules = readdirSync(RULES_DIR).map(f => join(RULES_DIR, f, 'check.sh'));
+describe('governance directives', () => {
+  const directives = readdirSync(DIRECTIVES_DIR).map(f => join(DIRECTIVES_DIR, f, 'check.sh'));
 
-  test('at least one rule is defined', () => {
-    expect(rules.length).toBeGreaterThan(0);
+  test('at least one directive is defined', () => {
+    expect(directives.length).toBeGreaterThan(0);
   });
 
-  test.each(rules)('%s passes', (rule) => {
+  test.each(directives)('%s passes', (directive) => {
     expect(() => {
-      execSync(`bash ${rule}`, { stdio: 'pipe' });
+      execSync(`bash ${directive}`, { stdio: 'pipe' });
     }).not.toThrow();
   });
 });
@@ -94,15 +94,15 @@ import (
     "testing"
 )
 
-func TestGovernanceRules(t *testing.T) {
-    rules, err := filepath.Glob("rules/*/check.sh")
-    if err != nil || len(rules) == 0 {
-        t.Fatal("no governance rules defined")
+func TestGovernanceDirectives(t *testing.T) {
+    directives, err := filepath.Glob("directives/*/check.sh")
+    if err != nil || len(directives) == 0 {
+        t.Fatal("no governance directives defined")
     }
-    for _, rule := range rules {
-        rule := rule
-        t.Run(filepath.Base(rule), func(t *testing.T) {
-            out, err := exec.Command("bash", rule).CombinedOutput()
+    for _, directive := range directives {
+        directive := directive
+        t.Run(filepath.Base(directive), func(t *testing.T) {
+            out, err := exec.Command("bash", directive).CombinedOutput()
             if err != nil {
                 t.Fatalf("%s\n%s", err, out)
             }
@@ -159,10 +159,10 @@ pre-commit:
       skip_empty: true
 ```
 
-## Where to put complex rules
+## Where to put complex directives
 
 - **Bash** — filesystem, grep, regex. Fast to add, portable.
 - **pytest / jest / go test** — AST inspection, type checks, cross-file reasoning.
 - **External tools in CI only** — `gitleaks`, `trufflehog`, `semgrep`, dependency scanners. Don't run these in the pre-commit hook (too slow); wire them into `.github/workflows/governance.yml` as additional steps.
 
-Layer them: fast rules on commit, heavier rules in CI. Both are enforcement, just at different cadences.
+Layer them: fast directives on commit, heavier directives in CI. Both are enforcement, just at different cadences.

@@ -4,10 +4,10 @@
 # Two jobs:
 #   1. Smoke-test the loader against every pack in
 #      governance/assets/packs/*. Confirms the manifest parses,
-#      each listed rule resolves, every declared preset unrolls, and
+#      each listed directive resolves, every declared preset unrolls, and
 #      referenced script/snippet files exist on disk.
 #   2. Run every packs/*/evals/*/test.sh — pack-author tests that prove
-#      the shipped rules pass on clean fixtures and fail on dirty ones.
+#      the shipped directives pass on clean fixtures and fail on dirty ones.
 #
 # Failures in either half fail the script. This is the gate that stops
 # a broken pack from shipping.
@@ -57,7 +57,7 @@ source "$INSTALL_LIB"
 
 fail=0
 pack_count=0
-rule_count=0
+directive_count=0
 eval_count=0
 
 printf '── pack smoke tests ───────────────────────────────────────\n'
@@ -85,11 +85,11 @@ while IFS=$'\t' read -r pack_id pack_dir; do
         fi
     done
 
-    # Count rules (for the summary at the end).
+    # Count directives (for the summary at the end).
     while IFS= read -r rid; do
         [[ -z "$rid" ]] && continue
-        rule_count=$(( rule_count + 1 ))
-    done < <(rules_for "$pack_dir")
+        directive_count=$(( directive_count + 1 ))
+    done < <(directives_for "$pack_dir")
 
     # always_install is reserved to core — validate_pack already enforced
     # this above.
@@ -106,7 +106,7 @@ fi
 
 printf '\n── hook generation smoke ─────────────────────────────────\n'
 
-# Build a spec file covering every rule with a non-none hook across all
+# Build a spec file covering every directive with a non-none hook across all
 # packs, then ask the generator to emit hooks for them. This proves the
 # generator survives the manifest shapes our packs actually ship.
 hook_tmp="$(mktemp -d)"
@@ -116,20 +116,20 @@ while IFS=$'\t' read -r pack_id pack_dir; do
     [[ -z "$pack_id" ]] && continue
     while IFS= read -r rid; do
         [[ -z "$rid" ]] && continue
-        hk=$(rule_field "$pack_dir" "$rid" hook 2>/dev/null || true)
-        surface=$(rule_field "$pack_dir" "$rid" surface 2>/dev/null || true)
-        rule_folder="$pack_dir/rules/$rid"
+        hk=$(directive_field "$pack_dir" "$rid" hook 2>/dev/null || true)
+        surface=$(directive_field "$pack_dir" "$rid" surface 2>/dev/null || true)
+        directive_folder="$pack_dir/directives/$rid"
         has_helper=0
         for kind in pre-commit commit-msg prepare-commit-msg; do
-            [[ -f "$rule_folder/hooks/$kind.sh" ]] && has_helper=1
+            [[ -f "$directive_folder/hooks/$kind.sh" ]] && has_helper=1
         done
-        # Include the rule in the spec if it declares a hook OR ships any
-        # rule-owned helper. Both paths route through the generator.
+        # Include the directive in the spec if it declares a hook OR ships any
+        # directive-owned helper. Both paths route through the generator.
         if [[ -z "$hk" || "$hk" == "none" ]] && [[ $has_helper -eq 0 ]]; then
             continue
         fi
-        printf '%s\t%s\t%s\t%s\n' "$rid" "${hk:-none}" "$surface" "$rule_folder" >> "$hook_spec"
-    done < <(rules_for "$pack_dir")
+        printf '%s\t%s\t%s\t%s\n' "$rid" "${hk:-none}" "$surface" "$directive_folder" >> "$hook_spec"
+    done < <(directives_for "$pack_dir")
 done < <(list_packs_all)
 
 hook_out="$hook_tmp/hooks"
@@ -174,16 +174,16 @@ EOF
 # Constitution
 
 This fixture constitution is intentionally small but non-empty. The real
-bootstrap skill writes selected invariant snippets here; this contract test
-cares that the installed rules and hooks agree on the target tree shape.
+bootstrap skill writes selected directive snippets here; this contract test
+cares that the installed directives and hooks agree on the target tree shape.
 
 ## Principles
 
 - Governance checks must be executable locally and in CI.
 
-## Invariants
+## Directives
 
-- Placeholder invariant for the fixture.
+- Placeholder directive for the fixture.
 
 ## Evolution Log
 
@@ -199,30 +199,30 @@ documents before making changes, then run the governance suite before commit.
 ## Links
 
 - [README](README.md) — fixture overview.
-- [Constitution](CONSTITUTION.md) — governance rules.
+- [Constitution](CONSTITUTION.md) — governance directives.
 - [Workflow](.github/workflows/ci.yml) — CI entrypoint.
 - [Gitignore](.gitignore) — local file policy.
 
 ## Working Notes
 
-This file is deliberately long enough for the agents-md-exists rule. It is
+This file is deliberately long enough for the agents-md-exists directive. It is
 part of the fresh-repo install contract rather than a pack-author eval.
 
 Agents should preserve the installed governance folder shape:
-`tests/governance/rules/<id>/check.sh`.
+`tests/governance/directives/<id>/check.sh`.
 
-Generated hooks discover installed `rule.yaml` files at runtime, so
-post-install amendments can add compatible rule folders without rewriting
-the dispatcher for every rule.
+Generated hooks discover installed `directive.yaml` files at runtime, so
+post-install amendments can add compatible directive folders without rewriting
+the dispatcher for every directive.
 
-The contract also keeps seed files explicit. Rules that need a repo-root
+The contract also keeps seed files explicit. Directives that need a repo-root
 artifact ship that artifact under `install-assets/`, and the installer copies
 it before the first governance run.
 
 This fixture intentionally avoids project-specific source code. It proves the
 governance surface itself is coherent before any application stack is present.
 
-Keep this document boring. The rule under test is the bootstrap contract, not
+Keep this document boring. The directive under test is the bootstrap contract, not
 the prose in this file.
 EOF
 
@@ -254,14 +254,14 @@ satisfy `required-docs` at the expected line-count floor.
 ## Layers
 
 - surface — the tree shape installed by bootstrap
-- rules — executable checks under `tests/governance/rules/<id>/`
+- directives — executable checks under `tests/governance/directives/<id>/`
 - hooks — `.githooks/*` dispatchers generated from the installed manifest
 
-## Invariants
+## Directives
 
-Rule folders are self-contained. The hook generator discovers installed
-rule metadata at runtime. Adding or removing a rule is a single directory
-operation on `tests/governance/rules/`.
+Directive folders are self-contained. The hook generator discovers installed
+directive metadata at runtime. Adding or removing a directive is a single directory
+operation on `tests/governance/directives/`.
 
 ## Notes
 
@@ -274,7 +274,7 @@ EOF
 *.log
 EOF
 
-    mkdir -p .github/workflows tests/governance/rules
+    mkdir -p .github/workflows tests/governance/directives
     cat > .github/workflows/ci.yml <<'EOF'
 name: CI
 on: [push, pull_request]
@@ -299,20 +299,20 @@ EOF
     done < <(preset_resolve "$core_pack" standard)
     while IFS= read -r rid; do
         [[ -n "$rid" ]] && selected+=("$rid")
-    done < <(always_install_rules "$core_pack")
+    done < <(always_install_directives "$core_pack")
 
     installed_pairs=()
-    seen_rules=" "
+    seen_directives=" "
     for rid in "${selected[@]}"; do
-        case "$seen_rules" in
+        case "$seen_directives" in
             *" $rid "*) continue ;;
         esac
-        seen_rules="$seen_rules$rid "
-        if ! rule_supports_hook_strategy "$core_pack" "$rid" "githooks"; then
+        seen_directives="$seen_directives$rid "
+        if ! directive_supports_hook_strategy "$core_pack" "$rid" "githooks"; then
             continue
         fi
-        install_rule_folder "$core_pack" "$rid" "$fresh_tmp"
-        install_rule_assets "$core_pack" "$rid" "$fresh_tmp"
+        install_directive_folder "$core_pack" "$rid" "$fresh_tmp"
+        install_directive_assets "$core_pack" "$rid" "$fresh_tmp"
         installed_pairs+=("$core_pack" "$rid")
     done
 
@@ -323,7 +323,7 @@ EOF
         -- "${installed_pairs[@]}"
 
     hook_spec="$fresh_tmp/hook-spec.tsv"
-    build_hook_spec_from_installed_rules "$fresh_tmp" "$hook_spec"
+    build_hook_spec_from_installed_directives "$fresh_tmp" "$hook_spec"
     generate_hooks "$fresh_tmp/.githooks" "test" "$hook_spec"
     git config core.hooksPath .githooks
 
@@ -370,14 +370,14 @@ while IFS= read -r eval_script; do
         printf '    ✗ eval failed\n'
     fi
 done < <(for root in "${PACK_ROOTS[@]}"; do
-    [[ -d "$root" ]] && find "$root" -type f -path '*/rules/*/evals/test.sh' 2>/dev/null
+    [[ -d "$root" ]] && find "$root" -type f -path '*/directives/*/evals/test.sh' 2>/dev/null
 done | sort)
 
 printf '\n────────────────────────────────────────\n'
 if [[ $fail -ne 0 ]]; then
-    printf '✗ test-packs: failures in %d pack(s), %d rule(s), %d eval(s)\n' \
-        "$pack_count" "$rule_count" "$eval_count"
+    printf '✗ test-packs: failures in %d pack(s), %d directive(s), %d eval(s)\n' \
+        "$pack_count" "$directive_count" "$eval_count"
     exit 1
 fi
-printf '✓ test-packs: %d pack(s), %d rule(s), %d eval(s) passed\n' \
-    "$pack_count" "$rule_count" "$eval_count"
+printf '✓ test-packs: %d pack(s), %d directive(s), %d eval(s) passed\n' \
+    "$pack_count" "$directive_count" "$eval_count"

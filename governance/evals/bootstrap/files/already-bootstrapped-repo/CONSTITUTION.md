@@ -8,13 +8,13 @@ Agents and humans working in this repo must read and follow this document.
 ## Principles
 
 - Keep changes small and reviewable.
-- Every rule has a matching test script.
+- Every directive has a matching test script.
 
-## Invariants
+## Directives
 
 ### no-secrets
-**Rule.** No credentials or private keys in tracked files.
-**Enforced by.** tests/governance/rules/no-secrets/check.sh
+**Directive.** No credentials or private keys in tracked files.
+**Enforced by.** tests/governance/directives/no-secrets/check.sh
 
 ## Evolution Log
 

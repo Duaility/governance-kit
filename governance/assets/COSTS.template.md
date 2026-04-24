@@ -8,12 +8,12 @@ keyed by `Cost-Key`, which is mirrored into the commit trailers so the ledger
 survives squash merges that strip the original commit history.
 
 **Do not** rewrite or reorder rows. This file is the durable system-of-record
-that the `agent-token-accounting` governance rule validates.
+that the `agent-token-accounting` governance directive validates.
 
-The `agent-token-accounting` rule's `hooks/pre-commit.sh` appends a row
+The `agent-token-accounting` directive's `hooks/pre-commit.sh` appends a row
 before git snapshots the tree; its `hooks/prepare-commit-msg.sh` stamps
-the matching trailers. Both live inside the rule folder at
-`tests/governance/rules/agent-token-accounting/hooks/`. See
+the matching trailers. Both live inside the directive folder at
+`tests/governance/directives/agent-token-accounting/hooks/`. See
 [governance/references/AGENT_TOKEN_ACCOUNTING.md](governance/references/AGENT_TOKEN_ACCOUNTING.md)
 for wiring instructions.
 
@@ -32,7 +32,7 @@ Schema:
   turn, not new work — so `new-work` matches `Token-Total` in the commit
   trailer by construction.
 - `cost-usd` — the true dollar cost for this row, computed from `model` via
-  the rule's `lib/rates.py` and all four token columns (cache_read
+  the directive's `lib/rates.py` and all four token columns (cache_read
   included — that's the only place cache rent actually appears). Empty when
   the model isn't in the rate table. This is the only single-number headline
   that's comparable across commits with different cache mixes.

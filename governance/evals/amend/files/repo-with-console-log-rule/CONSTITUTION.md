@@ -2,18 +2,18 @@
 
 ## Compliance
 
-Agents and humans working in this repo must read and follow this document. Mechanical invariants are enforced by `tests/governance/run.sh`.
+Agents and humans working in this repo must read and follow this document. Mechanical directives are enforced by `tests/governance/run.sh`.
 
 ## Principles
 
 - Keep logs structured, not printed.
-- Amendments land atomically: rule + invariant + evolution-log entry.
+- Amendments land atomically: directive + constitution + evolution-log entry.
 
-## Invariants
+## Directives
 
 ### no-console-log
-**Rule.** No `console.log` / `console.debug` calls in tracked `.ts` / `.tsx` / `.js` / `.jsx` files.
-**Enforced by.** `tests/governance/rules/no-console-log/check.sh`
+**Directive.** No `console.log` / `console.debug` calls in tracked `.ts` / `.tsx` / `.js` / `.jsx` files.
+**Enforced by.** `tests/governance/directives/no-console-log/check.sh`
 **Waivers.** `// governance: allow-no-console-log <TICKET>` on the offending line.
 
 ## Evolution Log

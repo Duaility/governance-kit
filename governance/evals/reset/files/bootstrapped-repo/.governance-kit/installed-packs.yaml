@@ -10,11 +10,11 @@ agents_md_created: false
 packs:
   - id: core
     version: "0.1"
-    rules:
+    directives:
       - id: constitution-exists
-        installed_path: tests/governance/rules/constitution-exists
+        installed_path: tests/governance/directives/constitution-exists
       - id: no-secrets
-        installed_path: tests/governance/rules/no-secrets
+        installed_path: tests/governance/directives/no-secrets
 install_assets_seeded:
   - QUALITY.md
   - COSTS.md

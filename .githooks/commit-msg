@@ -13,9 +13,9 @@ if [[ "${SKIP_GOVERNANCE:-0}" == "1" ]]; then
 fi
 
 ROOT="$(git rev-parse --show-toplevel)"
-RULES_DIR="$ROOT/tests/governance/rules"
+DIRECTIVES_DIR="$ROOT/tests/governance/directives"
 MSG_FILE="$1"
-rule_field() {
+directive_field() {
     local manifest="$1" field="$2"
     [[ -f "$manifest" ]] || return 0
     awk -v k="$field" '
@@ -35,14 +35,14 @@ rule_field() {
     ' "$manifest"
 }
 
-rule_ids_for_hook() {
+directive_ids_for_hook() {
     local kind="$1" mode="$2"
     local dir id hook helper
-    [[ -d "$RULES_DIR" ]] || return 0
-    for dir in "$RULES_DIR"/*; do
-        [[ -d "$dir" && -f "$dir/rule.yaml" ]] || continue
+    [[ -d "$DIRECTIVES_DIR" ]] || return 0
+    for dir in "$DIRECTIVES_DIR"/*; do
+        [[ -d "$dir" && -f "$dir/directive.yaml" ]] || continue
         id="${dir##*/}"
-        hook="$(rule_field "$dir/rule.yaml" hook)"
+        hook="$(directive_field "$dir/directive.yaml" hook)"
         helper="$dir/hooks/$kind.sh"
         case "$mode" in
             helper)
@@ -56,15 +56,15 @@ rule_ids_for_hook() {
 }
 while IFS= read -r id; do
     [[ -z "$id" ]] && continue
-    bash "$RULES_DIR/$id/hooks/commit-msg.sh" "$MSG_FILE" || exit 1
-done < <(rule_ids_for_hook commit-msg helper)
+    bash "$DIRECTIVES_DIR/$id/hooks/commit-msg.sh" "$MSG_FILE" || exit 1
+done < <(directive_ids_for_hook commit-msg helper)
 
 while IFS= read -r id; do
     [[ -z "$id" ]] && continue
-    if ! bash "$RULES_DIR/$id/check.sh" "$MSG_FILE"; then
+    if ! bash "$DIRECTIVES_DIR/$id/check.sh" "$MSG_FILE"; then
         echo "✗ commit blocked by governance (${id})" >&2
         exit 1
     fi
-done < <(rule_ids_for_hook commit-msg check)
+done < <(directive_ids_for_hook commit-msg check)
 
 exit 0

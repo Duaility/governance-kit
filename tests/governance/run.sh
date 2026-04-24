@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Governance test runner. Discovers every rule under ./rules/ and runs it.
-# Rules are folder-shaped — each rule is `rules/<id>/check.sh`. Anything
-# the rule needs (lib/, hooks/, runtimes/) lives in the same folder.
-# Exits 0 if all rules pass, 1 if any rule fails.
+# Governance test runner. Discovers every directive under ./directives/ and runs it.
+# Directives are folder-shaped — each directive is `directives/<id>/check.sh`.
+# Anything the directive needs (lib/, hooks/, runtimes/) lives in the same folder.
+# Exits 0 if all directive checks pass, 1 if any fails.
 #
 # Usage:
-#   bash tests/governance/run.sh              # run all rules
-#   bash tests/governance/run.sh required-docs   # run a single rule by id
+#   bash tests/governance/run.sh              # run all directive checks
+#   bash tests/governance/run.sh required-docs   # run a single directive by id
 #
 # Environment:
-#   SKIP_GOVERNANCE=1   skip all rules (for emergency commits)
+#   SKIP_GOVERNANCE=1   skip all directive checks (for emergency commits)
 
 set -u
 
@@ -19,43 +19,43 @@ if [[ "${SKIP_GOVERNANCE:-0}" == "1" ]]; then
 fi
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-RULES_DIR="$HERE/rules"
+DIRECTIVES_DIR="$HERE/directives"
 
-if [[ ! -d "$RULES_DIR" ]]; then
-    echo "✗ no rules directory at $RULES_DIR"
+if [[ ! -d "$DIRECTIVES_DIR" ]]; then
+    echo "✗ no directives directory at $DIRECTIVES_DIR"
     echo "  Is this repo bootstrapped? Run the governance-bootstrap skill."
     exit 1
 fi
 
-rule_files=()
+check_files=()
 while IFS= read -r f; do
-    [[ -n "$f" ]] && rule_files+=("$f")
-done < <(find "$RULES_DIR" -mindepth 2 -maxdepth 2 -type f -name 'check.sh' | sort)
+    [[ -n "$f" ]] && check_files+=("$f")
+done < <(find "$DIRECTIVES_DIR" -mindepth 2 -maxdepth 2 -type f -name 'check.sh' | sort)
 
-if [[ ${#rule_files[@]} -eq 0 ]]; then
-    echo "⊘ no governance rules defined in $RULES_DIR"
+if [[ ${#check_files[@]} -eq 0 ]]; then
+    echo "⊘ no governance directives defined in $DIRECTIVES_DIR"
     exit 0
 fi
 
-# Single-rule filter: `run.sh required-docs` only runs rules/required-docs/check.sh.
+# Single-directive filter: `run.sh required-docs` only runs directives/required-docs/check.sh.
 if [[ $# -gt 0 ]]; then
     filter="$1"
     filtered=()
-    for f in "${rule_files[@]}"; do
+    for f in "${check_files[@]}"; do
         id=$(basename "$(dirname "$f")")
         [[ "$id" == "$filter" ]] && filtered+=("$f")
     done
     if [[ ${#filtered[@]} -eq 0 ]]; then
-        echo "✗ no rule named '$filter' under $RULES_DIR"
+        echo "✗ no directive named '$filter' under $DIRECTIVES_DIR"
         exit 1
     fi
-    rule_files=("${filtered[@]}")
+    check_files=("${filtered[@]}")
 fi
 
 fail_count=0
 pass_count=0
-for rule in "${rule_files[@]}"; do
-    if bash "$rule"; then
+for check in "${check_files[@]}"; do
+    if bash "$check"; then
         pass_count=$((pass_count + 1))
     else
         fail_count=$((fail_count + 1))
@@ -65,10 +65,10 @@ done
 echo
 echo "────────────────────────────────────────"
 if [[ $fail_count -eq 0 ]]; then
-    echo "✓ governance: all $pass_count rule(s) passed"
+    echo "✓ governance: all $pass_count directive(s) passed"
     exit 0
 fi
-echo "✗ governance: $fail_count rule(s) failed, $pass_count passed"
+echo "✗ governance: $fail_count directive(s) failed, $pass_count passed"
 echo
 echo "To bypass temporarily (CI will still enforce):"
 echo "    SKIP_GOVERNANCE=1 git commit ..."

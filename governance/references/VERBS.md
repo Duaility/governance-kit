@@ -27,7 +27,7 @@ full rearchitecture context.
 - **Modes:** `dry-run` (default when manifest missing), `soft` (default when manifest present), `hard` (also strips seeded docs like `QUALITY.md`, `COSTS.md`, and `.pre-governance.bak` backups).
 - **Authoritative flow:** [UNINSTALL_FLOW.md](UNINSTALL_FLOW.md) Steps 1–6.
 - **Source-of-truth ladder:** install manifest → `governance-kit:managed` line-2 marker → heuristic fallback (forces dry-run).
-- **Invariant:** never delete a file without ownership evidence.
+- **Directive:** never delete a file without ownership evidence.
 
 ## `pack *`
 
@@ -36,24 +36,24 @@ Full flows live in [PACK_VERBS.md](PACK_VERBS.md). Summary:
 | Verb | Intent |
 |---|---|
 | `pack search [query]` | Search `extensions/catalog.community.json` and return matching entries via `packverb catalog-search`. |
-| `pack add <ref>` | Fetch a pack from a GitHub ref (`gh:owner/repo[/subpath][@rev]`), resolve to a concrete SHA, validate, show `check.sh` diffs before writing (diff-before-exec), install rule folders, and record the pin in `.governance/packs.lock`. Refuse if any rule declares `reads:`/`writes:` globs and the rule's `check.sh` references paths outside those globs. |
-| `pack update [<pack-id>]` | Resolve the ref to a newer SHA, re-run diff-before-exec, rewrite rule folders, update the lock. |
-| `pack remove <pack-id>` | Remove installed rule folders owned by the pack (from `.governance-kit/installed-packs.yaml`), regenerate the hook dispatcher, prune the lock entry. |
+| `pack add <ref>` | Fetch a pack from a GitHub ref (`gh:owner/repo[/subpath][@rev]`), resolve to a concrete SHA, validate, show `check.sh` diffs before writing (diff-before-exec), install directive folders, and record the pin in `.governance/packs.lock`. Refuse if any directive declares `reads:`/`writes:` globs and the directive's `check.sh` references paths outside those globs. |
+| `pack update [<pack-id>]` | Resolve the ref to a newer SHA, re-run diff-before-exec, rewrite directive folders, update the lock. |
+| `pack remove <pack-id>` | Remove installed directive folders owned by the pack (from `.governance-kit/installed-packs.yaml`), regenerate the hook dispatcher, prune the lock entry. |
 | `pack list` | Print installed packs with their pinned SHAs from `.governance/packs.lock`. |
 
 **Never** install by hand-copying into `governance/assets/packs/` — that is governance-kit's own in-tree source tree, not a consumer's repo surface. Pack installs for a consumer repo flow through `governance pack add`.
 
-## `rule *`
+## `directive *`
 
-Full flows live in [RULE_VERBS.md](RULE_VERBS.md). Summary:
+Full flows live in [DIRECTIVE_VERBS.md](DIRECTIVE_VERBS.md). Summary:
 
 | Verb | Intent |
 |---|---|
-| `rule add <id>` | Draft a new rule (test + constitution subsection + Evolution Log entry) and commit atomically. |
-| `rule modify <id>` | Edit an existing rule's check or rationale; append an Evolution Log entry. |
-| `rule remove <id>` | Delete the rule folder, remove its invariant subsection, log the removal, surface dangling references. |
+| `directive add <id>` | Draft a new directive (test + constitution subsection + Evolution Log entry) and commit atomically. |
+| `directive modify <id>` | Edit an existing directive's check or rationale; append an Evolution Log entry. |
+| `directive remove <id>` | Delete the directive folder, remove its subsection from `CONSTITUTION.md`, log the removal, surface dangling references. |
 
-All three follow [RULE_AMEND_FLOW.md](RULE_AMEND_FLOW.md) Steps 1–7. Rules installed via `governance pack add` are off-limits for `rule *` — touch them through the matching `pack *` verb.
+All three follow [DIRECTIVE_AMEND_FLOW.md](DIRECTIVE_AMEND_FLOW.md) Steps 1–7. Directives installed via `governance pack add` are off-limits for `directive *` — touch them through the matching `pack *` verb.
 
 ## Trigger words this skill should NOT claim
 
