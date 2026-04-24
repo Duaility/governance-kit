@@ -67,13 +67,20 @@ while IFS= read -r id; do
 done < <(rule_ids_for_hook pre-commit check)
 
 if [[ -x "$ROOT/scripts/test-packs.sh" && -d "$ROOT/governance/assets/packs" ]]; then
-    (
-        cd "$ROOT" || exit 1
-        while IFS= read -r name; do
-            [[ -n "$name" ]] && unset "$name"
-        done < <(git rev-parse --local-env-vars)
-        bash "$ROOT/scripts/test-packs.sh"
-    ) || fail=1
+    if ! command -v uv >/dev/null 2>&1; then
+        echo "⊘ pack tests skipped: \`uv\` not installed locally (CI still enforces)" >&2
+    else
+        (
+            cd "$ROOT" || exit 1
+            # Clear inherited git env vars (GIT_INDEX_FILE, GIT_DIR, etc.) so
+            # nested `git` calls inside test-packs.sh operate on temp repos
+            # cleanly instead of inheriting the in-progress commit context.
+            while IFS= read -r name; do
+                [[ -n "$name" ]] && unset "$name"
+            done < <(git rev-parse --local-env-vars)
+            bash "$ROOT/scripts/test-packs.sh"
+        ) || fail=1
+    fi
 fi
 
 if [[ $fail -ne 0 ]]; then

@@ -32,8 +32,11 @@ Closes [#33](https://github.com/Duaility/governance-kit/issues/33).
 After review of the first draft PR, the local hook contract was tightened:
 
 - Add `pre-commit-test-gate` to the constitution and governance rules.
-- Make the generated pre-commit hook, and this repo's tracked
-  `.githooks/pre-commit`, run `scripts/test-packs.sh` when the pack-author
-  test suite is present.
+- Wire `scripts/test-packs.sh` into this repo's tracked
+  `.githooks/pre-commit` (source repo only — the generated dispatcher
+  template that ships into target repos is left untouched, since the
+  pack-author tests have no meaning there).
 - Keep `scripts/test-packverb.py` inside `scripts/test-packs.sh`, so packverb
-  contract coverage is part of every normal local commit.
+  contract coverage is part of every normal local commit. The pack-test
+  step gracefully skips with a notice when `uv` is not installed locally;
+  CI still enforces it.

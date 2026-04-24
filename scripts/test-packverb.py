@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 import subprocess
 import sys
 import tempfile
@@ -116,7 +117,10 @@ def test_sha_ref_uses_fetch_checkout_path(monkeypatch) -> None:
 def test_init_flow_does_not_reference_deleted_required_docs_rules() -> None:
     text = (ROOT / "governance" / "references" / "INIT_FLOW.md").read_text()
     stale = {"hooks-configured", "agents-md-exists"}
-    found = sorted(rule for rule in stale if rule in text)
+    found = sorted(
+        rule for rule in stale
+        if re.search(rf"(?<![\w-]){re.escape(rule)}(?![\w-])", text)
+    )
     assert found == []
 
 
@@ -127,6 +131,9 @@ if __name__ == "__main__":
             continue
         try:
             if name == "test_sha_ref_uses_fetch_checkout_path":
+                # Minimal pytest.MonkeyPatch stand-in. Only `setattr` is
+                # implemented because that is all the current tests use; if a
+                # future test needs `delattr` / `setenv` / `undo`, extend here.
                 class MonkeyPatch:
                     def setattr(self, target, attr, value):
                         setattr(target, attr, value)
