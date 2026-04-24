@@ -201,6 +201,31 @@ SESSION_SHORT="${SESSION_ID:0:12}"
 SESSION_SHORT="${SESSION_SHORT%%[-._]}"
 COST_KEY="${AGENT_COST_KEY:-${AGENT_NAME}-${SESSION_SHORT}-$(date +%s)}"
 
+# ── Compute cost-usd once; feed both ledger row and trailer ───
+# Keeping this shell-side (instead of letting ledger.py recompute) means
+# the handoff to prepare-commit-msg carries the same 4-decimal string the
+# ledger will write — no cross-check divergence possible.
+#
+# Cost-USD is required on every new commit. If the runtime model can't be
+# priced (no family-prefix fallback matches), `rates.py cost` exits 3 with
+# a human-readable reason on stderr; we surface that and block the commit.
+# Escape hatch: `SKIP_GOVERNANCE=1 git commit ...` (at the top of this
+# script) for genuine hot-fixes; the real fix is to add the missing model
+# to `lib/rates.py`.
+if ! COST_USD="$(python3 "$LIB/rates.py" cost "$MODEL" "$TOKEN_INPUT" "$TOKEN_CACHE_CREATE" "$TOKEN_CACHE_READ" "$TOKEN_OUTPUT")"; then
+    if command -v tput >/dev/null 2>&1 && [[ -t 2 ]] && tput setaf 1 >/dev/null 2>&1; then
+        _r="$(tput setaf 1)"; _rst="$(tput sgr0)"
+    else
+        _r=""; _rst=""
+    fi
+    printf '%s✗ agent-token-accounting: model %q is not priced.%s\n' \
+        "$_r" "$MODEL" "$_rst" >&2
+    printf '    add an entry (usually a family-prefix row) to lib/rates.py\n' >&2
+    printf '    or set SKIP_GOVERNANCE=1 for a one-off bypass.\n' >&2
+    unset _r _rst
+    exit 1
+fi
+
 # ── Append the ledger row ─────────────────────────────────────
 python3 "$LIB/ledger.py" append-row \
     "$LEDGER" \
@@ -218,9 +243,10 @@ AGENT_TOKEN_INPUT='$TRAILER_INPUT'
 AGENT_TOKEN_OUTPUT='$TRAILER_OUTPUT'
 AGENT_TOKEN_TOTAL='$TRAILER_TOTAL'
 AGENT_COST_KEY='$COST_KEY'
+AGENT_COST_USD='$COST_USD'
 EOF
 
-printf 'agent-accounting: runtime=%s model=%s session=%s input=+%d cache_create=+%d cache_read=+%d output=+%d cost-key=%s\n' \
-    "$RUNTIME" "$MODEL" "$SESSION_ID" "$TOKEN_INPUT" "$TOKEN_CACHE_CREATE" "$TOKEN_CACHE_READ" "$TOKEN_OUTPUT" "$COST_KEY" >&2
+printf 'agent-accounting: runtime=%s model=%s session=%s input=+%d cache_create=+%d cache_read=+%d output=+%d cost-key=%s cost-usd=%s\n' \
+    "$RUNTIME" "$MODEL" "$SESSION_ID" "$TOKEN_INPUT" "$TOKEN_CACHE_CREATE" "$TOKEN_CACHE_READ" "$TOKEN_OUTPUT" "$COST_KEY" "$COST_USD" >&2
 
 exit 0

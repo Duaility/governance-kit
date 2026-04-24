@@ -9,30 +9,14 @@ Schema (v3 — model + cost-usd + new-work):
 
     | cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | note |
 
-Where:
-    model         = runtime-reported model id (e.g. claude-sonnet-4-5)
-    input         = usage.input_tokens            (first-time tokens, not cached)
-    cache-create  = usage.cache_creation_input_tokens (first-time, also cached)
-    cache-read    = usage.cache_read_input_tokens (re-reads from cache)
-    output        = usage.output_tokens
-    new-work      = input + cache-create + output
-                    (all "new work" tokens — cache_read is NOT here because
-                    it's the same bytes re-read each turn. Matches trailer
-                    Token-Total by construction.)
-    cost-usd      = rates.lookup(model) ·
-                    (input, cache_create, cache_read, output)
-                    Empty string if the model isn't in the rate table.
+Where `new-work = input + cache_create + output` (cache_read tracked but
+excluded — same bytes re-read, not new effort) and matches trailer
+`Token-Total` by construction. `cost-usd` = `rates.lookup(model)` applied
+to all four token columns; required on v3 rows with a non-empty `model`.
 
-`new-work` is the single reviewer-facing headline. `cost-usd` is the true
-dollar cost including cache rent — the only single number that's comparable
-across commits with different cache mixes.
-
-Legacy rows:
-    v2 (10 cols): cost-key agent session issue input cache-create cache-read output total note
-    v1 (8 cols):  cost-key agent session issue input                           output total note
-Both are accepted by the parser. For v2/v1 rows, `model` and `cost_usd` are
-left empty; `new_work` is taken from the old `total` column (same semantic
-after the 2026-04-23 invariant tightening). Migration to v3 is a textual edit.
+Legacy rows (v2: 10 cols, pre-model/cost-usd; v1: 8 cols, pre-cache-split)
+and v3 rows predating the cost-mandate (empty `model`) are grandfathered:
+parser accepts them and validator exempts them from the cost requirement.
 
 This module is stdlib-only and depends only on `rates.py` in the same dir.
 
@@ -51,8 +35,10 @@ CLI shims (called from bash):
         → prints one violation per line; exits non-zero if any.
 
     python3 -m ledger find-by-cost-key <ledger> <cost_key>
-        → prints "<input> <cache_create> <cache_read> <output> <new_work>"
-          (cost_usd is not part of the cross-check) or exits 2 on miss.
+        → prints "<input> <cache_create> <cache_read> <output> <new_work> <cost_usd>"
+          where cost_usd is a 4-decimal float or the literal string "-"
+          (unpriced / legacy row). Exits 2 on miss. The bash caller passes
+          cost_usd through to trailers.py for the Cost-USD cross-check.
 """
 
 from __future__ import annotations
@@ -320,7 +306,9 @@ def validate(path: str | Path) -> list[str]:
         - Every data row has 8 (v1), 10 (v2), or 12 (v3) cells.
         - Token columns are non-negative integers.
         - new_work == input + cache_create + output.
-        - cost_usd is a non-negative float or empty.
+        - cost_usd is a non-negative float; required on v3 rows whose
+          `model` cell is non-empty. Grandfathered to empty on v1/v2
+          rows and on v3 rows predating the cost-mandate (empty model).
         - issue matches `#N`; agent/session/issue non-empty.
         - cost-key unique across the file.
     """
@@ -341,8 +329,9 @@ def validate(path: str | Path) -> list[str]:
             )
             continue
 
+        model = ""
         if len(cells) == 12:
-            cost_key, agent, session, issue, _model, i, cc, cr, o, nw, cost, _note = cells
+            cost_key, agent, session, issue, model, i, cc, cr, o, nw, cost, _note = cells
         elif len(cells) == 10:
             cost_key, agent, session, issue, i, cc, cr, o, nw, _note = cells
             cost = ""
@@ -385,6 +374,16 @@ def validate(path: str | Path) -> list[str]:
         elif cost and float(cost) < 0:
             violations.append(
                 f"COSTS.md — row '{cost_key}' has negative cost_usd '{cost}'"
+            )
+        elif not cost and len(cells) == 12 and model:
+            # v3 row with a model but no cost_usd — this shape is only
+            # legal before the cost-mandate landed (empty model column).
+            # A row with `model` set but `cost_usd` empty is a stamping
+            # bug, not a grandfathered legacy row.
+            violations.append(
+                f"COSTS.md — row '{cost_key}' names model '{model}' but "
+                f"has empty cost_usd (add a matching entry to lib/rates.py "
+                f"or backfill the cell)"
             )
 
         cost_keys[cost_key] = cost_keys.get(cost_key, 0) + 1
@@ -461,7 +460,8 @@ def _cmd_find_by_cost_key(args: list[str]) -> int:
         print(f"expected 1 row for cost-key '{args[1]}', found {len(hits)}", file=sys.stderr)
         return 2
     r = hits[0]
-    print(f"{r.input} {r.cache_create} {r.cache_read} {r.output} {r.new_work}")
+    cost = "-" if r.cost_usd is None else f"{r.cost_usd:.4f}"
+    print(f"{r.input} {r.cache_create} {r.cache_read} {r.output} {r.new_work} {cost}")
     return 0
 
 

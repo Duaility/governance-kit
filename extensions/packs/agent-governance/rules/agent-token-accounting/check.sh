@@ -11,6 +11,9 @@
 #   Token-Output:  non-negative integer (= output)
 #   Token-Total:   non-negative integer, == Token-Input + Token-Output
 #   Cost-Key:      <agent>-<session-short>-<epoch>, unique within COSTS.md
+#   Cost-USD:      4-decimal dollar figure, cross-checked against COSTS.md's
+#                  cost_usd column. An unpriced model blocks the commit
+#                  upstream in the pre-commit hook — Cost-USD is not optional.
 #
 # COSTS.md ledger format — one row per agent-authored commit, append-only:
 #   | cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | note |
@@ -21,11 +24,13 @@
 #                 excluded — same bytes re-read, not new effort). Matches
 #                 Token-Total in the trailer by construction.
 #   cost-usd   = rates.lookup(model) (see lib/rates.py) · token columns.
-#                Empty when the model isn't in the rate table.
-# Legacy rows are accepted: v2 (10 cols, no model/cost-usd) and v1 (8 cols,
-# no cache split either). For those, `model`/`cost_usd` are empty and the
-# old `total` value is read as `new_work` (same semantic after the
-# 2026-04-23 invariant tightening).
+#                Non-empty on every new v3 row; family-prefix fallback in
+#                the rate table makes the unpriced case a hard failure at
+#                commit time, not a silent blank.
+# Legacy rows are accepted: v2 (10 cols, no model/cost-usd), v1 (8 cols,
+# no cache split either), and v3 rows predating the cost-mandate whose
+# `model` cell is empty. For those, `model`/`cost_usd` stay empty and the
+# old `total` value is read as `new_work`.
 #
 # Modes:
 #   Mode A — commit-msg hook:  bash agent-token-accounting.sh <path-to-msg-file>
@@ -93,10 +98,10 @@ validate_commit_message() {
     cost_key="$(printf '%s\n' "$msg" | awk -F': *' '/^Cost-Key:[[:space:]]/ {val=$2} END {print val}')"
 
     # Look up the ledger row.
-    local found=0 row_input=0 row_cc=0 row_cr=0 row_output=0 row_new_work=0
+    local found=0 row_input=0 row_cc=0 row_cr=0 row_output=0 row_new_work=0 row_cost_usd="-"
     if [[ -n "$cost_key" && -f "$LEDGER" ]]; then
         if row_output_line="$(python3 "$LIB/ledger.py" find-by-cost-key "$LEDGER" "$cost_key" 2>/dev/null)"; then
-            read -r row_input row_cc row_cr row_output row_new_work <<<"$row_output_line"
+            read -r row_input row_cc row_cr row_output row_new_work row_cost_usd <<<"$row_output_line"
             found=1
         fi
     fi
@@ -122,6 +127,7 @@ validate_commit_message() {
         printf '%s' "$msg" | python3 "$LIB/trailers.py" validate \
             "$label" "$found" \
             "$row_input" "$row_cc" "$row_cr" "$row_output" "$row_new_work" \
+            "$row_cost_usd" \
             - 2>/dev/null || true
     )
 }

@@ -49,6 +49,7 @@ fi
     printf 'Token-Output: %s\n' "$AGENT_TOKEN_OUTPUT"
     printf 'Token-Total: %s\n'  "$AGENT_TOKEN_TOTAL"
     printf 'Cost-Key: %s\n'     "$AGENT_COST_KEY"
+    printf 'Cost-USD: %s\n'     "$AGENT_COST_USD"
 } > "$MSG_FILE.new"
 mv "$MSG_FILE.new" "$MSG_FILE"
 

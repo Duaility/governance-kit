@@ -26,6 +26,35 @@ EVAL_LABEL="$EVAL_ID match" expect_pass "$RULE" "$msg"
 printf 'feat: do a thing (#8)\n' > "$msg"
 EVAL_LABEL="$EVAL_ID mismatch" expect_fail "$RULE" "$msg"
 
+# pass — subject carries a PR id (#99) that has no plan, but a folded
+# sub-commit's `Issue: #7` trailer anchors to the staged issue-7 plan.
+# Mirrors post-squash-merge history where the PR number differs from the
+# underlying issue number.
+cat > "$msg" <<'EOF'
+feat: squash-merged PR (#99)
+
+* feat: sub-commit one (#7)
+
+Agent: codex
+Issue: #7
+Session: s1
+Token-Input: 10
+Token-Output: 5
+Token-Total: 15
+Cost-Key: codex-s1-1
+
+* feat: sub-commit two (#7)
+
+Agent: codex
+Issue: #7
+Session: s1
+Token-Input: 20
+Token-Output: 10
+Token-Total: 30
+Cost-Key: codex-s1-2
+EOF
+EVAL_LABEL="$EVAL_ID squash-body-anchor" expect_pass "$RULE" "$msg"
+
 # fail — subject has issue number but no plan in staged changes
 git reset --quiet HEAD plans/2026-04-23-issue-7-thing.md
 rm plans/2026-04-23-issue-7-thing.md
