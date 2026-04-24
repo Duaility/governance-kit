@@ -73,6 +73,12 @@ Apply the issue's priority order:
 - Capability-scoping bullet rephrased as opt-in: `reads:` / `writes:`
   checks only fire when a rule declares them in `rule.yaml`, and no
   current core / `agent-governance` rules do.
+- Install surface now leads with [`npx skills add Duaility/governance-kit`](https://github.com/vercel-labs/skills),
+  the open CLI for the [Agent Skills](https://agentskills.io) format
+  governance-kit already conforms to. Manual `ln -s` snippet kept as
+  a collapsed fallback for contributors. Added `compatibility:` to
+  [governance/SKILL.md](../governance/SKILL.md) so skills-aware tools
+  can surface the Claude Code + Codex target + git/bash requirement.
 
 ## Validation
 

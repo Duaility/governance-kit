@@ -2,7 +2,7 @@
 
 **Rules your agents can't ignore.** Every invariant ships as `rule + test + rationale` in a single folder, so the reason a rule exists travels with the script that enforces it — and lands in one atomic commit when it changes.
 
-Works with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [Codex](https://github.com/openai/codex). MIT-licensed.
+Conforms to the [Agent Skills](https://agentskills.io) format, so it installs into [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), Cursor, OpenCode, and 40+ other skills-compatible agents via a single [`npx skills`](https://github.com/vercel-labs/skills) command. MIT-licensed.
 
 ---
 
@@ -19,16 +19,16 @@ governance-kit collapses that triangle into one unit:
 
 ## Quickstart
 
-> [!NOTE]
-> Assumes Claude Code or Codex with the `governance` skill linked in. See [Install](#install) below.
-
 ```sh
-# In a fresh repo
+# Install the skill into your agent (globally, once)
+npx skills add Duaility/governance-kit -g
+
+# In a fresh repo, launch your agent and ask it to bootstrap
 claude
 > governance init
 ```
 
-This bootstraps `CONSTITUTION.md`, `tests/governance/`, a pre-commit hook, and the `core` pack. Then make a bad commit to see it fire:
+`npx skills` auto-detects [governance/SKILL.md](governance/SKILL.md) and symlinks it into every skills-compatible runtime it finds on your machine (`~/.claude/skills/`, `~/.codex/skills/`, `~/.cursor/skills/`, …). `governance init` then bootstraps `CONSTITUTION.md`, `tests/governance/`, a pre-commit hook, and the `core` pack in the current repo. Make a bad commit to see it fire:
 
 ```sh
 $ git commit -m "stuff"
@@ -65,7 +65,18 @@ When the rule changes, all four files move together — the kit enforces this.
 
 ## Install
 
-Symlink the skill into your agent runtime:
+The recommended path is [`npx skills`](https://github.com/vercel-labs/skills), the open install CLI for [Agent Skills](https://agentskills.io):
+
+```sh
+npx skills add Duaility/governance-kit -g              # all agents, user-wide
+npx skills add Duaility/governance-kit -a claude-code  # one agent only
+npx skills add Duaility/governance-kit                 # project-scoped, committed to repo
+```
+
+<details>
+<summary>Manual install (no <code>npx</code>, or for hacking on the kit)</summary>
+
+Clone the repo and symlink the skill folder into each runtime you use:
 
 ```sh
 git clone https://github.com/Duaility/governance-kit
@@ -74,7 +85,9 @@ ln -s "$(pwd)/governance" ~/.claude/skills/governance   # Claude Code
 ln -s "$(pwd)/governance" ~/.codex/skills/governance    # Codex
 ```
 
-Edits in the cloned repo flow to both runtimes live. From any other repo, invoking Claude Code / Codex and typing `governance init` will trigger the skill.
+Edits in the clone flow to both runtimes live — handy when contributing to governance-kit itself.
+
+</details>
 
 ## Verbs
 

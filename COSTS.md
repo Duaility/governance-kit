@@ -114,3 +114,4 @@ Schema:
 | claude-code-cbdb387d-7ce-1777031174 | claude-code | cbdb387d-7ce5-4d1e-811c-554144dfd305 | #42 | claude-opus-4-7 | 3 | 5954 | 159623 | 796 | 6753 | 0.1369 | docs(readme): expand with hook, quickstart, and concrete examples (#42) |
 | claude-code-cbdb387d-7ce-1777031639 | claude-code | cbdb387d-7ce5-4d1e-811c-554144dfd305 | #42 | claude-opus-4-7 | 27 | 14344 | 1026875 | 5772 | 20143 | 0.7475 | docs(readme): fix pack install ref and soften capability claim (#42) |
 | claude-code-cbdb387d-7ce-1777031677 | claude-code | cbdb387d-7ce5-4d1e-811c-554144dfd305 | #42 | claude-opus-4-7 | 3 | 5955 | 196756 | 1257 | 7215 | 0.1670 | docs(readme): fix pack install ref and soften capability claim (#42) |
+| claude-code-cbdb387d-7ce-1777032172 | claude-code | cbdb387d-7ce5-4d1e-811c-554144dfd305 | #42 | claude-opus-4-7 | 64 | 109038 | 2464308 | 13427 | 122529 | 2.2496 | docs(readme): lead install with npx skills, note Agent Skills conformance (#42) |
