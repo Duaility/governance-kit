@@ -69,4 +69,8 @@ target to point at.
 - Pack contract formalized (`KIT_VERSION`, capability schema,
   `min_governance_kit` enforcement).
 - Community pack catalog scaffolded under `extensions/`.
-- New `governance` skill — pending.
+- `governance/` skill scaffolded with `init` and `uninstall` verbs that
+  delegate to the existing `governance-bootstrap` / `governance-reset`
+  flows. `pack` and `rule` verbs stubbed with follow-up pointer to #31.
+- `AGENTS.md` updated to route newcomers at the unified skill while the
+  legacy skills remain in-tree as the authoritative flows.
