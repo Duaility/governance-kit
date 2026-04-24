@@ -2,6 +2,7 @@
 name: governance
 description: Single entry point for governance-kit's lifecycle verbs — `governance init` (bootstrap a repo), `governance uninstall` (clean tear-down), `governance pack {search,add,update,remove,list}` (community-pack lifecycle with SHA pinning + capability enforcement), and `governance rule {add,modify,remove}` (hand-authored rule amendments via the atomic triple). Use when the user says "governance init", "set up governance", "bootstrap governance", "governance uninstall", "reset governance", "tear down governance", "install a pack", "add pack X", "update packs", "remove pack X", "list installed packs", "add a rule", "amend the constitution", "new invariant", "modify rule X", "remove rule X", or otherwise asks to manage governance-kit lifecycle, packs, or rules.
 license: MIT
+compatibility: Designed for Claude Code and Codex; requires git and bash.
 metadata:
   author: governance-kit
   version: "0.3"
