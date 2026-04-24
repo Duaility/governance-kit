@@ -1,0 +1,6 @@
+# agent-decision-accounting — Every commit that references decisions carries Decision-Key / Decision-Diverged trailers matching DECISIONS.md rows.
+category: AgentDiscipline
+recommended: false
+summary: Every commit that references agent/human decisions carries Decision-Key / Decision-Diverged trailers matching DECISIONS.md rows.
+surface: change-set
+hook: commit-msg
