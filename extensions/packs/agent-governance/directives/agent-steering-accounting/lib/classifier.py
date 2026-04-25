@@ -160,9 +160,14 @@ def _classify_with_cli(
             "reason": obj.get("reason") or "",
         }
 
-    # Trust the CLI when it returned at least one parseable verdict;
-    # treat completely-empty parses as malformed and fall back.
-    return verdicts if verdicts else None
+    # Require a verdict for every requested candidate. Partial coverage
+    # (e.g. the model truncated mid-output) is treated as malformed so the
+    # caller falls the entire batch back to the regex path. Caching a
+    # silent ``redirect: False`` for a candidate the model never actually
+    # ruled on would permanently bury that signal.
+    if len(verdicts) != len(candidates):
+        return None
+    return verdicts
 
 
 def _classify_with_regex(
@@ -224,8 +229,11 @@ def classify_candidates(
             tier_label = "lexical"
             new_verdicts = _classify_with_regex(uncached)
 
+        # Both _classify_with_cli (post all-or-nothing fix) and
+        # _classify_with_regex guarantee a verdict per candidate, so direct
+        # indexing is safe. A KeyError here would be an upstream bug.
         for j, c in enumerate(uncached):
-            v = new_verdicts.get(j, {"redirect": False, "reason": ""})
+            v = new_verdicts[j]
             key = _candidate_hash(c.assistant_text, c.user_text)
             cache[key] = {
                 "redirect": v["redirect"],

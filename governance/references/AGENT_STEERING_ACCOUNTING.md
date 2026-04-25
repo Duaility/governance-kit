@@ -2,8 +2,10 @@
 
 Opt-in governance directive that gives the repo a durable, auditable ledger of
 **human steering events** for agent-authored commits — the moments where the
-operator denied a tool call, interrupted a turn, or (under an opt-in lexical
-tier) typed a correction that redirected the agent.
+operator denied a tool call, interrupted a turn, or typed a message classified
+as a course correction by the active runtime's CLI (with a regex fallback when
+the CLI is unreachable). The directive's install step is the only gate; there
+are no internal env-var toggles for tiers.
 
 This is the human-side counterpart to [`agent-token-accounting`](AGENT_TOKEN_ACCOUNTING.md).
 That directive captures *machine* cost (token consumption, dollars). This one
@@ -77,9 +79,11 @@ breakdowns disagree with the matched rows' `type` / `tier` columns.
 - `issue` — `#N` from the commit subject's `(#N)` anchor, or empty for repos
   that don't enforce anchors.
 - `type` ∈ `tool-denial` | `interrupt` | `correction`.
-- `tier` ∈ `structural` | `lexical`. The default-on tier is `structural`
-  (denials + interrupts). The `lexical` tier (corrections) is gated behind
-  `STEERING_LEXICAL=1`.
+- `tier` ∈ `structural` | `classifier` | `lexical`. `structural` covers
+  denials and interrupts (runtime sentinels). `classifier` covers
+  corrections classified by the runtime CLI. `lexical` covers corrections
+  the silent regex fallback caught when the CLI was unreachable. All
+  three run by default — the directive's install step is the only gate.
 - `tool` — for denials, the tool name the user blocked (`Bash`, `Edit`,
   `Write`, …). Empty for interrupts and corrections.
 - `proposed` — for denials, a one-line summary of what the agent proposed
@@ -151,18 +155,26 @@ directive.
 
 ## Privacy
 
-`user-reason` is committed verbatim to the repo's history. **Do not enable
-this directive on a public repo without thinking through what those messages
-could leak.** The directive is opt-in only — it ships in
-`duaility/agent-governance` but is deliberately excluded from every preset
-(`minimal`, `standard`, `strict`). The lexical tier's separate gate is the
-second layer of intentional friction.
+`user-reason` is committed to the repo's history. The shape of the text varies
+by tier:
 
-For private repos in trusted teams, the verbatim text *is* the value: it is
-the audit trail that explains why the agent took the path it did. For
-mixed-audience repos, consider redacting at extraction time (a future
-extractor flag) rather than after the fact — once a row is committed,
-removing it requires a force-push.
+- **`structural`** — verbatim text the operator typed in a deny dialog (or
+  empty for empty-reason denials and interrupts).
+- **`classifier`** — the runtime CLI's one-line summary of the redirect
+  intent. The verbatim user message is *not* committed; only the LLM's
+  ≤80-char summary lands in `user-reason`.
+- **`lexical`** — verbatim user message, recorded only when the runtime CLI
+  is unreachable and the regex fallback ran. This path is silent — there is
+  no separate env-var gate.
+
+**Do not install this directive on a public repo without thinking through
+what those messages could leak.** The directive is opt-in only — it ships in
+`duaility/agent-governance` but is deliberately excluded from every preset
+(`minimal`, `standard`, `strict`). Installing the directive commits to
+recording every tier listed above; there are no per-tier opt-outs at runtime.
+For mixed-audience repos, the lowest-leak path is to keep the runtime CLI
+reachable so the `classifier` tier (summary, not verbatim) is the path that
+actually runs.
 
 ## Installing
 
@@ -195,8 +207,10 @@ pre-commit ──► tests/governance/directives/agent-steering-accounting/hooks
       │          1. Detect runtime (CLAUDECODE=1 → claude-code; future: codex).
       │          2. Resolve session id + transcript via runtimes/<runtime>.sh.
       │          3. Walk parent argv to recover the (#N) issue anchor + subject.
-      │          4. python3 lib/extract.py <transcript> [--lexical]
+      │          4. python3 lib/extract.py <transcript> --cache <path>
       │             — emits TSV: ts, type, tier, tool, proposed, user-reason.
+      │             Tier-2 always runs; classifier vs lexical depends on
+      │             whether the runtime CLI is on $PATH.
       │          5. Dedup: count rows already in STEERING.md for this session;
       │             skip that prefix of the extractor's output.
       │          6. Append remaining rows via lib/ledger.py append-row, one

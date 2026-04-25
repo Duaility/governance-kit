@@ -79,6 +79,17 @@ captures *human* steering cost where the existing directive captures *machine* t
   reason and the commit has a matching `Steer-Key:` trailer.
 - CI workflow `governance.yml` continues to pass.
 
+## Update — review-driven fixes
+
+- **P1** — stale `STEERING_LEXICAL=1` references in `constitution.md` and
+  `AGENT_STEERING_ACCOUNTING.md` removed; privacy note now describes the
+  actual per-tier text shape (structural verbatim, classifier summary,
+  lexical verbatim) under the install-only gate.
+- **P2** — `_classify_with_cli` now requires complete batch coverage from
+  the runtime CLI before any verdicts are accepted. Partial coverage falls
+  back to regex for the entire batch instead of caching silent
+  `redirect: False` for un-ruled candidates.
+
 ## Update — follow-on commits
 
 - **Summary trailers**: per-commit `Steer-Count`, `Steer-Types`, `Steer-Tiers` parallel to
