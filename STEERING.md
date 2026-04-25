@@ -18,3 +18,6 @@ silent fallback for when the runtime CLI is unreachable).
 
 | steer-key | session | issue | type | tier | user-reason | commit |
 | --- | --- | --- | --- | --- | --- | --- |
+| steer-8240a0685cb-1777111842-1 | 8240a068-5cb7-456d-807b-3c9e29a6dd6d | #53 | correction | classifier | missing expected steering trailers in commit message | chore(governance): dogfood agent-steering-accounting + corrections (#53) |
+| steer-8240a0685cb-1777111842-2 | 8240a068-5cb7-456d-807b-3c9e29a6dd6d | #53 | correction | classifier | rejected tool-denial signal entirely; remove it | chore(governance): dogfood agent-steering-accounting + corrections (#53) |
+| steer-8240a0685cb-1777111842-3 | 8240a068-5cb7-456d-807b-3c9e29a6dd6d | #53 | correction | classifier | challenged Steer-Count: 0 — the removal request itself is steering | chore(governance): dogfood agent-steering-accounting + corrections (#53) |
