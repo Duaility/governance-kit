@@ -4,6 +4,9 @@
 
 Conforms to the [Agent Skills](https://agentskills.io) format, so it installs into [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), Cursor, OpenCode, and 40+ other skills-compatible agents via a single [`npx skills`](https://github.com/vercel-labs/skills) command. MIT-licensed.
 
+> [!NOTE]
+> **Built for agent-heavy engineering teams.** If you're spec-driving features for an agent to implement, [spec-kit](https://github.com/github/spec-kit) is a better fit. governance-kit is the layer above — keeping the rules your agent must satisfy on every commit from drifting out of sync with the code, the tests, or each other.
+
 ---
 
 ## What is governance-driven development?
@@ -123,6 +126,16 @@ Full catalog: [governance/references/DIRECTIVES_CATALOG.md](governance/reference
 | [duaility/agent-governance](https://github.com/Duaility/governance-kit/tree/main/extensions/packs/agent-governance) | Agent-driven development discipline: issue templates, issue tracking, plan-per-issue, commit-issue-plan match, per-commit token accounting. | `governance pack add gh:Duaility/governance-kit/extensions/packs/agent-governance` |
 
 Authoring your own pack: [governance/references/AUTHORING_PACKS.md](governance/references/AUTHORING_PACKS.md).
+
+## Transparency
+
+If you're trusting agents to ship code, you should be able to see exactly what they were told, what they did, what it cost, and how much you had to steer them. governance-kit makes three layers of that legible:
+
+- **Directive provenance.** Every line of `CONSTITUTION.md` is git-blameable to the commit that introduced it and the test that enforces it. The atomic-triple invariant means policy and enforcement can never silently diverge — they land together or not at all.
+- **Token accounting.** Every agent-authored commit carries token + cost trailers (`Token-Input`, `Token-Output`, `Cost-USD`, …) and a matching row in an append-only `COSTS.md` ledger that survives squash-merges. Every change has a price tag.
+- **Steering accounting.** Every commit carries summary trailers (`Steer-Count`, `Steer-Types`, `Steer-Tiers`) and one `Steer-Key:` row per detected human-steering event — interrupt or redirect — in an append-only `STEERING.md` ledger. You can see at a glance which commits ran on autopilot and which needed your hand on the wheel.
+
+Token and steering accounting ship in the [`agent-governance`](#community-packs) pack. Directive provenance is core.
 
 ## Core Philosophy
 

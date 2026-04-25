@@ -140,3 +140,4 @@ Schema:
 | claude-code-8240a068-5cb-1777111303 | claude-code | 8240a068-5cb7-456d-807b-3c9e29a6dd6d | #53 | claude-opus-4-7 | 105 | 112256 | 18245523 | 79706 | 192067 | 11.8175 | chore(governance): dogfood agent-steering-accounting + bash 3.2 fix + always-on  |
 | claude-code-8240a068-5cb-1777111342 | claude-code | 8240a068-5cb7-456d-807b-3c9e29a6dd6d | #53 | claude-opus-4-7 | 2 | 3576 | 536300 | 3538 | 7116 | 0.3790 | chore(governance): dogfood agent-steering-accounting + corrections (#53) |
 | claude-code-984ec8d3-ce2-1777111842 | claude-code | 984ec8d3-ce24-44d6-9833-8e4887fcedb7 | #53 | claude-opus-4-7 | 5 | 16483 | 14783 | 185 | 16673 | 0.1151 | chore(governance): dogfood agent-steering-accounting + corrections (#53) |
+| claude-code-878ac246-f41-1777113363 | claude-code | 878ac246-f412-4e33-9aa4-922523e81504 | #57 | claude-opus-4-7 | 5 | 15307 | 14783 | 134 | 15446 | 0.1064 | docs(readme): sharpen positioning + add Transparency section (#57) |
