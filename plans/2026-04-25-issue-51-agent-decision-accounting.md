@@ -74,6 +74,21 @@ mirrored into commit trailers that survive squash merges. Implements
   bad-column-count, bad-issue-format, dangling-cost-key,
   cost-key-resolved, and cost-key-no-costs-md cases.
 
+## Follow-ups landed in this PR (third commit — reviewer P1)
+
+- **Mode A reads the staged ledger, not the worktree.** Reviewer flagged
+  that `check.sh` in commit-msg mode was reading `DECISIONS.md` from the
+  worktree, but `git commit` snapshots the index — so a staged invalid
+  row with an unstaged worktree fix would slip past the local hook only
+  to fail in CI (which sees only committed state). Fix: when `$# > 0`,
+  materialize `:DECISIONS.md` and `:COSTS.md` via `git show` into a temp
+  dir and re-point `$LEDGER` / `$COSTS` there. Mode B (CI walk) is
+  unchanged — committed state is already authoritative.
+- Regression eval `staged-vs-worktree` stages a row with
+  `diverged=maybe`, overwrites the worktree with a fixed copy without
+  re-staging, and asserts the check still fails. Evals now 14
+  assertions, all green.
+
 ## Deferred to a later issue
 
 - Decision on whether a `governance decision record` verb is worth

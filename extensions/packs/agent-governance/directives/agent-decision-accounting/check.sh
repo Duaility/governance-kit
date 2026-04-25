@@ -59,6 +59,32 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 # ──────────────────────────────────────────────────────────────
+# Mode A (commit-msg hook) must validate the *staged* ledger, not the
+# worktree copy — the commit will snapshot the index, so an invalid row
+# in the index with an unstaged fix in the worktree would slip past the
+# hook only to fail in CI. Materialize the staged blobs to a temp dir
+# and point $LEDGER / $COSTS at them. Mode B (CI walk) sees fully-
+# committed state, so worktree paths are correct there.
+# ──────────────────────────────────────────────────────────────
+if [[ $# -gt 0 ]]; then
+    STAGED_DIR="$(mktemp -d -t gov-decisions-staged-XXXXXX)"
+    trap 'rm -rf "$STAGED_DIR"' EXIT
+    if git cat-file -e ":DECISIONS.md" 2>/dev/null; then
+        git show ":DECISIONS.md" >"$STAGED_DIR/DECISIONS.md"
+        LEDGER="$STAGED_DIR/DECISIONS.md"
+    else
+        # Not staged — equivalent to "no ledger present" for this commit.
+        LEDGER="$STAGED_DIR/DECISIONS.md.absent"
+    fi
+    if git cat-file -e ":COSTS.md" 2>/dev/null; then
+        git show ":COSTS.md" >"$STAGED_DIR/COSTS.md"
+        COSTS="$STAGED_DIR/COSTS.md"
+    else
+        COSTS="$STAGED_DIR/COSTS.md.absent"
+    fi
+fi
+
+# ──────────────────────────────────────────────────────────────
 # Ledger-integrity check (independent of any commits). Runs first so
 # repo-wide shape problems get reported even on human-only branches.
 # ──────────────────────────────────────────────────────────────

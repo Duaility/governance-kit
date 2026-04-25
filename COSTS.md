@@ -133,3 +133,4 @@ Schema:
 | claude-code-dc62d449-9b7-1777056010 | claude-code | dc62d449-9b77-49a9-ab97-844416df5880 | #51 | claude-opus-4-7 | 13 | 20119 | 1553019 | 7725 | 27857 | 1.0954 | feat(agent-governance): add agent-decision-accounting directive (#51) |
 | claude-code-dc62d449-9b7-1777056315 | claude-code | dc62d449-9b77-49a9-ab97-844416df5880 | #51 | claude-opus-4-7 | 47 | 26524 | 2992932 | 18040 | 44611 | 2.1135 | docs(agent-governance): catalog + reference doc for agent-decision-accounting (# |
 | claude-code-dc62d449-9b7-1777056368 | claude-code | dc62d449-9b77-49a9-ab97-844416df5880 | #51 | claude-opus-4-7 | 4 | 7694 | 597135 | 2549 | 10247 | 0.4104 | docs(agent-governance): catalog + reference doc for agent-decision-accounting (# |
+| claude-code-dc62d449-9b7-1777099822 | claude-code | dc62d449-9b77-49a9-ab97-844416df5880 | #51 | claude-opus-4-7 | 61 | 114560 | 3012996 | 19051 | 133672 | 2.6991 | fix(agent-governance): validate staged ledger in commit-msg mode (#51) |

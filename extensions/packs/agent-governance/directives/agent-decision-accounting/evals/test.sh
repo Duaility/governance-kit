@@ -175,5 +175,28 @@ stage_all
 commit_quiet "chore: no costs file (#42)"
 EVAL_LABEL="$EVAL_ID cost-key-no-costs-md" expect_pass "$CHECK" "$MSG_FILE"
 
+# fail — Mode A must validate the *staged* ledger, not the worktree.
+# Regression guard for the bug where a bad staged row could be masked
+# by an unstaged worktree fix and slip past the commit-msg hook while
+# CI (which sees only committed state) would reject it.
+reset_ledger
+cat >> DECISIONS.md <<'EOF'
+| codex-abc-st | codex | abc123 | #42 | scoping | q | a | a | maybe |  |  |
+EOF
+stage_all
+# Overwrite the worktree with a fixed copy AFTER staging the bad one.
+# No stage_all here — the index keeps the 'maybe' row.
+cat > DECISIONS.md <<'EOF'
+# DECISIONS.md
+| decision-key | agent | session | issue | phase | question | lean | choice | diverged | cost-key | note |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| codex-abc-d001 | codex | abc123 | #42 | plan-review | q | yes | no | overrode |  |  |
+| codex-abc-st | codex | abc123 | #42 | scoping | q | a | a | overrode |  | fixed in worktree only |
+EOF
+cat > "$MSG_FILE" <<'EOF'
+feat: staged-bad (#42)
+EOF
+EVAL_LABEL="$EVAL_ID staged-vs-worktree" expect_fail "$CHECK" "$MSG_FILE"
+
 rm -f "$MSG_FILE"
 eval_done
