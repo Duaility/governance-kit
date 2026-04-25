@@ -1,0 +1,10 @@
+# agent-steering-accounting — Detected human steering events recorded in STEERING.md with matching Steer-Key trailers.
+category: AgentDiscipline
+recommended: false
+summary: Append-only ledger of human steering events (tool denials, interrupts, opt-in lexical corrections) cross-checked against per-commit Steer-Key trailers.
+surface: change-set
+hook: commit-msg
+reads:
+  - STEERING.md
+writes:
+  - STEERING.md
