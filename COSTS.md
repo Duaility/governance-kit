@@ -144,3 +144,4 @@ Schema:
 | claude-code-c9fdc80b-19a-1777113831 | claude-code | c9fdc80b-19ae-400b-b790-b2efd2e45c7e | #57 | claude-opus-4-7 | 5 | 13290 | 14783 | 24 | 13319 | 0.0911 | docs(readme): rework GDD section + drop redundant Core Philosophy (#57) |
 | claude-code-98161b98-bb3-1777114196 | claude-code | 98161b98-bb34-47b4-a97c-59d6ec69fa7e | #57 | claude-opus-4-7 | 5 | 14179 | 14783 | 45 | 14229 | 0.0972 | docs(readme): add 'The promise' payoff to GDD section (#57) |
 | claude-code-ece4c7df-4b1-1777133400 | claude-code | ece4c7df-4b11-4ab8-b15a-2bacd47b5637 | #59 | claude-opus-4-7 | 209 | 434010 | 8977759 | 201887 | 636106 | 12.2497 | docs(readme): tighten dev-facing pitch + add macro and loop diagrams (#59) |
+| claude-code-63b8cb06-ac0-1777135666 | claude-code | 63b8cb06-ac0e-4381-ac55-0ddfccdb69db | #61 | claude-opus-4-7 | 5 | 15523 | 14783 | 149 | 15677 | 0.1082 | docs(readme): reframe Why around steering + visibility, promote ledgers (#61) |
