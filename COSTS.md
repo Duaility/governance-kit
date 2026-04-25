@@ -129,3 +129,5 @@ Schema:
 | claude-code-1782a181-dbb-1777053566 | claude-code | 1782a181-dbb9-4a92-95c7-a7d085823ca8 | #49 | claude-opus-4-7 | 8 | 6560 | 1005003 | 3341 | 9909 | 0.6271 |  |
 | claude-code-1782a181-dbb-1777053617 | claude-code | 1782a181-dbb9-4a92-95c7-a7d085823ca8 | #49 | claude-opus-4-7 | 6 | 3995 | 774485 | 2100 | 6101 | 0.4647 | feat!: rename rule/invariant vocabulary to directive (#49) -m Breaking vocabular |
 | claude-code-1782a181-dbb-1777053699 | claude-code | 1782a181-dbb9-4a92-95c7-a7d085823ca8 | #49 | claude-opus-4-7 | 8 | 6302 | 1057490 | 4140 | 10450 | 0.6717 | feat!: rename rule/invariant vocabulary to directive (#49) -m Breaking vocabular |
+| claude-code-62860d53-f99-1777105141 | claude-code | 62860d53-f995-4018-be8b-382325f91041 | #53 | claude-opus-4-7 | 152 | 407402 | 14255417 | 133594 | 541148 | 13.0146 | feat(governance): add agent-steering-accounting directive (#53) |
+| claude-code-62860d53-f99-1777105218 | claude-code | 62860d53-f995-4018-be8b-382325f91041 | #53 | claude-opus-4-7 | 5 | 9549 | 881712 | 3407 | 12961 | 0.5857 | feat(governance): add agent-steering-accounting directive (#53) |
