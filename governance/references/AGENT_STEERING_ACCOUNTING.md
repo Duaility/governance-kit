@@ -2,10 +2,14 @@
 
 Opt-in governance directive that gives the repo a durable, auditable ledger of
 **human steering events** for agent-authored commits — the moments where the
-operator denied a tool call, interrupted a turn, or typed a message classified
-as a course correction by the active runtime's CLI (with a regex fallback when
-the CLI is unreachable). The directive's install step is the only gate; there
-are no internal env-var toggles for tiers.
+operator interrupted a turn or typed a message classified as a course
+correction by the active runtime's CLI (with a regex fallback when the CLI is
+unreachable). Tool denials are deliberately **not** tracked: a click on
+"deny" is most often "I'll do that myself" / "wrong tool", not an intent
+redirect, and the substring sentinel for the canonical denial phrase produced
+false positives whenever an agent read this directive's own source. The
+directive's install step is the only gate; there are no internal env-var
+toggles for tiers.
 
 This is the human-side counterpart to [`agent-token-accounting`](AGENT_TOKEN_ACCOUNTING.md).
 That directive captures *machine* cost (token consumption, dollars). This one
@@ -20,7 +24,7 @@ both, and a governance directive that cross-checks the two.
 
 Direct alternatives all break under squash:
 
-- **Counting denials in commit-message bodies** — squash merges rewrite the
+- **Counting interrupts in commit-message bodies** — squash merges rewrite the
   body to whatever the maintainer types. The signal disappears.
 - **Storing transcripts** — JSONL session files live on one contributor's
   laptop and rotate. They are not durable across the repo's lifetime.
@@ -32,42 +36,58 @@ repeated `Steer-Key:` trailers on the original commit, cross-checked by
 
 ## Trailer schema
 
-Every agent-authored commit with detected steering events carries three
-summary trailers + one `Steer-Key:` trailer per row:
+Every agent-authored commit (one carrying an `Agent:` trailer from
+`agent-token-accounting`) stamps the always-on summary triple plus one
+`Steer-Key:` trailer per detected event:
 
 ```
 Steer-Count: 3
-Steer-Types: interrupt=1,tool-denial=2
-Steer-Tiers: structural=3
+Steer-Types: correction=2,interrupt=1
+Steer-Tiers: classifier=2,structural=1
 Steer-Key: steer-<session-short>-<epoch>-1
 Steer-Key: steer-<session-short>-<epoch>-2
 Steer-Key: steer-<session-short>-<epoch>-3
 ```
 
-Why both layers:
+A zero-event commit still carries the summary triple as the explicit
+zero-assertion:
+
+```
+Steer-Count: 0
+Steer-Types: none
+Steer-Tiers: none
+```
+
+Why both layers, and why always-on:
 
 - **`Steer-Count` / `Steer-Types` / `Steer-Tiers`** are the headline
   reviewers skim in `git log` — same role `Token-Total` and `Cost-USD`
   play for the cost ledger. They survive squash merges and let you sort
   commits by steering volume without joining against `STEERING.md`.
   `Types` and `Tiers` are sorted `key=N,key=N` (or the literal `none`
-  if zero events).
+  on a zero-event commit).
 - **`Steer-Key`** is the durable join key — one repeated trailer per
   ledger row. Multiple trailers per commit by design; git trailers
   natively support repeated keys.
+- **Always-on**: silence on a no-event commit was indistinguishable from
+  "the directive crashed", "the directive wasn't installed", or "no
+  runtime was detected". A positive `Steer-Count: 0` collapses those
+  three failure modes into a single visible assertion: the directive ran,
+  the transcript was readable, the count is zero.
 
-A commit with **zero** detected events carries **none** of these trailers —
-the directive is satisfied by absence. The failure modes are: the ledger
-gained rows but no trailer was stamped, a trailer points at a key with no
-row, summary counts disagree with the per-event trailers, or summary
-breakdowns disagree with the matched rows' `type` / `tier` columns.
+Commits **without** an `Agent:` trailer (human commits, no recognised
+runtime) are exempt — no Steer-* trailers expected. The failure modes are:
+an agent commit that lacks the summary triple, the ledger gained rows but
+no trailer was stamped, a trailer points at a key with no row, summary
+counts disagree with the per-event trailers, or summary breakdowns
+disagree with the matched rows' `type` / `tier` columns.
 
 ## Ledger schema
 
 `STEERING.md` is the durable record:
 
 ```
-| steer-key | session | issue | type | tier | tool | proposed | user-reason | commit |
+| steer-key | session | issue | type | tier | user-reason | commit |
 ```
 
 - `steer-key` — `steer-<session-short>-<epoch>-<idx>`. Unique within the file,
@@ -78,21 +98,16 @@ breakdowns disagree with the matched rows' `type` / `tier` columns.
   doesn't double-record events.
 - `issue` — `#N` from the commit subject's `(#N)` anchor, or empty for repos
   that don't enforce anchors.
-- `type` ∈ `tool-denial` | `interrupt` | `correction`.
+- `type` ∈ `interrupt` | `correction`.
 - `tier` ∈ `structural` | `classifier` | `lexical`. `structural` covers
-  denials and interrupts (runtime sentinels). `classifier` covers
-  corrections classified by the runtime CLI. `lexical` covers corrections
-  the silent regex fallback caught when the CLI was unreachable. All
-  three run by default — the directive's install step is the only gate.
-- `tool` — for denials, the tool name the user blocked (`Bash`, `Edit`,
-  `Write`, …). Empty for interrupts and corrections.
-- `proposed` — for denials, a one-line summary of what the agent proposed
-  (Bash command's first line, or the tool input's most informative scalar
-  field). Truncated to 80 chars by the ledger sanitizer.
-- `user-reason` — verbatim text the operator typed. For denials, the message
-  appended via `To tell you how to proceed, the user said:\n…`. For
-  corrections, the user message itself. Empty for interrupts. Truncated to
-  240 chars.
+  interrupts (runtime sentinels). `classifier` covers corrections classified
+  by the runtime CLI. `lexical` covers corrections the silent regex fallback
+  caught when the CLI was unreachable. All three run by default — the
+  directive's install step is the only gate.
+- `user-reason` — for `correction` rows, the classifier's ≤80-char summary
+  of the redirect intent (or the verbatim user message under the lexical
+  fallback). Empty for `interrupt` rows on Claude Code today, since the
+  runtime doesn't surface a typed interrupt reason. Truncated to 240 chars.
 - `commit` — short subject of the commit that recorded this row.
 
 ## Detection model
@@ -102,19 +117,17 @@ detection. Two tiers:
 
 ### Tier 1 — structural (runtime sentinels)
 
-- **Tool denial**: `tool_result` content starts with the canonical phrase
-  `The user doesn't want to proceed with this tool use`. The corresponding
-  `tool_use` is found via `tool_use_id` to recover the tool name + a short
-  `proposed` summary. If the user typed a reason, the verbatim text after
-  `To tell you how to proceed, the user said:\n` is captured into
-  `user-reason`. Empty-reason denials are recorded with empty `user-reason`
-  — they are still steering signals, just lower-information.
 - **Interrupt**: a user message whose text begins with
   `[Request interrupted by user` (with or without `for tool use`). No reason
   text by construction.
 
-Tier 1 has near-zero false positives: both signals are runtime-emitted
-sentinels, not heuristics over user prose.
+Tier 1 has near-zero false positives: the signal is a runtime-emitted
+sentinel, not a heuristic over user prose. **Tool denials were intentionally
+removed**: a user clicking "deny" on a tool call is most often "I'll do that
+myself" / "wrong tool", not an intent redirect, and the substring sentinel
+for the canonical denial phrase produced false positives whenever an agent
+read this directive's own source code or documentation (the phrase appears
+in both as part of describing the directive).
 
 ### Tier 2 — semantic correction
 
@@ -158,8 +171,9 @@ directive.
 `user-reason` is committed to the repo's history. The shape of the text varies
 by tier:
 
-- **`structural`** — verbatim text the operator typed in a deny dialog (or
-  empty for empty-reason denials and interrupts).
+- **`structural`** — empty `user-reason` on Claude Code today (the runtime
+  doesn't surface a typed interrupt reason). A future runtime that captures
+  one will record it verbatim.
 - **`classifier`** — the runtime CLI's one-line summary of the redirect
   intent. The verbatim user message is *not* committed; only the LLM's
   ≤80-char summary lands in `user-reason`.
@@ -208,7 +222,7 @@ pre-commit ──► tests/governance/directives/agent-steering-accounting/hooks
       │          2. Resolve session id + transcript via runtimes/<runtime>.sh.
       │          3. Walk parent argv to recover the (#N) issue anchor + subject.
       │          4. python3 lib/extract.py <transcript> --cache <path>
-      │             — emits TSV: ts, type, tier, tool, proposed, user-reason.
+      │             — emits TSV: ts, type, tier, user-reason.
       │             Tier-2 always runs; classifier vs lexical depends on
       │             whether the runtime CLI is on $PATH.
       │          5. Dedup: count rows already in STEERING.md for this session;

@@ -39,10 +39,13 @@ packs:
         installed_path: tests/governance/directives/issues-tracked
       - id: agent-token-accounting
         installed_path: tests/governance/directives/agent-token-accounting
+      - id: agent-steering-accounting
+        installed_path: tests/governance/directives/agent-steering-accounting
 install_assets_seeded:
   - .github/ISSUE_TEMPLATE/config.yml
   - .github/ISSUE_TEMPLATE/proposal.yml
   - .github/ISSUE_TEMPLATE/bug.yml
   - QUALITY.md
   - COSTS.md
+  - STEERING.md
 collisions: []
