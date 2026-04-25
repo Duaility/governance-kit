@@ -142,3 +142,4 @@ Schema:
 | claude-code-984ec8d3-ce2-1777111842 | claude-code | 984ec8d3-ce24-44d6-9833-8e4887fcedb7 | #53 | claude-opus-4-7 | 5 | 16483 | 14783 | 185 | 16673 | 0.1151 | chore(governance): dogfood agent-steering-accounting + corrections (#53) |
 | claude-code-878ac246-f41-1777113363 | claude-code | 878ac246-f412-4e33-9aa4-922523e81504 | #57 | claude-opus-4-7 | 5 | 15307 | 14783 | 134 | 15446 | 0.1064 | docs(readme): sharpen positioning + add Transparency section (#57) |
 | claude-code-c9fdc80b-19a-1777113831 | claude-code | c9fdc80b-19ae-400b-b790-b2efd2e45c7e | #57 | claude-opus-4-7 | 5 | 13290 | 14783 | 24 | 13319 | 0.0911 | docs(readme): rework GDD section + drop redundant Core Philosophy (#57) |
+| claude-code-98161b98-bb3-1777114196 | claude-code | 98161b98-bb34-47b4-a97c-59d6ec69fa7e | #57 | claude-opus-4-7 | 5 | 14179 | 14783 | 45 | 14229 | 0.0972 | docs(readme): add 'The promise' payoff to GDD section (#57) |

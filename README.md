@@ -26,6 +26,10 @@ agent self-corrects          →  applying the principle, not retrying blind
 
 Agents edit code. They also edit directives — but only through the `governance directive` verbs, never by hand-editing `CONSTITUTION.md`. The atomic-triple invariant carries every amendment with its test, its rationale, and its Evolution Log entry in a single commit. Agents are authors of the steering signal, not bypass routes around it.
 
+**The promise.** Every commit on a governance-kit repo satisfies its directives. Not because the checks are fool-proof — most of them enforce only mechanical constraints — but because the loop closes. Mechanical checks catch the mechanical violations; the rationale next to them lets a frontier-model agent generalize to every case the author didn't think to encode.
+
+This is why governance-kit works now and why bare hooks didn't. Bash hooks have always enforced regex-checkable rules, but they couldn't enforce *intent* — the nuanced "don't introduce this class of regression" guidance that lived in code review, not in a hook. Frontier models change that. Given a directive's rationale, an agent applies it to edge cases the author never imagined. Without capable agents reading the *why*, you're back to bare hooks and prose nobody updates. With them, "every commit complies" stops being aspirational and starts being load-bearing.
+
 ## Quickstart
 
 ```sh

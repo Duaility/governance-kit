@@ -23,6 +23,10 @@ Round 2 (this revision):
 5. **Pull "Rationale is alignment data" + "Agents are authors, not bypass routes"** out of the Core Philosophy bullet list and into the new GDD section as flowing prose. The remaining Core Philosophy section is removed — its other two bullets ("Agents execute. Humans steer." / "Direction evolves atomically.") are already covered by the lede tagline and the new atomic-triple paragraph respectively.
 6. **Tie the Evolution Log into Transparency.** The existing "Directive provenance" bullet now names the Evolution Log explicitly as the human-readable amendment record that complements `git blame`.
 
+Round 3 (this revision):
+
+7. **Add "The promise" payoff** at the end of "What is governance-driven development?" — a two-paragraph beat naming what the methodology actually guarantees ("every commit satisfies its directives") and why it works now (mechanical checks + rationale + frontier-model agents form the loop; bare hooks can't enforce intent, but agents reading rationale can). This is the load-bearing thesis that the rest of the section now leads up to.
+
 Out of scope for this PR (deferred again):
 
 - Reworking the "Why not just pre-commit / husky / lefthook?" FAQ to position against spec-kit instead — the spec-kit callout up top now handles the more important neighbor framing, so the FAQ can stay as-is.
