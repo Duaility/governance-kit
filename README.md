@@ -4,15 +4,31 @@
 
 Conforms to the [Agent Skills](https://agentskills.io) format, so it installs into [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), Cursor, OpenCode, and 40+ other skills-compatible agents via a single [`npx skills`](https://github.com/vercel-labs/skills) command. MIT-licensed.
 
+> [!NOTE]
+> **Built for agent-heavy engineering teams.** If you're spec-driving features for an agent to implement, [spec-kit](https://github.com/github/spec-kit) is a better fit. governance-kit is the layer above — keeping the rules your agent must satisfy on every commit from drifting out of sync with the code, the tests, or each other.
+
 ---
 
 ## What is governance-driven development?
 
-Frontier models can ship real work. What they need from their human collaborators isn't constant supervision — it's **durable direction**: what "done" looks like, what must never regress, which trade-offs are non-negotiable. Governance-driven development treats that direction as a first-class artifact — versioned, machine-readable, and executable — instead of leaving it as ambient prose nobody updates.
+If you're shipping with agents, you've felt the pain. Your `CLAUDE.md` drifted three sprints ago and nobody noticed. Your agent forgot a rule it followed last week. Your pre-commit hook caught a regression but couldn't tell the agent *why* it failed, so the next attempt repeats the same class of mistake. Your steering signal lives in five places — `CLAUDE.md`, `.cursorrules`, pre-commit configs, CI, code review threads — and your agent only ever sees fragments.
 
-The status quo scatters the steering signal. Prose in `CLAUDE.md` or `AGENTS.md` drifts out of attention. Pre-commit configs enforce checks but strip the *why*, so an agent hitting an edge case can't generalize from the directive's intent. And when direction changes, the directive, the test, and the rationale land in different PRs and decay at different rates.
+Governance-driven development collapses the steering signal into one unit. Every directive ships as an **atomic triple**: a self-contained directive folder (test + rationale + metadata + eval), a matching subsection in `CONSTITUTION.md`, and a dated entry in its **Evolution Log** — the running, human-readable record of every amendment to the constitution. They land in one commit or none do. Directive, enforcement, and the record of why it changed can never drift apart.
 
-governance-kit collapses all three into one unit. Every directive ships as `directive + test + rationale` in a single folder, evolves in one atomic commit, and stays legible to the agent that reads it next week.
+The reason rationale lives next to the hook isn't documentation — it's **alignment data**. A bare hook is a tripwire: pattern match, fail, retry. A directive with rationale is a principle a frontier model can apply to edge cases the author never imagined.
+
+```
+agent reads CONSTITUTION.md  →  understands the *why*
+agent writes code            →  generalizing from principle, not pattern
+pre-commit hook fails        →  emits directive id + rationale
+agent self-corrects          →  applying the principle, not retrying blind
+```
+
+Agents edit code. They also edit directives — but only through the `governance directive` verbs, never by hand-editing `CONSTITUTION.md`. The atomic-triple invariant carries every amendment with its test, its rationale, and its Evolution Log entry in a single commit. Agents are authors of the steering signal, not bypass routes around it.
+
+**The promise.** Every commit on a governance-kit repo satisfies its directives. Not because the checks are fool-proof — most of them enforce only mechanical constraints — but because the loop closes. Mechanical checks catch the mechanical violations; the rationale next to them lets a frontier-model agent generalize to every case the author didn't think to encode.
+
+This is why governance-kit works now and why bare hooks didn't. Bash hooks have always enforced regex-checkable rules, but they couldn't enforce *intent* — the nuanced "don't introduce this class of regression" guidance that lived in code review, not in a hook. Frontier models change that. Given a directive's rationale, an agent applies it to edge cases the author never imagined. Without capable agents reading the *why*, you're back to bare hooks and prose nobody updates. With them, "every commit complies" stops being aspirational and starts being load-bearing.
 
 ## Quickstart
 
@@ -124,12 +140,15 @@ Full catalog: [governance/references/DIRECTIVES_CATALOG.md](governance/reference
 
 Authoring your own pack: [governance/references/AUTHORING_PACKS.md](governance/references/AUTHORING_PACKS.md).
 
-## Core Philosophy
+## Transparency
 
-- **Agents execute. Humans steer.** Frontier models take on the heavy lifting — writing, editing, refactoring. The human contribution is *direction*. governance-kit is the channel for that direction, not a tripwire set against an untrusted worker.
-- **Rationale is alignment data.** A directive without a *why* is a pattern to match. A directive with a *why* is a principle a capable agent can apply to edge cases the directive-author never imagined. Every directive folder ships both.
-- **Direction evolves atomically.** When a directive changes, the check, the `CONSTITUTION.md` entry, and the Evolution Log entry land in one commit. The steering signal never drifts away from the code it's steering.
-- **Agents are authors, not bypass routes.** The `directive *` verbs are the single writer. Agents amend directives by invoking the verb, not by quietly editing `CONSTITUTION.md` — the steering surface stays auditable commit-by-commit.
+If you're trusting agents to ship code, you should be able to see exactly what they were told, what they did, what it cost, and how much you had to steer them. governance-kit makes three layers of that legible:
+
+- **Directive provenance.** Every line of `CONSTITUTION.md` is git-blameable to the commit that introduced it and the test that enforces it, and the **Evolution Log** at the bottom of the file carries a dated, human-readable summary of every amendment. The atomic-triple invariant means policy and enforcement can never silently diverge — they land together or not at all.
+- **Token accounting.** Every agent-authored commit carries token + cost trailers (`Token-Input`, `Token-Output`, `Cost-USD`, …) and a matching row in an append-only `COSTS.md` ledger that survives squash-merges. Every change has a price tag.
+- **Steering accounting.** Every commit carries summary trailers (`Steer-Count`, `Steer-Types`, `Steer-Tiers`) and one `Steer-Key:` row per detected human-steering event — interrupt or redirect — in an append-only `STEERING.md` ledger. You can see at a glance which commits ran on autopilot and which needed your hand on the wheel.
+
+Token and steering accounting ship in the [`agent-governance`](#community-packs) pack. Directive provenance is core.
 
 ## Why not just pre-commit / husky / lefthook?
 
