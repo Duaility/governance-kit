@@ -30,21 +30,35 @@ repeated `Steer-Key:` trailers on the original commit, cross-checked by
 
 ## Trailer schema
 
-Every agent-authored commit with detected steering events carries one
-`Steer-Key:` trailer per row. Multiple trailers per commit by design — git
-trailers natively support repeated keys, and one row per trailer keeps the
-join trivial.
+Every agent-authored commit with detected steering events carries three
+summary trailers + one `Steer-Key:` trailer per row:
 
 ```
+Steer-Count: 3
+Steer-Types: interrupt=1,tool-denial=2
+Steer-Tiers: structural=3
 Steer-Key: steer-<session-short>-<epoch>-1
 Steer-Key: steer-<session-short>-<epoch>-2
-...
+Steer-Key: steer-<session-short>-<epoch>-3
 ```
 
-A commit with **zero** detected events carries **no** `Steer-Key:` trailer —
-the directive is satisfied by absence. The only failure modes are (a) the
-ledger gained rows in this commit but no trailer was stamped, and (b) a
-trailer points at a key that has no matching row.
+Why both layers:
+
+- **`Steer-Count` / `Steer-Types` / `Steer-Tiers`** are the headline
+  reviewers skim in `git log` — same role `Token-Total` and `Cost-USD`
+  play for the cost ledger. They survive squash merges and let you sort
+  commits by steering volume without joining against `STEERING.md`.
+  `Types` and `Tiers` are sorted `key=N,key=N` (or the literal `none`
+  if zero events).
+- **`Steer-Key`** is the durable join key — one repeated trailer per
+  ledger row. Multiple trailers per commit by design; git trailers
+  natively support repeated keys.
+
+A commit with **zero** detected events carries **none** of these trailers —
+the directive is satisfied by absence. The failure modes are: the ledger
+gained rows but no trailer was stamped, a trailer points at a key with no
+row, summary counts disagree with the per-event trailers, or summary
+breakdowns disagree with the matched rows' `type` / `tier` columns.
 
 ## Ledger schema
 
@@ -82,7 +96,7 @@ trailer points at a key that has no matching row.
 `lib/extract.py` walks a Claude Code JSONL transcript and emits one event per
 detection. Two tiers:
 
-### Tier 1 — structural (default)
+### Tier 1 — structural (runtime sentinels)
 
 - **Tool denial**: `tool_result` content starts with the canonical phrase
   `The user doesn't want to proceed with this tool use`. The corresponding
@@ -98,26 +112,42 @@ detection. Two tiers:
 Tier 1 has near-zero false positives: both signals are runtime-emitted
 sentinels, not heuristics over user prose.
 
-### Tier 2 — lexical (opt-in via `STEERING_LEXICAL=1`)
+### Tier 2 — semantic correction
 
-A user message immediately following an assistant turn whose first
-non-whitespace text matches:
+The extractor collects every user message that immediately follows an
+assistant turn (and isn't itself a tool-result wrapper or an interrupt), then
+classifies them in a single batched call to the active runtime's headless
+CLI:
+
+- `claude -p` (Claude Code) — primary
+- `codex exec` (Codex) — primary, when the future Codex adapter ships
+- regex fallback — only when neither CLI is on `$PATH` or the CLI errors out
+
+The CLI is by definition installed in any session that wrote the transcript,
+so this is a free dependency and there's no separate API key, model
+deployment, or auth flow to set up.
+
+The classifier prompt asks for a per-item JSON verdict (`{"i": N, "redirect":
+true|false, "reason": "<≤80-char one-liner or null>"}`). Verdicts are cached
+by SHA-256 of `(assistant_turn, user_message)` in
+`$GIT_DIR/agent-steering-classify-cache.json`, so amends, retries, and
+re-runs return the same answer. The cached `tier` cell records which path
+actually produced the verdict — `classifier` for CLI verdicts, `lexical` for
+regex-fallback verdicts.
+
+The regex fallback (used silently when the CLI is unreachable) matches:
 
 ```
 ^(no|stop|wait|actually|instead|don't|hold on|back up|undo|revert|
   that's wrong|you're wrong)\b
 ```
 
-(case-insensitive). Verbatim user text becomes `user-reason`. Validated
-against this repo's full session corpus during issue [#53](https://github.com/Duaility/governance-kit/issues/53)'s strawman pass — 9 events across
-46 sessions, every match a real steering moment, two of which were the
-originating moments for the rule→directive rename that became
-[#49](https://github.com/Duaility/governance-kit/pull/49).
+(case-insensitive, on the user message). High-precision, high-FN — covers
+the obvious cases until the CLI is reachable again.
 
-Tier 2 is **off by default** because the lexical signal, while
-high-precision, has known false-negatives and the verbatim user text is more
-likely to contain incidental context than a typed deny-reason. Operators who
-want it set `STEERING_LEXICAL=1` in the environment of `git commit`.
+There is no env-var gate inside the directive — installation is the gate.
+Repos that don't want correction-tier rows simply don't install the
+directive.
 
 ## Privacy
 
@@ -218,14 +248,15 @@ no-ops for this directive (no transcript discovered, no rows appended).
 - `SKIP_GOVERNANCE=1 git commit ...` — local hook bypass (extractor doesn't
   run, no rows appended). CI re-enforces row/trailer cross-checks.
 - `git commit --no-verify` — same effect: skips the local hooks entirely.
-- `STEERING_LEXICAL=1 git commit ...` — opts into the Tier 2 detector for
-  this commit. Persistent enablement is per-shell (export the variable) or
-  per-repo (set it in `.envrc` or equivalent).
+
+There is no per-tier env-var gate inside the directive. The directive's
+install step is the only gate.
 
 ## Out of scope (deferred follow-ups)
 
-- LLM-classifier tier (a third tier beyond structural and lexical).
-- Codex `runtimes/codex.sh` — same schema, different transcript parser.
+- Codex transcript parser + `codex exec` classifier wiring — same schema,
+  different transcript parser; the CLI hook in `_detect_cli` already picks
+  up `codex` when present.
 - Cross-session aggregation / dashboards.
 - Inclusion in `core` pack or any default preset.
 - Backfilling historical steering events from old session JSONLs.

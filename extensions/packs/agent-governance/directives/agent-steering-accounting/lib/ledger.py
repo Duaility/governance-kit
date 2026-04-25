@@ -70,7 +70,8 @@ ledger survives squash merges that strip the original commit history.
 `agent-steering-accounting` governance directive validates.
 
 `type` ∈ `tool-denial` | `interrupt` | `correction` ·
-`tier` ∈ `structural` | `lexical`.
+`tier` ∈ `structural` | `classifier` | `lexical` (the lexical tier is a
+silent fallback for when the runtime CLI is unreachable).
 
 ## Ledger
 
@@ -79,7 +80,7 @@ ledger survives squash merges that strip the original commit history.
 """
 
 VALID_TYPES = {"tool-denial", "interrupt", "correction"}
-VALID_TIERS = {"structural", "lexical"}
+VALID_TIERS = {"structural", "classifier", "lexical"}
 
 # steer-<session-short>-<epoch>-<idx>
 _STEER_KEY_RE = re.compile(r"^steer-[A-Za-z0-9]+-(\d+)-(\d+)$")

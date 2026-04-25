@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Steering-event extractor for Claude Code session JSONL.
 
-Two-tier detection:
+Two-tier detection — both run by default. The directive itself is opt-in
+at install time; no additional internal gates.
 
-    Tier 1 (structural, default-on)
+    Tier 1 — structural (runtime sentinels)
         tool-denial — tool_result content starts with the canonical phrase
             ``The user doesn't want to proceed with this tool use``.
             The corresponding tool_use is found via tool_use_id to recover
@@ -14,10 +15,17 @@ Two-tier detection:
             ``[Request interrupted by user`` (with or without ``for tool use``).
             No reason text by construction.
 
-    Tier 2 (lexical, gated by STEERING_LEXICAL=1)
-        correction — a user message immediately following an assistant turn
-            whose first non-whitespace text matches the correction regex
-            from issue #53. Verbatim user text becomes ``user-reason``.
+    Tier 2 — semantic correction
+        correction — a user message immediately following an assistant turn,
+            classified as a redirect. Primary classifier: shells out to the
+            coding-agent CLI (``claude -p`` for Claude Code; future Codex
+            adapter takes the same shape). The CLI is by definition installed
+            in any session that wrote this transcript, so it's a free
+            dependency. Fallback when the CLI is unreachable or returns a
+            malformed response: a regex pre-filter (high-precision,
+            high-FN — covers the obvious cases). Tier label on the emitted
+            row reflects which classifier actually ran (``classifier`` or
+            ``lexical``).
 
 Output: one TSV row per detected event on stdout. Columns:
 
@@ -26,9 +34,14 @@ Output: one TSV row per detected event on stdout. Columns:
 Empty cells are emitted as the literal string ``-``. The bash caller
 splits on TAB and reads cells.
 
+Determinism: tier-2 verdicts are cached by message-pair hash in
+``$GIT_DIR/agent-steering-classify-cache.json`` so re-runs (amend, retry)
+return the same result and the count-based dedup in the pre-commit hook
+stays exact.
+
 CLI:
 
-    python3 extract.py <session_jsonl> [--lexical]
+    python3 extract.py <session_jsonl> [--no-tier2] [--cache <path>]
 
 Stdlib-only.
 """
@@ -42,16 +55,24 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+# classifier.py sits next to this file; the relative import works under
+# `python3 extract.py …` because the parent dir is on sys.path.
+try:
+    from classifier import Candidate, classify_candidates  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from classifier import Candidate, classify_candidates  # type: ignore
+
 
 DENIAL_PHRASE = "The user doesn't want to proceed with this tool use"
 REASON_MARKER = "To tell you how to proceed, the user said:"
 INTERRUPT_PHRASE_RE = re.compile(r"^\[Request interrupted by user\b")
 
-CORRECTION_RE = re.compile(
-    r"^(no|stop|wait|actually|instead|don't|hold on|back up|undo|revert|"
-    r"that's wrong|you're wrong)\b",
-    re.IGNORECASE,
-)
+# Heuristic guards on tier-2 candidate messages. We only ask the classifier
+# about user messages that *could* be redirects — skip empty bodies and
+# obvious tool-result wrappers. Long messages are clipped before classification.
+CANDIDATE_MIN_LEN = 2
+CANDIDATE_MAX_LEN = 2000
 
 
 @dataclass
@@ -132,7 +153,15 @@ def _parse_reason(content_str: str) -> str:
     return tail.strip()
 
 
-def extract(path: str | Path, *, lexical: bool = False) -> list[Event]:
+# ── Main extractor ───────────────────────────────────────────────────────
+
+
+def extract(
+    path: str | Path,
+    *,
+    tier2: bool = True,
+    cache_path: Path | None = None,
+) -> list[Event]:
     """Walk a Claude Code JSONL transcript, return detected events in order."""
     p = Path(path)
     if not p.is_file():
@@ -167,8 +196,16 @@ def extract(path: str | Path, *, lexical: bool = False) -> list[Event]:
                     if isinstance(tu_id, str) and tu_id:
                         tool_uses[tu_id] = (name, _summary_for_tool(name, tu_input or {}))
 
-    events: list[Event] = []
+    # Pre-pass keeps tier-1 events temporally ordered; we append tier-2 events
+    # in their original timestamp positions afterwards. Each list element is
+    # (insertion_idx, Event) — the insertion_idx ties tier-2 events to the
+    # JSONL line they were detected on so the final ordering matches the
+    # transcript's chronology.
+    timeline: list[tuple[int, Event]] = []
+    candidates: list[Candidate] = []
+    candidate_origin: list[int] = []  # insertion index per candidate
     last_assistant_idx = -1
+    last_assistant_text = ""
 
     for idx, d in enumerate(lines):
         ts = d.get("timestamp", "") or ""
@@ -179,11 +216,25 @@ def extract(path: str | Path, *, lexical: bool = False) -> list[Event]:
         content = msg.get("content")
 
         if role == "assistant":
+            # Capture text for tier-2 context (assistant turn the user is
+            # responding to). Tool-use parts contribute their tool name +
+            # input summary so the classifier can see what was proposed.
+            assistant_chunks = [_extract_text(content)]
+            if isinstance(content, list):
+                for part in content:
+                    if isinstance(part, dict) and part.get("type") == "tool_use":
+                        name = part.get("name", "") or ""
+                        summary = _summary_for_tool(name, part.get("input") or {})
+                        assistant_chunks.append(f"[tool_use {name}: {summary}]")
             last_assistant_idx = idx
+            last_assistant_text = "\n".join(c for c in assistant_chunks if c)
             continue
 
         if role != "user":
             continue
+
+        text = _extract_text(content)
+        is_tool_result = False
 
         # Tool-denial: tool_result payload with the canonical phrase.
         if isinstance(content, list):
@@ -192,6 +243,7 @@ def extract(path: str | Path, *, lexical: bool = False) -> list[Event]:
                     continue
                 if part.get("type") != "tool_result":
                     continue
+                is_tool_result = True
                 payload = part.get("content")
                 if isinstance(payload, list):
                     payload = "\n".join(
@@ -206,7 +258,8 @@ def extract(path: str | Path, *, lexical: bool = False) -> list[Event]:
                 tool_use_id = part.get("tool_use_id", "") or ""
                 tool, proposed = tool_uses.get(tool_use_id, ("", ""))
                 reason = _parse_reason(payload)
-                events.append(
+                timeline.append((
+                    idx,
                     Event(
                         timestamp=ts,
                         type="tool-denial",
@@ -214,13 +267,13 @@ def extract(path: str | Path, *, lexical: bool = False) -> list[Event]:
                         tool=tool,
                         proposed=proposed,
                         user_reason=reason,
-                    )
-                )
+                    ),
+                ))
 
         # Interrupt: user message containing `[Request interrupted by user`.
-        text = _extract_text(content)
         if INTERRUPT_PHRASE_RE.search(text):
-            events.append(
+            timeline.append((
+                idx,
                 Event(
                     timestamp=ts,
                     type="interrupt",
@@ -228,28 +281,54 @@ def extract(path: str | Path, *, lexical: bool = False) -> list[Event]:
                     tool="",
                     proposed="",
                     user_reason="",
-                )
-            )
+                ),
+            ))
 
-        # Lexical correction: user message whose first non-whitespace text
-        # matches the correction regex AND that immediately follows an
-        # assistant turn (i.e. it's a reactive redirect, not a fresh task).
-        if lexical and last_assistant_idx >= 0 and last_assistant_idx == idx - 1:
-            stripped = text.lstrip()
-            # Skip messages that are tool_results or empty bookkeeping.
-            if stripped and CORRECTION_RE.match(stripped):
-                events.append(
-                    Event(
+        # Tier-2 candidate: a user message that immediately follows an
+        # assistant turn, isn't a tool-result wrapper, and clears the
+        # length floor. Classification happens in a single batched call
+        # after the walk completes.
+        if (
+            tier2
+            and not is_tool_result
+            and last_assistant_idx >= 0
+            and last_assistant_idx == idx - 1
+        ):
+            stripped = text.strip()
+            if (
+                CANDIDATE_MIN_LEN <= len(stripped) <= CANDIDATE_MAX_LEN
+                and not INTERRUPT_PHRASE_RE.search(stripped)
+            ):
+                candidates.append(
+                    Candidate(
                         timestamp=ts,
-                        type="correction",
-                        tier="lexical",
-                        tool="",
-                        proposed="",
-                        user_reason=stripped,
+                        assistant_text=last_assistant_text,
+                        user_text=stripped,
                     )
                 )
+                candidate_origin.append(idx)
 
-    return events
+    # Run the tier-2 classifier on candidates (CLI primary, regex fallback).
+    if candidates:
+        verdicts = classify_candidates(candidates, cache_path=cache_path)
+        for cand_idx, (tier, reason) in verdicts.items():
+            c = candidates[cand_idx]
+            timeline.append((
+                candidate_origin[cand_idx],
+                Event(
+                    timestamp=c.timestamp,
+                    type="correction",
+                    tier=tier,
+                    tool="",
+                    proposed="",
+                    user_reason=reason or c.user_text[:240],
+                ),
+            ))
+
+    # Sort by JSONL line index so tier-2 events slot back into chronological
+    # order alongside tier-1 events.
+    timeline.sort(key=lambda x: x[0])
+    return [ev for _, ev in timeline]
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────
@@ -267,9 +346,24 @@ def _emit(field: str) -> str:
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("transcript")
-    parser.add_argument("--lexical", action="store_true")
+    parser.add_argument(
+        "--no-tier2",
+        action="store_true",
+        help="Skip tier-2 (correction) detection. Tier-1 still runs.",
+    )
+    parser.add_argument(
+        "--cache",
+        type=Path,
+        default=None,
+        help="Path to a JSON cache for tier-2 classifier verdicts.",
+    )
     args = parser.parse_args(argv)
-    for ev in extract(args.transcript, lexical=args.lexical):
+    events = extract(
+        args.transcript,
+        tier2=not args.no_tier2,
+        cache_path=args.cache,
+    )
+    for ev in events:
         print(
             "\t".join(
                 _emit(x)

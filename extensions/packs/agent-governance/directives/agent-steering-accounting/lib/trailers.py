@@ -44,6 +44,8 @@ except ModuleNotFoundError:  # pragma: no cover
 
 
 _STEER_KEY_TRAILER_RE = re.compile(r"^Steer-Key:[ \t]*(.+?)[ \t]*$")
+_SCALAR_TRAILER_RE = re.compile(r"^([A-Za-z][A-Za-z0-9-]*):[ \t]*(.*)$")
+_COUNT_BREAKDOWN_RE = re.compile(r"^([a-z][a-z-]*=\d+)(,[a-z][a-z-]*=\d+)*$")
 
 
 def extract_steer_keys(msg: str) -> list[str]:
@@ -57,6 +59,29 @@ def extract_steer_keys(msg: str) -> list[str]:
         if m:
             keys.append(m.group(1).strip())
     return keys
+
+
+def extract_scalar_trailers(msg: str) -> dict[str, str]:
+    """Last-wins parse for non-repeated trailers (Steer-Count / Types / Tiers)."""
+    out: dict[str, str] = {}
+    for line in msg.splitlines():
+        m = _SCALAR_TRAILER_RE.match(line)
+        if m:
+            out[m.group(1)] = m.group(2).strip()
+    return out
+
+
+def _parse_count_breakdown(value: str) -> dict[str, int] | None:
+    """Parse `key=N,key=N` into a dict, or `none` → {}. None on malformed."""
+    if value == "none" or value == "":
+        return {}
+    if not _COUNT_BREAKDOWN_RE.match(value):
+        return None
+    out: dict[str, int] = {}
+    for chunk in value.split(","):
+        k, _, v = chunk.partition("=")
+        out[k] = int(v)
+    return out
 
 
 def validate(
@@ -88,7 +113,9 @@ def validate(
     rows = parse_ledger(ledger_path)
     keys_in_ledger = {r.steer_key for r in rows}
 
-    # Trailer → row direction: every Steer-Key has a row.
+    # Trailer → row direction: every Steer-Key has a row. Build a per-key
+    # type/tier index for the summary cross-check below.
+    matched_rows = []
     for k in trailer_keys:
         hits = find_by_steer_key(rows, k)
         if len(hits) == 0:
@@ -99,6 +126,8 @@ def validate(
             violations.append(
                 f"{label} — Steer-Key '{k}' has {len(hits)} matching rows (must be unique)"
             )
+        else:
+            matched_rows.append(hits[0])
 
     # Row → trailer direction: every row whose key starts with this commit's
     # prefix has a corresponding trailer. Skipped for Mode B (commit_prefix
@@ -111,6 +140,80 @@ def validate(
                 violations.append(
                     f"{label} — STEERING.md has row '{k}' for this commit but "
                     f"no matching Steer-Key: trailer"
+                )
+
+    # Summary trailers (Steer-Count / Steer-Types / Steer-Tiers) must agree
+    # with the per-event Steer-Key count and the matched rows' types/tiers.
+    # When no Steer-Key trailers are present, summary trailers are also
+    # expected to be absent — both shapes equal "this commit had no events".
+    scalars = extract_scalar_trailers(msg)
+    has_count = "Steer-Count" in scalars
+    has_types = "Steer-Types" in scalars
+    has_tiers = "Steer-Tiers" in scalars
+
+    if trailer_keys:
+        if not (has_count and has_types and has_tiers):
+            missing = [
+                name for name, present in (
+                    ("Steer-Count", has_count),
+                    ("Steer-Types", has_types),
+                    ("Steer-Tiers", has_tiers),
+                ) if not present
+            ]
+            violations.append(
+                f"{label} — Steer-Key trailers present but missing summary "
+                f"trailer(s): {', '.join(missing)}"
+            )
+        else:
+            count_val = scalars["Steer-Count"]
+            if not count_val.isdigit():
+                violations.append(
+                    f"{label} — Steer-Count '{count_val}' must be a non-negative integer"
+                )
+            elif int(count_val) != len(trailer_keys):
+                violations.append(
+                    f"{label} — Steer-Count ({count_val}) != number of Steer-Key "
+                    f"trailers ({len(trailer_keys)})"
+                )
+
+            types_parsed = _parse_count_breakdown(scalars["Steer-Types"])
+            tiers_parsed = _parse_count_breakdown(scalars["Steer-Tiers"])
+            if types_parsed is None:
+                violations.append(
+                    f"{label} — Steer-Types '{scalars['Steer-Types']}' is malformed "
+                    f"(expected `key=N,key=N` or `none`)"
+                )
+            if tiers_parsed is None:
+                violations.append(
+                    f"{label} — Steer-Tiers '{scalars['Steer-Tiers']}' is malformed "
+                    f"(expected `key=N,key=N` or `none`)"
+                )
+
+            # Cross-check breakdowns against matched rows when we have them.
+            if matched_rows and types_parsed is not None:
+                actual_types: dict[str, int] = {}
+                for r in matched_rows:
+                    actual_types[r.type] = actual_types.get(r.type, 0) + 1
+                if types_parsed != actual_types:
+                    violations.append(
+                        f"{label} — Steer-Types {scalars['Steer-Types']} disagrees "
+                        f"with matched rows' types {actual_types}"
+                    )
+            if matched_rows and tiers_parsed is not None:
+                actual_tiers: dict[str, int] = {}
+                for r in matched_rows:
+                    actual_tiers[r.tier] = actual_tiers.get(r.tier, 0) + 1
+                if tiers_parsed != actual_tiers:
+                    violations.append(
+                        f"{label} — Steer-Tiers {scalars['Steer-Tiers']} disagrees "
+                        f"with matched rows' tiers {actual_tiers}"
+                    )
+    else:
+        # No Steer-Key trailers — summary trailers must also be absent.
+        for name in ("Steer-Count", "Steer-Types", "Steer-Tiers"):
+            if name in scalars:
+                violations.append(
+                    f"{label} — {name} trailer present without any Steer-Key trailers"
                 )
 
     return violations

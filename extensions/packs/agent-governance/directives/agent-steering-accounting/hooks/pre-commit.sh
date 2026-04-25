@@ -105,17 +105,19 @@ elif [[ "$ARGV" =~ --message=(.+) ]]; then
 fi
 
 # ── Run the extractor ─────────────────────────────────────────
-LEXICAL_FLAG=""
-if [[ "${STEERING_LEXICAL:-0}" == "1" ]]; then
-    LEXICAL_FLAG="--lexical"
-fi
+# Tier-2 (corrections) is on by default — the directive itself is opt-in
+# at install time, so no further env-var gates inside it. The extractor
+# shells out to the active runtime's headless CLI (`claude -p` or
+# `codex exec`) for semantic classification, falling back to a regex
+# pre-filter only when the CLI is unreachable. Verdicts are cached by
+# message-pair hash so re-runs are deterministic.
+CLASSIFIER_CACHE="$(git rev-parse --git-path agent-steering-classify-cache.json)"
 
 # Extractor emits TSV: timestamp\ttype\ttier\ttool\tproposed\tuser_reason
-# We accumulate into a temp file so we can count, dedup, and iterate twice.
 ALL_EVENTS="$(mktemp)"
 trap 'rm -f "$ALL_EVENTS"' EXIT
 
-if ! python3 "$LIB/extract.py" "$TRANSCRIPT" $LEXICAL_FLAG > "$ALL_EVENTS"; then
+if ! python3 "$LIB/extract.py" "$TRANSCRIPT" --cache "$CLASSIFIER_CACHE" > "$ALL_EVENTS"; then
     # Extractor failure shouldn't block a commit — log and move on.
     echo "agent-steering-accounting: extractor failed; skipping" >&2
     exit 0
@@ -154,9 +156,14 @@ SESSION_SHORT="${SESSION_ID:0:12}"
 SESSION_SHORT="${SESSION_SHORT//[^A-Za-z0-9]/}"
 [[ -z "$SESSION_SHORT" ]] && SESSION_SHORT="anon"
 
-# Track keys for the handoff file — prepare-commit-msg stamps these as
-# Steer-Key: trailers, one per row.
+# Track keys + per-type / per-tier counts for the handoff. prepare-commit-msg
+# stamps Steer-Key: trailers (one per row) plus three summary trailers:
+# Steer-Count, Steer-Types, Steer-Tiers — same idea as Token-Total / Cost-USD
+# in agent-token-accounting: a `git log`-skimmable headline so reviewers
+# don't have to count the per-event trailers.
 KEYS_LIST=""
+declare -A TYPE_COUNTS=()
+declare -A TIER_COUNTS=()
 
 # tail to drop the already-recorded prefix.
 idx=0
@@ -179,14 +186,36 @@ while IFS=$'\t' read -r ts typ tier tool proposed user_reason; do
         exit 1
     fi
     KEYS_LIST="${KEYS_LIST}${STEER_KEY}"$'\n'
+    TYPE_COUNTS["$typ"]=$(( ${TYPE_COUNTS["$typ"]:-0} + 1 ))
+    TIER_COUNTS["$tier"]=$(( ${TIER_COUNTS["$tier"]:-0} + 1 ))
 done < <(tail -n "$NEW_EVENTS_COUNT" "$ALL_EVENTS")
 
 git add "$LEDGER"
 
+# Format counts as `key=N,key=N` (sorted for determinism — squash-merge
+# rebases shouldn't reorder them). Empty input maps to "none".
+format_counts() {
+    local -n _src="$1"
+    local out=""
+    local k
+    for k in $(printf '%s\n' "${!_src[@]}" | sort); do
+        [[ -z "$out" ]] || out+=","
+        out+="${k}=${_src[$k]}"
+    done
+    [[ -z "$out" ]] && out="none"
+    printf '%s' "$out"
+}
+
+TYPES_SUMMARY="$(format_counts TYPE_COUNTS)"
+TIERS_SUMMARY="$(format_counts TIER_COUNTS)"
+
 # ── Hand off to prepare-commit-msg ────────────────────────────
 # KEYS is newline-separated; prepare-commit-msg reads each line and emits
-# a Steer-Key: trailer.
+# a Steer-Key: trailer. The three scalar fields become summary trailers.
 {
+    printf "AGENT_STEERING_COUNT='%s'\n" "$NEW_EVENTS_COUNT"
+    printf "AGENT_STEERING_TYPES='%s'\n" "$TYPES_SUMMARY"
+    printf "AGENT_STEERING_TIERS='%s'\n" "$TIERS_SUMMARY"
     printf "AGENT_STEERING_KEYS='"
     printf '%s' "$KEYS_LIST"
     printf "'\n"

@@ -11,7 +11,8 @@ ledger survives squash merges that strip the original commit history.
 `agent-steering-accounting` governance directive validates.
 
 `type` ∈ `tool-denial` | `interrupt` | `correction` ·
-`tier` ∈ `structural` | `lexical`.
+`tier` ∈ `structural` | `classifier` | `lexical` (the lexical tier is a
+silent fallback for when the runtime CLI is unreachable).
 
 ## Ledger
 

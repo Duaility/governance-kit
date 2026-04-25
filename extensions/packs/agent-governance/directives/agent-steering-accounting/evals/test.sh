@@ -24,15 +24,34 @@ SS="abc123def456"
 EPOCH=1800000000
 
 write_msg() {
-    # write_msg <subject> [trailer-key ...]
+    # write_msg <file> <subject> [trailer-key ...]
+    # Stamps Steer-Count/Types/Tiers automatically from the keys + this
+    # eval's hard-coded type ("tool-denial") and tier ("structural") that
+    # append_row uses. Cases that need other shapes call write_msg_raw.
     local file="$1"; shift
     local subject="$1"; shift
+    local n=$#
     {
         printf '%s\n\n' "$subject"
         printf 'Body line.\n'
-        for k in "$@"; do
-            printf 'Steer-Key: %s\n' "$k"
-        done
+        if (( n > 0 )); then
+            printf 'Steer-Count: %d\n' "$n"
+            printf 'Steer-Types: tool-denial=%d\n' "$n"
+            printf 'Steer-Tiers: structural=%d\n' "$n"
+            for k in "$@"; do
+                printf 'Steer-Key: %s\n' "$k"
+            done
+        fi
+    } > "$file"
+}
+
+write_msg_raw() {
+    # Direct trailer body for cases that test malformed summary trailers.
+    local file="$1" subject="$2" body="$3"
+    {
+        printf '%s\n\n' "$subject"
+        printf 'Body line.\n'
+        printf '%s\n' "$body"
     } > "$file"
 }
 
@@ -46,7 +65,7 @@ append_row() {
 reset_ledger() {
     cp "$PACK_DIR/directives/$EVAL_ID/install-assets/STEERING.md" STEERING.md
     git add STEERING.md
-    git commit --quiet --no-verify -m "chore: reset ledger" || true
+    git commit --quiet --no-verify -m "chore: reset ledger" >/dev/null 2>&1 || true
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -99,5 +118,35 @@ git add STEERING.md
 write_msg /tmp/msg-reorder "feat: reordered ledger" \
     "steer-${SS}-1800000100-1" "steer-${SS}-1700000000-1"
 EVAL_LABEL="$EVAL_ID reordered" expect_fail "$CHECK" /tmp/msg-reorder
+
+# ──────────────────────────────────────────────────────────────
+# Case 6 — fail: Steer-Count disagrees with Steer-Key trailer count
+# ──────────────────────────────────────────────────────────────
+reset_ledger
+KEY_A="steer-${SS}-${EPOCH}-1"
+append_row "$KEY_A" "tool-denial" "ok"
+git add STEERING.md
+write_msg_raw /tmp/msg-bad-count "feat: bad count" \
+    "Steer-Count: 99
+Steer-Types: tool-denial=99
+Steer-Tiers: structural=99
+Steer-Key: $KEY_A"
+EVAL_LABEL="$EVAL_ID bad-count" expect_fail "$CHECK" /tmp/msg-bad-count
+
+# ──────────────────────────────────────────────────────────────
+# Case 7 — fail: Steer-Key present but summary trailers missing
+# ──────────────────────────────────────────────────────────────
+write_msg_raw /tmp/msg-no-summary "feat: no summary" "Steer-Key: $KEY_A"
+EVAL_LABEL="$EVAL_ID missing-summary" expect_fail "$CHECK" /tmp/msg-no-summary
+
+# ──────────────────────────────────────────────────────────────
+# Case 8 — fail: Steer-Types breakdown disagrees with matched row's type
+# ──────────────────────────────────────────────────────────────
+write_msg_raw /tmp/msg-bad-types "feat: wrong types" \
+    "Steer-Count: 1
+Steer-Types: interrupt=1
+Steer-Tiers: structural=1
+Steer-Key: $KEY_A"
+EVAL_LABEL="$EVAL_ID bad-types" expect_fail "$CHECK" /tmp/msg-bad-types
 
 eval_done

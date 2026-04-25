@@ -79,6 +79,19 @@ captures *human* steering cost where the existing directive captures *machine* t
   reason and the commit has a matching `Steer-Key:` trailer.
 - CI workflow `governance.yml` continues to pass.
 
+## Update — follow-on commits
+
+- **Summary trailers**: per-commit `Steer-Count`, `Steer-Types`, `Steer-Tiers` parallel to
+  `Token-Total` / `Cost-USD` on the cost ledger. Reviewers can skim `git log` for steering
+  volume without joining against `STEERING.md`. `check.sh` enforces summary↔per-event↔row
+  agreement.
+- **Tier-2 classifier**: tier-2 (corrections) now shells out to the active runtime's
+  headless CLI (`claude -p`, future `codex exec`) by default, with the regex as a silent
+  fallback when the CLI is unreachable. Removed the `STEERING_LEXICAL=1` gate — the
+  directive's install step is the only gate, no internal env-var toggles. Verdicts are
+  cached by message-pair hash so re-runs are deterministic. New `tier: classifier` label
+  alongside `structural` and `lexical`. Classifier code split into `lib/classifier.py`.
+
 ## Open follow-ups
 
 - Codex transcript adapter (`runtimes/codex.sh`) once the session-log shape is confirmed.

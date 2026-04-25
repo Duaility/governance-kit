@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # Agent steering accounting — prepare-commit-msg hook.
 #
-# Reads the handoff env file written by hooks/pre-commit.sh and stamps one
-# Steer-Key: trailer per recorded steering row. If the handoff file doesn't
-# exist (no events extracted, or pre-commit didn't run), this hook is a
-# silent no-op.
+# Reads the handoff env file written by hooks/pre-commit.sh and stamps:
+#   - Steer-Count: <N>                 — total events recorded on this commit
+#   - Steer-Types: tool-denial=2,...   — per-type breakdown (sorted)
+#   - Steer-Tiers: structural=3,...    — per-tier breakdown (sorted)
+#   - Steer-Key:  steer-...            — one repeated trailer per recorded row
 #
-# Trailer shape:
+# The three summary trailers parallel Token-Total / Cost-USD on the
+# agent-token-accounting side: a reviewer skimming `git log` can see the
+# steering volume without joining against STEERING.md.
 #
-#     Steer-Key: steer-<session-short>-<epoch>-1
-#     Steer-Key: steer-<session-short>-<epoch>-2
-#
-# Multiple trailers per commit by design — git trailers natively support
-# repeated keys, and one row per trailer keeps the join trivial.
+# If the handoff file doesn't exist (no events extracted, or pre-commit
+# didn't run), this hook is a silent no-op.
 #
 # Escape hatches:
 #   SKIP_GOVERNANCE=1 git commit ...
@@ -40,11 +40,11 @@ HANDOFF="$(git rev-parse --git-path governance-pending-steering.env)"
 source "$HANDOFF"
 rm -f "$HANDOFF"
 
-# Idempotent on amends/retries: skip if any Steer-Key trailer is already
-# stamped. The pre-commit hook always rewrites the handoff with the full
-# current key set, so a clean re-stamp would be safe; this guard is just
+# Idempotent on amends/retries: skip if any Steer-Count or Steer-Key trailer
+# is already stamped. The pre-commit hook always rewrites the handoff with
+# the full current key set, so a clean re-stamp would be safe; this guard is
 # belt-and-braces against a stale handoff lingering past a failed commit.
-if grep -qE '^Steer-Key:[[:space:]]' "$MSG_FILE"; then
+if grep -qE '^(Steer-Count|Steer-Key):[[:space:]]' "$MSG_FILE"; then
     exit 0
 fi
 
@@ -54,6 +54,9 @@ fi
 {
     cat "$MSG_FILE"
     printf '\n'
+    printf 'Steer-Count: %s\n' "${AGENT_STEERING_COUNT:-0}"
+    printf 'Steer-Types: %s\n' "${AGENT_STEERING_TYPES:-none}"
+    printf 'Steer-Tiers: %s\n' "${AGENT_STEERING_TIERS:-none}"
     while IFS= read -r key; do
         [[ -z "$key" ]] && continue
         printf 'Steer-Key: %s\n' "$key"
