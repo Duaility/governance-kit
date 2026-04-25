@@ -11,19 +11,21 @@ The README opens with a philosophy statement ("Frontier models do the work. You 
 
 ## Changes
 
+Round 1 (already landed):
+
 1. **Spec-kit callout** — `> [!NOTE]` block immediately after the npx-skills paragraph and before the first `---`. One sentence naming the audience, one pointing readers building for spec-driven workflows to spec-kit, one stating what governance-kit is the layer above.
 2. **Transparency section** — new H2 placed before Core Philosophy, with three bullets (directive provenance / token accounting / steering accounting) and a one-line note that the latter two ship in the `agent-governance` pack while provenance is core.
 
-Both edits are README-only. No directive, test, hook, or pack file changes.
+Round 2 (this revision):
 
-## Out of scope
+3. **Rewrite "What is governance-driven development?"** to lead with concrete pain (`CLAUDE.md` drift, agent forgets, hooks-without-why, scattered steering signal) before the reframe. The reframe defines the **atomic triple** as a one-liner — directive folder + `CONSTITUTION.md` subsection + Evolution Log entry — and inlines a definition of the Evolution Log so it stops being a dangling reference.
+4. **Add an agent-feedback-loop diagram** — a fenced four-step block showing how rationale-as-alignment-data closes the loop: agent reads `CONSTITUTION.md`, writes code, hook fails with directive id + rationale, agent self-corrects on principle.
+5. **Pull "Rationale is alignment data" + "Agents are authors, not bypass routes"** out of the Core Philosophy bullet list and into the new GDD section as flowing prose. The remaining Core Philosophy section is removed — its other two bullets ("Agents execute. Humans steer." / "Direction evolves atomically.") are already covered by the lede tagline and the new atomic-triple paragraph respectively.
+6. **Tie the Evolution Log into Transparency.** The existing "Directive provenance" bullet now names the Evolution Log explicitly as the human-readable amendment record that complements `git blame`.
 
-- Reordering "What is governance-driven development?" to lead with the agent feedback loop.
-- Pulling "Agents are authors, not bypass routes" + "Rationale is alignment data" up from Core Philosophy into the lede.
-- Defining the Evolution Log inline (currently a dangling reference).
-- Reworking the "Why not just pre-commit / husky / lefthook?" FAQ to position against spec-kit instead.
+Out of scope for this PR (deferred again):
 
-These were discussed during scoping and deferred to a follow-up so this change stays small and reversible.
+- Reworking the "Why not just pre-commit / husky / lefthook?" FAQ to position against spec-kit instead — the spec-kit callout up top now handles the more important neighbor framing, so the FAQ can stay as-is.
 
 ## Validation
 
