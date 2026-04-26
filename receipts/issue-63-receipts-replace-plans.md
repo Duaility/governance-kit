@@ -18,7 +18,7 @@ Edits land at both layers per the pack-and-dogfood dual-edit rule:
 
 The existing `plans/` folder is intentionally left untouched as historical record. The `<!-- governance: allow-plan-per-issue -->` waivers in those files become harmless comments.
 
-## What is NOT in this change
+## Out of scope
 
 - **Coverage check** — a directive that enforces "every closed issue has a receipt" is intentionally out of scope for v1. The constitution + human PR review carry that load. A CI-only coverage directive may be added later if the silent-skip failure mode shows up in practice.
 - **Plan-mode plans** as a governance concern — pre-implementation plans produced by Claude Code / Codex are an agent-runtime concept and remain out of scope.

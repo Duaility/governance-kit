@@ -19,7 +19,7 @@ suite so any repo can opt into the same discipline.
 
 | Directive | Category | Surface | Hook |
 |---|---|---|---|
-| `receipt-shape` | AgentDiscipline | repo-state | pre-commit |
+| `receipt-per-issue` | AgentDiscipline | repo-state | pre-commit |
 | `commit-issue-receipt-match` | AgentDiscipline | change-set | commit-msg |
 | `issue-templates` | AgentDiscipline | repo-state | pre-commit |
 | `issues-tracked` | AgentDiscipline | repo-state | pre-commit |

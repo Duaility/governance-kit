@@ -29,8 +29,8 @@ packs:
   - id: duaility/agent-governance
     version: "0.2"
     directives:
-      - id: receipt-shape
-        installed_path: tests/governance/directives/receipt-shape
+      - id: receipt-per-issue
+        installed_path: tests/governance/directives/receipt-per-issue
       - id: commit-issue-receipt-match
         installed_path: tests/governance/directives/commit-issue-receipt-match
       - id: issue-templates

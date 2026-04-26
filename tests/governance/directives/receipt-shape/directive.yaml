@@ -1,6 +1,0 @@
-# receipt-shape — receipts bind 1:1 to a GitHub issue and name their verification criteria.
-category: AgentDiscipline
-recommended: true
-summary: Every tracked receipts/*.md has a unique issue-<N> filename token and a ## Verification section.
-surface: repo-state
-hook: pre-commit

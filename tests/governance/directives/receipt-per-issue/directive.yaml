@@ -1,0 +1,6 @@
+# receipt-per-issue — receipts bind 1:1 to a GitHub issue and carry the required sections.
+category: AgentDiscipline
+recommended: true
+summary: Every tracked receipts/*.md has a unique issue-<N> filename token and ## What changed, ## Out of scope, and ## Verification sections.
+surface: repo-state
+hook: pre-commit

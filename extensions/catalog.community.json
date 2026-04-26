@@ -5,7 +5,7 @@
     {
       "id": "duaility/agent-governance",
       "name": "Agent Governance",
-      "summary": "Directives for repos operating under agent-driven development: issue tracking, receipt-shape, commit-issue-receipt match, and per-commit token accounting.",
+      "summary": "Directives for repos operating under agent-driven development: issue tracking, receipt-per-issue, commit-issue-receipt match, and per-commit token accounting.",
       "category": "agent-discipline",
       "source": {
         "type": "github",
