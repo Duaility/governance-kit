@@ -29,10 +29,10 @@ packs:
   - id: duaility/agent-governance
     version: "0.2"
     directives:
-      - id: plan-per-issue
-        installed_path: tests/governance/directives/plan-per-issue
-      - id: commit-issue-plan-match
-        installed_path: tests/governance/directives/commit-issue-plan-match
+      - id: receipt-shape
+        installed_path: tests/governance/directives/receipt-shape
+      - id: commit-issue-receipt-match
+        installed_path: tests/governance/directives/commit-issue-receipt-match
       - id: issue-templates
         installed_path: tests/governance/directives/issue-templates
       - id: issues-tracked

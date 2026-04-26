@@ -19,16 +19,22 @@ suite so any repo can opt into the same discipline.
 
 | Directive | Category | Surface | Hook |
 |---|---|---|---|
-| `plan-per-issue` | AgentDiscipline | repo-state | pre-commit |
-| `commit-issue-plan-match` | AgentDiscipline | change-set | commit-msg |
+| `receipt-shape` | AgentDiscipline | repo-state | pre-commit |
+| `commit-issue-receipt-match` | AgentDiscipline | change-set | commit-msg |
 | `issue-templates` | AgentDiscipline | repo-state | pre-commit |
 | `issues-tracked` | AgentDiscipline | repo-state | pre-commit |
 | `agent-token-accounting` | AgentDiscipline | change-set | commit-msg |
 
 The directives form a chain — issue creation uses a durable template, issues
-are tracked, every issue has exactly one plan, every commit matches its
-plan, every commit carries its cost. Breaking any link makes the chain
+are tracked, every issue has exactly one receipt, every commit matches its
+receipt, every commit carries its cost. Breaking any link makes the chain
 non-auditable, so the `standard` preset bundles the full chain.
+
+Receipts are the durable post-implementation audit trace for the work an
+agent did against an issue — they record what was changed and how a
+reviewer can verify it. They are distinct from the pre-implementation
+plans Claude Code / Codex produce in plan-mode (an agent-runtime concept,
+out of governance scope).
 
 ## Installation note — agent-token-accounting
 

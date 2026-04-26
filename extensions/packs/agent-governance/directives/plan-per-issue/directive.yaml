@@ -1,6 +1,0 @@
-# plan-per-issue — plans bind 1:1 to a GitHub issue and name their exit criterion.
-category: AgentDiscipline
-recommended: true
-summary: Every tracked plans/*.md has a unique issue-<N> filename token and a Validation/Verification/Acceptance section.
-surface: repo-state
-hook: pre-commit
