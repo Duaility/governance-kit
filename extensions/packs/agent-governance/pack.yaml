@@ -7,9 +7,9 @@
 #
 # The directives form a chain: issue creation uses a durable template
 # (`issue-templates`), issues are tracked (`issues-tracked`), every issue
-# has exactly one plan (`plan-per-issue`), every commit matches its plan
-# (`commit-issue-plan-match`), and every commit carries its cost
-# (`agent-token-accounting`). Breaking any link makes the chain
+# has exactly one receipt (`receipt-shape`), every commit matches its
+# receipt (`commit-issue-receipt-match`), and every commit carries its
+# cost (`agent-token-accounting`). Breaking any link makes the chain
 # non-auditable, so the `standard` preset bundles the full chain.
 #
 # Category `AgentDiscipline` is introduced by this pack — the
@@ -30,8 +30,8 @@ author: governance-kit
 presets:
   minimal:
     directives:
-      - plan-per-issue
-      - commit-issue-plan-match
+      - receipt-shape
+      - commit-issue-receipt-match
   standard:
     extends: minimal
     directives:

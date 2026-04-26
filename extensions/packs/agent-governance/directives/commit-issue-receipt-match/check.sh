@@ -2,40 +2,42 @@
 # Directive: For every non-merge, non-revert commit in scope, **some** issue
 # number the commit anchors — either the trailing `(#N)` in the subject OR
 # any `Issue: #N` trailer in the body (plural permitted) — must match an
-# `issue-<N>` token on a `plans/*.md` file the commit adds or modifies.
-# A commit that touches no `plans/*.md` also fails.
+# `issue-<N>` token on a `receipts/*.md` file the commit adds or modifies.
+# A commit that touches no `receipts/*.md` also fails.
 #
 # Why the body-trailer anchor: squash-merged PRs naturally end up with a
 # subject carrying the *PR* number while the folded sub-commits keep their
 # original `Issue:` trailers (stamped by agent-token-accounting). Treating
 # those trailers as legitimate anchors means the directive doesn't false-positive
-# on post-squash history where the plan is correctly for the underlying
+# on post-squash history where the receipt is correctly for the underlying
 # issue but the subject line references the PR id.
 #
 # Rationale: `conventional-commits` pins each commit to an issue, and
-# `plan-per-issue` pins each plan file to an issue, but nothing cross-checks
-# the two — a commit claiming `(#15)` while touching only issue #42's plan
-# passes both directives. This directive closes that hole and, in doing so, subsumes
-# the former `plan-captured` "substantive change must touch a plan"
-# obligation under a stricter check (the plan must also be the *right* one).
+# `receipt-shape` pins each receipt file to an issue, but nothing cross-checks
+# the two — a commit claiming `(#15)` while touching only issue #42's receipt
+# passes both directives. This directive closes that hole, so the receipt the
+# agent updates must be the *right* one for the commit's issue. It also
+# subsumes the "every substantive commit must touch the receipt" obligation,
+# which is what makes the receipt a live audit artifact rather than an
+# end-of-work afterthought.
 #
 # Modes:
-#   Mode A — commit-msg hook:  bash commit-issue-plan-match.sh <path-to-msg-file>
+#   Mode A — commit-msg hook:  bash commit-issue-receipt-match.sh <path-to-msg-file>
 #       Reads the pending subject + body from the msg file and uses the
-#       staged diff for the plan-touch check.
-#   Mode B — CI / run.sh:      bash commit-issue-plan-match.sh
+#       staged diff for the receipt-touch check.
+#   Mode B — CI / run.sh:      bash commit-issue-receipt-match.sh
 #       Walks default-branch merge-base → HEAD and validates each commit
 #       against its own message + tree-diff.
 #
 # Exceptions:
 #   - Merge commits (parent count > 1 in Mode B; commit-msg never sees them).
 #   - Revert commits (subject starts with `Revert "`).
-#   - Per-commit waiver: a line `governance: allow-commit-issue-plan-match
+#   - Per-commit waiver: a line `governance: allow-commit-issue-receipt-match
 #     <reason>` anywhere in the commit body, for unusual cross-issue
 #     refactors. The reason is required — a bare token does not waive.
 set -u
 source "$(dirname "$0")/../../lib.sh"
-directive_start "commit-issue-plan-match"
+directive_start "commit-issue-receipt-match"
 require_git
 
 ROOT="$(git rev-parse --show-toplevel)"
@@ -63,9 +65,9 @@ extract_body_issue_nums() {
 }
 
 # Echoes space-separated `issue-<N>` numbers harvested from the basenames
-# of the plan files passed as args. A single plan file with multiple
+# of the receipt files passed as args. A single receipt file with multiple
 # `issue-<N>` tokens contributes all of them.
-collect_plan_issues() {
+collect_receipt_issues() {
     local f base rest nums=""
     for f in "$@"; do
         [[ -z "$f" ]] && continue
@@ -83,7 +85,7 @@ collect_plan_issues() {
 msg_has_waiver() {
     local msg="$1"
     printf '%s\n' "$msg" \
-        | grep -qE '^[[:space:]]*(<!--)?[[:space:]]*governance:[[:space:]]*allow-commit-issue-plan-match[[:space:]]+.+'
+        | grep -qE '^[[:space:]]*(<!--)?[[:space:]]*governance:[[:space:]]*allow-commit-issue-receipt-match[[:space:]]+.+'
 }
 
 # validate <label> <subject> <body> [changed-file ...]
@@ -127,28 +129,28 @@ validate() {
         return 0
     fi
 
-    local plan_files=() f
+    local receipt_files=() f
     for f in "$@"; do
         case "$f" in
-            plans/*.md) plan_files+=("$f") ;;
+            receipts/*.md) receipt_files+=("$f") ;;
         esac
     done
 
-    if [[ ${#plan_files[@]} -eq 0 ]]; then
+    if [[ ${#receipt_files[@]} -eq 0 ]]; then
         local anchor_human
         if [[ -n "$subject_num" ]]; then
             anchor_human="(#$subject_num)"
         else
             anchor_human="Issue: #${commit_issues%% *}"
         fi
-        violation "$label — commit anchors $anchor_human but touches no plans/*.md (add the plan for this issue, or use 'governance: allow-commit-issue-plan-match <reason>' in the body)"
+        violation "$label — commit anchors $anchor_human but touches no receipts/*.md (add or update the receipt for this issue, or use 'governance: allow-commit-issue-receipt-match <reason>' in the body)"
         return 0
     fi
 
-    local plan_issues match=0 ci pn
-    plan_issues="$(collect_plan_issues "${plan_files[@]}")"
+    local receipt_issues match=0 ci pn
+    receipt_issues="$(collect_receipt_issues "${receipt_files[@]}")"
     for ci in $commit_issues; do
-        for pn in $plan_issues; do
+        for pn in $receipt_issues; do
             if [[ "$pn" == "$ci" ]]; then
                 match=1
                 break 2
@@ -157,8 +159,8 @@ validate() {
     done
 
     if [[ "$match" == "0" ]]; then
-        local touched="${plan_files[*]}"
-        violation "$label — commit issue anchors [${commit_issues}] not found among plan issue numbers [${plan_issues% }] (plans touched: ${touched})"
+        local touched="${receipt_files[*]}"
+        violation "$label — commit issue anchors [${commit_issues}] not found among receipt issue numbers [${receipt_issues% }] (receipts touched: ${touched})"
     fi
 }
 
