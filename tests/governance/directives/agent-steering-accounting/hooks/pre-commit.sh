@@ -5,7 +5,7 @@
 # (interrupts, classifier-confirmed corrections), and appends one row per
 # *new* event to STEERING.md. `git add`s the ledger so the rows land in
 # this commit's tree, then writes a handoff env file for prepare-commit-msg
-# to stamp matching summary + Steer-Key trailers from.
+# to stamp the always-on summary triple from.
 #
 # Always-on contract: when a runtime + transcript are detected, the handoff
 # is written even on commits with zero new events. prepare-commit-msg then
@@ -24,10 +24,18 @@
 # session. Append-only ordering of the ledger plus the JSONL's chronological
 # order makes this exact.
 #
+# Retry safety (issue #66): the summary trailers are derived from the
+# *staged* STEERING.md diff at handoff time, not from the events the
+# extractor newly appended. On a retry after a failed commit-msg check,
+# pre-commit's first attempt has already appended N rows and `git add`ed
+# them; the extractor sees zero new events the second time around, but
+# the staged diff still carries those N rows, so the handoff stamps
+# `Steer-Count: N`. The retry's commit-msg check then sees a consistent
+# row count and trailer count without the user manually re-stamping.
+#
 # Bash 3.2 compatible — no associative arrays, no namerefs. macOS ships
 # bash 3.2.x at /bin/bash, and `#!/usr/bin/env bash` resolves to it on a
-# default install. Per-type / per-tier counts use newline-separated
-# accumulators folded by `sort | uniq -c` at format time.
+# default install.
 #
 # Escape hatches:
 #   SKIP_GOVERNANCE=1 git commit ...
@@ -166,13 +174,6 @@ SESSION_SHORT="${SESSION_ID:0:12}"
 SESSION_SHORT="${SESSION_SHORT//[^A-Za-z0-9]/}"
 [[ -z "$SESSION_SHORT" ]] && SESSION_SHORT="anon"
 
-# Track keys + per-type / per-tier values. bash 3.2 has no associative
-# arrays, so we collect each event's type / tier into newline-separated
-# accumulators and let `sort | uniq -c` fold them at format time.
-KEYS_LIST=""
-TYPES_RAW=""
-TIERS_RAW=""
-
 if (( NEW_EVENTS_COUNT > 0 )); then
     idx=0
     while IFS=$'\t' read -r ts typ tier user_reason; do
@@ -191,13 +192,39 @@ if (( NEW_EVENTS_COUNT > 0 )); then
             echo "agent-steering-accounting: append-row failed; aborting" >&2
             exit 1
         fi
-        KEYS_LIST="${KEYS_LIST}${STEER_KEY}"$'\n'
-        TYPES_RAW="${TYPES_RAW}${typ}"$'\n'
-        TIERS_RAW="${TIERS_RAW}${tier}"$'\n'
     done < <(tail -n "$NEW_EVENTS_COUNT" "$ALL_EVENTS")
 
     git add "$LEDGER"
 fi
+
+# ── Derive the summary triple from the staged STEERING.md diff ──
+# Re-deriving from the diff (rather than from the events newly appended in
+# *this* invocation) is what makes the retry-after-failed-commit-msg case
+# work: on a retry, the rows appended by the first attempt are still
+# staged, so they show up in `git diff --cached` and the handoff stamps
+# the right Steer-Count. See issue #66.
+STAGED_TSV="$(git diff --cached -- "$LEDGER" 2>/dev/null | python3 -c '
+import re, sys
+for line in sys.stdin:
+    line = line.rstrip("\n")
+    if not line.startswith("+") or line.startswith("+++"):
+        continue
+    body = line[1:].strip()
+    if not body.startswith("|"):
+        continue
+    cells = [c.strip() for c in body.split("|")[1:-1]]
+    if not cells:
+        continue
+    key = cells[0]
+    if key in ("steer-key", "") or re.fullmatch(r"-+", key):
+        continue
+    if len(cells) >= 5:
+        print(f"{cells[3]}\t{cells[4]}")
+')"
+
+STAGED_COUNT="$(printf '%s' "$STAGED_TSV" | awk 'NF' | wc -l | tr -d ' ')"
+TYPES_RAW="$(printf '%s' "$STAGED_TSV" | awk -F'\t' 'NF { print $1 }')"
+TIERS_RAW="$(printf '%s' "$STAGED_TSV" | awk -F'\t' 'NF { print $2 }')"
 
 # Format raw newline-separated values into `key=N,key=N` (sorted for
 # determinism — squash-merge rebases shouldn't reorder them). Empty input
@@ -220,19 +247,15 @@ TIERS_SUMMARY="$(format_counts "$TIERS_RAW")"
 
 # ── Hand off to prepare-commit-msg ────────────────────────────
 # Always written when a runtime + transcript are detected, even on
-# zero-event commits. prepare-commit-msg uses the count + summary fields
-# to stamp the always-on summary trailers and walks KEYS to emit per-event
-# Steer-Key trailers (zero lines on a no-event commit).
+# zero-event commits. prepare-commit-msg uses these to stamp the
+# always-on summary triple.
 {
-    printf "AGENT_STEERING_COUNT='%s'\n" "$NEW_EVENTS_COUNT"
+    printf "AGENT_STEERING_COUNT='%s'\n" "$STAGED_COUNT"
     printf "AGENT_STEERING_TYPES='%s'\n" "$TYPES_SUMMARY"
     printf "AGENT_STEERING_TIERS='%s'\n" "$TIERS_SUMMARY"
-    printf "AGENT_STEERING_KEYS='"
-    printf '%s' "$KEYS_LIST"
-    printf "'\n"
 } > "$HANDOFF"
 
-printf 'agent-steering: runtime=%s session=%s new=%d total=%d\n' \
-    "$RUNTIME" "$SESSION_ID" "$NEW_EVENTS_COUNT" "$TOTAL_EVENTS" >&2
+printf 'agent-steering: runtime=%s session=%s new=%d staged=%d total=%d\n' \
+    "$RUNTIME" "$SESSION_ID" "$NEW_EVENTS_COUNT" "$STAGED_COUNT" "$TOTAL_EVENTS" >&2
 
 exit 0

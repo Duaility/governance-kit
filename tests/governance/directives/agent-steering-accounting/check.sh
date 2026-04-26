@@ -1,26 +1,30 @@
 #!/usr/bin/env bash
 # Directive: every agent-authored commit (one carrying an `Agent:` trailer
-# from agent-token-accounting) stamps the always-on summary trailers
+# from agent-token-accounting) stamps the always-on summary triple
 # `Steer-Count`, `Steer-Types`, `Steer-Tiers` — even when zero events were
-# detected. Each detected human-steering event additionally appears as an
-# append-only row in STEERING.md plus a matching `Steer-Key:` trailer.
+# detected. The summary numbers must agree with the rows newly added to
+# STEERING.md by this commit: `Steer-Count` equals the number of added
+# rows, and the type / tier breakdowns tally those rows' `type` and `tier`
+# columns. The row → commit join uses STEERING.md's `commit |` column.
+#
+# Per-event `Steer-Key:` trailers were retired in #66. Historical commits
+# in the repo's log may still carry them; the new check ignores them.
 #
 # Modes:
 #   Mode A — commit-msg hook:  bash check.sh <path-to-msg-file>
-#       Validates the pending message: every Steer-Key trailer has a
-#       matching row; every row whose key carries this commit's prefix
-#       has a trailer; agent commits carry the summary triple. The
-#       pre-commit hook is what *creates* the rows; this hook only checks
-#       that pre-commit and prepare-commit-msg did their jobs symmetrically.
+#       Validates the pending message: summary triple is well-formed and
+#       agrees with the rows the staged STEERING.md diff adds. Each newly
+#       added row's `commit |` cell must equal the pending subject.
 #   Mode B — CI / run.sh:      bash check.sh
 #       Walks default-branch merge-base → HEAD and validates every
-#       non-merge, non-revert commit. The row→trailer direction is
-#       skipped for historical commits (we can't recover the commit prefix
-#       without trusting the trailers we're checking). Mode B additionally
-#       skips any commit whose tree at that SHA doesn't carry this
-#       directive's check.sh — that's the self-bootstrapping exemption,
-#       so the install commit itself isn't held to a contract that wasn't
-#       in the tree before it.
+#       non-merge, non-revert commit against the same summary contract,
+#       deriving "rows added by this commit" from `git show <sha>`. The
+#       row.commit-cell == subject check is skipped here because squash
+#       merges can rewrite the subject after the row was stamped. Mode B
+#       additionally skips any commit whose first parent didn't already
+#       carry this directive's check.sh — that's the self-bootstrapping
+#       exemption, so the install commit isn't held to a contract that
+#       wasn't in the tree before it.
 #
 # Skips merge commits and revert commits, identical to agent-token-accounting.
 #
@@ -86,37 +90,35 @@ validate_commit_message() {
     local label="$1"
     local mode="$2"   # A or B
     local sha="${3:-}"
+    local subject="${4:-}"
     local msg
     msg="$(cat)"
 
-    # Trailer-side keys.
-    local trailer_keys
-    trailer_keys="$(printf '%s' "$msg" | python3 "$LIB/trailers.py" extract -)"
+    # Collect added keys into an array. Bash 3.2 compatible (no mapfile).
+    local keys_raw
+    keys_raw="$(new_row_keys "$mode" "$sha")"
+    local -a keys=()
+    if [[ -n "$keys_raw" ]]; then
+        local k
+        while IFS= read -r k; do
+            [[ -z "$k" ]] && continue
+            keys+=("$k")
+        done <<<"$keys_raw"
+    fi
 
-    # Row-side keys added in this commit.
-    local row_keys
-    row_keys="$(new_row_keys "$mode" "$sha")"
+    local -a args=("validate" "$label" "$LEDGER")
+    if [[ -n "$subject" ]]; then
+        args+=("--subject" "$subject")
+    fi
+    args+=("-")
+    if (( ${#keys[@]} > 0 )); then
+        args+=("${keys[@]}")
+    fi
 
-    # Row → trailer: every newly-added row must have a Steer-Key trailer.
-    while IFS= read -r row_key; do
-        [[ -z "$row_key" ]] && continue
-        if ! grep -qxF "$row_key" <<<"$trailer_keys"; then
-            violation "$label — STEERING.md adds row '$row_key' but no matching Steer-Key: trailer on the commit"
-        fi
-    done <<<"$row_keys"
-
-    # Trailer → row: existing-row + duplicate-trailer checks live in
-    # trailers.py validate. Pass commit_prefix="-" because we've already
-    # done the row→trailer direction explicitly above using the diff
-    # (more precise than prefix-matching, which would miss rows added by
-    # an earlier commit on the same branch sharing the same prefix).
     while IFS= read -r v; do
         [[ -z "$v" ]] && continue
         violation "$v"
-    done < <(
-        printf '%s' "$msg" | python3 "$LIB/trailers.py" validate \
-            "$label" "$LEDGER" "-" - 2>/dev/null || true
-    )
+    done < <(printf '%s' "$msg" | python3 "$LIB/trailers.py" "${args[@]}" || true)
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -132,7 +134,7 @@ if [[ $# -gt 0 ]]; then
     if [[ "$pending_subject" == Revert\ \"* ]]; then
         directive_end
     fi
-    validate_commit_message "pending commit" "A" <"$msg_file"
+    validate_commit_message "pending commit" "A" "" "$pending_subject" <"$msg_file"
     directive_end
 fi
 
@@ -193,7 +195,7 @@ while IFS= read -r sha; do
         continue
     fi
     msg=$(git log -1 --format=%B "$sha")
-    validate_commit_message "$sha" "B" "$sha" <<<"$msg"
+    validate_commit_message "$sha" "B" "$sha" "" <<<"$msg"
 done < <(git log "$base..HEAD" --format='%H')
 
 directive_end

@@ -5,18 +5,18 @@
 #   - Steer-Count: <N>                  — total events recorded on this commit
 #   - Steer-Types: interrupt=2,...      — per-type breakdown (sorted, or `none`)
 #   - Steer-Tiers: structural=3,...     — per-tier breakdown (sorted, or `none`)
-#   - Steer-Key:  steer-...             — one repeated trailer per recorded row
 #
-# The three summary trailers parallel Token-Total / Cost-USD on the
+# The summary triple parallels Token-Total / Cost-USD on the
 # agent-token-accounting side: a reviewer skimming `git log` can see the
-# steering volume without joining against STEERING.md.
+# steering volume without joining against STEERING.md. The row → commit
+# join uses STEERING.md's `commit |` column; per-event `Steer-Key:`
+# trailers were retired in #66.
 #
 # Always-on contract: when pre-commit detected a runtime + transcript, the
-# handoff is written even on zero-event commits, and the three summary
-# trailers are stamped here as `Steer-Count: 0` / `Steer-Types: none` /
-# `Steer-Tiers: none`. Per-event `Steer-Key:` trailers are emitted only
-# when there are events. If the handoff file doesn't exist (no runtime,
-# no transcript, or pre-commit didn't run), this hook is a silent no-op.
+# handoff is written even on zero-event commits, and the three trailers are
+# stamped here as `Steer-Count: 0` / `Steer-Types: none` / `Steer-Tiers: none`.
+# If the handoff file doesn't exist (no runtime, no transcript, or pre-commit
+# didn't run), this hook is a silent no-op.
 #
 # Escape hatches:
 #   SKIP_GOVERNANCE=1 git commit ...
@@ -44,11 +44,11 @@ HANDOFF="$(git rev-parse --git-path governance-pending-steering.env)"
 source "$HANDOFF"
 rm -f "$HANDOFF"
 
-# Idempotent on amends/retries: skip if any Steer-Count or Steer-Key trailer
-# is already stamped. The pre-commit hook always rewrites the handoff with
-# the full current key set, so a clean re-stamp would be safe; this guard is
-# belt-and-braces against a stale handoff lingering past a failed commit.
-if grep -qE '^(Steer-Count|Steer-Key):[[:space:]]' "$MSG_FILE"; then
+# Idempotent on amends/retries: skip if Steer-Count is already stamped. The
+# pre-commit hook re-derives the summary from the staged STEERING.md diff
+# every run, so a clean re-stamp would be safe; this guard is belt-and-
+# braces against a stale handoff lingering past a failed commit-msg check.
+if grep -qE '^Steer-Count:[[:space:]]' "$MSG_FILE"; then
     exit 0
 fi
 
@@ -58,12 +58,6 @@ fi
     printf 'Steer-Count: %s\n' "${AGENT_STEERING_COUNT:-0}"
     printf 'Steer-Types: %s\n' "${AGENT_STEERING_TYPES:-none}"
     printf 'Steer-Tiers: %s\n' "${AGENT_STEERING_TIERS:-none}"
-    if [[ -n "${AGENT_STEERING_KEYS:-}" ]]; then
-        while IFS= read -r key; do
-            [[ -z "$key" ]] && continue
-            printf 'Steer-Key: %s\n' "$key"
-        done <<<"$AGENT_STEERING_KEYS"
-    fi
 } > "$MSG_FILE.new"
 mv "$MSG_FILE.new" "$MSG_FILE"
 

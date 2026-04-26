@@ -30,27 +30,23 @@ Direct alternatives all break under squash:
   laptop and rotate. They are not durable across the repo's lifetime.
 - **Computing keys from commit SHAs** — branch SHAs disappear under squash.
 
-What works: durable rows in `STEERING.md` keyed by `steer-key`, mirrored as
-repeated `Steer-Key:` trailers on the original commit, cross-checked by
+What works: durable rows in `STEERING.md` keyed by `steer-key`, with the row
+→ commit join carried by the `commit |` column, plus a per-commit summary
+trailer triple cross-checked by
 `tests/governance/directives/agent-steering-accounting/check.sh`.
 
 ## Trailer schema
 
 Every agent-authored commit (one carrying an `Agent:` trailer from
-`agent-token-accounting`) stamps the always-on summary triple plus one
-`Steer-Key:` trailer per detected event:
+`agent-token-accounting`) stamps the always-on summary triple:
 
 ```
 Steer-Count: 3
 Steer-Types: correction=2,interrupt=1
 Steer-Tiers: classifier=2,structural=1
-Steer-Key: steer-<session-short>-<epoch>-1
-Steer-Key: steer-<session-short>-<epoch>-2
-Steer-Key: steer-<session-short>-<epoch>-3
 ```
 
-A zero-event commit still carries the summary triple as the explicit
-zero-assertion:
+A zero-event commit still carries the triple as the explicit zero-assertion:
 
 ```
 Steer-Count: 0
@@ -58,17 +54,24 @@ Steer-Types: none
 Steer-Tiers: none
 ```
 
-Why both layers, and why always-on:
+Why summary-only, and why always-on:
 
 - **`Steer-Count` / `Steer-Types` / `Steer-Tiers`** are the headline
   reviewers skim in `git log` — same role `Token-Total` and `Cost-USD`
   play for the cost ledger. They survive squash merges and let you sort
   commits by steering volume without joining against `STEERING.md`.
   `Types` and `Tiers` are sorted `key=N,key=N` (or the literal `none`
-  on a zero-event commit).
-- **`Steer-Key`** is the durable join key — one repeated trailer per
-  ledger row. Multiple trailers per commit by design; git trailers
-  natively support repeated keys.
+  on a zero-event commit). The numbers must agree with the rows the
+  commit adds to `STEERING.md`: `Steer-Count` equals the row count, and
+  the breakdowns tally those rows' `type` / `tier` columns.
+- **Per-event `Steer-Key:` trailers were retired** in #66. The row →
+  commit join uses `STEERING.md`'s `commit |` column instead — one
+  `git grep` scoped to the ledger gets every event for a given commit
+  subject, without the trailers having to mirror the rows. Dropping the
+  per-event trailers also fixes a retry-after-failed-commit-msg bug
+  where the second `git commit` invocation re-stamped zero `Steer-Key:`
+  trailers because the rows the first attempt appended already counted as
+  "already-recorded" events.
 - **Always-on**: silence on a no-event commit was indistinguishable from
   "the directive crashed", "the directive wasn't installed", or "no
   runtime was detected". A positive `Steer-Count: 0` collapses those
@@ -77,10 +80,13 @@ Why both layers, and why always-on:
 
 Commits **without** an `Agent:` trailer (human commits, no recognised
 runtime) are exempt — no Steer-* trailers expected. The failure modes are:
-an agent commit that lacks the summary triple, the ledger gained rows but
-no trailer was stamped, a trailer points at a key with no row, summary
-counts disagree with the per-event trailers, or summary breakdowns
-disagree with the matched rows' `type` / `tier` columns.
+an agent commit that lacks the summary triple, the summary count
+disagrees with the rows the commit adds to the ledger, the breakdowns
+disagree with those rows' `type` / `tier` columns, or a newly-added row's
+`commit |` cell doesn't match the pending subject (Mode A only — squash
+merges may rewrite the subject after the row was stamped, so Mode B's CI
+walk skips that comparison). Historical commits in the repo's log may
+still carry `Steer-Key:` trailers; the new check ignores them.
 
 ## Ledger schema
 
@@ -237,20 +243,27 @@ pre-commit ──► tests/governance/directives/agent-steering-accounting/hooks
 (governance tests run — check.sh sees the new rows in-tree)
       │
       ▼
-prepare-commit-msg ──► sources the handoff env, stamps one Steer-Key:
-                       trailer per appended row, removes the handoff file.
+prepare-commit-msg ──► sources the handoff env, stamps the summary triple
+                       (Steer-Count / Steer-Types / Steer-Tiers), removes
+                       the handoff file.
       │
       ▼
 commit-msg ──► tests/governance/directives/agent-steering-accounting/check.sh <msg>
                   Mode A. Cross-checks:
-                    - every newly-added STEERING.md row has a Steer-Key trailer
-                    - every Steer-Key trailer has a matching ledger row
-                    - no duplicate trailers within a single commit
+                    - agent commits carry the full summary triple
+                    - Steer-Count equals the count of rows the commit adds
+                      to STEERING.md
+                    - Steer-Types / Steer-Tiers tally those rows' columns
+                      and total to Steer-Count
+                    - each newly-added row's `commit |` cell matches the
+                      pending subject
 ```
 
 In CI / `bash tests/governance/run.sh`, the same `check.sh` runs in Mode B,
-walking `merge-base..HEAD` with the same row↔trailer invariant on each
-non-merge, non-revert commit.
+walking `merge-base..HEAD` with the same summary-vs-row contract on each
+non-merge, non-revert commit. The row.commit-cell == subject check is
+skipped in Mode B because squash merges can rewrite the subject after the
+row was stamped.
 
 ## Dedup boundary
 
