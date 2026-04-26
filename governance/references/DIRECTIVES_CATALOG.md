@@ -66,7 +66,7 @@ For repos where every tree-change is produced through an agent runtime (Codex, C
 ### Agent discipline
 | Directive | What it checks |
 |---|---|
-| `receipt-shape`            | Every tracked `receipts/*.md` file carries a unique `issue-<N>` token in its filename **and** includes a `## Verification` section naming how completion will be judged. No waivers — receipts are a fresh discipline with no legacy corpus to grandfather. Receipts are post-implementation audit traces, distinct from agent-runtime plan-mode plans. |
+| `receipt-per-issue`        | Every tracked `receipts/*.md` file carries a unique `issue-<N>` token in its filename **and** includes three Markdown sections — `## What changed`, `## Out of scope`, `## Verification` — naming the surface area touched, the deferred work, and how completion will be judged. No waivers — receipts are a fresh discipline with no legacy corpus to grandfather. Receipts are post-implementation audit traces, distinct from agent-runtime plan-mode plans. |
 | `commit-issue-receipt-match` | Each commit's anchor — trailing `(#N)` in the subject or any `Issue: #N` body trailer — matches an `issue-<N>` token on a `receipts/*.md` file it touches. Installs a `commit-msg` hook (Mode A) and runs in CI walking merge-base→HEAD (Mode B). Per-commit waiver: `governance: allow-commit-issue-receipt-match <reason>` in the commit body. |
 | `issue-templates`          | `.github/ISSUE_TEMPLATE/` contains proposal and bug issue forms plus config. Blank issues are disabled, proposal issues require Context / Decision / Scope / Acceptance criteria / Validation / Open questions, and bug issues require the core defect-report fields. Ships the templates under `install-assets/.github/ISSUE_TEMPLATE/`. |
 | `issues-tracked`           | `QUALITY.md` exists at repo root with `Open` and `Resolved` sections. Ships `install-assets/QUALITY.md` so a newly bootstrapped repo starts green. |
@@ -77,7 +77,7 @@ For repos where every tree-change is produced through an agent runtime (Codex, C
 
 | Preset | Directives |
 |---|---|
-| `minimal`  | `receipt-shape`, `commit-issue-receipt-match` |
+| `minimal`  | `receipt-per-issue`, `commit-issue-receipt-match` |
 | `standard` | *minimal* + `issue-templates`, `issues-tracked`, `agent-token-accounting` |
 | `strict`   | same as `standard` |
 

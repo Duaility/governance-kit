@@ -7,7 +7,7 @@
 #
 # The directives form a chain: issue creation uses a durable template
 # (`issue-templates`), issues are tracked (`issues-tracked`), every issue
-# has exactly one receipt (`receipt-shape`), every commit matches its
+# has exactly one receipt (`receipt-per-issue`), every commit matches its
 # receipt (`commit-issue-receipt-match`), and every commit carries its
 # cost (`agent-token-accounting`). Breaking any link makes the chain
 # non-auditable, so the `standard` preset bundles the full chain.
@@ -30,7 +30,7 @@ author: governance-kit
 presets:
   minimal:
     directives:
-      - receipt-shape
+      - receipt-per-issue
       - commit-issue-receipt-match
   standard:
     extends: minimal

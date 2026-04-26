@@ -13,7 +13,7 @@
 # issue but the subject line references the PR id.
 #
 # Rationale: `conventional-commits` pins each commit to an issue, and
-# `receipt-shape` pins each receipt file to an issue, but nothing cross-checks
+# `receipt-per-issue` pins each receipt file to an issue, but nothing cross-checks
 # the two — a commit claiming `(#15)` while touching only issue #42's receipt
 # passes both directives. This directive closes that hole, so the receipt the
 # agent updates must be the *right* one for the commit's issue. It also

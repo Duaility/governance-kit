@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # Directive: Each tracked receipts/*.md file carries an `issue-<N>` token in
 # its filename, no two receipts share the same issue number, and every
-# receipt includes a `## Verification` section.
+# receipt includes `## What changed`, `## Out of scope`, and `## Verification`
+# sections.
 # Rationale: Receipts are the durable post-implementation audit trace for
-# work an agent did against a GitHub issue — they record what was changed
-# and how a reviewer can verify it. A one-to-one binding between receipt
-# and issue keeps the system of record unambiguous; the Verification
-# section forces the agent to name the criteria a reviewer uses to judge
-# the work complete.
+# work an agent did against a GitHub issue. The one-to-one binding keeps the
+# system of record unambiguous. The three required sections force the agent
+# to name the surface area touched (What changed), the deferred work (Out of
+# scope), and the criteria a reviewer uses to judge completion (Verification).
 set -u
 source "$(dirname "$0")/../../lib.sh"
-directive_start "receipt-shape"
+directive_start "receipt-per-issue"
 require_git
 
 ROOT="$(git rev-parse --show-toplevel)"
@@ -29,6 +29,8 @@ done < <(git ls-files -- 'receipts/*.md' 2>/dev/null || true)
 if [[ ${#receipt_files[@]} -eq 0 ]]; then
     directive_end
 fi
+
+required_sections=("What changed" "Out of scope" "Verification")
 
 seen_nums=()
 seen_files=()
@@ -53,9 +55,11 @@ for f in "${receipt_files[@]}"; do
         violation "$f — receipt filename must include an 'issue-<N>' token (e.g. receipts/issue-63-replace-plans.md)"
     fi
 
-    if ! grep -qE '^##[[:space:]]+Verification\b' "$f"; then
-        violation "$f — receipt is missing a '## Verification' section describing how completion will be judged"
-    fi
+    for section in "${required_sections[@]}"; do
+        if ! grep -qE "^##[[:space:]]+${section}\b" "$f"; then
+            violation "$f — receipt is missing a '## ${section}' section"
+        fi
+    done
 done
 
 directive_end
