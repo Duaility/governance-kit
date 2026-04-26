@@ -45,7 +45,7 @@ If you're trusting agents to ship code, you need to see exactly what they were t
 
 - **Directive provenance** (`CONSTITUTION.md`). Every line is git-blameable to the commit that introduced it and the test that enforces it. The **Evolution Log** at the bottom of the file carries a dated, human-readable summary of every amendment. Because the CLI verbs require the check, the rationale, and the log entry to land together, policy and enforcement can't silently diverge.
 - **Token cost** (`COSTS.md`). Every agent-authored commit carries token + cost trailers (`Token-Input`, `Token-Output`, `Cost-USD`, …) and a matching row in the ledger. Survives squash-merges. Every change has a price tag.
-- **Human steering** (`STEERING.md`). Every commit carries summary trailers (`Steer-Count`, `Steer-Types`, `Steer-Tiers`) and one `Steer-Key:` row per detected human-steering event — interrupt or redirect. See at a glance which commits ran on autopilot and which needed your hand on the wheel.
+- **Human steering** (`STEERING.md`). Every commit carries summary trailers (`Steer-Count`, `Steer-Types`, `Steer-Tiers`) tallying the rows it added to the ledger — one row per detected human-steering event (interrupt or redirect). See at a glance which commits ran on autopilot and which needed your hand on the wheel.
 
 Token and steering ledgers ship in the [`agent-governance`](#community-packs) pack. Directive provenance is core.
 
