@@ -4,8 +4,11 @@
 # branch is not main/master, an open pull request must exist for the current
 # branch on the GitHub remote.
 #
-# This is a gate, not an actor. The directive verifies a PR exists; opening
-# the PR is left to the agent or developer (`gh pr create --fill`).
+# This is a gate, not an actor — the directive verifies a PR exists; the
+# agent opens it. But the violation message is imperative on purpose: when
+# this fires under an agent runtime, the agent must run `gh pr create --fill`
+# immediately as the next step, not re-pose the action as a "want me to
+# open the PR?" question. The directive's firing IS the authorization.
 #
 # Reading HEAD (not the working tree) is deliberate: the commit that ticks
 # the final box must land cleanly so it can be referenced by the PR. The
@@ -97,7 +100,7 @@ fi
 
 if [[ "$count" -eq 0 ]]; then
     list="${completed[*]}"
-    violation "branch '$branch' has completed-checklist receipts but no open PR — open one with: gh pr create --fill --base main --head '$branch' (receipts: $list)"
+    violation "branch '$branch' has completed-checklist receipts but no open PR — this directive mandates opening one now. Execute: gh pr create --fill --base main --head '$branch' (receipts: $list). The directive's firing is the durable authorization; agents must run the command, not re-pose it as a 'want me to open the PR?' offer."
 fi
 
 directive_end
