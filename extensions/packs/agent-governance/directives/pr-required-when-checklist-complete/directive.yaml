@@ -3,4 +3,4 @@ category: AgentDiscipline
 recommended: true
 summary: When HEAD carries a receipt whose ## Checklist has at least one `- [x]` and zero `- [ ]`, an open pull request must exist for the current branch on the GitHub remote.
 surface: repo-state
-hook: none
+hook: post-commit

@@ -16,7 +16,7 @@ from typing import Any
 import yaml
 
 
-HOOKS = {"pre-commit", "commit-msg", "prepare-commit-msg", "none"}
+HOOKS = {"pre-commit", "commit-msg", "prepare-commit-msg", "post-commit", "none"}
 SURFACES = {"repo-state", "change-set"}
 HOOK_STRATEGIES = {"githooks", "husky", "pre-commit"}
 PACK_FIELDS = ("id", "name", "version", "min_governance_kit", "description", "author")
