@@ -1,6 +1,6 @@
 ---
 name: governance
-description: Single entry point for governance-kit's lifecycle verbs — `governance init` (bootstrap a repo), `governance uninstall` (clean tear-down), `governance pack {search,add,update,remove,list}` (community-pack lifecycle with SHA pinning + capability enforcement), and `governance directive {add,modify,remove}` (hand-authored directive amendments via the atomic triple). Use when the user says "governance init", "set up governance", "bootstrap governance", "governance uninstall", "reset governance", "tear down governance", "install a pack", "add pack X", "update packs", "remove pack X", "list installed packs", "add a directive", "amend the constitution", "new directive", "modify directive X", "remove directive X", or otherwise asks to manage governance-kit lifecycle, packs, or directives.
+description: Single entry point for governance-kit's lifecycle verbs — `governance init` (bootstrap a repo), `governance uninstall` (clean tear-down), `governance reset` (restore amended directives to their pinned pack version), `governance pack {search,add,update,remove,list}` (community-pack lifecycle with SHA pinning + capability enforcement), and `governance directive {add,modify,remove}` (hand-authored directive amendments via the atomic triple). Use when the user says "governance init", "set up governance", "bootstrap governance", "governance uninstall", "tear down governance", "governance reset", "reset directives", "restore to original", "undo my amendments", "install a pack", "add pack X", "update packs", "remove pack X", "list installed packs", "add a directive", "amend the constitution", "new directive", "modify directive X", "remove directive X", or otherwise asks to manage governance-kit lifecycle, packs, or directives.
 license: MIT
 compatibility: Designed for Claude Code and Codex; requires git and bash.
 metadata:
@@ -24,6 +24,10 @@ governance pack update [<pack-id>]                    # re-pin SHAs, diff-before
 governance pack remove <pack-id>                      # uninstall a community pack
 governance pack list                                  # enumerate installed packs
 governance directive add|modify|remove <directive-id> # hand-authored directives (atomic triple)
+governance reset --directive <id> | --pack <id> | --all
+                                                      # restore drifted directives to pinned pack version
+                                                      #   --drop-handauthored: also delete user-added directives (only with --all)
+                                                      #   --dry-run, --force
 governance uninstall [--dry-run|--soft|--hard]        # tear-down
 ```
 
@@ -36,7 +40,8 @@ Infer the intended verb from the user's request:
 | User says | Verb |
 |---|---|
 | "governance init", "set up governance", "bootstrap governance", "install governance-kit" | `init` |
-| "governance uninstall", "reset governance", "tear down governance", "uninstall governance-kit", "clean slate" | `uninstall` |
+| "governance uninstall", "tear down governance", "uninstall governance-kit", "clean slate", "remove governance from this repo" | `uninstall` |
+| "governance reset", "reset directives", "restore to original", "undo my amendments", "the directive I changed broke something — put it back" | `reset` — see [references/RESET_FLOW.md](references/RESET_FLOW.md). Disambiguate from `uninstall` by asking "do you want to remove governance entirely, or just restore the rules to their pinned version?" if intent is unclear. |
 | "add / modify / remove directive X", "amend the constitution", "new directive" | `directive *` — see [references/DIRECTIVE_VERBS.md](references/DIRECTIVE_VERBS.md). |
 | "pack search / add / update / remove / list", "install pack X", "pin pack X", "update all packs" | `pack *` — see [references/PACK_VERBS.md](references/PACK_VERBS.md). Do **not** fall back to editing the in-tree pack tree by hand. |
 
@@ -72,6 +77,29 @@ Key invariants:
 - No destructive git ops — no `git clean`, no `git reset --hard`, no stash.
 - Leave changes unstaged; the user's first post-uninstall commit is intentional.
 
+## `governance reset`
+
+Restores drifted directives back to their **pinned pack version** without uninstalling. Pairs with `directive *`: `directive {add,modify,remove}` is how the user amends rules over time, and `reset` is the recovery hatch when an amendment causes problems.
+
+**Authoritative flow:** [references/RESET_FLOW.md](references/RESET_FLOW.md) Steps 1–7.
+
+Three scopes — one is required:
+
+- `reset --directive <id>` — restore one pack-sourced directive.
+- `reset --pack <id>` — restore every directive sourced from one pack.
+- `reset --all` — restore every pack-sourced directive in the install manifest.
+
+By default, hand-authored directives (added via `directive add`, no pack source) are **preserved**. Pass `--drop-handauthored` (only valid with `--all`) to delete them in the same commit. Reset reads the install manifest and the pack lockfile — it refuses to run if either is missing, because pack provenance cannot be reconstructed by heuristic. The user's recovery path in that case is `governance uninstall` + `governance init`.
+
+Reset restores to the **SHA already pinned**, not upstream HEAD. Use `governance pack update` when the user wants newer rules; use `governance reset` when they want pristine ones.
+
+Key invariants:
+
+- Refuses on a dirty working tree (override with `--force`).
+- Diff-before-exec: every restore prints the per-directive diff before any file is written.
+- One atomic commit per run, Conventional Commits subject, Evolution Log entry appended.
+- `--dry-run` prints the plan without committing.
+
 ## `governance pack *`
 
 Install, update, list, and remove community packs. Packs are resolved from GitHub refs (`gh:owner/repo[/subpath][@rev]`), validated, capability-checked, and pinned by resolved SHA in `.governance/packs.lock`. Shared cache at `${GOVERNANCE_KIT_HOME:-$HOME/.governance-kit}/packs/<id>@<sha>/`.
@@ -104,6 +132,7 @@ Hand-authored directive flows for adding, modifying, or removing directives. Eve
 - [../GOVERNANCE_VOCABULARY.md](../GOVERNANCE_VOCABULARY.md) — shared terms across the governance skills.
 - [references/INIT_FLOW.md](references/INIT_FLOW.md) — authoritative `init` flow.
 - [references/UNINSTALL_FLOW.md](references/UNINSTALL_FLOW.md) — authoritative `uninstall` flow.
+- [references/RESET_FLOW.md](references/RESET_FLOW.md) — authoritative `reset` flow.
 - [references/DIRECTIVE_AMEND_FLOW.md](references/DIRECTIVE_AMEND_FLOW.md) — authoritative atomic-triple flow for `directive *`.
 - [references/PACK_VERBS.md](references/PACK_VERBS.md) — authoritative flows for `pack *`.
 - [references/VERBS.md](references/VERBS.md) — per-verb reference, aliases, assets.

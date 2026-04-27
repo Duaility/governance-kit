@@ -5,6 +5,8 @@ The atomic-triple recipe the `directive *` verbs run. Dispatched from
 
 Governance-driven development's cardinal directive: *the constitution and the enforcing tests evolve together, in one commit.* These verbs make obeying that directive cheap and make breaking it harder than following it.
 
+> The recovery hatch when an amendment causes problems is `governance reset` — it restores a pack-sourced directive (or all of them) to the pinned pack version in one commit. See [RESET_FLOW.md](RESET_FLOW.md). Reset is **only** available for pack-sourced directives; hand-authored directives have no pristine source and must be removed with `directive remove` instead.
+
 Every amendment produced here is three logical changes, committed atomically:
 
 1. A new (or updated) directive folder at `tests/governance/directives/<directive-name>/` with `directive.yaml`, `check.sh`, and `constitution.md`.

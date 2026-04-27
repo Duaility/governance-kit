@@ -82,6 +82,8 @@ Failure modes: any step 2–5 fails → abort with the fetched cache entry intac
 
 Default target: every lockfile entry. With a `<pack-id>` argument, update only that pack.
 
+> Distinct from `governance reset --pack <id>`: `pack update` re-pins to a **newer** SHA (picks up upstream changes); `reset` restores to the **currently pinned** SHA (undoes local drift). Reach for `pack update` when the user wants newer rules, `reset` when they want pristine ones. See [RESET_FLOW.md](RESET_FLOW.md).
+
 1. Read the lockfile with `packverb lock-read`.
 2. For each entry: re-fetch using the original `ref` string (which carries the floating rev like `@main`). If the resolved SHA matches the locked SHA → skip.
 3. For entries whose SHA drifted, run validation + capability-check + diff-before-exec against the already-installed directive folders. The diff is the meat of this verb: the user sees precisely what changed in `check.sh` before the update lands.
