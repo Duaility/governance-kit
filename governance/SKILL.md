@@ -48,7 +48,7 @@ Bootstraps governance-driven development in the current repo:
 
 1. `CONSTITUTION.md` at the root — the evolving source of truth.
 2. Machine-enforced tests under `tests/governance/`, one folder per directive.
-3. A pre-commit hook (and `commit-msg` / `prepare-commit-msg` dispatchers when selected directives need them) honoring `SKIP_GOVERNANCE=1` and `git commit --no-verify`.
+3. A pre-commit hook (and `commit-msg` / `prepare-commit-msg` / `post-commit` / `pre-push` dispatchers when selected directives need them) honoring `SKIP_GOVERNANCE=1` and `git commit --no-verify` / `git push --no-verify`.
 4. A GitHub Actions workflow at `.github/workflows/governance.yml`.
 
 **Authoritative flow:** [references/INIT_FLOW.md](references/INIT_FLOW.md) Steps 1–8. Pack manifests are validated against the `KIT_VERSION` constant in [`assets/packs/lib/packctl.py`](assets/packs/lib/packctl.py); packs declaring a newer `min_governance_kit` are rejected.

@@ -67,7 +67,7 @@ category: <category-label>
 recommended: true | false
 summary: <one-line menu description>
 surface: repo-state | change-set
-hook: pre-commit | commit-msg | prepare-commit-msg | post-commit | none
+hook: pre-commit | commit-msg | prepare-commit-msg | post-commit | pre-push | none
 always_install: true            # optional; reserved to core
 requires_hook_strategy: githooks # optional; githooks | husky | pre-commit
 reads:                          # optional capability declaration
@@ -127,7 +127,7 @@ Each directive ships a markdown fragment (`constitution.md`) that becomes a `Dir
 
 **Rationale.** <why this directive exists — ideally a specific incident or constraint>
 
-**Enforced by.** `tests/governance/directives/<directive-id>/check.sh` (runs in `pre-commit` / `commit-msg` / `prepare-commit-msg` / `post-commit` / CI only). Note that `post-commit` is **advisory-only locally** — the dispatcher prints violations but cannot reject the commit (post-commit fires after `git commit` has already succeeded). CI (`tests/governance/run.sh`) is the hard gate for `hook: post-commit` directives.
+**Enforced by.** `tests/governance/directives/<directive-id>/check.sh` (runs in `pre-commit` / `commit-msg` / `prepare-commit-msg` / `post-commit` / `pre-push` / CI only). Note that `post-commit` is **advisory-only locally** — the dispatcher prints violations but cannot reject the commit (post-commit fires after `git commit` has already succeeded). CI (`tests/governance/run.sh`) is the hard gate for `hook: post-commit` directives. `pre-push` blocks the push and receives the remote name as `$1`, the remote URL as `$2`, and the ref-update lines (`<local-ref> <local-sha> <remote-ref> <remote-sha>`) on stdin.
 
 **Exceptions.** <how to waive — `governance: allow-<directive-id>` comment / env-var override / docs-only carve-out>. If none, write "None."
 ```
@@ -187,7 +187,7 @@ At activation the bootstrap skill:
 7. Copies optional directive-owned `install-assets/` files into the target repo without overwriting existing files in augment mode.
 8. Splices each selected `directives/<id>/constitution.md` into the target's `CONSTITUTION.md`.
 9. Writes `.governance-kit/installed-packs.yaml` as an audit/debug manifest. Installed directives are still user-owned copies; the manifest is not an auto-upgrade contract.
-10. Generates hook dispatchers (`pre-commit`, `commit-msg`, `prepare-commit-msg`, `post-commit`) that discover installed `directive.yaml` files at runtime. Each hook carries an ownership marker (`# governance-kit:managed pack-version=<v> generated=<date>`). Pre-existing unmarked hooks trigger a collision prompt. The `post-commit` dispatcher is advisory-only — it surfaces violations to stderr but always exits 0, since `git commit` has already succeeded by the time post-commit fires.
+10. Generates hook dispatchers (`pre-commit`, `commit-msg`, `prepare-commit-msg`, `post-commit`, `pre-push`) that discover installed `directive.yaml` files at runtime. Each hook carries an ownership marker (`# governance-kit:managed pack-version=<v> generated=<date>`). Pre-existing unmarked hooks trigger a collision prompt. The `post-commit` dispatcher is advisory-only — it surfaces violations to stderr but always exits 0, since `git commit` has already succeeded by the time post-commit fires. The `pre-push` dispatcher blocks the push when any wired check fails.
 11. Appends an evolution-log entry in `CONSTITUTION.md`.
 
 Re-running bootstrap is idempotent: marked hooks get overwritten silently, directive folders are copied fresh in overwrite mode or preserved in augment mode, and the evolution log records deltas.

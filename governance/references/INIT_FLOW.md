@@ -7,7 +7,7 @@ The 8-step recipe `governance init` runs. Dispatched from
 
 1. A `CONSTITUTION.md` at the repo root — the evolving source of truth for directives, guidelines, and directives.
 2. Machine-enforced tests under `tests/governance/` — every directive in the constitution has a corresponding test.
-3. A pre-commit hook (and commit-msg / prepare-commit-msg dispatchers when the selected directives need them) — runs `tests/governance/` before commits, with `SKIP_GOVERNANCE=1` and `git commit --no-verify` as escape hatches.
+3. A pre-commit hook (and commit-msg / prepare-commit-msg / post-commit / pre-push dispatchers when the selected directives need them) — runs `tests/governance/` before commits and pushes, with `SKIP_GOVERNANCE=1` and `git commit --no-verify` / `git push --no-verify` as escape hatches.
 4. A GitHub Actions workflow at `.github/workflows/governance.yml` — same tests, enforced in CI on every PR.
 
 Directives are grouped into **packs** — self-contained directories that bundle directives, their constitution snippets, and hook declarations. Two packs ship in-tree today, each at its own root:
@@ -57,7 +57,7 @@ This choice is recorded as `hook_strategy:` in `.governance-kit/installed-packs.
 
 | Location | What to look for |
 |---|---|
-| `.githooks/pre-commit`, `.githooks/commit-msg`, `.githooks/prepare-commit-msg` | grep for the ownership marker `governance-kit:managed` |
+| `.githooks/pre-commit`, `.githooks/commit-msg`, `.githooks/prepare-commit-msg`, `.githooks/post-commit`, `.githooks/pre-push` | grep for the ownership marker `governance-kit:managed` |
 | `.git/hooks/*` | same marker (legacy path — flag even if marker is found) |
 | `.husky/*`, `.pre-commit-config.yaml` | signals Path B below, not a collision |
 
@@ -242,7 +242,7 @@ generate_hooks <repo-root>/.githooks <pack-version-label> /tmp/governance-hook-s
 
 The generator:
 
-1. Emits all three dispatchers — `pre-commit`, `commit-msg`, `prepare-commit-msg` — so future user-owned amendments that add a compatible `hook:` declaration are discovered without regenerating hooks.
+1. Emits all five dispatchers — `pre-commit`, `commit-msg`, `prepare-commit-msg`, `post-commit`, `pre-push` — so future user-owned amendments that add a compatible `hook:` declaration are discovered without regenerating hooks.
 2. Each dispatcher scans installed `tests/governance/directives/<id>/directive.yaml` at runtime, runs directive-owned `hooks/<kind>.sh` helpers first, then runs `check.sh` for directives whose `hook:` matches the dispatcher. Dispatchers honor `SKIP_GOVERNANCE=1`.
 3. Stamps each dispatcher with a **line-2 ownership marker**:
    ```sh
@@ -255,7 +255,7 @@ Path choice:
 
 **Path A — repo-local `.githooks/`** (default when no other framework is present).
 
-1. Generate `.githooks/pre-commit`, `.githooks/commit-msg`, and `.githooks/prepare-commit-msg`.
+1. Generate `.githooks/pre-commit`, `.githooks/commit-msg`, `.githooks/prepare-commit-msg`, `.githooks/post-commit`, and `.githooks/pre-push`.
 2. `chmod +x` every generated hook.
 3. Record `hook_strategy: githooks` in `.governance-kit/installed-packs.yaml` so `required-docs`' `hooks` sub-check enforces the `.githooks/` scaffolding.
 4. Run `git config core.hooksPath .githooks` in the bootstrapping clone.

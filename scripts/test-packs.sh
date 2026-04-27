@@ -120,7 +120,7 @@ while IFS=$'\t' read -r pack_id pack_dir; do
         surface=$(directive_field "$pack_dir" "$rid" surface 2>/dev/null || true)
         directive_folder="$pack_dir/directives/$rid"
         has_helper=0
-        for kind in pre-commit commit-msg prepare-commit-msg; do
+        for kind in pre-commit commit-msg prepare-commit-msg post-commit pre-push; do
             [[ -f "$directive_folder/hooks/$kind.sh" ]] && has_helper=1
         done
         # Include the directive in the spec if it declares a hook OR ships any
