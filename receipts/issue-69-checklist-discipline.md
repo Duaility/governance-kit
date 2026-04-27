@@ -11,7 +11,6 @@ Issue: [#69](https://github.com/Duaility/governance-kit/issues/69)
 - [x] 3 existing receipts backfilled with real ## Checklist sections
 - [x] standalone receipt-checklist-crosswalk directive deleted
 - [x] CONSTITUTION.md subsections rewritten and Evolution Log entry appended
-- [ ] Open PR for review and merge
 
 ## What changed
 
