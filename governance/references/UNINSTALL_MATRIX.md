@@ -31,6 +31,8 @@ Legend:
 | `.githooks/pre-commit` | Step 6 (`generate_hooks`) | line-2 marker `# governance-kit:managed pack-version=…` | delete if marker present; else **collision** (Step 4 of reset) | same |
 | `.githooks/commit-msg` | Step 6 | line-2 marker | delete if marker present; else **collision** | same |
 | `.githooks/prepare-commit-msg` | Step 6 | line-2 marker | delete if marker present; else **collision** | same |
+| `.githooks/post-commit` | Step 6 | line-2 marker | delete if marker present; else **collision** | same |
+| `.githooks/pre-push` | Step 6 | line-2 marker | delete if marker present; else **collision** | same |
 | `.githooks/<name>.userhook` | Step 6 Path A, wrap-collision resolution | sibling of a managed hook with matching name | rename `<name>.userhook` → `<name>` (restore user's original) | same |
 | `<any-path>.pre-governance.bak` | Step 6 Path A, overwrite-collision resolution | filename suffix | preserve; report as orphaned backup | delete |
 

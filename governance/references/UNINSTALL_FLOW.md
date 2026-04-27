@@ -46,7 +46,7 @@ Before touching anything, run these in parallel:
   - `tests/governance/freshness.conf`
   - `.github/workflows/governance.yml`
   - `.governance-kit/installed-packs.yaml`
-  - `.githooks/pre-commit`, `.githooks/commit-msg`, `.githooks/prepare-commit-msg`
+  - `.githooks/pre-commit`, `.githooks/commit-msg`, `.githooks/prepare-commit-msg`, `.githooks/post-commit`, `.githooks/pre-push`
   - `.githooks/*.userhook` (Path A wrap leftovers)
   - `<any>.pre-governance.bak` files (Path A overwrite backups)
   - `AGENTS.md` and whether it contains `<!-- governance: directives-to-follow -->`

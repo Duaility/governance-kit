@@ -106,7 +106,7 @@ eval all live together under `directives/<directive-id>/`.
 1. Create `<pack-root>/<pack-dir>/directives/<id>/` and populate it with:
    - `directive.yaml` — scalar fields `category`, `recommended`, `summary`,
      `surface` (`repo-state`|`change-set`), `hook`
-     (`pre-commit`|`commit-msg`|`prepare-commit-msg`|`none`), optional
+     (`pre-commit`|`commit-msg`|`prepare-commit-msg`|`post-commit`|`pre-push`|`none`), optional
      `always_install` (reserved to `core`).
    - `check.sh` — the bash test.
    - `constitution.md` — the Directive subsection (Directive / Rationale /
@@ -115,7 +115,7 @@ eval all live together under `directives/<directive-id>/`.
      to confirm.
    - Optional sibling folders for directives that need external code:
      `lib/` (stdlib Python or bash shared across the directive's pieces),
-     `hooks/<pre-commit|commit-msg|prepare-commit-msg>.sh` (side-effect
+     `hooks/<pre-commit|commit-msg|prepare-commit-msg|post-commit|pre-push>.sh` (side-effect
      scripts wired into the generated dispatcher by the hook generator),
      `runtimes/<name>.sh` (per-runtime helpers). All three are copied
      along with `check.sh` when the directive installs, so a directive is one
