@@ -2,6 +2,14 @@
 
 Issue: [#65](https://github.com/Duaility/governance-kit/issues/65)
 
+## Checklist
+
+- [x] renamed to receipt-per-issue
+- [x] section check is expanded
+- [x] deferred-work section is canonicalised to ## Out of scope
+- [x] Folder rename completed at both layers
+- [x] Eval coverage extended
+
 ## What changed
 
 The `receipt-shape` directive is renamed to `receipt-per-issue`, and its section check is expanded from one required section (`## Verification`) to three (`## What changed`, `## Out of scope`, `## Verification`).

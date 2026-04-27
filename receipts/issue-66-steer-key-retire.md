@@ -2,6 +2,15 @@
 
 Issue: [#66](https://github.com/Duaility/governance-kit/issues/66)
 
+## Checklist
+
+- [x] switches from a row ↔ trailer bidirectional cross-check to a summary-only contract
+- [x] lib/trailers.py rewritten
+- [x] check.sh rewritten
+- [x] constitution.md rewritten
+- [x] evals/test.sh rewritten
+- [x] Per-event `Steer-Key:` trailers are gone from the directive
+
 ## What changed
 
 The `agent-steering-accounting` directive switches from a row ↔ trailer

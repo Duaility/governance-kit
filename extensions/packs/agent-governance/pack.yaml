@@ -31,6 +31,7 @@ presets:
   minimal:
     directives:
       - receipt-per-issue
+      - pr-required-when-checklist-complete
       - commit-issue-receipt-match
   standard:
     extends: minimal
