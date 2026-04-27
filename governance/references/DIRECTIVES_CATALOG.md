@@ -66,7 +66,8 @@ For repos where every tree-change is produced through an agent runtime (Codex, C
 ### Agent discipline
 | Directive | What it checks |
 |---|---|
-| `receipt-per-issue`        | Every tracked `receipts/*.md` file carries a unique `issue-<N>` token in its filename **and** includes three Markdown sections — `## What changed`, `## Out of scope`, `## Verification` — naming the surface area touched, the deferred work, and how completion will be judged. No waivers — receipts are a fresh discipline with no legacy corpus to grandfather. Receipts are post-implementation audit traces, distinct from agent-runtime plan-mode plans. |
+| `receipt-per-issue`        | Every tracked `receipts/*.md` file carries a unique `issue-<N>` token in its filename **and** includes four Markdown sections — `## Checklist`, `## What changed`, `## Out of scope`, `## Verification` — naming the work plan, the surface area touched, the deferred work, and how completion will be judged. The `## Checklist` mirrors the GitHub issue's checklist; each `- [x]` item's text must appear (case-insensitive substring) in `## What changed` or `## Verification` (the local trust boundary that lets a reviewer confirm each claimed-done item maps to described work without leaving the diff). Unchecked items are unconstrained. No waivers — receipts are a fresh discipline with no legacy corpus to grandfather. Receipts are post-implementation audit traces, distinct from agent-runtime plan-mode plans. |
+| `pr-required-when-checklist-complete` | When HEAD carries a tracked receipt whose `## Checklist` has at least one `- [x]` and zero `- [ ]` items, and the current branch is not main/master, an open pull request must exist for the current branch on the GitHub remote. Runs from `post-commit` locally as an **advisory** (the dispatcher surfaces the violation but cannot block — `git commit` has already succeeded); CI runs the same check via `tests/governance/run.sh` and **hard-fails** the build. Skip-with-warning when `gh` is missing or unauthenticated; fails when `gh` is present but the API call fails. This is the kit's first `hook: post-commit` directive — landed alongside generator support for the new kind. |
 | `commit-issue-receipt-match` | Each commit's anchor — trailing `(#N)` in the subject or any `Issue: #N` body trailer — matches an `issue-<N>` token on a `receipts/*.md` file it touches. Installs a `commit-msg` hook (Mode A) and runs in CI walking merge-base→HEAD (Mode B). Per-commit waiver: `governance: allow-commit-issue-receipt-match <reason>` in the commit body. |
 | `issue-templates`          | `.github/ISSUE_TEMPLATE/` contains proposal and bug issue forms plus config. Blank issues are disabled, proposal issues require Context / Decision / Scope / Acceptance criteria / Validation / Open questions, and bug issues require the core defect-report fields. Ships the templates under `install-assets/.github/ISSUE_TEMPLATE/`. |
 | `issues-tracked`           | `QUALITY.md` exists at repo root with `Open` and `Resolved` sections. Ships `install-assets/QUALITY.md` so a newly bootstrapped repo starts green. |
@@ -77,7 +78,7 @@ For repos where every tree-change is produced through an agent runtime (Codex, C
 
 | Preset | Directives |
 |---|---|
-| `minimal`  | `receipt-per-issue`, `commit-issue-receipt-match` |
+| `minimal`  | `receipt-per-issue`, `pr-required-when-checklist-complete`, `commit-issue-receipt-match` |
 | `standard` | *minimal* + `issue-templates`, `issues-tracked`, `agent-token-accounting` |
 | `strict`   | same as `standard` |
 

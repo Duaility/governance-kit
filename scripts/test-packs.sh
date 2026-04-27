@@ -329,7 +329,7 @@ EOF
 
     git add -A
     bash tests/governance/run.sh
-    bash -n .githooks/pre-commit .githooks/commit-msg .githooks/prepare-commit-msg
+    bash -n .githooks/pre-commit .githooks/commit-msg .githooks/prepare-commit-msg .githooks/post-commit
     printf 'feat: missing issue\n' > bad-msg.txt
     printf 'feat(test): valid message (#23)\n' > good-msg.txt
     .githooks/commit-msg bad-msg.txt && exit 1

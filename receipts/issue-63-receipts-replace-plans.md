@@ -2,6 +2,14 @@
 
 Issue: [#63](https://github.com/Duaility/governance-kit/issues/63)
 
+## Checklist
+
+- [x] plan-per-issue and commit-issue-plan-match directives are removed
+- [x] new directive folders added
+- [x] old directive folders deleted
+- [x] pack.yaml minimal preset updated
+- [x] Cross-references updated
+
 ## What changed
 
 The `plan-per-issue` and `commit-issue-plan-match` directives are removed. They are replaced with `receipt-shape` and `commit-issue-receipt-match`, which enforce the same disciplines against `receipts/*.md` instead of `plans/*.md`.
