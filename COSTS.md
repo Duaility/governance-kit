@@ -156,3 +156,4 @@ Schema:
 | claude-code-6c9722b7-74f-1777274652 | claude-code | 6c9722b7-74f8-4fd7-a4ed-5e1c5f8a164f | #69 | claude-opus-4-7 | 3 | 3642 | 634866 | 5238 | 8883 | 0.4712 | feat(agent-governance): add ## Checklist + crosswalk to receipts; gate PR existe |
 | claude-code-8d1cac7e-15a-1777274881 | claude-code | 8d1cac7e-15a8-4d39-8fcd-280934346c60 | #69 | claude-opus-4-7 | 5 | 13872 | 14783 | 47 | 13924 | 0.0953 | docs(receipts): drop ceremonial 'Open PR' item from issue-69 checklist (#69) |
 | claude-code-f2936bc8-f36-1777275754 | claude-code | f2936bc8-f36b-4527-9b9e-e7797ee651e0 | #69 | claude-opus-4-7 | 5 | 14798 | 14783 | 89 | 14892 | 0.1021 | feat(governance): add post-commit hook kind; move pr-required to it (#69) |
+| claude-code-20cdef1a-eeb-1777276294 | claude-code | 20cdef1a-eebd-4171-a004-53c07698ea72 | #69 | claude-opus-4-7 | 5 | 15214 | 14783 | 86 | 15305 | 0.1047 | refactor(governance): replace GOVERNANCE_TEST_PR_EXISTS env-var seam with PATH-s |

@@ -17,9 +17,9 @@
 # gh is present but the API call fails, fail loudly: silent bypass on
 # network errors would defeat the gate.
 #
-# Test seam: setting GOVERNANCE_TEST_PR_EXISTS=1 (or =0) bypasses the gh
-# call entirely. Used by the eval harness to test both branches without
-# hitting GitHub.
+# Tested by mocking `gh` via a PATH shim in the eval harness — see
+# evals/test.sh. The check itself has no test backdoor; production code
+# always calls the real gh.
 set -u
 source "$(dirname "$0")/../../lib.sh"
 directive_start "pr-required-when-checklist-complete"
@@ -78,31 +78,24 @@ if [[ ${#completed[@]} -eq 0 ]]; then
 fi
 
 # Determine whether a PR exists for the current branch.
-pr_exists=""
-if [[ -n "${GOVERNANCE_TEST_PR_EXISTS:-}" ]]; then
-    pr_exists="$GOVERNANCE_TEST_PR_EXISTS"
-elif ! command -v gh >/dev/null 2>&1; then
+if ! command -v gh >/dev/null 2>&1; then
     printf '%s⊘%s pr-required-when-checklist-complete (gh CLI not installed — skipped)\n' \
         "$C_YELLOW" "$C_RESET"
     exit 0
-elif ! gh auth status >/dev/null 2>&1; then
+fi
+if ! gh auth status >/dev/null 2>&1; then
     printf '%s⊘%s pr-required-when-checklist-complete (gh not authenticated — skipped)\n' \
         "$C_YELLOW" "$C_RESET"
     exit 0
-else
-    count=$(gh pr list --head "$branch" --state open --json number --jq 'length' 2>/dev/null || echo "")
-    if [[ -z "$count" ]]; then
-        violation "gh pr list failed for branch '$branch' — cannot verify PR existence (network or API issue)"
-        directive_end
-    fi
-    if [[ "$count" -gt 0 ]]; then
-        pr_exists="1"
-    else
-        pr_exists="0"
-    fi
 fi
 
-if [[ "$pr_exists" == "0" ]]; then
+count=$(gh pr list --head "$branch" --state open --json number --jq 'length' 2>/dev/null || echo "")
+if [[ -z "$count" ]]; then
+    violation "gh pr list failed for branch '$branch' — cannot verify PR existence (network or API issue)"
+    directive_end
+fi
+
+if [[ "$count" -eq 0 ]]; then
     list="${completed[*]}"
     violation "branch '$branch' has completed-checklist receipts but no open PR — open one with: gh pr create --fill --base main --head '$branch' (receipts: $list)"
 fi

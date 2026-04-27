@@ -9,6 +9,48 @@ CHECK="tests/governance/directives/$EVAL_ID/check.sh"
 fixture_init
 install_directive "$PACK_DIR" "$EVAL_ID"
 
+# ── gh shim ────────────────────────────────────────────────────────────
+# Mock the `gh` binary by prepending a temp dir to PATH. The shim handles
+# the two invocations the check makes:
+#   gh auth status                                         → exit 0 (or
+#                                                            non-zero if
+#                                                            MOCK_GH_AUTH=fail)
+#   gh pr list --head <b> --state open --json number --jq length
+#                                                          → echo
+#                                                            $MOCK_GH_PR_COUNT,
+#                                                            or exit non-zero
+#                                                            if MOCK_GH_FAIL=1
+# Any other invocation returns non-zero so unhandled cases surface loudly.
+#
+# This pattern keeps check.sh free of test-only branches: production code
+# always calls the real `gh`, and the eval mocks the binary at the PATH
+# level rather than via an env-var seam in the check.
+MOCK_GH_DIR="$(mktemp -d)"
+cat > "$MOCK_GH_DIR/gh" <<'SHIM'
+#!/usr/bin/env bash
+case "$*" in
+    "auth status")
+        if [[ "${MOCK_GH_AUTH:-ok}" == "fail" ]]; then
+            exit 1
+        fi
+        exit 0
+        ;;
+    "pr list --head "*" --state open --json number --jq length")
+        if [[ "${MOCK_GH_FAIL:-0}" == "1" ]]; then
+            exit 1
+        fi
+        echo "${MOCK_GH_PR_COUNT:-0}"
+        ;;
+    *)
+        echo "mock gh: unhandled invocation: $*" >&2
+        exit 1
+        ;;
+esac
+SHIM
+chmod +x "$MOCK_GH_DIR/gh"
+export PATH="$MOCK_GH_DIR:$PATH"
+trap 'rm -rf "$MOCK_GH_DIR"' EXIT
+
 # pass — no commits yet, directive is a no-op
 EVAL_LABEL="$EVAL_ID no-head" expect_pass "$CHECK"
 
@@ -47,7 +89,7 @@ stage_all
 commit_quiet "docs: receipt with unchecked items"
 EVAL_LABEL="$EVAL_ID unchecked-remaining" expect_pass "$CHECK"
 
-# pass — completed receipt AND a PR exists (test seam)
+# pass — completed receipt AND a PR exists (shim returns 1)
 cat > receipts/issue-2-beta.md <<'EOF'
 # Receipt: beta
 
@@ -70,9 +112,9 @@ EOF
 stage_all
 commit_quiet "docs: completed receipt with PR"
 EVAL_LABEL="$EVAL_ID completed-with-pr" \
-    GOVERNANCE_TEST_PR_EXISTS=1 expect_pass "$CHECK"
+    MOCK_GH_PR_COUNT=1 expect_pass "$CHECK"
 
-# fail — completed receipt AND no PR exists
+# fail — completed receipt AND no PR exists (shim returns 0)
 git rm receipts/issue-2-beta.md >/dev/null 2>&1
 cat > receipts/issue-4-delta.md <<'EOF'
 # Receipt: delta
@@ -96,11 +138,19 @@ EOF
 stage_all
 commit_quiet "docs: completed receipt no PR"
 EVAL_LABEL="$EVAL_ID completed-no-pr" \
-    GOVERNANCE_TEST_PR_EXISTS=0 expect_fail "$CHECK"
+    MOCK_GH_PR_COUNT=0 expect_fail "$CHECK"
 
-# pass — same fixture, but on main branch is a no-op
+# fail — completed receipt AND `gh pr list` errored (shim exits non-zero)
+EVAL_LABEL="$EVAL_ID gh-api-error" \
+    MOCK_GH_FAIL=1 expect_fail "$CHECK"
+
+# pass — completed receipt but `gh auth status` fails → skip-with-warning
+EVAL_LABEL="$EVAL_ID gh-not-authed" \
+    MOCK_GH_AUTH=fail expect_pass "$CHECK"
+
+# pass — same fixture on main branch is a no-op (PR check never reached)
 git checkout main >/dev/null 2>&1
 EVAL_LABEL="$EVAL_ID main-branch-noop" \
-    GOVERNANCE_TEST_PR_EXISTS=0 expect_pass "$CHECK"
+    MOCK_GH_PR_COUNT=0 expect_pass "$CHECK"
 
 eval_done
