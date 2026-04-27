@@ -23,11 +23,24 @@ full rearchitecture context.
 
 ## `uninstall`
 
-- **Aliases a user might type:** `governance uninstall`, `governance reset`, `tear down governance`, `remove governance-kit`, `clean slate`.
+- **Aliases a user might type:** `governance uninstall`, `tear down governance`, `remove governance-kit`, `clean slate`, `remove governance from this repo`.
+- **Not** an alias for `reset` — see disambiguation in [`../SKILL.md`](../SKILL.md). "uninstall" removes governance entirely; "reset" restores rules to pinned versions while leaving the install in place.
 - **Modes:** `dry-run` (default when manifest missing), `soft` (default when manifest present), `hard` (also strips seeded docs like `QUALITY.md`, `COSTS.md`, and `.pre-governance.bak` backups).
 - **Authoritative flow:** [UNINSTALL_FLOW.md](UNINSTALL_FLOW.md) Steps 1–6.
 - **Source-of-truth ladder:** install manifest → `governance-kit:managed` line-2 marker → heuristic fallback (forces dry-run).
 - **Directive:** never delete a file without ownership evidence.
+
+## `reset`
+
+- **Aliases a user might type:** `governance reset`, `reset directives`, `restore to original`, `undo my amendments`, `put the rules back`.
+- **Precondition:** repo must have governance installed (`CONSTITUTION.md` + `tests/governance/` + `.governance-kit/installed-packs.yaml`). Reset refuses to run without the install manifest — pack provenance cannot be reconstructed by heuristic.
+- **Scopes (exactly one required):** `--directive <id>`, `--pack <id>`, `--all`.
+- **Flags:** `--drop-handauthored` (only with `--all`), `--dry-run`, `--force` (override the dirty-working-tree refusal).
+- **Authoritative flow:** [RESET_FLOW.md](RESET_FLOW.md) Steps 1–7.
+- **Pinned, not latest.** Reset restores to the SHA in `.governance/packs.lock` (or the kit-bundled `core` tree). For newer upstream content use `pack update`.
+- **Hand-authored is preserved by default.** Pass `--drop-handauthored` to delete user-added directives that have no pristine source.
+- **Diff-before-exec.** Per-directive diff is shown before any file is written.
+- **One atomic commit.** Conventional-commit subject + Evolution Log entry, same discipline as `directive *`.
 
 ## `pack *`
 

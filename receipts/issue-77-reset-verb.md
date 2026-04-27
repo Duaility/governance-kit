@@ -1,0 +1,65 @@
+# Receipt: add `governance reset` verb to restore amended directives to pinned pack version
+
+Issue: [#77](https://github.com/Duaility/governance-kit/issues/77)
+
+## Checklist
+
+- [x] RESET_FLOW.md created with 7-step activation flow and interaction policy table
+- [x] SKILL.md verb surface includes `reset` with three scopes and four flags
+- [x] SKILL.md verb dispatch table disambiguates reset from uninstall
+- [x] SKILL.md description updated so the skill auto-triggers on reset phrasing
+- [x] SKILL.md references list points to RESET_FLOW.md
+- [x] VERBS.md gains a dedicated `reset` section
+- [x] VERBS.md `uninstall` aliases pruned to release the term reset
+- [x] PACK_VERBS.md cross-references reset as the pinned-version counterpart to pack update
+- [x] DIRECTIVE_AMEND_FLOW.md cross-references reset as the recovery hatch
+- [x] MANIFEST_SCHEMA.md terminology cleanup so reset and uninstall are distinct verbs
+- [x] MANIFEST_SCHEMA.md gains a separate "Fields reset relies on" subsection
+- [x] AGENTS.md repo-layout reference list includes RESET_FLOW.md
+
+## What changed
+
+The kit shipped `governance directive {add,modify,remove}` for amending installed rules but had no recovery hatch. Until this commit the only way back from a botched amend was `governance uninstall` + `governance init`, which nukes the entire install — including hand-authored directives the user wanted to keep. This commit adds `governance reset` as a top-level lifecycle verb (sibling of `init` / `uninstall`) that restores drifted directives to their pack version pinned in `.governance/packs.lock` (or the kit-bundled `core` tree), without uninstalling. The verb is documentation-only — the skill is interpretive, and the flow reuses existing `install_directive_folder` and hook-generation paths.
+
+- **RESET_FLOW.md created with 7-step activation flow and interaction policy table.** New file at `governance/references/RESET_FLOW.md` that documents the authoritative flow: verify install → resolve scope (`--directive` | `--pack` | `--all`) → locate pristine source per directive (kit-bundled tree for `core`, shared cache for community packs) → diff & confirm with dirty-tree refusal → execute the restore → smoke-test & commit → report. Includes a 12-row interaction policy table, an "Other state to clear" section covering `freshness.conf` loosen/grandfather entries, and a "Key design principles" section codifying *pinned not latest*, *manifest-driven*, *one commit one diff*, *hand-authored preserved by default*, *diff-before-exec*, *refuse on dirty tree*, *no partial state*, *idempotent*.
+- **SKILL.md verb surface includes `reset` with three scopes and four flags.** Added a multi-line `reset` entry to the `## Verb surface` code block enumerating `--directive <id>`, `--pack <id>`, `--all`, plus `--drop-handauthored` (only with `--all`), `--dry-run`, `--force`. Sized to read symmetrically with the existing `directive` and `uninstall` entries.
+- **SKILL.md verb dispatch table disambiguates reset from uninstall.** Added a new row to the dispatch table for reset phrases ("governance reset", "reset directives", "restore to original", "undo my amendments", "the directive I changed broke something — put it back") that points at RESET_FLOW.md and includes an explicit disambiguation prompt — the dispatcher asks whether the user wants to remove governance entirely (uninstall) or restore to pinned version (reset) when intent is unclear. Pruned the conflicting "reset governance" alias from the uninstall row.
+- **SKILL.md description updated so the skill auto-triggers on reset phrasing.** Frontmatter `description:` field now mentions `governance reset` and lists the trigger phrases ("governance reset", "reset directives", "restore to original", "undo my amendments") alongside the existing init/uninstall/pack/directive phrases. Removed "reset governance" from the uninstall trigger list to free up the term.
+- **SKILL.md references list points to RESET_FLOW.md.** Added a new bullet to the bottom-of-file references list pointing at `references/RESET_FLOW.md` as the authoritative reset flow, positioned between the uninstall and directive-amend entries to mirror the verb-surface ordering.
+- **SKILL.md gains a `## governance reset` section.** New section between `## governance uninstall` and `## governance pack *` summarizing the verb: pairs with `directive *` as recovery from amends; three scopes (one required); hand-authored preserved by default; pinned-not-latest split with `pack update`; key invariants (refuse-on-dirty, diff-before-exec, atomic commit, dry-run support).
+- **VERBS.md gains a dedicated `reset` section.** New `## reset` section after `## uninstall` covering aliases, precondition (manifest required), three scopes, four flags, authoritative-flow pointer, and the same key-invariants list as SKILL.md, with an explicit "pinned, not latest" line distinguishing reset from `pack update`.
+- **VERBS.md `uninstall` aliases pruned to release the term reset.** Removed `governance reset` from the uninstall alias list and added a callout — "**Not** an alias for `reset`" — pointing at SKILL.md's disambiguation. Kept `tear down governance`, `remove governance-kit`, `clean slate`, and `remove governance from this repo` as uninstall aliases.
+- **PACK_VERBS.md cross-references reset as the pinned-version counterpart to pack update.** Added a one-paragraph blockquote under the `## pack update [<pack-id>]` heading: `pack update` re-pins to a newer SHA, `reset --pack <id>` restores to the currently pinned SHA. Frames the choice as "newer rules vs pristine rules" and points at RESET_FLOW.md.
+- **DIRECTIVE_AMEND_FLOW.md cross-references reset as the recovery hatch.** Added a one-paragraph blockquote at the top of the doc explaining that `reset` is the recovery hatch when an amendment causes problems — restores pack-sourced directives to pinned, only available for pack-sourced directives, hand-authored must be removed via `directive remove` instead.
+- **MANIFEST_SCHEMA.md terminology cleanup so reset and uninstall are distinct verbs.** The doc was using "reset" loosely as a synonym for the uninstall verb (legacy terminology — the verb was internally called `governance-reset` before being renamed to `uninstall`). Replaced every stale reset reference with `uninstall` where the meaning is "tear-down": top-of-file paragraphs about who reads the manifest, the v1-shape introduction, the v0.1 legacy-fallback section, the missing-manifest fallback section, the AGENTS.md opening-marker heuristic, and the forward-compatibility section.
+- **MANIFEST_SCHEMA.md gains a separate "Fields reset relies on" subsection.** New subsection after the existing "Fields uninstall relies on" table (renamed from generic "Fields reset relies on"). Documents that reset reads only `packs[*].id`, `packs[*].directives[*].id`, and `packs[*].directives[*].installed_path` — a much smaller slice than uninstall — and points at `.governance/packs.lock` for the pinned SHA. Notes that legacy manifests trigger different behavior in reset (refuse if pack provenance can't be read) than in uninstall (best-effort heuristic continues).
+- **AGENTS.md repo-layout reference list includes RESET_FLOW.md.** Added `RESET_FLOW.md` to the reference-files comment block in the repo-layout tree under `governance/references/`. Reformatted the line so RESET_FLOW.md sits next to UNINSTALL_FLOW.md and DIRECTIVE_AMEND_FLOW.md to mirror the lifecycle-verb grouping.
+
+## Out of scope
+
+- **Code in `packverb.py` or `install.sh`.** The reset flow is documentation-only; the skill is interpretive and reuses `install_directive_folder` and the hook generator at execute time. A future enhancement could move some of the diff/restore logic into a Python helper, but that is not required for the verb to be usable.
+- **A `directive reset` or `pack reset` sub-verb.** The design landed on `reset` as a top-level lifecycle verb (sibling of `init` / `uninstall`), not a sub-verb under `directive` or `pack`. Reset is the inverse of the entire amend-over-time lifecycle, not of a single sub-verb.
+- **Restoring to a SHA other than the currently pinned one.** That is `pack update`'s job — picking up newer upstream content. Reset deliberately keeps the verbs orthogonal so a user reaching for `reset` during an incident does not silently land newer pack code.
+- **Reset of repo-wide kit files** (`CONSTITUTION.md` skeleton, `tests/governance/run.sh`, hook framework). Those stay the domain of `uninstall` + `init` — reset is per-directive, not per-install.
+- **Eval fixtures** (`governance/evals/`). The behavioral fixtures for reset will land alongside the first iteration where the verb has a concrete user-visible run; this commit ships the contract docs only.
+- **Tests/governance dogfood directives.** No directive content changed — reset is a new verb in the skill, not a new mechanical check, so the pack + dogfood dual-edit rule does not apply.
+- **CLAUDE.md / global agent memory updates.** The repo-local AGENTS.md was updated; user memory at `~/.claude/projects/.../memory/` was not, since reset is now documented in-tree.
+
+## Verification
+
+A reviewer can confirm completion by running these checks:
+
+1. **RESET_FLOW.md exists with the right shape.** `test -f governance/references/RESET_FLOW.md && grep -cE '^### Step [1-7] —' governance/references/RESET_FLOW.md` returns 7 — the seven activation-flow steps are present. The same file contains the literal phrase `## Interaction policy` and `## Key design principles`.
+2. **SKILL.md verb surface includes reset with three scopes and four flags.** `sed -n '/^## Verb surface/,/^## /p' governance/SKILL.md | grep -cE 'governance reset --(directive|pack|all|drop-handauthored|dry-run|force)'` returns at least 6 — the three scopes plus three flags are visible in the verb-surface code block.
+3. **SKILL.md verb dispatch table disambiguates reset from uninstall.** `grep -n 'restore to original' governance/SKILL.md` returns one hit inside the dispatch table; the same row contains a literal disambiguation prompt asking the user whether they want to remove governance entirely or restore the rules to their pinned version.
+4. **SKILL.md description triggers on reset phrasing.** `grep -nE '^description:.*restore to original.*undo my amendments' governance/SKILL.md` returns one hit on the frontmatter line.
+5. **SKILL.md references list points to RESET_FLOW.md.** `grep -n 'references/RESET_FLOW.md' governance/SKILL.md` returns at least two hits (the dedicated section + the references list at the bottom).
+6. **VERBS.md has a `## reset` section with the right invariants.** `sed -n '/^## reset/,/^## /p' governance/references/VERBS.md | grep -cE 'Pinned, not latest|preserved by default|Diff-before-exec|atomic commit'` returns at least 4. The same range includes `--drop-handauthored`, `--dry-run`, and `--force`.
+7. **VERBS.md `uninstall` aliases no longer claim reset.** `sed -n '/^## uninstall/,/^## /p' governance/references/VERBS.md | grep -c 'governance reset'` returns 0 in the alias-list bullet (the section now contains an explicit "Not an alias for reset" callout instead).
+8. **PACK_VERBS.md frames reset as the pinned-version counterpart to pack update.** `grep -n 'pack update' governance/references/PACK_VERBS.md` returns hits including a blockquote line that contains both `pack update` and `reset --pack` and the phrase `newer` vs `currently pinned`.
+9. **DIRECTIVE_AMEND_FLOW.md points at reset as the recovery hatch.** `grep -nE 'recovery hatch.*governance reset|governance reset.*recovery' governance/references/DIRECTIVE_AMEND_FLOW.md` returns one hit in the introductory blockquote.
+10. **MANIFEST_SCHEMA.md terminology cleanup so reset and uninstall are distinct verbs.** `grep -c '`uninstall`' governance/references/MANIFEST_SCHEMA.md` returns at least 6 (terminology now uses uninstall where the meaning is tear-down). The doc still mentions reset, but only in contexts where reset specifically — not uninstall — is the relevant verb.
+11. **MANIFEST_SCHEMA.md "Fields reset relies on" subsection exists.** `grep -nE '^## Fields reset relies on' governance/references/MANIFEST_SCHEMA.md` returns one hit; the section below it lists `packs[*].id`, `packs[*].directives[*].id`, and `installed_path` — a smaller slice than the uninstall table.
+12. **AGENTS.md repo-layout reference list includes RESET_FLOW.md.** `grep -n 'RESET_FLOW.md' AGENTS.md` returns one hit inside the repo-layout tree comment block, on the same logical line group as INIT_FLOW.md and UNINSTALL_FLOW.md.
+13. **All relative links resolve.** `bash tests/governance/directives/no-broken-internal-doc-links/check.sh` exits 0.
+14. **Dogfood suite passes for every doc-shape directive.** `bash tests/governance/run.sh` reports green on `no-broken-internal-doc-links`, `doc-freshness`, `required-docs`, `repo-hygiene`, `secrets-hygiene`, `workflows-hardened`, `conventional-commits`, `commit-issue-receipt-match`, `receipt-per-issue`, `issue-templates`, and `issues-tracked` — `pr-required-when-checklist-complete` may fire until the PR is opened, which is the intended trigger.

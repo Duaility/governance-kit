@@ -62,7 +62,8 @@ governance-kit/
 │   │                   ├── check.sh          # executable test
 │   │                   ├── constitution.md   # Directive subsection
 │   │                   └── evals/test.sh     # pass/fail fixtures
-│   ├── references/              # INIT_FLOW.md, UNINSTALL_FLOW.md, DIRECTIVE_AMEND_FLOW.md,
+│   ├── references/              # INIT_FLOW.md, UNINSTALL_FLOW.md, RESET_FLOW.md,
+│   │                            #   DIRECTIVE_AMEND_FLOW.md,
 │   │                            #   VERBS.md, DIRECTIVE_VERBS.md, PACK_VERBS.md,
 │   │                            #   DIRECTIVES_CATALOG.md, AUTHORING_PACKS.md, NATIVE_TESTS.md,
 │   │                            #   DIRECTIVE_AUTHORING.md, UNINSTALL_MATRIX.md,
