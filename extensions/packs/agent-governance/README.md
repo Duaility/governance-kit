@@ -49,9 +49,10 @@ Receipts are the **post-implementation** audit artifact — distinct from the pr
 
 ## Auxiliary directives
 
-Two directives in the pack tighten the loop without sitting on the chain itself:
+Three directives in the pack tighten the loop without sitting on the chain itself:
 
 - **`pr-required-when-checklist-complete`** (in `minimal`) — when HEAD's receipt has ≥1 `- [x]` and zero `- [ ]` on a non-default branch, an open PR must exist on the remote. The local `post-commit` hook is advisory (it cannot block a commit that already happened); CI hard-gates the same rule on every push.
+- **`pr-review-required-when-checklist-complete`** (in `standard`) — sibling of the create-gate. Same trigger, but verifies the open PR carries a codex-authored review (a Pull Request Review whose body contains `<!-- codex-review -->`). Composes with the create-gate via precondition-skip: when no PR exists yet, this directive defers; once the PR exists, the next firing prompts the agent to run `codex exec "review PR #N ..."`. **Local-only** — skipped in CI, since codex is part of the local agent loop, not a merge-gate.
 - **`agent-steering-accounting`** (opt-in, **not in any preset**) — agent-authored commits stamp steering trailers and append rows to `STEERING.md`. Opt-in only because the rows record human correction text verbatim. Install when you want a per-commit measure of where the agent ran on autopilot vs. needed your hand on the wheel.
 
 ## Presets
@@ -59,8 +60,8 @@ Two directives in the pack tighten the loop without sitting on the chain itself:
 | Preset | Adds | Cumulative |
 |---|---|---|
 | `minimal` | `receipt-per-issue`, `commit-issue-receipt-match`, `pr-required-when-checklist-complete` | 3 |
-| `standard` (extends minimal) | `issue-templates`, `issues-tracked`, `agent-token-accounting` | 6 |
-| `strict` (extends standard) | (none) | 6 |
+| `standard` (extends minimal) | `issue-templates`, `issues-tracked`, `agent-token-accounting`, `pr-review-required-when-checklist-complete` | 7 |
+| `strict` (extends standard) | (none) | 7 |
 
 `agent-steering-accounting` is never bundled in a preset — install explicitly with `governance directive add agent-steering-accounting` after the pack is in.
 

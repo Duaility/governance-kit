@@ -164,3 +164,4 @@ Schema:
 | claude-code-f85dd98a-464-1777284347 | claude-code | f85dd98a-464e-4aad-9b36-afe0ded10cc2 | #75 | claude-opus-4-7 | 5 | 22856 | 14783 | 208 | 23069 | 0.1555 | docs: surface receipts as first-class artifact + add PHILOSOPHY.md (#75) |
 | claude-code-15d03f23-c88-1777298979 | claude-code | 15d03f23-c888-45b4-bbc8-eaf2ddc5f37b | #77 | claude-opus-4-7 | 5 | 15440 | 14783 | 87 | 15532 | 0.1061 | feat(governance): add `reset` verb to restore directives to pinned pack version  |
 | claude-code-92df7fa3-6f5-1777299221 | claude-code | 92df7fa3-6f5f-4e7c-9f26-49ceec430dee | #77 | claude-opus-4-7 | 140 | 293274 | 5501495 | 133102 | 426516 | 7.9120 | feat(governance): add reset verb to restore directives to pinned pack version (# |
+| claude-code-6433df5d-f75-1777304230 | claude-code | 6433df5d-f756-469f-b7c3-9ef32b7c82aa | #79 | claude-opus-4-7 | 5 | 32460 | 0 | 169 | 32634 | 0.2071 | feat(agent-governance): add pr-review-required-when-checklist-complete directive |

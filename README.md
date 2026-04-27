@@ -129,6 +129,14 @@ flowchart LR
     Q -->|"fail — emits<br/>id + rationale"| R
 ```
 
+### Composition
+
+Directives are invariants on state, not steps in a procedure. Each one describes a condition the repo must satisfy; the runner re-evaluates them all on every firing. `tests/governance/run.sh` iterates `directives/*/check.sh` alphabetically — no `depends_on:`, no `order:`, no graph engine.
+
+When directive B logically depends on directive A's postcondition — e.g. "PR must have a review" depends on "PR must exist" — B reads the precondition itself and skips-with-info if it's not met. The cascade falls out of re-evaluation: fix what's currently violating, re-run, the next gate fires, fix that, re-run, done.
+
+This is the same shape as Kubernetes reconciliation (`kubectl apply` describes desired state, controllers converge), Make prerequisites (each target checks its own inputs at run time), or systemd `ConditionPathExists=` (a unit decides for itself whether to run). The agent's loop matches: **take the mandated action, then re-run `bash tests/governance/run.sh` to surface the next gap.** Don't chain actions; describe state and let re-evaluation converge.
+
 ### Core pack
 
 Ships with `governance init`:
@@ -189,6 +197,7 @@ The chain — **issue → receipt → commit → cost** — turned into mechanic
 | `receipt-per-issue` | Every `receipts/*.md` has a unique `issue-<N>` filename token, the four required sections, and each `- [x]` checklist item crosswalks into `## What changed` or `## Verification`. | minimal |
 | `commit-issue-receipt-match` | Every non-merge commit's issue anchor (`(#N)` or `Issue: #N`) matches an `issue-<N>` token on a touched receipt. | minimal |
 | `pr-required-when-checklist-complete` | When HEAD's receipt has ≥1 `- [x]` and zero `- [ ]` on a non-default branch, an open PR must exist on the remote. Advisory locally (post-commit), hard-gated in CI. | minimal |
+| `pr-review-required-when-checklist-complete` | Sibling gate: once the PR exists, it must carry a codex-authored review (body contains `<!-- codex-review -->`). Defers via precondition-skip when no PR exists yet. **Local-only** — skipped in CI. | standard |
 | `agent-token-accounting` | Every commit carries token + cost trailers and a matching `COSTS.md` row keyed by `Cost-Key`. | standard |
 | `agent-steering-accounting` | Every agent-authored commit stamps `Steer-Count` / `Steer-Types` / `Steer-Tiers` and appends rows to `STEERING.md`. **Opt-in — not in any preset**, because it records human correction text verbatim. | — |
 
