@@ -143,6 +143,7 @@ Edits to source files flow to both runtimes live.
 
 ## Further reading
 
+- [governance/references/PHILOSOPHY.md](governance/references/PHILOSOPHY.md) — the stance behind GDD: rules over prompts, receipts over plans, ledgers over transcripts.
 - [CONSTITUTION.md](CONSTITUTION.md) — the live directive set and amendment process.
 - [governance/references/DIRECTIVES_CATALOG.md](governance/references/DIRECTIVES_CATALOG.md) — every ready-made directive and its check.
 - [governance/references/AUTHORING_PACKS.md](governance/references/AUTHORING_PACKS.md) — writing a third-party pack.

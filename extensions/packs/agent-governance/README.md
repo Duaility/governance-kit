@@ -1,57 +1,78 @@
-# agent-governance pack
+# duaility/agent-governance
 
-Scoped id: **`duaility/agent-governance`**.
+Pack id: `duaility/agent-governance` · Category: `AgentDiscipline`
 
-Directives for repos operating under **agent-driven development** — where every
-change to the tree is produced through an agent runtime (Codex, Claude
-Code, Cursor, ...). Promoted from this repo's own `tests/governance/`
-suite so any repo can opt into the same discipline.
+The audit chain for repos under **agent-driven development** — where every commit is produced by an agent runtime (Claude Code, Codex, Cursor, ...) and the human's job is to read the trail, not the diff. Promoted from this kit's own dogfood suite so any repo can opt into the same discipline.
 
-> **Monorepo note.** This pack lives under `extensions/packs/` as a
-> community-shaped pack that ships alongside the kit (see issue #31). It
-> is authored, validated, and installed through the same flow as a
-> pack hosted in its own repo — the only difference is that the catalog
-> entry at [`extensions/catalog.community.json`](../../catalog.community.json)
-> points at `Duaility/governance-kit` with `source.path:
-> extensions/packs/agent-governance` instead of a standalone repo.
+## When to install
 
-## Directives
+Install when:
 
-| Directive | Category | Surface | Hook |
-|---|---|---|---|
-| `receipt-per-issue` | AgentDiscipline | repo-state | pre-commit |
-| `commit-issue-receipt-match` | AgentDiscipline | change-set | commit-msg |
-| `issue-templates` | AgentDiscipline | repo-state | pre-commit |
-| `issues-tracked` | AgentDiscipline | repo-state | pre-commit |
-| `agent-token-accounting` | AgentDiscipline | change-set | commit-msg |
+- Every (or nearly every) commit in the repo is agent-authored.
+- You need a reviewer-readable trail **per issue**, not just per diff.
+- You want token cost to survive squash merges.
 
-The directives form a chain — issue creation uses a durable template, issues
-are tracked, every issue has exactly one receipt, every commit matches its
-receipt, every commit carries its cost. Breaking any link makes the chain
-non-auditable, so the `standard` preset bundles the full chain.
+Skip when:
 
-Receipts are the durable post-implementation audit trace for the work an
-agent did against an issue — they record what was changed and how a
-reviewer can verify it. They are distinct from the pre-implementation
-plans Claude Code / Codex produce in plan-mode (an agent-runtime concept,
-out of governance scope).
+- Most commits are human-authored — the chain assumes the agent is the author.
+- Your workflow doesn't anchor work to GitHub issues (the chain pivots on `(#N)`).
 
-## Installation note — agent-token-accounting
+## What it costs you
 
-The directive is self-contained. Everything it needs ships inside the directive
-folder:
+Once installed at the `standard` preset, every non-merge, non-revert commit must:
 
-- `directives/agent-token-accounting/check.sh` — validator (commit-msg + CI)
-- `directives/agent-token-accounting/lib/{ledger,trailers,rates}.py` — ledger + trailer logic
-- `directives/agent-token-accounting/hooks/pre-commit.sh` — writes the ledger row, stages it, hands off via an env file
-- `directives/agent-token-accounting/hooks/prepare-commit-msg.sh` — stamps trailers from the handoff
-- `directives/agent-token-accounting/runtimes/{claude-code,codex}.sh` — per-runtime transcript readers
+- Reference an issue: `(#N)` in the subject line or an `Issue: #N` trailer.
+- Touch a `receipts/issue-<N>-*.md` file whose `## Checklist` `- [x]` items crosswalk into `## What changed` or `## Verification`.
+- Carry token trailers (`Token-Input` / `Token-Output` / `Cost-Key` / `Cost-USD`, …) and append a row to `COSTS.md`.
 
-Bootstrap copies the whole folder into `tests/governance/directives/agent-token-accounting/`
-and the hook generator wires the two `hooks/*.sh` helpers into the
-dispatchers automatically — no separate infrastructure step. A companion
-`COSTS.md` must exist (templated from `governance/assets/COSTS.template.md`);
-the `check.sh` treats it as the ledger of record.
+When the receipt's checklist is fully checked on a non-default branch, an open PR must exist on the GitHub remote — advisory in the local `post-commit` hook, hard-gated in CI.
 
-See [`governance/references/AGENT_TOKEN_ACCOUNTING.md`](../../../governance/references/AGENT_TOKEN_ACCOUNTING.md)
-for the detailed wiring and runtime-specific behavior.
+Opt into `agent-steering-accounting` separately if you also want each agent-authored commit to stamp `Steer-Count` / `Steer-Types` / `Steer-Tiers` and append rows to `STEERING.md` for each detected human steering event.
+
+## The chain
+
+```
+issue → receipt → commit → cost
+```
+
+Each link is enforced by a separate directive; breaking any link fails the next push.
+
+| # | Directive | Link in the chain |
+|---|---|---|
+| 1 | `issue-templates` | Issue creation uses durable forms (`proposal.yml`, `bug.yml`); blank issues are disabled. |
+| 2 | `issues-tracked` | `QUALITY.md` is the system of record, with `## Open` and `## Resolved` sections. |
+| 3 | `receipt-per-issue` | One receipt per issue, with `## Checklist`, `## What changed`, `## Out of scope`, `## Verification`. The **`- [x]` crosswalk** is the trust boundary: each checked item must appear (case-insensitive substring) in `## What changed` or `## Verification`. No silent box-flipping. |
+| 4 | `commit-issue-receipt-match` | Every commit's issue anchor matches an `issue-<N>` token on a receipt the commit actually touches. |
+| 5 | `agent-token-accounting` | Every commit stamps cost trailers and appends to `COSTS.md`; `Token-Total = Token-Input + Token-Output`; `Cost-Key` is unique and stable across squash merges. |
+
+Receipts are the **post-implementation** audit artifact — distinct from the pre-implementation plans agent runtimes produce in plan-mode (an agent-runtime concept, out of governance scope).
+
+## Auxiliary directives
+
+Two directives in the pack tighten the loop without sitting on the chain itself:
+
+- **`pr-required-when-checklist-complete`** (in `minimal`) — when HEAD's receipt has ≥1 `- [x]` and zero `- [ ]` on a non-default branch, an open PR must exist on the remote. The local `post-commit` hook is advisory (it cannot block a commit that already happened); CI hard-gates the same rule on every push.
+- **`agent-steering-accounting`** (opt-in, **not in any preset**) — agent-authored commits stamp steering trailers and append rows to `STEERING.md`. Opt-in only because the rows record human correction text verbatim. Install when you want a per-commit measure of where the agent ran on autopilot vs. needed your hand on the wheel.
+
+## Presets
+
+| Preset | Adds | Cumulative |
+|---|---|---|
+| `minimal` | `receipt-per-issue`, `commit-issue-receipt-match`, `pr-required-when-checklist-complete` | 3 |
+| `standard` (extends minimal) | `issue-templates`, `issues-tracked`, `agent-token-accounting` | 6 |
+| `strict` (extends standard) | (none) | 6 |
+
+`agent-steering-accounting` is never bundled in a preset — install explicitly with `governance directive add agent-steering-accounting` after the pack is in.
+
+## Install
+
+```sh
+governance pack add gh:Duaility/governance-kit/extensions/packs/agent-governance
+# pick a preset when prompted; the pack lock pins the resolved SHA
+```
+
+## Further reading
+
+- [AGENT_TOKEN_ACCOUNTING.md](../../../governance/references/AGENT_TOKEN_ACCOUNTING.md) — trailer schema, ledger schema (v1/v2/v3), per-runtime transcript readers, install layout.
+- [AGENT_STEERING_ACCOUNTING.md](../../../governance/references/AGENT_STEERING_ACCOUNTING.md) — interrupt/correction classification, tier mapping, privacy stance.
+- [PHILOSOPHY.md](../../../governance/references/PHILOSOPHY.md) — the GDD stance: receipts beat plans, ledgers outlive sessions, verify don't trust.

@@ -161,3 +161,4 @@ Schema:
 | claude-code-2d7aaa04-be7-1777277534 | claude-code | 2d7aaa04-be7a-48c6-a9ce-a75f2824939c | #71 | claude-opus-4-7 | 194 | 457295 | 6723139 | 67642 | 525131 | 7.9117 | feat(governance): add pre-push as a supported hook kind (#71) |
 | claude-code-5be94409-9a7-1777279575 | claude-code | 5be94409-9a77-43d9-8d22-b9b26e2ef84a | #73 | claude-opus-4-7 | 5 | 14191 | 14783 | 24 | 14220 | 0.0967 | refactor(agent-governance): tighten pr-required-when-checklist-complete agent co |
 | claude-code-6417872e-277-1777279638 | claude-code | 6417872e-2779-4f99-bcf5-3c02cd536f4e | #73 | claude-opus-4-7 | 81 | 137693 | 3602128 | 50969 | 188743 | 3.9363 | refactor(agent-governance): tighten pr-required-when-checklist-complete agent co |
+| claude-code-f85dd98a-464-1777284347 | claude-code | f85dd98a-464e-4aad-9b36-afe0ded10cc2 | #75 | claude-opus-4-7 | 5 | 22856 | 14783 | 208 | 23069 | 0.1555 | docs: surface receipts as first-class artifact + add PHILOSOPHY.md (#75) |

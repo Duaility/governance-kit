@@ -25,29 +25,34 @@ flowchart LR
     C[CONSTITUTION.md<br/>· directives + log ·]
     A([Agent])
     R[(Repo)]
-    S[STEERING.md]
+    Re[receipts/<br/>· per issue ·]
     Co[COSTS.md]
+    S[STEERING.md]
 
     H ==>|"amends"| C
     H ==>|"reviews,<br/>steers"| A
     C ==>|"drives"| A
     A ==>|"opens PR"| R
-    A -.->|"logs"| S & Co
+    A -.->|"writes"| Re
+    A -.->|"logs"| Co & S
     C -.->|"gates every commit"| R
-    C & S & Co -.->|"read, not diffs"| H
+    C & Re & Co & S -.->|"read, not diffs"| H
 ```
 
 Agents do the work. The constitution sets the bounds. The directives keep both sides honest — a frontier-model agent reading a rule's rationale generalizes to cases the author never encoded; you read the ledgers as the lens on what your fleet just shipped.
 
+The stance in one line: **steer at the rule layer, not the turn layer; verify with receipts, not transcripts; trust ledgers, not chat history.** The full version — seven tenets and how GDD differs from spec-driven development — is in [governance/references/PHILOSOPHY.md](governance/references/PHILOSOPHY.md).
+
 ## Visibility
 
-If you're trusting agents to ship code, you need to see exactly what they were told, what they did, what it cost, and how much you had to steer them. Three append-only ledgers, all git-native:
+If you're trusting agents to ship code, you need to see exactly what they were told, what they did against each issue, what it cost, and how much you had to steer them. Four git-native, append-only artifacts:
 
 - **Directive provenance** (`CONSTITUTION.md`). Every line is git-blameable to the commit that introduced it and the test that enforces it. The **Evolution Log** at the bottom of the file carries a dated, human-readable summary of every amendment. Because the CLI verbs require the check, the rationale, and the log entry to land together, policy and enforcement can't silently diverge.
-- **Token cost** (`COSTS.md`). Every agent-authored commit carries token + cost trailers (`Token-Input`, `Token-Output`, `Cost-USD`, …) and a matching row in the ledger. Survives squash-merges. Every change has a price tag.
+- **Per-issue receipts** (`receipts/issue-<N>-*.md`). One receipt per issue, with `## Checklist`, `## What changed`, `## Out of scope`, and `## Verification` sections. Every `- [x]` checklist item must crosswalk into `## What changed` or `## Verification` — the trust boundary that prevents silent box-flipping. The receipt is what a reviewer reads instead of the diff.
+- **Token cost** (`COSTS.md`). Every agent-authored commit carries token + cost trailers (`Token-Input`, `Token-Output`, `Cost-USD`, …) and a matching row in the ledger. Survives squash-merges via a stable `Cost-Key`. Every change has a price tag.
 - **Human steering** (`STEERING.md`). Every commit carries summary trailers (`Steer-Count`, `Steer-Types`, `Steer-Tiers`) tallying the rows it added to the ledger — one row per detected human-steering event (interrupt or redirect). See at a glance which commits ran on autopilot and which needed your hand on the wheel.
 
-Token and steering ledgers ship in the [`agent-governance`](#community-packs) pack. Directive provenance is core.
+These compose into a chain — **issue → receipt → commit → cost** — and breaking any link fails the next push. Directive provenance is core. Receipts, the chain, and token cost ship in the [`agent-governance`](#community-packs) pack; steering accounting is in the same pack but opt-in only (it records human correction text verbatim — privacy tradeoff).
 
 ## Quickstart
 
@@ -88,7 +93,7 @@ governance directive {add,modify,remove}              # atomic directive amendme
 
 ### Anatomy of a directive
 
-Every directive is a self-contained folder. Here's `doc-freshness` from the `core` pack:
+Every directive is a self-contained folder. The minimum, here `doc-freshness` from the `core` pack:
 
 ```
 doc-freshness/
@@ -97,6 +102,8 @@ doc-freshness/
 ├── constitution.md   # Directive / Rationale / Enforced by / Exceptions
 └── evals/test.sh     # pass + fail fixtures
 ```
+
+Directives that need more carry optional siblings — `lib/` (shared bash/Python), `hooks/<pre-commit|commit-msg|prepare-commit-msg|post-commit|pre-push>.sh` (side-effect scripts wired into the dispatcher by the hook generator), `runtimes/<name>.sh` (per-runtime helpers), and `install-assets/` (templates seeded at bootstrap). All travel with the directive — `git mv` relocates the whole folder. `agent-token-accounting` uses every one of these.
 
 The `constitution.md` carries the *why*:
 
@@ -169,7 +176,21 @@ Edits in the clone flow to both runtimes live — handy when contributing to gov
 
 | Pack | Purpose | Install |
 |---|---|---|
-| [duaility/agent-governance](https://github.com/Duaility/governance-kit/tree/main/extensions/packs/agent-governance) | Agent-driven discipline: issue templates, issue tracking, receipt-per-issue, commit-issue-receipt match, per-commit token + steering accounting. | `governance pack add gh:Duaility/governance-kit/extensions/packs/agent-governance` |
+| [duaility/agent-governance](extensions/packs/agent-governance/README.md) | The audit chain for agent-driven repos. See below. | `governance pack add gh:Duaility/governance-kit/extensions/packs/agent-governance` |
+
+### `duaility/agent-governance`
+
+The chain — **issue → receipt → commit → cost** — turned into mechanical directives. Install when every commit in your repo is agent-authored and you need a reviewer-readable trail per issue.
+
+| Directive | What it enforces | Preset |
+|---|---|---|
+| `issue-templates` | `.github/ISSUE_TEMPLATE/` carries `config.yml` (blank issues off), `proposal.yml`, `bug.yml` with the required handoff fields. | standard |
+| `issues-tracked` | `QUALITY.md` exists at repo root with `## Open` and `## Resolved` sections. | standard |
+| `receipt-per-issue` | Every `receipts/*.md` has a unique `issue-<N>` filename token, the four required sections, and each `- [x]` checklist item crosswalks into `## What changed` or `## Verification`. | minimal |
+| `commit-issue-receipt-match` | Every non-merge commit's issue anchor (`(#N)` or `Issue: #N`) matches an `issue-<N>` token on a touched receipt. | minimal |
+| `pr-required-when-checklist-complete` | When HEAD's receipt has ≥1 `- [x]` and zero `- [ ]` on a non-default branch, an open PR must exist on the remote. Advisory locally (post-commit), hard-gated in CI. | minimal |
+| `agent-token-accounting` | Every commit carries token + cost trailers and a matching `COSTS.md` row keyed by `Cost-Key`. | standard |
+| `agent-steering-accounting` | Every agent-authored commit stamps `Steer-Count` / `Steer-Types` / `Steer-Tiers` and appends rows to `STEERING.md`. **Opt-in — not in any preset**, because it records human correction text verbatim. | — |
 
 Authoring your own pack: [governance/references/AUTHORING_PACKS.md](governance/references/AUTHORING_PACKS.md).
 

@@ -3,7 +3,7 @@
 # Directives for repos that operate under agent-driven development — where
 # every change to the tree is produced through an agent runtime (Codex,
 # Claude Code, Cursor, ...). These directives assume every commit has an
-# issue template, an issue anchor, a matching plan, and full cost accounting.
+# issue template, an issue anchor, a matching receipt, and full cost accounting.
 #
 # The directives form a chain: issue creation uses a durable template
 # (`issue-templates`), issues are tracked (`issues-tracked`), every issue
