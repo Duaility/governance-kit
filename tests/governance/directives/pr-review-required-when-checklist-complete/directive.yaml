@@ -1,6 +1,0 @@
-# pr-review-required-when-checklist-complete — Branches with a complete-checklist receipt and an open PR must carry a codex-authored review.
-category: AgentDiscipline
-recommended: true
-summary: When HEAD's receipt has a fully-ticked checklist and an open PR exists for the branch, the PR must carry a codex review (a Pull Request Review whose body contains `<!-- codex-review -->`). Local-only — skipped in CI.
-surface: repo-state
-hook: post-commit

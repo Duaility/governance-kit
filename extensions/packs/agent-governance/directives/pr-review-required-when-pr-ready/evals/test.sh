@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -u
-EVAL_ID="pr-review-required-when-checklist-complete"
+EVAL_ID="pr-review-required-when-pr-ready"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../../.." && pwd)"
 source "$ROOT/governance/assets/packs/lib/eval-lib.sh"
 PACK_DIR="$ROOT/extensions/packs/agent-governance"
@@ -16,10 +16,10 @@ unset CI
 # ── gh shim ────────────────────────────────────────────────────────────
 # Mock the `gh` binary by prepending a temp dir to PATH. The shim handles:
 #   gh auth status                            → exit 0 (or 1 if MOCK_GH_AUTH=fail)
-#   gh pr list --head <b> --state open --json number --jq <expr>
-#                                             → echo $MOCK_GH_PR_NUMBER (empty
-#                                               for "no PR"), or exit non-zero
-#                                               if MOCK_GH_LIST_FAIL=1
+#   gh pr list --head <b> --state open --json number,isDraft --jq <expr>
+#                                             → echo "<MOCK_GH_PR_NUMBER>\t<MOCK_GH_IS_DRAFT>"
+#                                               (empty for "no PR"), or exit
+#                                               non-zero if MOCK_GH_LIST_FAIL=1
 #   gh pr view <N> --json reviews --jq <expr> → echo $MOCK_GH_REVIEW_COUNT,
 #                                               or exit non-zero if
 #                                               MOCK_GH_VIEW_FAIL=1
@@ -34,11 +34,16 @@ case "$*" in
         fi
         exit 0
         ;;
-    "pr list --head "*" --state open --json number --jq "*)
+    "pr list --head "*" --state open --json number,isDraft --jq "*)
         if [[ "${MOCK_GH_LIST_FAIL:-0}" == "1" ]]; then
             exit 1
         fi
-        echo "${MOCK_GH_PR_NUMBER:-}"
+        # Empty MOCK_GH_PR_NUMBER → simulate "no PR" by emitting an empty line.
+        if [[ -z "${MOCK_GH_PR_NUMBER:-}" ]]; then
+            printf ''
+        else
+            printf '%s\t%s' "${MOCK_GH_PR_NUMBER}" "${MOCK_GH_IS_DRAFT:-false}"
+        fi
         ;;
     "pr view "*" --json reviews --jq "*)
         if [[ "${MOCK_GH_VIEW_FAIL:-0}" == "1" ]]; then
@@ -64,92 +69,42 @@ stage_all
 commit_quiet "chore: seed fixture"
 
 # pass — CI environment short-circuits the directive entirely (local-only).
-# Run on main with no receipts so the only thing being tested is the CI gate.
+# Run on main with no PR so the only thing being tested is the CI gate.
 EVAL_LABEL="$EVAL_ID ci-env-skip" CI=1 expect_pass "$CHECK"
 
 git checkout -b feature/test-branch >/dev/null 2>&1
 
-# pass — no receipts/ directory
-EVAL_LABEL="$EVAL_ID no-receipts" expect_pass "$CHECK"
-
-mkdir -p receipts
-
-# pass — receipt with unchecked items remaining (work not yet done)
-cat > receipts/issue-1-alpha.md <<'EOF'
-# Receipt: alpha
-
-## Checklist
-
-- [x] Wire the parser to the new lexer
-- [ ] Document the migration steps
-
-## What changed
-
-Wire the parser to the new lexer.
-
-## Out of scope
-
-Docs deferred.
-
-## Verification
-
-Tests pass.
-EOF
-stage_all
-commit_quiet "docs: receipt with unchecked items"
-EVAL_LABEL="$EVAL_ID unchecked-remaining" expect_pass "$CHECK"
-
-# Add a completed receipt for the rest of the cases.
-cat > receipts/issue-2-beta.md <<'EOF'
-# Receipt: beta
-
-## Checklist
-
-- [x] Land the schema migration
-
-## What changed
-
-Land the schema migration.
-
-## Out of scope
-
-None.
-
-## Verification
-
-Migration applied cleanly.
-EOF
-stage_all
-commit_quiet "docs: completed receipt"
-
-# pass — completed receipt but no PR exists yet → defer to pr-required-when-
-# checklist-complete (skip-with-info, exit 0).
-EVAL_LABEL="$EVAL_ID no-pr-defer" \
+# pass — no PR for branch → directive does not apply.
+EVAL_LABEL="$EVAL_ID no-pr-noop" \
     MOCK_GH_PR_NUMBER="" expect_pass "$CHECK"
 
-# pass — completed receipt, PR exists, codex review exists.
-EVAL_LABEL="$EVAL_ID review-present" \
-    MOCK_GH_PR_NUMBER=42 MOCK_GH_REVIEW_COUNT=1 expect_pass "$CHECK"
+# pass — PR exists but is in draft → not ready for review yet.
+EVAL_LABEL="$EVAL_ID draft-pr-noop" \
+    MOCK_GH_PR_NUMBER=42 MOCK_GH_IS_DRAFT=true expect_pass "$CHECK"
 
-# fail — completed receipt, PR exists, no codex review on it.
-EVAL_LABEL="$EVAL_ID no-review" \
-    MOCK_GH_PR_NUMBER=42 MOCK_GH_REVIEW_COUNT=0 expect_fail "$CHECK"
+# pass — PR is ready and carries a codex review.
+EVAL_LABEL="$EVAL_ID ready-pr-with-review" \
+    MOCK_GH_PR_NUMBER=42 MOCK_GH_IS_DRAFT=false MOCK_GH_REVIEW_COUNT=1 expect_pass "$CHECK"
 
-# fail — completed receipt, PR exists, gh pr view errors.
+# fail — PR is ready but has no codex review.
+EVAL_LABEL="$EVAL_ID ready-pr-no-review" \
+    MOCK_GH_PR_NUMBER=42 MOCK_GH_IS_DRAFT=false MOCK_GH_REVIEW_COUNT=0 expect_fail "$CHECK"
+
+# fail — PR is ready, gh pr view errors (cannot verify review existence).
 EVAL_LABEL="$EVAL_ID gh-view-error" \
-    MOCK_GH_PR_NUMBER=42 MOCK_GH_VIEW_FAIL=1 expect_fail "$CHECK"
+    MOCK_GH_PR_NUMBER=42 MOCK_GH_IS_DRAFT=false MOCK_GH_VIEW_FAIL=1 expect_fail "$CHECK"
 
-# fail — completed receipt, gh pr list errors (cannot determine PR existence).
+# fail — gh pr list errors (cannot determine PR existence/state).
 EVAL_LABEL="$EVAL_ID gh-list-error" \
     MOCK_GH_LIST_FAIL=1 expect_fail "$CHECK"
 
 # pass — gh not authenticated → skip-with-warning.
 EVAL_LABEL="$EVAL_ID gh-not-authed" \
-    MOCK_GH_AUTH=fail MOCK_GH_PR_NUMBER=42 MOCK_GH_REVIEW_COUNT=0 expect_pass "$CHECK"
+    MOCK_GH_AUTH=fail MOCK_GH_PR_NUMBER=42 MOCK_GH_IS_DRAFT=false MOCK_GH_REVIEW_COUNT=0 expect_pass "$CHECK"
 
 # pass — same fixture on main branch is a no-op.
 git checkout main >/dev/null 2>&1
 EVAL_LABEL="$EVAL_ID main-branch-noop" \
-    MOCK_GH_PR_NUMBER=42 MOCK_GH_REVIEW_COUNT=0 expect_pass "$CHECK"
+    MOCK_GH_PR_NUMBER=42 MOCK_GH_IS_DRAFT=false MOCK_GH_REVIEW_COUNT=0 expect_pass "$CHECK"
 
 eval_done
