@@ -1,8 +1,8 @@
 # governance-kit
 
-**Frontier models do the work. You set the direction.**
+**Declare the repo state you want. Let agents converge on it.**
 
-governance-kit turns your repo's rules into a versioned constitution — read by every agent, enforced on every commit. Every agent-authored change leaves a git-native audit trail.
+governance-kit turns your repo's rules into a versioned constitution — a declarative description of the state the repository must stay in. Agents read it, checks compare it against reality on every commit, and every agent-authored change leaves a git-native audit trail.
 
 Conforms to the [Agent Skills](https://agentskills.io) format. Installs into [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), Cursor, OpenCode, and 40+ skills-compatible agents via [`npx skills`](https://github.com/vercel-labs/skills). MIT-licensed.
 
@@ -13,35 +13,36 @@ Conforms to the [Agent Skills](https://agentskills.io) format. Installs into [Cl
 
 ## Why governance-driven development?
 
-Coding agents do the engineering work now. The human's job is steering, and steering at scale needs two things you don't get from code-review threads or a bullet in `CLAUDE.md`.
+Coding agents do the engineering work now. The hard part is no longer just telling one agent what to do in one session; it is keeping the repository understandable across many branches, many agents, and many handoffs.
 
-**Steering** — your guidance has to reach the next agent, on the next branch, without you. governance-kit's answer is a **constitution**: a versioned set of directives every agent reads on every commit, plus a `STEERING.md` ledger that captures the per-turn redirects you didn't promote into a directive.
+governance-kit treats governance as repo state:
 
-**Visibility** — when agents ship the diffs, you need a readable trail, not a stack of PRs. Every agent-authored commit leaves three append-only ledgers — `CONSTITUTION.md` (rules + evolution log), `COSTS.md` (token cost), `STEERING.md` (where you had your hand on the wheel). Git-native. You read the ledgers, not the diffs.
+- **Desired state** lives in `CONSTITUTION.md`: directives, rationale, enforcement paths, exceptions, and an evolution log.
+- **Current state** is the working tree, staged diff, commit message, PR state, receipts, and ledgers.
+- **Reconciliation** happens through `tests/governance/run.sh` and hook dispatchers. A failed directive names the gap and its rationale; the agent fixes the repo, reruns the check, and repeats until reality matches the declared state.
+- **Abstractions** keep humans out of low-level ceremony. You reason about directives, packs, receipts, and ledgers instead of scattered hook scripts, chat transcripts, and one-off agent instructions.
+
+That gives a practical steering surface. Your guidance has to reach the next agent, on the next branch, without you. governance-kit's answer is a **constitution**: a versioned set of directives every agent reads on every commit, plus a `STEERING.md` ledger that captures the per-turn redirects you did not promote into a directive.
+
+It also gives a practical visibility surface. When agents ship the diffs, you need a readable trail, not a stack of PRs. Every agent-authored commit can leave append-only ledgers — `CONSTITUTION.md` (rules + evolution log), `COSTS.md` (token cost), `STEERING.md` (where you had your hand on the wheel). Git-native. You read the repo's state record, not the chat history.
 
 ```mermaid
 flowchart LR
-    H([Human])
-    C[CONSTITUTION.md<br/>· directives + log ·]
-    A([Agent])
-    R[(Repo)]
-    Re[receipts/<br/>· per issue ·]
-    Co[COSTS.md]
-    S[STEERING.md]
+    C[CONSTITUTION.md<br/>desired repo state]
+    G{Governance checks}
+    A[Agent fixes the gap]
+    R[(Repo<br/>current state)]
 
-    H ==>|"amends"| C
-    H ==>|"reviews,<br/>steers"| A
-    C ==>|"drives"| A
-    A ==>|"opens PR"| R
-    A -.->|"writes"| Re
-    A -.->|"logs"| Co & S
-    C -.->|"gates every commit"| R
-    C & Re & Co & S -.->|"read, not diffs"| H
+    C --> G
+    R --> G
+    G -->|"gap + rationale"| A
+    A -->|"commit"| R
+    G -->|"pass"| OK([Ready to merge])
 ```
 
-Agents do the work. The constitution sets the bounds. The directives keep both sides honest — a frontier-model agent reading a rule's rationale generalizes to cases the author never encoded; you read the ledgers as the lens on what your fleet just shipped.
+Agents do the work. The constitution describes the state the repo must satisfy. The directives keep both sides honest — a frontier-model agent reading a directive's rationale generalizes to cases the author never encoded; you read the ledgers as the state record for what the agent fleet just shipped.
 
-The stance in one line: **steer at the rule layer, not the turn layer; verify with receipts, not transcripts; trust ledgers, not chat history.** The full version — seven tenets and how GDD differs from spec-driven development — is in [governance/references/PHILOSOPHY.md](governance/references/PHILOSOPHY.md).
+The stance in one line: **describe the state, continuously check reality, and let agents reconcile the difference.**
 
 ## Visibility
 
@@ -135,7 +136,7 @@ Directives are invariants on state, not steps in a procedure. Each one describes
 
 When directive B logically depends on directive A's postcondition — e.g. "PR must have a review" depends on "PR must exist" — B reads the precondition itself and skips-with-info if it's not met. The cascade falls out of re-evaluation: fix what's currently violating, re-run, the next gate fires, fix that, re-run, done.
 
-This is the same shape as Kubernetes reconciliation (`kubectl apply` describes desired state, controllers converge), Make prerequisites (each target checks its own inputs at run time), or systemd `ConditionPathExists=` (a unit decides for itself whether to run). The agent's loop matches: **take the mandated action, then re-run `bash tests/governance/run.sh` to surface the next gap.** Don't chain actions; describe state and let re-evaluation converge.
+This is declarative reconciliation applied to a repository. A directive describes the desired state; its check observes current state; the agent takes the mandated action; then `bash tests/governance/run.sh` surfaces the next gap. Don't chain actions; describe state and let re-evaluation converge.
 
 ### Core pack
 

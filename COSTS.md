@@ -169,3 +169,4 @@ Schema:
 | claude-code-6cf1d4fa-561-1777358609 | claude-code | 6cf1d4fa-5613-4ead-b7de-d7341959e74b | #83 | claude-opus-4-7 | 5 | 16057 | 14783 | 154 | 16216 | 0.1116 | refactor(agent-governance): rename review-gate to pr-review-when-pr-ready (#83) |
 | claude-code-f9cb7381-084-1777356393 | claude-code | f9cb7381-084a-4920-bbe7-c32415cdff90 | #81 | claude-opus-4-7 | 5 | 16475 | 14783 | 87 | 16567 | 0.1126 | refactor(governance): rename core directive conventional-commits to commit-messa |
 | claude-code-87996dc2-5a6-1777356506 | claude-code | 87996dc2-5a66-4609-812d-4e714bfd7fb4 | #81 | claude-opus-4-7 | 203 | 271194 | 11219582 | 80084 | 351481 | 9.3079 | refactor(governance): rename core directive conventional-commits to commit-messa |
+| codex-019dd375-06b-1777369983 | codex | 019dd375-06b5-7ef2-b51e-c4d19cc8cc70 | #84 | gpt-5.5 | 216891 | 0 | 1154176 | 8937 | 225828 | 0.9648 | docs(readme): describe repo-state reconciliation (#84) |
