@@ -12,7 +12,7 @@
 # on post-squash history where the receipt is correctly for the underlying
 # issue but the subject line references the PR id.
 #
-# Rationale: `conventional-commits` pins each commit to an issue, and
+# Rationale: `commit-message-format` pins each commit to an issue, and
 # `receipt-per-issue` pins each receipt file to an issue, but nothing cross-checks
 # the two — a commit claiming `(#15)` while touching only issue #42's receipt
 # passes both directives. This directive closes that hole, so the receipt the
@@ -123,7 +123,7 @@ validate() {
     commit_issues="${commit_issues% }"
 
     if [[ -z "$commit_issues" ]]; then
-        # `conventional-commits` will flag the subject shape separately; we
+        # `commit-message-format` will flag the subject shape separately; we
         # still emit a targeted violation so the root cause is clear.
         violation "$label — no issue anchor found: subject has no trailing '(#N)' and body has no 'Issue: #N' trailer ('$subject')"
         return 0

@@ -1,4 +1,4 @@
-# conventional-commits — Commit messages match Conventional Commits with a trailing GitHub issue reference.
+# commit-message-format — Commit messages match Conventional Commits with a trailing GitHub issue reference.
 category: CommitHygiene
 recommended: true
 summary: "Commit messages match Conventional Commits with a trailing GitHub issue reference."

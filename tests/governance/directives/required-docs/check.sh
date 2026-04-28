@@ -192,9 +192,9 @@ if is_enabled hooks; then
             violation ".githooks/pre-commit exists but is not executable (chmod +x .githooks/pre-commit)"
         fi
 
-        if [[ -f tests/governance/directives/conventional-commits/check.sh ]]; then
+        if [[ -f tests/governance/directives/commit-message-format/check.sh ]]; then
             if ! git ls-files --error-unmatch .githooks/commit-msg >/dev/null 2>&1; then
-                violation ".githooks/commit-msg is not tracked — required because conventional-commits is installed"
+                violation ".githooks/commit-msg is not tracked — required because commit-message-format is installed"
             elif [[ ! -x .githooks/commit-msg ]]; then
                 violation ".githooks/commit-msg exists but is not executable (chmod +x .githooks/commit-msg)"
             fi

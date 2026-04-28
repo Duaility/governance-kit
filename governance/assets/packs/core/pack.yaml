@@ -29,7 +29,7 @@ presets:
   standard:
     extends: minimal
     directives:
-      - conventional-commits
+      - commit-message-format
       - doc-freshness
   strict:
     extends: standard

@@ -5,14 +5,14 @@
 # Extend via GOVERNANCE_CC_EXTRA_TYPES="foo bar baz".
 #
 # Usage modes:
-#   Mode A — commit-msg hook: `bash conventional-commits.sh <path-to-msg-file>`
-#   Mode B — CI / run.sh:     `bash conventional-commits.sh`
+#   Mode A — commit-msg hook: `bash check.sh <path-to-msg-file>`
+#   Mode B — CI / run.sh:     `bash check.sh`
 #       Validates every commit from the default-branch merge-base to HEAD.
 #
 # Merge commits and commits authored by bots (dependabot, renovate) are skipped.
 set -u
 source "$(dirname "$0")/../../lib.sh"
-directive_start "conventional-commits"
+directive_start "commit-message-format"
 require_git
 
 DEFAULT_TYPES="feat fix chore docs refactor test perf build ci revert style"

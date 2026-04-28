@@ -160,7 +160,7 @@ Then run `git status` to confirm the three changes are staged and nothing else u
 - Updated directive: `refactor(governance): <one-line summary of what tightened/loosened> (<directive-name>)` (or `feat` if the update materially changes policy intent)
 - Removed directive: `chore(governance): remove <directive-name> — <one-line reason>`
 
-Append the issue anchor the repo requires (`conventional-commits` enforces `(#N)` in this kit by default). If the user did not name an issue, ask for it as a blocking input — it's a repo directive, not a style preference.
+Append the issue anchor the repo requires (`commit-message-format` enforces `(#N)` in this kit by default). If the user did not name an issue, ask for it as a blocking input — it's a repo directive, not a style preference.
 
 The commit body should include:
 - A two-line summary of what the amendment does and why.

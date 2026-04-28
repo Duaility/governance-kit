@@ -71,7 +71,7 @@ Make a bad commit to see the gate fire:
 
 ```sh
 $ git commit -m "stuff"
-[FAIL] conventional-commits — pending commit — 'stuff' does not match
+[FAIL] commit-message-format — pending commit — 'stuff' does not match
        Conventional Commits with an issue suffix (<type>(scope)?: <subject> (#123))
 ```
 
@@ -143,7 +143,7 @@ Ships with `governance init`:
 
 | Directive | What it checks |
 |---|---|
-| `conventional-commits` | Commit messages match `<type>(scope)?: subject (#123)`. |
+| `commit-message-format` | Commit messages match `<type>(scope)?: subject (#123)` — Conventional Commits prefix plus a trailing GitHub issue reference. |
 | `doc-freshness` | Opted-in docs carry a `<!-- last-verified: YYYY-MM-DD -->` marker within 90 days. |
 | `no-broken-internal-doc-links` | Markdown links to local paths resolve. |
 | `no-orphan-todos` | Every `TODO` / `FIXME` references an issue. |
