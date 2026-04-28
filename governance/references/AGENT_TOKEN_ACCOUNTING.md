@@ -36,7 +36,7 @@ Cost-USD: 2.7932
 ```
 
 - `Agent` is a free-form identifier — whatever name you want to report in the ledger.
-- `Issue` must match `#123` (the same anchor `conventional-commits` enforces in the subject).
+- `Issue` must match `#123` (the same anchor `commit-message-format` enforces in the subject).
 - `Session` is whatever stable id your runtime uses to group usage events.
 - `Token-Input` counts **new-work input tokens** — `input + cache_create`. It
   deliberately excludes `cache_read`, which is the same bytes re-read each

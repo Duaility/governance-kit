@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -u
-EVAL_ID="conventional-commits"
+EVAL_ID="commit-message-format"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../../../.." && pwd)"
 source "$ROOT/governance/assets/packs/lib/eval-lib.sh"
 PACK_DIR="$ROOT/governance/assets/packs/core"

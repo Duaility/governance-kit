@@ -251,7 +251,7 @@ Conventional Commits subject, matching the scope:
 | `--all` | `chore(governance): reset all directives to pinned manifest state` |
 | `--all --drop-handauthored` | `chore(governance): reset all directives + drop hand-authored` |
 
-Append the issue anchor the repo's `conventional-commits` directive
+Append the issue anchor the repo's `commit-message-format` directive
 requires (`(#N)`). If the user did not name an issue, ask for it as
 a blocking input — same discipline as `directive *`.
 

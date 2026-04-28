@@ -41,7 +41,7 @@ The three consolidated directives (`required-docs`, `repo-hygiene`, `secrets-hyg
 ### Commit hygiene
 | Directive | What it checks |
 |---|---|
-| `conventional-commits` | Commit subjects match `<type>(scope)?!?: subject (#123)`. Supported types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `build`, `ci`, `revert`, `style`. Extend via `GOVERNANCE_CC_EXTRA_TYPES`. Installs a `commit-msg` git hook. |
+| `commit-message-format` | Commit subjects match `<type>(scope)?!?: subject (#123)` — Conventional Commits prefix **plus** a trailing GitHub issue reference. Supported types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `build`, `ci`, `revert`, `style`. Extend via `GOVERNANCE_CC_EXTRA_TYPES`. Installs a `commit-msg` git hook. |
 | `no-orphan-todos`      | Every `TODO` / `FIXME` on a line references `#123` or `ABC-123`. |
 
 ### Quality
@@ -54,7 +54,7 @@ The three consolidated directives (`required-docs`, `repo-hygiene`, `secrets-hyg
 | Preset | Directives |
 |---|---|
 | `minimal`  | `required-docs`, `secrets-hygiene`, `repo-hygiene`, `workflows-hardened`, `no-broken-internal-doc-links` |
-| `standard` | *minimal* + `conventional-commits`, `doc-freshness` |
+| `standard` | *minimal* + `commit-message-format`, `doc-freshness` |
 | `strict`   | *standard* + `no-orphan-todos` |
 
 ---

@@ -22,8 +22,8 @@ packs:
         installed_path: tests/governance/directives/workflows-hardened
       - id: no-broken-internal-doc-links
         installed_path: tests/governance/directives/no-broken-internal-doc-links
-      - id: conventional-commits
-        installed_path: tests/governance/directives/conventional-commits
+      - id: commit-message-format
+        installed_path: tests/governance/directives/commit-message-format
       - id: doc-freshness
         installed_path: tests/governance/directives/doc-freshness
   - id: duaility/agent-governance
