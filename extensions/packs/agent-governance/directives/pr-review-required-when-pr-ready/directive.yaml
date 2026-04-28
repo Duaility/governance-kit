@@ -1,0 +1,6 @@
+# pr-review-required-when-pr-ready — Branches whose open PR is marked ready for review must carry a codex-authored review.
+category: AgentDiscipline
+recommended: true
+summary: When the current branch has an open PR that is **not in draft state** (marked ready for review), the PR must carry a codex review (a Pull Request Review whose body contains `<!-- codex-review -->`). Trigger is GitHub's draft → ready transition, decoupled from receipt checklist state. Local-only — skipped in CI.
+surface: repo-state
+hook: post-commit
