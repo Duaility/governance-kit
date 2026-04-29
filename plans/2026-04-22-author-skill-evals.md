@@ -13,7 +13,7 @@ Bring eval coverage to parity across the three skills so `scripts/eval-report.sh
 2. **Seed `governance-bootstrap/evals/files/`** with three fixtures: `empty-polyglot-repo/` (package.json + pyproject.toml + tiny src), `already-bootstrapped-repo/` (pre-existing governance with `# CUSTOMIZED` markers so graders detect overwrites), `go-service-repo/` (go.mod + main.go).
 3. **Seed `governance-amend/evals/files/`** with three fixtures: `seeded-repo/` (baseline bootstrapped), `repo-with-file-size-rule/` (adds `file-size-limit.sh` at 500 lines), `repo-with-console-log-rule/` (adds `no-console-log.sh` plus `docs/LOGGING.md` referencing the rule by name so the skill must surface a dangling reference on removal).
 4. **Seed `governance-gardener/evals/files/`** with four fixtures: `governed-repo-with-drift/` (seeded A1/A3/C2/C5 signals), `dirty-tree-repo/` (bootstrapped + instructions to create an uncommitted file after seed), `ungoverned-repo/` (bare repo), `governed-repo-bump-eligible/` (stale stamp with unchanged watched paths).
-5. **Verify** — run `bash scripts/eval-report.sh` and expect all three skills to flip from `fixtures-incomplete` / `missing` to `ready` with exit 0. Run `bash tests/governance/run.sh` to confirm the repo's governance suite still passes.
+5. **Verify** — run `bash scripts/eval-report.sh` and expect all three skills to flip from `fixtures-incomplete` / `missing` to `ready` with exit 0. Run `bash .governance/run.sh` to confirm the repo's governance suite still passes.
 
 ## Non-goals
 

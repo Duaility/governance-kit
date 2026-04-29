@@ -30,9 +30,9 @@ Closes [#49](https://github.com/Duaility/governance-kit/issues/49).
   `install_rule_folder` / `rules_for` / `install_rule_assets` /
   `rule_supports_hook_strategy` / `build_hook_spec_from_installed_rules`
   → the `directive_*` equivalents.
-- **Install manifest.** `.governance-kit/installed-packs.yaml` v1 schema:
+- **Install manifest.** `.governance/installed-packs.yaml` v1 schema:
   `rules:` key → `directives:` key; `installed_path` values move from
-  `tests/governance/rules/<id>` to `tests/governance/directives/<id>`.
+  `.governance/rules/<id>` to `.governance/local/directives/<id>`.
 - **Reference docs.** `RULES_CATALOG.md` → `DIRECTIVES_CATALOG.md`;
   `RULE_AMEND_FLOW.md` → `DIRECTIVE_AMEND_FLOW.md`; `RULE_VERBS.md` →
   `DIRECTIVE_VERBS.md`; `RULE_AUTHORING.md` → `DIRECTIVE_AUTHORING.md`.
@@ -63,7 +63,7 @@ Single atomic commit that touches the live vocabulary surfaces across:
 
 - `governance/assets/packs/core/directives/**` (7 directives) and
   `extensions/packs/agent-governance/directives/**` (5 directives).
-- The in-tree dogfood at `tests/governance/directives/**`.
+- The in-tree dogfood at `.governance/local/directives/**`.
 - The Python + bash pack loader (`packctl.py`, `packverb.py`,
   `scripts/test-packs.sh`, `scripts/test-packverb.py`).
 - Every `SKILL.md` / reference doc under `governance/references/**`.
@@ -83,7 +83,7 @@ current-state, so rewriting them would be a history edit.
 
 ## Validation
 
-- `bash tests/governance/run.sh` exits 0 with `13 directive(s) passed`.
+- `bash .governance/run.sh` exits 0 with `13 directive(s) passed`.
 - `bash scripts/test-packs.sh` exits 0 with
   `2 pack(s), 13 directive(s), 13 eval(s) passed`, including the renamed
   `test_init_flow_does_not_reference_deleted_required_docs_directives`

@@ -33,15 +33,15 @@ the same commit.
 | Situation | Action |
 |---|---|
 | Repo is not a git repo | Stop. `reset` operates on a tracked governance surface, which requires git. |
-| Governance kit is missing (`CONSTITUTION.md` or `tests/governance/` absent) | Stop and tell the user to run `governance init` first — there is nothing to reset. |
-| Install manifest (`.governance-kit/installed-packs.yaml`) is missing | Stop and tell the user. Reset depends on the manifest to know which directive came from which pack. The user's recovery path is `governance uninstall` then `governance init`. |
+| Governance kit is missing (`CONSTITUTION.md` or `.governance/` absent) | Stop and tell the user to run `governance init` first — there is nothing to reset. |
+| Install manifest (`.governance/installed-packs.yaml`) is missing | Stop and tell the user. Reset depends on the manifest to know which directive came from which pack. The user's recovery path is `governance uninstall` then `governance init`. |
 | `--directive <id>` names a directive not in the manifest | Stop. List the directives that *are* in the manifest. Suggest `--pack` or `--all` if the user meant something broader. |
 | `--directive <id>` names a hand-authored directive | Stop. Hand-authored directives have no pristine source. Tell the user to use `governance directive remove <id>` to delete it, or `--all --drop-handauthored` to drop all hand-authored directives. |
 | `--pack <id>` names a pack not in the manifest | Stop. List the installed packs. |
 | Pinned SHA's pack content is missing from the cache | Re-fetch via `packverb fetch` using the original `ref@<sha>`. If the upstream pack is unreachable, abort — reset cannot work without the pristine source. |
 | Working tree has uncommitted changes | Refuse, unless `--force` is set. The user reviews `git status` and either commits, stashes, or re-runs with `--force`. |
 | The directive folder on disk is byte-identical to the pinned version | Skip it — there is nothing to restore. Note in the report. |
-| Smoke test (`tests/governance/run.sh`) fails on the post-reset tree | Commit anyway. The amendment was destructive intent; failures on the *current* tree are pre-existing repo state, not reset bugs. Surface them in the report so the PR reviewer sees them. |
+| Smoke test (`.governance/run.sh`) fails on the post-reset tree | Commit anyway. The amendment was destructive intent; failures on the *current* tree are pre-existing repo state, not reset bugs. Surface them in the report so the PR reviewer sees them. |
 | Structured question tools are unavailable | Use short free-text questions. If no answer to a destructive prompt, stop — reset is destructive enough that assumed defaults are unsafe. |
 
 ---
@@ -54,9 +54,9 @@ Run these steps in order. Do not skip steps unless noted.
 
 Run in parallel:
 - `git rev-parse --show-toplevel` — confirm we're inside a git repo; capture the root.
-- Read `<root>/.governance-kit/installed-packs.yaml`. Schema in [MANIFEST_SCHEMA.md](MANIFEST_SCHEMA.md).
+- Read `<root>/.governance/installed-packs.yaml`. Schema in [MANIFEST_SCHEMA.md](MANIFEST_SCHEMA.md).
 - Check for `<root>/CONSTITUTION.md`.
-- Check for `<root>/tests/governance/directives/`.
+- Check for `<root>/.governance/local/directives/`.
 - Read `<root>/.governance/packs.lock` if present. Schema in [PACK_VERBS.md](PACK_VERBS.md).
 
 If the manifest is missing, stop. Reset is **manifest-driven** — the
@@ -85,7 +85,7 @@ Build the in-scope directive set:
 | `--all` | Every directive in `manifest.packs[*].directives[*].id` across every pack. |
 
 Build the **hand-authored set** by scanning
-`tests/governance/directives/<id>/` for any folder whose `<id>` does
+`.governance/local/directives/<id>/` for any folder whose `<id>` does
 **not** appear under any `manifest.packs[*].directives[*].id`. These
 are the directives a user added via `governance directive add`.
 
@@ -109,7 +109,7 @@ For each pack-sourced directive in scope:
    skill (resolve from the symlink target, not the consumer repo).
 3. **Community pack** — read `.governance/packs.lock` to find the
    pinned SHA + ref. Pristine source is the cache at
-   `${GOVERNANCE_KIT_HOME:-$HOME/.governance-kit}/packs/<pack-id-slug>@<sha>/directives/<directive-id>/`
+   `${GOVERNANCE_KIT_HOME:-$HOME/.governance/cache}/packs/<pack-id-slug>@<sha>/directives/<directive-id>/`
    (where `/` in pack id is encoded as `__`).
 4. If the cache entry is missing, re-fetch with
    `packverb fetch <ref>@<sha>` to repopulate. If the fetch fails,
@@ -121,7 +121,7 @@ them `kind: drop`.
 
 For each pack-sourced directive, also compute:
 
-- The byte-diff between the installed `tests/governance/directives/<id>/`
+- The byte-diff between the installed `.governance/local/directives/<id>/`
   and the pristine source (excluding `evals/`, which is not
   installed). If empty, mark the directive `kind: skip` and
   surface that in the report.
@@ -129,7 +129,7 @@ For each pack-sourced directive, also compute:
   match by heading) and the pristine subsection from the pack's
   `directives/<id>/constitution.md`. Compute the byte-diff.
 - Any per-directive loosen/grandfather state in
-  `tests/governance/freshness.conf` or in-source waivers added during
+  `.governance/freshness.conf` or in-source waivers added during
   amend Step 4 (best-effort scan: comments matching
   `governance: allow-<id>`). Reset clears the freshness.conf
   thresholds for in-scope directives; in-source waivers are left
@@ -147,7 +147,7 @@ Show the user the exact plan:
 Reset scope: --all  (or: --directive <id>  /  --pack <id>)
 Pinned-source resolution:
   core                     → kit-bundled tree
-  duaility/agent-governance@5f3c... → cache: ~/.governance-kit/packs/duaility__agent-governance@5f3c.../
+  duaility/agent-governance@5f3c... → cache: ~/.governance/packs/duaility__agent-governance@5f3c.../
 
 Directives to restore (kind: restore):
   constitution-exists    no diff — skipped
@@ -161,7 +161,7 @@ Directives preserved (hand-authored, no flag):
   custom-org-rule
 
 Other state to clear:
-  tests/governance/freshness.conf entries for: no-secrets
+  .governance/freshness.conf entries for: no-secrets
 
 Hook dispatcher: regenerate (a directive may declare a different `hook:` after restore)
 
@@ -183,7 +183,7 @@ so confirmation is part of the help.
 For each directive marked `kind: restore`, in order:
 
 1. **Replace the directive folder.** Remove
-   `tests/governance/directives/<id>/` and copy the pristine
+   `.governance/local/directives/<id>/` and copy the pristine
    `directives/<id>/` from the source resolved in Step 3, minus the
    `evals/` directory. This mirrors `install_directive_folder` from
    `governance/assets/packs/lib/install.sh` — same contract, same
@@ -195,13 +195,13 @@ For each directive marked `kind: restore`, in order:
    section. Preserve everything else in the file verbatim — same
    discipline as amend Step 5(a).
 3. **Clear loosen/grandfather state.** If the directive id appears in
-   `tests/governance/freshness.conf`, remove its line. (In-source
+   `.governance/freshness.conf`, remove its line. (In-source
    waiver comments are left alone; they are repo content.)
 
 For each directive marked `kind: drop` (only present under
 `--all --drop-handauthored`), in order:
 
-1. `rm -rf tests/governance/directives/<id>/`.
+1. `rm -rf .governance/local/directives/<id>/`.
 2. Strip the matching subsection from `CONSTITUTION.md`. If no
    subsection is found, note it in the report.
 
@@ -230,15 +230,15 @@ After all directive-level changes:
    - YYYY-MM-DD — @<git-config-user> — Drop hand-authored directives via `reset --drop-handauthored` (`<id-1>`, `<id-2>`, ...).
    ```
 
-6. **Smoke-test.** Run `bash tests/governance/run.sh` against the
+6. **Smoke-test.** Run `bash .governance/run.sh` against the
    restored tree. Capture exit code and output for the report. Do
    **not** abort on failure — the directive set is now pristine, and
    any failures are repo state the user needs to know about.
 
 ### Step 6 — Stage and commit
 
-Use `git add -A tests/governance/directives CONSTITUTION.md` plus any
-hook files the dispatcher regenerated and `tests/governance/freshness.conf`
+Use `git add -A .governance/packs/<pack-id>/directives CONSTITUTION.md` plus any
+hook files the dispatcher regenerated and `.governance/freshness.conf`
 if it changed. Run `git status` to confirm the staged set is exactly
 the reset surface. Leave any unrelated changes unstaged.
 

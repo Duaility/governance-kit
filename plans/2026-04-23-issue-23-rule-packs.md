@@ -8,7 +8,7 @@
 Refactor `governance-bootstrap` from a monolithic rule menu into a
 pack-driven loader. Two packs ship in-tree — `core` (today's built-in rules)
 and `agent-governance` (this repo's agent-driven-development rules, promoted
-from `tests/governance/rules/`). Bootstrap reads `pack.yaml` manifests to
+from `.governance/rules/`). Bootstrap reads `pack.yaml` manifests to
 drive its menu, preset resolution, constitution-snippet insertion, hook
 generation, and CI. Adding a rule drops from a 4-file edit (`.sh` +
 `RULES_CATALOG.md` + `SKILL.md` menu + hook logic) to a 2-file edit (`.sh` +
@@ -31,20 +31,20 @@ Each step is a separate commit. The whole sequence lands as one PR.
    manifest is loadable.
 
 2. **Directory migration.** Move
-   `governance-bootstrap/assets/tests-bash/rules/*.sh` →
+   `governance-bootstrap/assets/dot-governance/rules/*.sh` →
    `governance-bootstrap/assets/packs/core/rules/`. Extract per-rule
    Invariant subsections from `assets/CONSTITUTION.template.md` into
    `assets/packs/core/constitution-snippets/<rule>.md`. The template
    becomes a minimal shell — principles + compliance block + an empty
    Invariants section that the bootstrap skill fills by copying snippets.
-   Delete `assets/tests-bash/rules/` (big-bang migration per the issue's
+   Delete `assets/dot-governance/rules/` (big-bang migration per the issue's
    resolved decisions).
 
 3. **Create `agent-governance` pack.** Author
    `governance-bootstrap/assets/packs/agent-governance/pack.yaml`
    covering `agent-token-accounting`, `plan-per-issue`,
    `commit-issue-plan-match`, `issues-tracked`. Copy (do not move — they
-   stay live in this repo under `tests/governance/rules/` too) the rule
+   stay live in this repo under `.governance/rules/` too) the rule
    scripts into `assets/packs/agent-governance/rules/`. Extract their
    Invariant subsections from this repo's `CONSTITUTION.md` into
    matching `constitution-snippets/`. Introduce the new category
@@ -57,7 +57,7 @@ Each step is a separate commit. The whole sequence lands as one PR.
    selected packs' rules. Preset semantics: union across packs; packs
    without the preset name contribute nothing.
    Installation step copies `rules/<id>/` folders into
-   `tests/governance/rules/<id>/` (flat namespace by folder id, reject ID
+   `.governance/rules/<id>/` (flat namespace by folder id, reject ID
    collisions) and `rules/<id>/constitution.md` into the appropriate
    Invariant subsection of `CONSTITUTION.md`.
 
@@ -100,7 +100,7 @@ Captured from the issue; noted here for future reviewers:
 
 - Manifest format: **YAML**.
 - Backwards compatibility: **big-bang** (skill is v0.1).
-- Target-repo rule layout: **folder-shaped** `tests/governance/rules/<id>/`
+- Target-repo rule layout: **folder-shaped** `.governance/rules/<id>/`
   with a flat rule-id namespace; collisions rejected at install.
 - Pack discovery scope: **in-tree only** (`assets/packs/*`) for v1.
 - Preset semantics across packs: **union**.
@@ -127,7 +127,7 @@ Captured from the issue; noted here for future reviewers:
 The issue explicitly asks for a big-bang migration. Splitting it into
 multiple PRs would leave the repo in an intermediate state where the
 skill references paths that no longer exist or where `agent-governance`
-rules are duplicated between the pack and `tests/governance/rules/`
+rules are duplicated between the pack and `.governance/rules/`
 without a loader that can reconcile them. The 8 commits within one PR
 keep each reviewable diff small while the working tree stays green at
 every step.
@@ -166,9 +166,9 @@ every step.
       nothing from that pack (union, not fallback).
 - [ ] Dogfood: `agent-governance` pack produces an identical governance
       surface to what exists today when re-bootstrapped into this repo.
-- [ ] No dangling references to `assets/tests-bash/rules/` in tracked
+- [ ] No dangling references to `assets/dot-governance/rules/` in tracked
       files after migration.
-- [ ] `bash tests/governance/run.sh` green on this branch.
+- [ ] `bash .governance/run.sh` green on this branch.
 - [x] `scripts/test-packs.sh` green in CI with real YAML parsing:
       `packs.sh` delegates to `uv run --isolated --with PyYAML` so
       manifest strings containing `:` or `#` fail loudly unless quoted.
@@ -182,8 +182,8 @@ every step.
       needs Python libs, hook side-effect scripts, or per-runtime
       helpers puts them inside its own folder under `lib/`, `hooks/`,
       and `runtimes/`. Install shape switches from flat
-      `tests/governance/rules/<id>.sh` to folder-per-rule
-      `tests/governance/rules/<id>/check.sh`, with `install_rule`
+      `.governance/rules/<id>.sh` to folder-per-rule
+      `.governance/rules/<id>/check.sh`, with `install_rule`
       copying the whole folder (minus `evals/`). The hook generator
       discovers rule-owned helpers generically — no hardcoded
       per-rule paths. `agent-token-accounting` migrated in place:
@@ -195,7 +195,7 @@ every step.
       install contract for `core.standard`, verifies generated hooks, runs
       installed governance, and checks the installed manifest.
 - [x] Review follow-up: generated hooks discover installed rule folders via
-      `tests/governance/rules/<id>/rule.yaml` at runtime, so post-install
+      `.governance/rules/<id>/rule.yaml` at runtime, so post-install
       amendments can add compatible rules without hook regeneration.
 - [x] Review follow-up: rules can ship `install-assets/` for required seed
       files; `issues-tracked` seeds `QUALITY.md`, and
@@ -203,7 +203,7 @@ every step.
 - [x] Review follow-up: environment-specific rules can declare
       `requires_hook_strategy`; `hooks-configured` is now explicitly gated
       to `.githooks` installs.
-- [x] Review follow-up: `.governance-kit/installed-packs.yaml` records
+- [x] Review follow-up: `.governance/installed-packs.yaml` records
       installed pack/rule versions as an audit manifest while preserving the
       user-owned-copy model.
 - [x] Review follow-up: companion skill docs (`governance-amend` and

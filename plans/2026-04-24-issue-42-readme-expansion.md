@@ -99,7 +99,7 @@ Apply the issue's priority order:
 
 ## Validation
 
-- `bash tests/governance/run.sh` passes — in particular
+- `bash .governance/run.sh` passes — in particular
   `no-broken-internal-doc-links` confirms every markdown link
   resolves.
 - Visual pass that the quickstart code block, rule-folder tree, and

@@ -2,7 +2,7 @@
 
 ## Compliance
 
-Agents and humans working in this repo must read and follow this document. Mechanical directives are enforced by `tests/governance/run.sh`.
+Agents and humans working in this repo must read and follow this document. Mechanical directives are enforced by `.governance/run.sh`.
 
 ## Principles
 
@@ -13,7 +13,7 @@ Agents and humans working in this repo must read and follow this document. Mecha
 
 ### no-console-log
 **Directive.** No `console.log` / `console.debug` calls in tracked `.ts` / `.tsx` / `.js` / `.jsx` files.
-**Enforced by.** `tests/governance/directives/no-console-log/check.sh`
+**Enforced by.** `.governance/local/directives/no-console-log/check.sh`
 **Waivers.** `// governance: allow-no-console-log <TICKET>` on the offending line.
 
 ## Evolution Log

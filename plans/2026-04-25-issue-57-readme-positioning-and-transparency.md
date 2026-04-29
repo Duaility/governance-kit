@@ -33,7 +33,7 @@ Out of scope for this PR (deferred again):
 
 ## Validation
 
-- `bash tests/governance/run.sh` passes (no directive regressions).
+- `bash .governance/run.sh` passes (no directive regressions).
 - `npx skills` still resolves the README's install snippet to a working install path.
 - The two new sections render correctly on GitHub (`[!NOTE]` callout, anchor link `#community-packs`).
 - Manual cold-read: an agent-heavy engineer reaching the README sees the audience signal in the first screen and the transparency claim before the philosophy section.

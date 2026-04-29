@@ -13,7 +13,7 @@ that the `agent-token-accounting` governance directive validates.
 The `agent-token-accounting` directive's `hooks/pre-commit.sh` appends a row
 before git snapshots the tree; its `hooks/prepare-commit-msg.sh` stamps
 the matching trailers. Both live inside the directive folder at
-`tests/governance/directives/agent-token-accounting/hooks/`. See
+`.governance/local/directives/agent-token-accounting/hooks/`. See
 [governance/references/AGENT_TOKEN_ACCOUNTING.md](governance/references/AGENT_TOKEN_ACCOUNTING.md)
 for wiring instructions.
 

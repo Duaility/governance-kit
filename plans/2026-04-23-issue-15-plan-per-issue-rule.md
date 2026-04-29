@@ -11,7 +11,7 @@ constitution rule which enforces a single plan file for each issue."
 
 ## Steps
 
-1. Add `tests/governance/rules/plan-per-issue.sh` — checks filenames, detects
+1. Add `.governance/rules/plan-per-issue.sh` — checks filenames, detects
    duplicates, supports a per-file `governance: allow-plan-per-issue` waiver so
    grandfathered plans do not block the rule.
 2. Insert a `plan-per-issue` **Invariants** subsection in `CONSTITUTION.md`
@@ -19,8 +19,8 @@ constitution rule which enforces a single plan file for each issue."
    2026-04-23.
 3. Grandfather the nine existing pre-rule plan files by adding an HTML-comment
    waiver line explaining they predate the convention.
-4. Smoke-test: run `bash tests/governance/rules/plan-per-issue.sh` and the
-   full `tests/governance/run.sh` suite; confirm the rule passes against the
+4. Smoke-test: run `bash .governance/rules/plan-per-issue.sh` and the
+   full `.governance/run.sh` suite; confirm the rule passes against the
    current tree once waivers are in place.
 5. Stage only the amendment artifacts (rule script, constitution edits, the
    nine waivered plan files, this plan).

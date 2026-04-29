@@ -13,7 +13,7 @@ The rule is named `plan-captured`. It is a directory-and-structure check, not a 
 
 ## Steps
 
-1. Author `tests/governance/rules/plan-captured.sh` that asserts:
+1. Author `.governance/rules/plan-captured.sh` that asserts:
    - `plans/` exists at the repo root.
    - At least one tracked `plans/*.md` file exists.
    - Every tracked `plans/*.md` has a top-level `# ` heading, a `## Goal` section, and a `## Steps` section.

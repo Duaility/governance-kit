@@ -54,7 +54,7 @@ git commit -m "feat: x (#13)"
 git snapshots the tree (COSTS.md row is already in the index) → commit
       │
       ▼
-CI: tests/governance/rules/agent-token-accounting.sh walks base..HEAD,
+CI: .governance/rules/agent-token-accounting.sh walks base..HEAD,
     cross-checks every Agent:-trailer commit against its COSTS.md row.
 ```
 
@@ -64,7 +64,7 @@ CI: tests/governance/rules/agent-token-accounting.sh walks base..HEAD,
    `prepare-commit-msg` and `pre-commit` hook templates, `COSTS.template.md`,
    the `scripts/governance/` tree (accounting + per-runtime readers), the
    reference doc, and a `RULES_CATALOG.md` "Also available" entry.
-2. **Dogfood in this repo.** Copy the assets into `tests/governance/rules/`,
+2. **Dogfood in this repo.** Copy the assets into `.governance/rules/`,
    `.githooks/`, `scripts/governance/`, `COSTS.md`. Add the matching
    Invariants subsection and Evolution Log entry to `CONSTITUTION.md`
    atomically (cardinal rule: test + constitution + log in one commit).
@@ -240,7 +240,7 @@ taught so the final shape reads with its reasoning intact.
 
 **In the bootstrap (opt-in for downstream repos):**
 
-- `governance-bootstrap/assets/tests-bash/rules/agent-token-accounting.sh`
+- `governance-bootstrap/assets/dot-governance/rules/agent-token-accounting.sh`
   — the rule. Validates trailer math and `Cost-Key` ↔ `COSTS.md` agreement
   across `base..HEAD`.
 - `governance-bootstrap/assets/githooks/pre-commit` — invokes
@@ -274,7 +274,7 @@ taught so the final shape reads with its reasoning intact.
 
 **In this repo (dogfood):**
 
-- Same assets copied to `tests/governance/rules/`, `.githooks/`,
+- Same assets copied to `.governance/rules/`, `.githooks/`,
   `scripts/governance/`, `COSTS.md`.
 - `CONSTITUTION.md` gained an `agent-token-accounting` Invariants
   subsection and matching Evolution Log entries (initial adoption plus
@@ -312,8 +312,8 @@ the literal-string check. Every local run of the suite was reporting a false
 positive.
 
 **Fix.** Replace the literal comparison in both the live rule
-(`tests/governance/rules/hooks-configured.sh`) and the bootstrap asset
-(`governance-bootstrap/assets/tests-bash/rules/hooks-configured.sh`) with a
+(`.governance/rules/hooks-configured.sh`) and the bootstrap asset
+(`governance-bootstrap/assets/dot-governance/rules/hooks-configured.sh`) with a
 tolerant check:
 
 - Empty → still a violation (the user hasn't run `git config core.hooksPath`

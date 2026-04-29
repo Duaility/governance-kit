@@ -2,19 +2,19 @@
 
 ## Compliance
 
-Agents and humans working in this repo must read and follow this document. Mechanical directives are enforced by `tests/governance/run.sh` (pre-commit hook and CI).
+Agents and humans working in this repo must read and follow this document. Mechanical directives are enforced by `.governance/run.sh` (pre-commit hook and CI).
 
 ## Principles
 
 - Keep changes small and reviewable.
-- Every Directive has a matching test script in `tests/governance/directives/`.
+- Every Directive has a matching test script in `.governance/local/directives/`.
 - Amendments land atomically: directive + constitution + evolution-log entry in one commit.
 
 ## Directives
 
 ### no-secrets
 **Directive.** No credentials or private keys in tracked files.
-**Enforced by.** `tests/governance/directives/no-secrets/check.sh`
+**Enforced by.** `.governance/local/directives/no-secrets/check.sh`
 **Waivers.** `# governance: allow-no-secrets <TICKET>` on the offending line.
 
 ## Evolution Log

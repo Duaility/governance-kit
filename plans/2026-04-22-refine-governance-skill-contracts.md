@@ -27,7 +27,7 @@ The work includes:
 4. Update eval expectations so the repo encodes the intended routing behavior instead of relying on prose alone.
 5. Tighten bootstrap and amend authoring flow so rule intent, policy surface, and enforcement surface must be named explicitly before implementation.
 6. Add a regression-focused eval that rejects repo-exists proxies for per-change obligations such as `plan-captured`.
-7. Run lightweight verification: JSON sanity for eval files and `bash tests/governance/run.sh`.
+7. Run lightweight verification: JSON sanity for eval files and `bash .governance/run.sh`.
 
 ## Notes
 

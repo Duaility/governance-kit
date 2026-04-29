@@ -11,7 +11,7 @@ The skill is a self-contained directory with frontmatter
 - `governance/` — the unified lifecycle skill. Exposes four verb
   families (`init`, `uninstall`, `pack *`, `directive *`) that together
   own every mutation to the governance surface:
-  `CONSTITUTION.md`, `tests/governance/`, hooks, the install manifest,
+  `CONSTITUTION.md`, `.governance/`, hooks, the install manifest,
   and the AGENTS.md directive block. The per-verb flows are documented
   under `governance/references/`: `INIT_FLOW.md` (8 steps),
   `UNINSTALL_FLOW.md` (6 steps), `DIRECTIVE_AMEND_FLOW.md` (atomic-triple),
@@ -49,13 +49,13 @@ Every pack has:
    every eval, and installs `core.standard` into a disposable repo to
    confirm the bootstrap contract still holds.
 3. `governance init` copies the directive folder into
-   `tests/governance/directives/<id>/` in the target repo and records the
-   selection in `.governance-kit/installed-packs.yaml`.
+   `.governance/local/directives/<id>/` in the target repo and records the
+   selection in `.governance/installed-packs.yaml`.
 4. Hook generator builds `.githooks/pre-commit`, `.githooks/commit-msg`,
    `.githooks/prepare-commit-msg` from the installed manifest. Each
    dispatcher carries an ownership marker so `governance uninstall` can
    identify and remove it safely.
-5. On commit, `tests/governance/run.sh` discovers every installed directive
+5. On commit, `.governance/run.sh` discovers every installed directive
    and runs `check.sh` against the repo state.
 
 ## Invariants

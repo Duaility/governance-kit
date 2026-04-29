@@ -4,4 +4,4 @@
 set -u
 [[ "${SKIP_GOVERNANCE:-0}" == "1" ]] && exit 0
 ROOT="$(git rev-parse --show-toplevel)"
-bash "$ROOT/tests/governance/run.sh"
+bash "$ROOT/.governance/run.sh"

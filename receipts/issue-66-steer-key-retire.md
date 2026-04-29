@@ -89,7 +89,7 @@ Edits land at both layers per the pack-and-dogfood dual-edit rule:
     count; new `retry-after-failed-commit-msg` fixture pre-stages a
     `STEERING.md` row and verifies the summary-only contract validates
     without re-stamping. `pass-clean` carries the summary triple only.
-- **Dogfood install** (`tests/governance/directives/agent-steering-accounting/`):
+- **Dogfood install** (`.governance/local/directives/agent-steering-accounting/`):
   byte-identical to pack except for `evals/` and `install-assets/`. Synced
   via direct file copy after the pack edits landed.
 - `CONSTITUTION.md`: `### agent-steering-accounting` Directive / Rationale /
@@ -133,7 +133,7 @@ A reviewer can confirm the change is complete by checking:
 
 1. **Per-event `Steer-Key:` trailers are gone from the directive.**
    Search `extensions/packs/agent-governance/directives/agent-steering-accounting/`
-   and `tests/governance/directives/agent-steering-accounting/` for
+   and `.governance/local/directives/agent-steering-accounting/` for
    `Steer-Key`. Surviving hits are documentation-only (history-of-the-rename
    prose in `constitution.md`, `check.sh`, `prepare-commit-msg.sh`,
    `lib/trailers.py`'s docstring, and the eval's retry-bug comment) — none
@@ -145,14 +145,14 @@ A reviewer can confirm the change is complete by checking:
 3. **Retry case passes.** `bash scripts/test-packs.sh` shows
    `agent-steering-accounting retry-after-failed-commit-msg — pass case`
    among 10 eval cases (8 pass, 5 fail per intent). All 14 eval files green.
-4. **Dogfood green.** `bash tests/governance/run.sh` exits 0 with all 14
+4. **Dogfood green.** `bash .governance/run.sh` exits 0 with all 14
    directives passing; the `agent-steering-accounting` Mode B walk over
    `merge-base..HEAD` accepts every historical commit (which still carries
    `Steer-Key:` trailers) under the new summary-only contract because the
    summary triple already agreed with the rows by construction.
 5. **Pack and dogfood directories are in sync** outside `evals/` and
    `install-assets/`. Run
-   `diff -r extensions/packs/agent-governance/directives/agent-steering-accounting/ tests/governance/directives/agent-steering-accounting/`
+   `diff -r extensions/packs/agent-governance/directives/agent-steering-accounting/ .governance/local/directives/agent-steering-accounting/`
    — only the two known differences appear.
 6. **Constitution captures the change.** `CONSTITUTION.md` line 187
    carries the 2026-04-26 Evolution Log entry referencing #66; the

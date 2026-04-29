@@ -17,7 +17,7 @@ Three customization surfaces existed for the rolled-up directives — `directive
 
 Removed surfaces:
 
-- `_DISABLED=",${GOVERNANCE_*_DISABLE:-},"` and the `is_enabled() { ... }` helper in each of the three `check.sh` files (pack source under `governance/assets/packs/core/directives/<id>/` and dogfood mirror under `tests/governance/directives/<id>/`); each `if is_enabled X; then ... fi` guard unwrapped to its body.
+- `_DISABLED=",${GOVERNANCE_*_DISABLE:-},"` and the `is_enabled() { ... }` helper in each of the three `check.sh` files (pack source under `governance/assets/packs/core/directives/<id>/` and dogfood mirror under `.governance/local/directives/<id>/`); each `if is_enabled X; then ... fi` guard unwrapped to its body.
 - The env-var paragraphs in each directive's `constitution.md` (Directive intro, Rationale, Exceptions) and the `required-docs` `directive.yaml` summary line.
 - The `# verify DISABLE suppresses the fail` block in `governance/assets/packs/core/directives/repo-hygiene/evals/test.sh`; the analogous blocks in the `required-docs` and `secrets-hygiene` pack evals (the `required-docs` cleanup also removed a now-redundant `cat > ARCHITECTURE.md` rewrite that only existed because the deleted DISABLE block had `rm`'d it earlier).
 
@@ -36,7 +36,7 @@ What stays:
 
 ## Out of scope
 
-- **Migrating existing `.governance-kit/installed-packs.yaml` manifests** in target repos. The directive ids and installed paths are unchanged; only the script bodies and the constitution snippets shipped by `directive install`/`pack update` change. A `governance pack update` will pick up the new shape.
+- **Migrating existing `.governance/installed-packs.yaml` manifests** in target repos. The directive ids and installed paths are unchanged; only the script bodies and the constitution snippets shipped by `directive install`/`pack update` change. A `governance pack update` will pick up the new shape.
 - **Adding a deprecation alias** that prints a one-time warning when the old env vars are set. Pre-1.0 removal per the V0 stance — the silently-bypassed-sub-check failure mode is exactly what the change is meant to surface, and a warning in the same channel is easy to miss in CI logs.
 - **Rewriting historical receipts or evolution-log entries** that mention the retired flags by name. They describe what was true at the time, per the project's append-only ledger convention.
 - **Auditing third-party packs** (anything outside the `core` pack at `governance/assets/packs/core/`) for similar env-var backdoors. Community packs author their own customization surfaces; the catalog is not part of this change.
@@ -47,9 +47,9 @@ What stays:
 A reviewer can confirm the change is complete by checking:
 
 1. **Zero references to the three flags remain.** `grep -rn 'GOVERNANCE_\(REPO_HYGIENE_DISABLE\|REQUIRED_DOCS_DISABLE\|SECRETS_HYGIENE_DISABLE\)' tests/ extensions/ governance/ CONSTITUTION.md` returns nothing.
-2. **No leftover `_DISABLED` / `is_enabled` plumbing.** `grep -n '_DISABLED\|is_enabled' tests/governance/directives/{repo-hygiene,required-docs,secrets-hygiene}/check.sh governance/assets/packs/core/directives/{repo-hygiene,required-docs,secrets-hygiene}/check.sh` returns nothing.
-3. **Pack source and dogfood install are consistent.** `diff -q tests/governance/directives/<id>/<file> governance/assets/packs/core/directives/<id>/<file>` returns no differences for `check.sh`, `constitution.md`, and `directive.yaml` across the three directives — except the pre-existing extra exclude line in `secrets-hygiene/check.sh` (the pack copy ignores `extensions/packs/*/directives/*/evals/**`, the dogfood doesn't).
+2. **No leftover `_DISABLED` / `is_enabled` plumbing.** `grep -n '_DISABLED\|is_enabled' .governance/local/directives/{repo-hygiene,required-docs,secrets-hygiene}/check.sh governance/assets/packs/core/directives/{repo-hygiene,required-docs,secrets-hygiene}/check.sh` returns nothing.
+3. **Pack source and dogfood install are consistent.** `diff -q .governance/local/directives/<id>/<file> governance/assets/packs/core/directives/<id>/<file>` returns no differences for `check.sh`, `constitution.md`, and `directive.yaml` across the three directives — except the pre-existing extra exclude line in `secrets-hygiene/check.sh` (the pack copy ignores `extensions/packs/*/directives/*/evals/**`, the dogfood doesn't).
 4. **`CONSTITUTION.md` matches the pack constitution snippets.** The three Directive subsections in the constitution use the same Directive / Rationale / Exceptions wording as the corresponding `governance/assets/packs/core/directives/<id>/constitution.md` files.
-5. **Suite passes.** `bash tests/governance/run.sh` reports `all 15 directive(s) passed`. `bash scripts/test-packs.sh` reports `2 pack(s), 15 directive(s), 15 eval(s) passed`.
+5. **Suite passes.** `bash .governance/run.sh` reports `all 15 directive(s) passed`. `bash scripts/test-packs.sh` reports `2 pack(s), 15 directive(s), 15 eval(s) passed`.
 6. **Evolution log carries one new entry.** `CONSTITUTION.md` has a 2026-04-29 entry naming the three directives and pointing at `directive {modify,remove}` and waivers as the surviving customization paths.
 7. **This commit satisfies `commit-issue-receipt-match`.** The commit's `(#87)` anchor matches the `issue-87` token on this receipt file.

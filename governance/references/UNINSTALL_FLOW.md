@@ -7,7 +7,7 @@ The 6-step recipe `governance uninstall` runs. Dispatched from
 
 Three source-of-truth layers drive what `uninstall` deletes, in priority order:
 
-1. **Install manifest** at `.governance-kit/installed-packs.yaml` — the authoritative record of packs, directives, and paths `init` installed.
+1. **Install manifest** at `.governance/installed-packs.yaml` — the authoritative record of packs, directives, and paths `init` installed.
 2. **Ownership marker** — `.githooks/` dispatchers carry the line-2 marker `# governance-kit:managed pack-version=<v> generated=<date>`. The marker is a contract that the file is regeneratable, and symmetrically, safe to delete.
 3. **Heuristic fallback** — when neither manifest nor marker is present but governance artifacts are detected, `uninstall` defaults to **dry-run** and requires explicit opt-in before deleting anything.
 
@@ -19,7 +19,7 @@ Leaving intact: files the user owns (pack-seeded docs like `QUALITY.md` / `COSTS
 |---|---|
 | Repo is not a git repo | Stop. `uninstall` operates on a tracked governance surface, which requires git. |
 | Manifest present, artifacts present, markers consistent | Proceed. Manifest is the source of truth. |
-| Manifest missing, artifacts detected (`CONSTITUTION.md` + `tests/governance/` + marked hooks) | Force **dry-run** by default. Require explicit opt-in before executing a destructive mode. |
+| Manifest missing, artifacts detected (`CONSTITUTION.md` + `.governance/` + marked hooks) | Force **dry-run** by default. Require explicit opt-in before executing a destructive mode. |
 | Manifest present but `version` ≠ `"1"` (legacy v0.1 shape) | Fall back to heuristic detection for fields absent in v0.1. Proceed; log every assumption in the Step 6 report. See [MANIFEST_SCHEMA.md](MANIFEST_SCHEMA.md#legacy-fallback--v01--pre-pr-26-manifests). |
 | `AGENTS.md` has the opening `<!-- governance: directives-to-follow -->` but **not** the matching closing marker | Classify as `directive-block-unbounded`. Strip from the opening marker up to the next `^## ` heading. Require an extra confirm (the block boundary is inferred, not marker-bounded). See [MANIFEST_SCHEMA.md](MANIFEST_SCHEMA.md#agentsmd-opening-marker-only-heuristic). |
 | Manifest missing, no artifacts detected | Report "nothing to remove" and exit. Idempotent no-op. |
@@ -38,14 +38,14 @@ Run these steps in order. Do not skip steps unless noted.
 Before touching anything, run these in parallel:
 
 - `git rev-parse --show-toplevel` to confirm this is a git repo and find the root.
-- Read `.governance-kit/installed-packs.yaml` if present. Its schema is documented in [MANIFEST_SCHEMA.md](MANIFEST_SCHEMA.md).
-- `ls -la` at the root and at `.githooks/`, `.github/workflows/`, `tests/governance/`.
+- Read `.governance/installed-packs.yaml` if present. Its schema is documented in [MANIFEST_SCHEMA.md](MANIFEST_SCHEMA.md).
+- `ls -la` at the root and at `.githooks/`, `.github/workflows/`, `.governance/`.
 - Check for each artifact in the uninstall matrix (see [UNINSTALL_MATRIX.md](UNINSTALL_MATRIX.md)):
   - `CONSTITUTION.md`
-  - `tests/governance/run.sh`, `tests/governance/lib.sh`, every `tests/governance/directives/<id>/`
-  - `tests/governance/freshness.conf`
+  - `.governance/run.sh`, `.governance/lib.sh`, every `.governance/packs/<pack-id>/directives/<id>/`
+  - `.governance/freshness.conf`
   - `.github/workflows/governance.yml`
-  - `.governance-kit/installed-packs.yaml`
+  - `.governance/installed-packs.yaml`
   - `.githooks/pre-commit`, `.githooks/commit-msg`, `.githooks/prepare-commit-msg`, `.githooks/post-commit`, `.githooks/pre-push`
   - `.githooks/*.userhook` (Path A wrap leftovers)
   - `<any>.pre-governance.bak` files (Path A overwrite backups)
@@ -66,7 +66,7 @@ Based on the survey, pick exactly one classification:
 | `fully-installed` | Manifest present; every artifact it names exists; every managed hook carries the marker. | Safe path. All modes available. |
 | `partial` | Manifest present but some listed artifacts are missing, OR manifest missing but ≥ 2 artifacts present with markers intact. | Proceed with the subset found. Note discrepancies in the report. |
 | `unmarked-collision` | A managed-path hook exists **without** the marker, OR a manifest-listed file has been heavily modified since install (best-effort detection). | Stop before executing. Resolve collisions per Step 4. |
-| `none-detected` | No manifest, no marked hooks, no `CONSTITUTION.md`, no `tests/governance/`. | Report "nothing to remove" and exit. |
+| `none-detected` | No manifest, no marked hooks, no `CONSTITUTION.md`, no `.governance/`. | Report "nothing to remove" and exit. |
 
 Idempotency contract: `none-detected` is the expected outcome of running `uninstall` on a repo that never had governance installed, or on one where `uninstall` already ran. Treat it as success, not an error.
 
@@ -92,12 +92,12 @@ Show the user the exact plan before acting. Build a structured preview from the 
 ```
 Files to delete:
   CONSTITUTION.md
-  tests/governance/run.sh
-  tests/governance/lib.sh
-  tests/governance/directives/<directive-a>/          (4 files)
-  tests/governance/directives/<directive-b>/          (4 files)
+  .governance/run.sh
+  .governance/lib.sh
+  .governance/packs/<pack-id>/directives/<directive-a>/ (4 files)
+  .governance/local/directives/<directive-b>/           (4 files)
   .github/workflows/governance.yml
-  .governance-kit/installed-packs.yaml
+  .governance/installed-packs.yaml
   .githooks/pre-commit       (marker present)
   .githooks/commit-msg       (marker present)
 
@@ -137,11 +137,11 @@ Delete and restore in this order (deliberate — the manifest is read last so it
    - **Opening-marker-only path (pre-PR-#26 directive):** if only the opening marker is present, strip from that line up to — but not including — the next `^## ` heading (or end-of-file). Record the heuristic in the report's `Assumptions:` line.
    - Run a byte-diff on the remainder and abort the whole `uninstall` if any non-block line changed.
    - If the manifest records `agents_md_created: true` (init's Step 4b Case 2), offer to delete the file entirely in hard mode; keep it in soft mode.
-4. **Tree deletes.** `CONSTITUTION.md`, `tests/governance/` (recursive), `.github/workflows/governance.yml`.
-5. **Path B.** If the repo uses husky or `pre-commit`, remove only the governance entries from the framework's config file (keep every other hook intact). Use the manifest's `path_b_entries` list if present; otherwise grep for entries that invoke `tests/governance/run.sh`.
+4. **Tree deletes.** `CONSTITUTION.md`, `.governance/` (recursive), `.github/workflows/governance.yml`.
+5. **Path B.** If the repo uses husky or `pre-commit`, remove only the governance entries from the framework's config file (keep every other hook intact). Use the manifest's `path_b_entries` list if present; otherwise grep for entries that invoke `.governance/run.sh`.
 6. **Seeded docs.** In soft mode: preserve, report as orphaned. In hard mode: delete `QUALITY.md`, `COSTS.md`, and every path the manifest lists under `install_assets_seeded`.
 7. **Backups.** In soft mode: preserve `*.pre-governance.bak`, report them. In hard mode: delete them.
-8. **Manifest.** Delete `.governance-kit/installed-packs.yaml`. If `.governance-kit/` is now empty, `rmdir` it.
+8. **Manifest.** Delete `.governance/installed-packs.yaml`. If `.governance/` is now empty, `rmdir` it.
 
 All deletes use plain `rm` / `git rm` against tracked paths. Never `git clean`, `git reset --hard`, or stash — those can touch the user's uncommitted work.
 
@@ -197,4 +197,4 @@ Every successful `uninstall` run should leave the user with a summary that inclu
 ## References
 
 - [UNINSTALL_MATRIX.md](UNINSTALL_MATRIX.md) — canonical table of every artifact the kit can produce and the exact `uninstall` action under soft vs. hard mode.
-- [MANIFEST_SCHEMA.md](MANIFEST_SCHEMA.md) — schema of `.governance-kit/installed-packs.yaml` that `uninstall` reads, plus the fallback heuristic when the manifest is absent.
+- [MANIFEST_SCHEMA.md](MANIFEST_SCHEMA.md) — schema of `.governance/installed-packs.yaml` that `uninstall` reads, plus the fallback heuristic when the manifest is absent.

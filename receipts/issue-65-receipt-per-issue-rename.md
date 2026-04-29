@@ -21,9 +21,9 @@ The expanded section check bakes in conventions that already organically appeare
 Edits land at both layers per the pack-and-dogfood dual-edit rule:
 
 - **Pack source** (`extensions/packs/agent-governance/directives/`): `receipt-shape/` renamed to `receipt-per-issue/` via `git mv`. `directive.yaml`, `check.sh`, `constitution.md`, and `evals/test.sh` updated. The eval grew two new failure cases (missing `## What changed`, missing `## Out of scope`) and the existing pass cases were extended to include all three required sections.
-- **Dogfood install** (`tests/governance/directives/`): same folder rename and same updates to `directive.yaml`, `check.sh`, `constitution.md` (no eval at this layer).
+- **Dogfood install** (`.governance/local/directives/`): same folder rename and same updates to `directive.yaml`, `check.sh`, `constitution.md` (no eval at this layer).
 - `CONSTITUTION.md`: `### receipt-shape` subsection renamed to `### receipt-per-issue` with the new directive text; `commit-issue-receipt-match` rationale updated to reference the new id; Evolution Log entry appended (2026-04-26, closes #65).
-- `.governance-kit/installed-packs.yaml`: directive id and installed-path updated under `duaility/agent-governance`.
+- `.governance/installed-packs.yaml`: directive id and installed-path updated under `duaility/agent-governance`.
 - `extensions/packs/agent-governance/pack.yaml`: `minimal` preset directive list updated and the chain comment updated.
 - `extensions/packs/agent-governance/README.md`: directive table row renamed.
 - `extensions/packs/agent-governance/directives/commit-issue-receipt-match/`: rationale comment in `check.sh` and rationale line in `constitution.md` updated to reference the new id (mirrored in the dogfood layer).
@@ -43,12 +43,12 @@ Edits land at both layers per the pack-and-dogfood dual-edit rule:
 
 A reviewer can confirm the change is complete by checking:
 
-1. **Folder rename completed at both layers.** `extensions/packs/agent-governance/directives/receipt-per-issue/` and `tests/governance/directives/receipt-per-issue/` exist; the old `receipt-shape/` paths do not.
-2. **Check enforces all three required sections.** `tests/governance/directives/receipt-per-issue/check.sh` iterates over `("What changed" "Out of scope" "Verification")` and emits a violation per missing section. Smoke test on this branch: `bash tests/governance/run.sh receipt-per-issue` exits 0.
+1. **Folder rename completed at both layers.** `extensions/packs/agent-governance/directives/receipt-per-issue/` and `.governance/local/directives/receipt-per-issue/` exist; the old `receipt-shape/` paths do not.
+2. **Check enforces all three required sections.** `.governance/local/directives/receipt-per-issue/check.sh` iterates over `("What changed" "Out of scope" "Verification")` and emits a violation per missing section. Smoke test on this branch: `bash .governance/run.sh receipt-per-issue` exits 0.
 3. **Eval coverage extended.** `extensions/packs/agent-governance/directives/receipt-per-issue/evals/test.sh` now includes two new failure cases (`missing-what-changed`, `missing-out-of-scope`) alongside the existing `missing-verification`. `bash scripts/test-packs.sh` exits 0.
-4. **Manifest is consistent.** `.governance-kit/installed-packs.yaml` lists `receipt-per-issue` (not `receipt-shape`) under `duaility/agent-governance`. `extensions/packs/agent-governance/pack.yaml` `minimal` preset names `receipt-per-issue`.
+4. **Manifest is consistent.** `.governance/installed-packs.yaml` lists `receipt-per-issue` (not `receipt-shape`) under `duaility/agent-governance`. `extensions/packs/agent-governance/pack.yaml` `minimal` preset names `receipt-per-issue`.
 5. **No live references to `receipt-shape` remain** outside the two Evolution Log entries (the original 2026-04-26 entry for #63 and the new entry for #65) and the body of `receipts/issue-63-receipts-replace-plans.md`. Search: `grep -rn 'receipt-shape'`.
 6. **Constitution captures the change.** `CONSTITUTION.md` has the `### receipt-per-issue` subsection (the old `### receipt-shape` subsection is gone), the `commit-issue-receipt-match` rationale references the new id, and the Evolution Log carries a 2026-04-26 entry referencing #65.
 7. **Existing receipt still passes.** `receipts/issue-63-receipts-replace-plans.md` carries `## What changed`, `## Out of scope`, and `## Verification` (the heading rename completes this).
 8. **This commit itself satisfies `commit-issue-receipt-match`.** The commit's `(#65)` anchor matches the `issue-65` token on this very file.
-9. **Smoke test passes.** `bash tests/governance/run.sh` exits 0 on this branch.
+9. **Smoke test passes.** `bash .governance/run.sh` exits 0 on this branch.

@@ -19,7 +19,7 @@ governance-kit treats governance as repo state:
 
 - **Desired state** lives in `CONSTITUTION.md`: directives, rationale, enforcement paths, exceptions, and an evolution log.
 - **Current state** is the working tree, staged diff, commit message, PR state, receipts, and ledgers.
-- **Reconciliation** happens through `tests/governance/run.sh` and hook dispatchers. A failed directive names the gap and its rationale; the agent fixes the repo, reruns the check, and repeats until reality matches the declared state.
+- **Reconciliation** happens through `.governance/run.sh` and hook dispatchers. A failed directive names the gap and its rationale; the agent fixes the repo, reruns the check, and repeats until reality matches the declared state.
 - **Abstractions** keep humans out of low-level ceremony. You reason about directives, packs, receipts, and ledgers instead of scattered hook scripts, chat transcripts, and one-off agent instructions.
 
 That gives a practical steering surface. Your guidance has to reach the next agent, on the next branch, without you. governance-kit's answer is a **constitution**: a versioned set of directives every agent reads on every commit, plus a `STEERING.md` ledger that captures the per-turn redirects you did not promote into a directive.
@@ -66,7 +66,7 @@ claude
 > governance init
 ```
 
-`npx skills` auto-detects [governance/SKILL.md](governance/SKILL.md) and symlinks it into every skills-compatible runtime on your machine (`~/.claude/skills/`, `~/.codex/skills/`, `~/.cursor/skills/`, …). `governance init` bootstraps `CONSTITUTION.md`, `tests/governance/`, a pre-commit hook, and the `core` pack.
+`npx skills` auto-detects [governance/SKILL.md](governance/SKILL.md) and symlinks it into every skills-compatible runtime on your machine (`~/.claude/skills/`, `~/.codex/skills/`, `~/.cursor/skills/`, …). `governance init` bootstraps `CONSTITUTION.md`, `.governance/`, a pre-commit hook, and the `core` pack.
 
 Make a bad commit to see the gate fire:
 
@@ -90,7 +90,7 @@ governance directive {add,modify,remove}              # atomic directive amendme
 ```
 
 > [!IMPORTANT]
-> Don't hand-edit `CONSTITUTION.md` or files under `tests/governance/directives/`. The `directive *` verbs keep the check, the rationale, and the history in lockstep — hand-edits will drift the constitution out of sync with the tests.
+> Don't hand-edit `CONSTITUTION.md` or files under `.governance/`. The `directive *` verbs keep the check, the rationale, and the history in lockstep — hand-edits will drift the constitution out of sync with the tests.
 
 ### Anatomy of a directive
 
@@ -111,12 +111,12 @@ The `constitution.md` carries the *why*:
 ```markdown
 ### doc-freshness
 
-- **Directive**: Docs opted into `tests/governance/freshness.conf` carry a
+- **Directive**: Docs opted into `.governance/freshness.conf` carry a
   `<!-- last-verified: YYYY-MM-DD -->` marker dated within the last 90 days.
 - **Rationale**: Critical runbooks and onboarding docs decay. A periodic
   "someone re-read this" checkpoint keeps them honest — if the deadline
   passes, either bump the date or fix the doc.
-- **Enforced by**: `tests/governance/directives/doc-freshness/check.sh`
+- **Enforced by**: `.governance/packs/core/directives/doc-freshness/check.sh`
 - **Exceptions**: Remove a doc from `freshness.conf` to opt it out.
 ```
 
@@ -132,11 +132,11 @@ flowchart LR
 
 ### Composition
 
-Directives are invariants on state, not steps in a procedure. Each one describes a condition the repo must satisfy; the runner re-evaluates them all on every firing. `tests/governance/run.sh` iterates `directives/*/check.sh` alphabetically — no `depends_on:`, no `order:`, no graph engine.
+Directives are invariants on state, not steps in a procedure. Each one describes a condition the repo must satisfy; the runner re-evaluates them all on every firing. `.governance/run.sh` iterates `directives/*/check.sh` alphabetically — no `depends_on:`, no `order:`, no graph engine.
 
 When directive B logically depends on directive A's postcondition — e.g. "PR must have a review" depends on "PR must exist" — B reads the precondition itself and skips-with-info if it's not met. The cascade falls out of re-evaluation: fix what's currently violating, re-run, the next gate fires, fix that, re-run, done.
 
-This is declarative reconciliation applied to a repository. A directive describes the desired state; its check observes current state; the agent takes the mandated action; then `bash tests/governance/run.sh` surfaces the next gap. Don't chain actions; describe state and let re-evaluation converge.
+This is declarative reconciliation applied to a repository. A directive describes the desired state; its check observes current state; the agent takes the mandated action; then `bash .governance/run.sh` surfaces the next gap. Don't chain actions; describe state and let re-evaluation converge.
 
 ### Core pack
 

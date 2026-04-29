@@ -10,7 +10,7 @@ metadata:
 
 # governance
 
-This skill is the **unified lifecycle entry point** for governance-kit. It exposes a verb surface inspired by [spec-kit](https://github.com/github/spec-kit) — a single writer for the governance surface rather than a fleet of per-lifecycle skills that each mutate `CONSTITUTION.md`, `tests/governance/directives/`, hooks, and ownership markers.
+This skill is the **unified lifecycle entry point** for governance-kit. It exposes a verb surface inspired by [spec-kit](https://github.com/github/spec-kit) — a single writer for the governance surface rather than a fleet of per-lifecycle skills that each mutate `CONSTITUTION.md`, `.governance/`, hooks, and ownership markers.
 
 Tracking issue: [Duaility/governance-kit#31](https://github.com/Duaility/governance-kit/issues/31).
 
@@ -45,14 +45,14 @@ Infer the intended verb from the user's request:
 | "add / modify / remove directive X", "amend the constitution", "new directive" | `directive *` — see [references/DIRECTIVE_VERBS.md](references/DIRECTIVE_VERBS.md). |
 | "pack search / add / update / remove / list", "install pack X", "pin pack X", "update all packs" | `pack *` — see [references/PACK_VERBS.md](references/PACK_VERBS.md). Do **not** fall back to editing the in-tree pack tree by hand. |
 
-If the user's intent is ambiguous between `init` and `uninstall`, look at the repo state: `CONSTITUTION.md` + `tests/governance/` both present → `uninstall` is more likely; both absent → `init`. Ask once when still ambiguous.
+If the user's intent is ambiguous between `init` and `uninstall`, look at the repo state: `CONSTITUTION.md` + `.governance/` both present → `uninstall` is more likely; both absent → `init`. Ask once when still ambiguous.
 
 ## `governance init`
 
 Bootstraps governance-driven development in the current repo:
 
 1. `CONSTITUTION.md` at the root — the evolving source of truth.
-2. Machine-enforced tests under `tests/governance/`, one folder per directive.
+2. Machine-enforced tests under `.governance/`, one folder per directive.
 3. A pre-commit hook (and `commit-msg` / `prepare-commit-msg` / `post-commit` / `pre-push` dispatchers when selected directives need them) honoring `SKIP_GOVERNANCE=1` and `git commit --no-verify` / `git push --no-verify`.
 4. A GitHub Actions workflow at `.github/workflows/governance.yml`.
 
@@ -61,7 +61,7 @@ Bootstraps governance-driven development in the current repo:
 ### When to skip the flow
 
 - Repo is not a git repo → stop, tell the user governance requires git.
-- Repo already has `CONSTITUTION.md` + `tests/governance/` and the user asked a question (not a setup request) → answer the question; do not bootstrap.
+- Repo already has `CONSTITUTION.md` + `.governance/` and the user asked a question (not a setup request) → answer the question; do not bootstrap.
 - Repo already has governance and the user asked for one targeted directive change → route to `directive *`.
 
 ## `governance uninstall`
@@ -102,7 +102,7 @@ Key invariants:
 
 ## `governance pack *`
 
-Install, update, list, and remove community packs. Packs are resolved from GitHub refs (`gh:owner/repo[/subpath][@rev]`), validated, capability-checked, and pinned by resolved SHA in `.governance/packs.lock`. Shared cache at `${GOVERNANCE_KIT_HOME:-$HOME/.governance-kit}/packs/<id>@<sha>/`.
+Install, update, list, and remove community packs. Packs are resolved from GitHub refs (`gh:owner/repo[/subpath][@rev]`), validated, capability-checked, and pinned by resolved SHA in `.governance/packs.lock`. Shared cache at `${GOVERNANCE_KIT_HOME:-$HOME/.governance/cache}/packs/<id>@<sha>/`.
 
 See [references/PACK_VERBS.md](references/PACK_VERBS.md) for step-by-step flows. Key guarantees:
 
@@ -113,7 +113,7 @@ See [references/PACK_VERBS.md](references/PACK_VERBS.md) for step-by-step flows.
 
 ## `governance directive *`
 
-Hand-authored directive flows for adding, modifying, or removing directives. Every amendment is the **atomic triple**: a directive folder at `tests/governance/directives/<id>/`, a **Directives** subsection in `CONSTITUTION.md`, and an **Evolution Log** entry — all land in one commit or none do.
+Hand-authored directive flows for adding, modifying, or removing directives. Every amendment is the **atomic triple**: a directive folder at `.governance/local/directives/<id>/`, a **Directives** subsection in `CONSTITUTION.md`, and an **Evolution Log** entry — all land in one commit or none do.
 
 **Authoritative flow:** [references/DIRECTIVE_AMEND_FLOW.md](references/DIRECTIVE_AMEND_FLOW.md) Steps 1–7. Per-verb summaries and aliases live in [references/DIRECTIVE_VERBS.md](references/DIRECTIVE_VERBS.md). Authoring guidance in [references/DIRECTIVE_AUTHORING.md](references/DIRECTIVE_AUTHORING.md). Templates at [`assets/amend/directive.template.sh`](assets/amend/directive.template.sh) and [`assets/amend/directive-section.template.md`](assets/amend/directive-section.template.md).
 
@@ -121,7 +121,7 @@ Hand-authored directive flows for adding, modifying, or removing directives. Eve
 
 ## Key design rules
 
-- **One writer.** Mutations to the governance surface (`CONSTITUTION.md`, `tests/governance/`, hooks, `.governance-kit/installed-packs.yaml`, AGENTS.md directive block) flow through this skill.
+- **One writer.** Mutations to the governance surface (`CONSTITUTION.md`, `.governance/`, hooks, `.governance/installed-packs.yaml`, AGENTS.md directive block) flow through this skill.
 - **Verb dispatch before flow.** Confirm the verb before running any flow. A user who said "uninstall" is not asking for a fresh bootstrap because the repo looks unsetup.
 - **Pack-contract forward-compatibility.** New community packs will declare `reads:` / `writes:` capabilities and may depend on a specific `min_governance_kit`. Both are validated by `packctl.py` today; runtime enforcement of capabilities is tied to `governance pack add`.
 - **No network at commit time.** All pack fetching happens inside user-invoked verbs. Commit hooks must not reach the network — this is enforced implicitly by keeping fetch logic out of directive `check.sh` scripts.

@@ -1,0 +1,53 @@
+version: "1"
+generated_at: 2026-04-23T17:08:30Z
+hook_strategy: githooks
+stack: bash
+constitution: true
+ci_workflow: .github/workflows/governance.yml
+tests_dir: .governance
+agents_md_directive: true
+agents_md_created: false
+setup_clone_script: scripts/setup-clone.sh
+packs:
+  - id: core
+    version: "0.1"
+    directives:
+      - id: required-docs
+        installed_path: .governance/packs/core/directives/required-docs
+      - id: secrets-hygiene
+        installed_path: .governance/packs/core/directives/secrets-hygiene
+      - id: repo-hygiene
+        installed_path: .governance/packs/core/directives/repo-hygiene
+      - id: workflows-hardened
+        installed_path: .governance/packs/core/directives/workflows-hardened
+      - id: no-broken-internal-doc-links
+        installed_path: .governance/packs/core/directives/no-broken-internal-doc-links
+      - id: commit-message-format
+        installed_path: .governance/packs/core/directives/commit-message-format
+      - id: doc-freshness
+        installed_path: .governance/packs/core/directives/doc-freshness
+  - id: duaility/agent-governance
+    version: "0.2"
+    directives:
+      - id: receipt-per-issue
+        installed_path: .governance/packs/duaility/agent-governance/directives/receipt-per-issue
+      - id: commit-issue-receipt-match
+        installed_path: .governance/packs/duaility/agent-governance/directives/commit-issue-receipt-match
+      - id: issue-templates
+        installed_path: .governance/packs/duaility/agent-governance/directives/issue-templates
+      - id: issues-tracked
+        installed_path: .governance/packs/duaility/agent-governance/directives/issues-tracked
+      - id: agent-token-accounting
+        installed_path: .governance/packs/duaility/agent-governance/directives/agent-token-accounting
+      - id: pr-review-required-when-pr-ready
+        installed_path: .governance/packs/duaility/agent-governance/directives/pr-review-required-when-pr-ready
+      - id: agent-steering-accounting
+        installed_path: .governance/packs/duaility/agent-governance/directives/agent-steering-accounting
+install_assets_seeded:
+  - .github/ISSUE_TEMPLATE/config.yml
+  - .github/ISSUE_TEMPLATE/proposal.yml
+  - .github/ISSUE_TEMPLATE/bug.yml
+  - QUALITY.md
+  - COSTS.md
+  - STEERING.md
+collisions: []

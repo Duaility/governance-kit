@@ -9,7 +9,7 @@ Add a rule that requires `QUALITY.md` at the repo root to track bugs and quality
 
 ## Steps
 
-1. Author `tests/governance/rules/issues-tracked.sh` asserting:
+1. Author `.governance/rules/issues-tracked.sh` asserting:
    - `QUALITY.md` exists at repo root.
    - Has a top-level `# ` heading.
    - Has `## Open` and `## Resolved` sections.

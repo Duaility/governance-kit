@@ -31,10 +31,10 @@ with its own activation surface.
    and `governance/evals/amend/files/README.md` so health-check prompts
    assert "answered directly without staging changes".
 5. **Miscellaneous.** Strip gardener-specific commentary from
-   `governance/assets/freshness.conf`, `tests/governance/freshness.conf`,
+   `governance/assets/freshness.conf`, `.governance/freshness.conf`,
    the `governance/assets/packs/lib/install.sh` header comment, and the
    `SKILLS=` array in `scripts/eval-report.sh`.
-6. **Verify.** `bash tests/governance/run.sh` passes; a repo-wide grep
+6. **Verify.** `bash .governance/run.sh` passes; a repo-wide grep
    for `governance-gardener|gardener` returns only historical
    `plans/*.md` entries, which are intentionally left untouched as
    frozen records of past work.

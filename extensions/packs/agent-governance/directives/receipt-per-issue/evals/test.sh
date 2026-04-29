@@ -4,7 +4,7 @@ EVAL_ID="receipt-per-issue"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../../.." && pwd)"
 source "$ROOT/governance/assets/packs/lib/eval-lib.sh"
 PACK_DIR="$ROOT/extensions/packs/agent-governance"
-CHECK="tests/governance/directives/$EVAL_ID/check.sh"
+CHECK=".governance/packs/duaility/agent-governance/directives/$EVAL_ID/check.sh"
 
 fixture_init
 install_directive "$PACK_DIR" "$EVAL_ID"

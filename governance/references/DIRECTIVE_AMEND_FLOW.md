@@ -9,7 +9,7 @@ Governance-driven development's cardinal directive: *the constitution and the en
 
 Every amendment produced here is three logical changes, committed atomically:
 
-1. A new (or updated) directive folder at `tests/governance/directives/<directive-name>/` with `directive.yaml`, `check.sh`, and `constitution.md`.
+1. A new (or updated) directive folder at `.governance/local/directives/<directive-name>/` with `directive.yaml`, `check.sh`, and `constitution.md`.
 2. A new **Directives** subsection in `CONSTITUTION.md`.
 3. A new entry in the `CONSTITUTION.md` **Evolution Log**.
 
@@ -38,8 +38,8 @@ The flow stages and **commits** the amendment in one conventional commit. Review
 Run in parallel:
 - `git rev-parse --show-toplevel` — confirm we're inside a git repo; capture the root.
 - Check for `<root>/CONSTITUTION.md`.
-- Check for `<root>/tests/governance/directives/` (directory).
-- Check for `<root>/tests/governance/run.sh` (executable).
+- Check for `<root>/.governance/local/directives/` (directory).
+- Check for `<root>/.governance/run.sh` (executable).
 
 If any is missing, stop. The user needs `governance init` first — don't pretend to amend something that isn't there. Tell them that explicitly.
 
@@ -73,7 +73,7 @@ If the user's rationale says "every substantive change must...", "this kind of c
 Default operating mode is **fast path**: draft → syntax-check → smoke-test → edit constitution → stage → commit. Ask a clarifying question only when the intent map cannot be filled in from the user's request. If structured question tools are unavailable, use short free-text questions instead of stopping.
 
 **Handle collisions without asking for confirmation:**
-- If `tests/governance/directives/<name>/check.sh` already exists → this is an **update**, not a new directive. Proceed with the update (preserving rationale unless policy intent changes) and note it in the summary. Treat the matching `CONSTITUTION.md` subsection as an update too.
+- If `.governance/local/directives/<name>/check.sh` already exists → this is an **update**, not a new directive. Proceed with the update (preserving rationale unless policy intent changes) and note it in the summary. Treat the matching `CONSTITUTION.md` subsection as an update too.
 - If `CONSTITUTION.md` already has a subsection whose header closely matches the proposed name → same: proceed with update, note it.
 - If the user asked to **remove** a directive, verify the matching script and directive exist before deleting, and grep for dangling references in docs or CI notes. If references exist, surface them in the summary — do not silently delete around them.
 
@@ -83,7 +83,7 @@ Do not proceed until the intent map is coherent. A valid amendment needs a concr
 
 ### Step 3 — Draft the test script
 
-Create or update `tests/governance/directives/<name>/`. Start `check.sh` from [`../assets/amend/directive.template.sh`](../assets/amend/directive.template.sh). Substitute:
+Create or update `.governance/local/directives/<name>/`. Start `check.sh` from [`../assets/amend/directive.template.sh`](../assets/amend/directive.template.sh). Substitute:
 - `<directive-name>` → the chosen name.
 - The commented block → the actual check.
 
@@ -99,17 +99,17 @@ Choose the inspection surface to match the intent map:
 - `change-set obligation` directives inspect the staged diff locally and the branch diff in CI. Do not collapse these into existence checks just because existence checks are easier to write.
 - If you cannot enforce the intended surface mechanically, stop and tell the user the directive is not ready yet. Do not ship a knowingly weak proxy without calling it out and getting explicit buy-in.
 
-Create or update `tests/governance/directives/<name>/directive.yaml` with at least `category`, `recommended`, `summary`, `surface`, and `hook` fields. Use `hook: pre-commit` for ordinary repo-state directives, `hook: commit-msg` only for directives that validate the pending commit message, and `hook: none` for CI-only checks.
+Create or update `.governance/local/directives/<name>/directive.yaml` with at least `category`, `recommended`, `summary`, `surface`, and `hook` fields. Use `hook: pre-commit` for ordinary repo-state directives, `hook: commit-msg` only for directives that validate the pending commit message, and `hook: none` for CI-only checks.
 
-Create or update `tests/governance/directives/<name>/constitution.md` with the same Directives subsection you add to `CONSTITUTION.md`; this keeps the installed directive folder self-describing for future `init` work.
+Create or update `.governance/local/directives/<name>/constitution.md` with the same Directives subsection you add to `CONSTITUTION.md`; this keeps the installed directive folder self-describing for future `init` work.
 
-Syntax-check it: `bash -n tests/governance/directives/<name>/check.sh`. If it fails, fix and re-check. Never ship syntactically broken bash.
+Syntax-check it: `bash -n .governance/local/directives/<name>/check.sh`. If it fails, fix and re-check. Never ship syntactically broken bash.
 
 Write the script once it passes syntax check. Do not pause for user approval of the draft — PR review is the review layer. The only reason to stop mid-draft is a missing *blocking* input (rationale, or check shape so vague the bash cannot be deterministic); ask that one question and continue.
 
 ### Step 4 — Smoke-test the script
 
-Run `bash tests/governance/directives/<name>/check.sh` against the current repo and capture the result.
+Run `bash .governance/local/directives/<name>/check.sh` against the current repo and capture the result.
 
 - **Exits 0 (passes)** — fine. The directive isn't flagging the current tree. Proceed.
 - **Exits 1 (fails)** — real directive output, pre-existing violators. This is the one case where a **single blocking question** is required before commit, because the resolution branches on user intent in a way the flow cannot decide mechanically. Show the verbatim violator list and ask the user to pick exactly one:
@@ -132,7 +132,7 @@ Two edits, both in the same file:
 
 - **Directive**: <one-sentence statement>.
 - **Rationale**: <why this matters, link incident if applicable>.
-- **Enforced by**: `tests/governance/directives/<directive-name>/check.sh`
+- **Enforced by**: `.governance/local/directives/<directive-name>/check.sh`
 - **Exceptions**: <none | waiver comment format | config file reference>
 ```
 
@@ -150,7 +150,7 @@ Use today's date from the session environment (not a placeholder).
 
 ### Step 6 — Stage and commit the three artifacts
 
-Use `git add -A tests/governance/directives/<directive-name> CONSTITUTION.md` so removals are staged correctly too.
+Use `git add -A .governance/local/directives/<directive-name> CONSTITUTION.md` so removals are staged correctly too.
 
 Then run `git status` to confirm the three changes are staged and nothing else unrelated is picked up. If other unstaged changes exist, leave them unstaged — they're not part of this amendment.
 
@@ -178,7 +178,7 @@ Print:
 - The intent map: bad merge to block, policy surface, and chosen enforcement surface.
 - Smoke-test result: pass, fail-with-violators (list them), or crashed-then-fixed.
 - Commit status: the SHA and subject of the commit just made.
-- How to test locally: `bash tests/governance/run.sh <directive-name>`
+- How to test locally: `bash .governance/run.sh <directive-name>`
 - Assumptions made. If none, say `Assumptions: none`.
 - A reminder that the pre-commit hook and CI workflow discover installed directive folders — no hook reinstall is needed for `pre-commit`, `commit-msg`, or `prepare-commit-msg` directives that declare the right `hook:` in `directive.yaml`.
 - Next step for the user: `git push` to open the PR-review cycle (the real review gate).

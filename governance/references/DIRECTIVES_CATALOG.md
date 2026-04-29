@@ -36,7 +36,7 @@ The three consolidated directives (`required-docs`, `repo-hygiene`, `secrets-hyg
 | Directive | What it checks |
 |---|---|
 | `no-broken-internal-doc-links`  | Every relative-path markdown link in tracked `.md` files resolves to an existing file. |
-| `doc-freshness`                 | Docs listed in `tests/governance/freshness.conf` carry `<!-- last-verified: YYYY-MM-DD -->` within 90 days (configurable). No-op if the config file is absent. |
+| `doc-freshness`                 | Docs listed in `.governance/freshness.conf` carry `<!-- last-verified: YYYY-MM-DD -->` within 90 days (configurable). No-op if the config file is absent. |
 
 ### Commit hygiene
 | Directive | What it checks |

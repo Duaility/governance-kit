@@ -1,6 +1,6 @@
 # Constitution
 
-This document is the source of truth for the principles, guidelines, and directives that govern development in this repository. Every directive here is enforced by an executable test under `tests/governance/`. A directive with no enforcing test is not a directive — it is a wish.
+This document is the source of truth for the principles, guidelines, and directives that govern development in this repository. Every directive here is enforced by an executable test under `.governance/`. A directive with no enforcing test is not a directive — it is a wish.
 
 > **The cardinal rule:** Amendments to this constitution must land in the same commit as the change to its enforcing test. No exceptions.
 
@@ -8,7 +8,7 @@ This document is the source of truth for the principles, guidelines, and directi
 
 Anyone working in this repo — humans, agents, scripted automation — must satisfy every principle, guideline, and directive in this document.
 
-- **Mechanical directives** (the **Directives** section below) are enforced by `tests/governance/` via the pre-commit hook and CI. A violating commit is blocked locally and re-blocked in CI if the hook is bypassed.
+- **Mechanical directives** (the **Directives** section below) are enforced by `.governance/` via the pre-commit hook and CI. A violating commit is blocked locally and re-blocked in CI if the hook is bypassed.
 - **Principles and guidelines** (the **Principles** section above the Directives) cannot be checked mechanically. They depend on judgment and reviewer discipline. A change that defies a principle without explanation is grounds to block the PR.
 
 If a specific change cannot satisfy a directive, document the deviation in the PR description and use the directive's stated waiver mechanism if one exists. Drive-by violations without explanation will block the merge.
@@ -40,14 +40,14 @@ For each directive, use this structure:
 
 - **Directive**: A `CONSTITUTION.md` exists at the repo root and is non-empty.
 - **Rationale**: Governance without a discoverable source of truth is tribal knowledge.
-- **Enforced by**: `tests/governance/directives/constitution-exists/check.sh`
+- **Enforced by**: `.governance/local/directives/constitution-exists/check.sh`
 - **Exceptions**: none.
 
 <!-- governance-bootstrap will inject one subsection per directive the user selected. -->
 
 ## Amendment process
 
-1. Open a PR that modifies this file **and** `tests/governance/directives/` in the same commit.
+1. Open a PR that modifies this file **and** `.governance/local/directives/` in the same commit.
 2. The PR description states *what* changed and *why* — link the incident, RFC, or discussion that motivated it.
 3. Add an entry to the **Evolution Log** below.
 4. At least one reviewer with governance authority approves.
@@ -62,7 +62,7 @@ For each directive, use this structure:
 
 Governance is enforced at two layers:
 
-1. **Pre-commit hook** — runs `tests/governance/run.sh` before each commit. Skip with `SKIP_GOVERNANCE=1 git commit ...` or `git commit --no-verify` when a hotfix cannot wait.
+1. **Pre-commit hook** — runs `.governance/run.sh` before each commit. Skip with `SKIP_GOVERNANCE=1 git commit ...` or `git commit --no-verify` when a hotfix cannot wait.
 2. **CI workflow** — `.github/workflows/governance.yml` runs the same tests on every PR and push to the default branch. CI cannot be skipped from a developer machine.
 
 The hook is for speed; CI is for enforcement. If a commit lands with the hook skipped, CI will catch it.

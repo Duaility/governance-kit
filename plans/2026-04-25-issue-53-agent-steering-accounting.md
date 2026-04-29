@@ -72,7 +72,7 @@ captures *human* steering cost where the existing directive captures *machine* t
 ## Validation
 
 - `bash scripts/test-packs.sh` — green (5 new eval assertions).
-- `bash tests/governance/run.sh` — green on this repo (directive doesn't break
+- `bash .governance/run.sh` — green on this repo (directive doesn't break
   existing flow; the kit doesn't enable it on itself).
 - Manual smoke test in a scratch repo: install the directive, deny a tool call mid-session
   with a typed reason, `git commit`, verify `STEERING.md` got a row with the verbatim
@@ -177,10 +177,10 @@ dogfood install made visible:
   cases (added `retired-tool-denial-type` to confirm the validator now
   rejects rows with the retired type).
 
-Side effects: copied the directive folder into `tests/governance/directives/`,
+Side effects: copied the directive folder into `.governance/local/directives/`,
 seeded `STEERING.md` from `install-assets/`, appended the `### agent-steering-accounting`
 section to `CONSTITUTION.md`, registered the directive under the
-`duaility/agent-governance` block in `.governance-kit/installed-packs.yaml`,
+`duaility/agent-governance` block in `.governance/installed-packs.yaml`,
 and added an Evolution Log entry. Hook dispatchers are dynamic so no regen
 was needed. Eval coverage extended from 8 cases to 10 (added
 `human-commit-exempt` and `zero-mismatch`); all 10 pack evals + 14 governance
