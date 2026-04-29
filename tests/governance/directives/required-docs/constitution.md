@@ -1,6 +1,6 @@
 ### required-docs
 
-- **Directive**: The repo ships the baseline set of root-level documents and local-hook scaffolding expected by governance-kit — each sub-check below is enabled by default and can be opted out of individually via `GOVERNANCE_REQUIRED_DOCS_DISABLE` (comma-separated list of sub-check keys):
+- **Directive**: The repo ships the baseline set of root-level documents and local-hook scaffolding expected by governance-kit — every sub-check below is enabled:
     - `constitution` — `CONSTITUTION.md` at repo root, non-empty, ≥ 10 lines.
     - `agents` — `AGENTS.md` at repo root, 30–250 lines (configurable via `GOVERNANCE_AGENTS_MD_MIN` / `GOVERNANCE_AGENTS_MD_MAX`), with ≥ 3 links to other repo docs (configurable via `GOVERNANCE_AGENTS_MD_MIN_LINKS`), and a link to `CONSTITUTION.md` so the file functions as a map to the bedrock durable docs rather than a standalone manual.
     - `readme` — `README.md`, `README`, or `README.rst` at repo root with a top-level heading and ≥ 30 words.
@@ -10,6 +10,6 @@
     - `ci-workflow` — `.github/workflows/` contains at least one non-governance workflow.
     - `env-example` — when a local `.env` exists, every key in it is declared in `.env.example`.
     - `hooks` — when the installed hook strategy is `githooks`, `.githooks/pre-commit` is tracked + executable, `.githooks/commit-msg` likewise if `commit-message-format` is installed, and `core.hooksPath` points at `.githooks`. No-op on `husky` / `pre-commit.com` strategies.
-- **Rationale**: Governance without a discoverable source of truth is tribal knowledge, and a fresh clone with zero local enforcement silently trusts CI for everything. Rolling the individual presence checks into one directive cuts preset sprawl — users who need to carve out a sub-check do so by setting `GOVERNANCE_REQUIRED_DOCS_DISABLE` rather than deselecting nine separate directive ids.
+- **Rationale**: Governance without a discoverable source of truth is tribal knowledge, and a fresh clone with zero local enforcement silently trusts CI for everything. Rolling the individual presence checks into one directive cuts preset sprawl — repos that need to carve out a sub-check do so by amending the directive in-tree (where the change is reviewable), not by flipping nine separate directive ids on or off in CI.
 - **Enforced by**: `tests/governance/directives/required-docs/check.sh`
-- **Exceptions**: Disable individual sub-checks via `GOVERNANCE_REQUIRED_DOCS_DISABLE="key1,key2,..."`. The `hooks` sub-check is a transparent no-op when the installed manifest declares a non-`githooks` hook strategy.
+- **Exceptions**: To carve out a sub-check for your repo, use `governance directive modify` to amend the script (or `governance directive remove` to drop the directive entirely). The `hooks` sub-check is a transparent no-op when the installed manifest declares a non-`githooks` hook strategy.

@@ -43,15 +43,4 @@ EVAL_LABEL="$EVAL_ID waiver" expect_pass "$CHECK"
 git rm --quiet fixture.txt
 git commit --quiet --no-verify -m "chore: drop waivered fixture"
 
-# DISABLE suppresses the no-secrets sub-check
-cat > bad.txt <<'EOF'
-key = AKIAIOSFODNN7EXAMPLE
-EOF
-git add bad.txt
-git commit --quiet --no-verify -m "chore: bad key"
-GOVERNANCE_SECRETS_HYGIENE_DISABLE="no-secrets" \
-    EVAL_LABEL="$EVAL_ID disable" expect_pass "$CHECK"
-git rm --quiet bad.txt
-git commit --quiet --no-verify -m "chore: remove bad key"
-
 eval_done

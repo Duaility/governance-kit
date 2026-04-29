@@ -217,9 +217,9 @@ Three cases:
 
 1. **`AGENTS.md` exists and lacks the marker.** Insert the snippet near the top of the file. The right insertion point is **after the H1 heading and the first intro paragraph (or any frontmatter), and before the first `##` heading**. Use `Edit` — preserve everything else verbatim.
 
-2. **`AGENTS.md` is missing AND the `required-docs` directive is installed with the `agents` sub-check enabled** (i.e., `agents` is not in `GOVERNANCE_REQUIRED_DOCS_DISABLE`). Create a stub at `<repo-root>/AGENTS.md` containing: `# AGENTS.md`, a one-line intro, the directive snippet, and a `## What this repo is` placeholder. Tell the user the stub is intentionally minimal — they need to flesh it out (`required-docs` enforces 30–250 lines and ≥ 3 internal doc links for AGENTS.md).
+2. **`AGENTS.md` is missing AND the `required-docs` directive is installed.** Create a stub at `<repo-root>/AGENTS.md` containing: `# AGENTS.md`, a one-line intro, the directive snippet, and a `## What this repo is` placeholder. Tell the user the stub is intentionally minimal — they need to flesh it out (`required-docs` enforces 30–250 lines and ≥ 3 internal doc links for AGENTS.md).
 
-3. **`AGENTS.md` is missing AND the `agents` sub-check is disabled (or `required-docs` itself was not installed).** Skip silently. Do not nag — the user opted out, and creating a file they didn't ask for is presumptuous.
+3. **`AGENTS.md` is missing AND `required-docs` was not installed.** Skip silently. Do not nag — the user opted out, and creating a file they didn't ask for is presumptuous.
 
 After injecting, run `bash tests/governance/run.sh` once so the user sees whether the newly-seeded AGENTS.md still needs more content.
 
