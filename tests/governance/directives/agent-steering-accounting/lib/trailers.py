@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Commit-trailer parsing for agent-steering-accounting (summary-only contract).
 
-Every agent-authored commit (one carrying an `Agent:` trailer from
-`agent-token-accounting`) stamps the always-on summary triple:
+Every non-merge, non-revert commit stamps the always-on summary triple:
 
     Steer-Count: <N>
     Steer-Types: <type>=<N>,...   (sorted, or `none` on N=0)
@@ -15,8 +14,9 @@ columns and total to `Steer-Count`. The row → commit join uses STEERING.md's
 stamped is retired (issue #66). Historical commits in the repo's log may
 still carry `Steer-Key:` trailers; the new validator ignores them.
 
-A commit without an `Agent:` trailer is human-authored / exempt; if it
-*also* carries no Steer-* trailers, the validator passes silently.
+The directive is independent of `agent-token-accounting`: the contract
+applies to every in-scope commit, not just commits carrying an `Agent:`
+trailer. Installation is the gate.
 
 CLI:
 
@@ -116,32 +116,11 @@ def validate(
     """
     violations: list[str] = []
     scalars = extract_scalar_trailers(msg)
-    is_agent = "Agent" in scalars
     has_count = "Steer-Count" in scalars
     has_types = "Steer-Types" in scalars
     has_tiers = "Steer-Tiers" in scalars
-    any_steer_summary = has_count or has_types or has_tiers
 
-    # Non-agent commit, no Steer-* summary, no rows touched — silent pass.
-    if not is_agent and not any_steer_summary and not added_keys:
-        return violations
-
-    # Non-agent commit that nonetheless carries Steer-* trailers — wrong shape.
-    if not is_agent:
-        for name in ("Steer-Count", "Steer-Types", "Steer-Tiers"):
-            if name in scalars:
-                violations.append(
-                    f"{label} — {name} trailer present on a non-agent commit "
-                    f"(no Agent: trailer)"
-                )
-        if added_keys:
-            violations.append(
-                f"{label} — STEERING.md adds {len(added_keys)} row(s) on a "
-                f"non-agent commit (no Agent: trailer)"
-            )
-        return violations
-
-    # Agent commit — full summary triple required, even at N=0.
+    # Every in-scope commit — full summary triple required, even at N=0.
     missing = [
         name
         for name, present in (
@@ -153,7 +132,7 @@ def validate(
     ]
     if missing:
         violations.append(
-            f"{label} — agent commit missing summary trailer(s): {', '.join(missing)}"
+            f"{label} — commit missing summary trailer(s): {', '.join(missing)}"
         )
         return violations
 

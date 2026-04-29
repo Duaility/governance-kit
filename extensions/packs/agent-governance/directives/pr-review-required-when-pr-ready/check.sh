@@ -11,14 +11,9 @@
 # human) explicitly marks the PR ready, making readiness an intentional
 # gesture rather than a side-effect of the commit cadence.
 #
-# Composition with `pr-required-when-checklist-complete`:
-#   - The create-gate fires on receipt-checklist completion and demands a PR
-#     (draft is fine — its check is just `PR exists`).
-#   - This review-gate fires on draft→ready and demands a codex review.
-#
 # Local-only: skipped under CI. Codex is part of the local agent loop, not
-# a merge-gate. The hard merge-gate in CI is pr-required-when-checklist-
-# complete (PR must exist); review quality on the PR is verified by humans.
+# a merge-gate. Review quality on the PR is verified by humans at merge
+# time.
 #
 # Skip-with-warning when `gh` is missing or unauthenticated. When `gh` is
 # present but the API call fails, fail loudly: silent bypass on network

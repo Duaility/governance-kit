@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# Directive: every agent-authored commit (one carrying an `Agent:` trailer
-# from agent-token-accounting) stamps the always-on summary triple
-# `Steer-Count`, `Steer-Types`, `Steer-Tiers` — even when zero events were
-# detected. The summary numbers must agree with the rows newly added to
+# Directive: every non-merge, non-revert commit stamps the always-on summary
+# triple `Steer-Count`, `Steer-Types`, `Steer-Tiers` — even when zero events
+# were detected. The summary numbers must agree with the rows newly added to
 # STEERING.md by this commit: `Steer-Count` equals the number of added
 # rows, and the type / tier breakdowns tally those rows' `type` and `tier`
 # columns. The row → commit join uses STEERING.md's `commit |` column.
+#
+# Independent of agent-token-accounting: the contract applies to every
+# in-scope commit, not gated on the `Agent:` trailer. Installation is the
+# gate.
 #
 # Per-event `Steer-Key:` trailers were retired in #66. Historical commits
 # in the repo's log may still carry them; the new check ignores them.

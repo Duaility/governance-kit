@@ -37,8 +37,9 @@ trailer triple cross-checked by
 
 ## Trailer schema
 
-Every agent-authored commit (one carrying an `Agent:` trailer from
-`agent-token-accounting`) stamps the always-on summary triple:
+Every non-merge, non-revert commit stamps the always-on summary triple.
+The directive is independent of `agent-token-accounting` — installation is
+the gate, not the presence of an `Agent:` trailer:
 
 ```
 Steer-Count: 3
@@ -78,15 +79,19 @@ Why summary-only, and why always-on:
   three failure modes into a single visible assertion: the directive ran,
   the transcript was readable, the count is zero.
 
-Commits **without** an `Agent:` trailer (human commits, no recognised
-runtime) are exempt — no Steer-* trailers expected. The failure modes are:
-an agent commit that lacks the summary triple, the summary count
-disagrees with the rows the commit adds to the ledger, the breakdowns
-disagree with those rows' `type` / `tier` columns, or a newly-added row's
-`commit |` cell doesn't match the pending subject (Mode A only — squash
-merges may rewrite the subject after the row was stamped, so Mode B's CI
-walk skips that comparison). Historical commits in the repo's log may
-still carry `Steer-Key:` trailers; the new check ignores them.
+There is no `Agent:`-trailer carve-out — the contract applies to every
+non-merge, non-revert commit. When pre-commit doesn't run (no recognised
+runtime, no transcript, or `SKIP_GOVERNANCE=1`), `prepare-commit-msg.sh`
+falls back to stamping `Steer-Count: 0` / `Steer-Types: none` /
+`Steer-Tiers: none` so the triple is always present at commit-msg time.
+The failure modes are: a commit lacking the summary triple, the summary
+count disagrees with the rows the commit adds to the ledger, the
+breakdowns disagree with those rows' `type` / `tier` columns, or a
+newly-added row's `commit |` cell doesn't match the pending subject
+(Mode A only — squash merges may rewrite the subject after the row was
+stamped, so Mode B's CI walk skips that comparison). Historical commits in
+the repo's log may still carry `Steer-Key:` trailers; the new check
+ignores them.
 
 ## Ledger schema
 
@@ -243,14 +248,18 @@ pre-commit ──► tests/governance/directives/agent-steering-accounting/hooks
 (governance tests run — check.sh sees the new rows in-tree)
       │
       ▼
-prepare-commit-msg ──► sources the handoff env, stamps the summary triple
-                       (Steer-Count / Steer-Types / Steer-Tiers), removes
-                       the handoff file.
+prepare-commit-msg ──► sources the handoff env if present, stamps the
+                       summary triple (Steer-Count / Steer-Types /
+                       Steer-Tiers), removes the handoff file. When no
+                       handoff exists (no runtime, no transcript, or
+                       pre-commit didn't run) it falls back to stamping
+                       `Steer-Count: 0` / `none` / `none` so the universal
+                       contract holds for every commit.
       │
       ▼
 commit-msg ──► tests/governance/directives/agent-steering-accounting/check.sh <msg>
                   Mode A. Cross-checks:
-                    - agent commits carry the full summary triple
+                    - every in-scope commit carries the full summary triple
                     - Steer-Count equals the count of rows the commit adds
                       to STEERING.md
                     - Steer-Types / Steer-Tiers tally those rows' columns

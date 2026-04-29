@@ -12,11 +12,12 @@
 # join uses STEERING.md's `commit |` column; per-event `Steer-Key:`
 # trailers were retired in #66.
 #
-# Always-on contract: when pre-commit detected a runtime + transcript, the
-# handoff is written even on zero-event commits, and the three trailers are
-# stamped here as `Steer-Count: 0` / `Steer-Types: none` / `Steer-Tiers: none`.
-# If the handoff file doesn't exist (no runtime, no transcript, or pre-commit
-# didn't run), this hook is a silent no-op.
+# Always-on contract: every non-merge, non-revert commit gets the triple
+# stamped, period. When pre-commit detected a runtime + transcript it writes
+# the handoff with the actual counts; when no handoff exists (no runtime, no
+# transcript, or pre-commit didn't run), this hook stamps the zero-defaults
+# `Steer-Count: 0` / `Steer-Types: none` / `Steer-Tiers: none` so the
+# commit-msg validator never sees a missing-triple commit.
 #
 # Escape hatches:
 #   SKIP_GOVERNANCE=1 git commit ...
@@ -38,11 +39,11 @@ case "$COMMIT_SOURCE" in
 esac
 
 HANDOFF="$(git rev-parse --git-path governance-pending-steering.env)"
-[[ -f "$HANDOFF" ]] || exit 0
-
-# shellcheck disable=SC1090
-source "$HANDOFF"
-rm -f "$HANDOFF"
+if [[ -f "$HANDOFF" ]]; then
+    # shellcheck disable=SC1090
+    source "$HANDOFF"
+    rm -f "$HANDOFF"
+fi
 
 # Idempotent on amends/retries: skip if Steer-Count is already stamped. The
 # pre-commit hook re-derives the summary from the staged STEERING.md diff
