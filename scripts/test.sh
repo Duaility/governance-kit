@@ -20,6 +20,16 @@
 
 set -eu
 
+# When invoked from a git hook (or any context where git env vars are exported),
+# the pre-commit hook sets GIT_DIR / GIT_INDEX_FILE / GIT_PREFIX / etc. that
+# override cwd-based discovery. If we leave those set, every `git -C $tmp init`
+# call in the layers below would re-init the host repo's gitdir instead of the
+# tmpdir, and write `core.bare = true` to the shared config. Strip them so each
+# layer starts from a clean git environment.
+for var in $(git rev-parse --local-env-vars 2>/dev/null || true); do
+    unset "$var"
+done
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 run_layer() {
