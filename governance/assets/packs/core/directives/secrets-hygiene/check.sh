@@ -28,7 +28,6 @@ _excludes=(
     ":!.governance/packs/governance-kit/core/directives/secrets-hygiene/**"
     ":!CONSTITUTION.md"
     ":!governance/assets/packs/*/directives/*/evals/**"
-    ":!extensions/packs/*/directives/*/evals/**"
     ":!*.lock"
     ":!*.lockfile"
     ":!package-lock.json"

@@ -10,12 +10,19 @@
 # surface / hook / always_install), `check.sh`, `constitution.md`, and
 # optional `evals/`. This file carries only pack-level identity and the
 # presets that select directives by id.
+#
+# The `standard` preset bundles the agent audit chain
+# (issue → receipt → commit → cost). Each link is enforced by a
+# separate directive; breaking any link fails the next push.
+# `agent-steering-accounting` is intentionally absent from every
+# preset — opt-in only because it captures human correction text
+# verbatim into `STEERING.md`.
 
 id: governance-kit/core
 name: Core governance directives
-version: "0.1"
-min_governance_kit: "0.1"
-description: Baseline directives shipped with governance-kit.
+version: "0.2"
+min_governance_kit: "0.2"
+description: Baseline directives shipped with governance-kit, including the agent audit chain.
 author: governance-kit
 
 presets:
@@ -31,6 +38,11 @@ presets:
     directives:
       - commit-message-format
       - doc-freshness
+      - issue-templates
+      - issues-tracked
+      - receipt-per-issue
+      - commit-issue-receipt-match
+      - agent-token-accounting
   strict:
     extends: standard
     directives:

@@ -2,16 +2,13 @@
 
 Every directive lives in a **pack**. Each directive is a self-contained folder at `directives/<directive-id>/` carrying its metadata (`directive.yaml`), the executable test (`check.sh`), its Directive snippet (`constitution.md`), and pass/fail evals (`evals/test.sh`). The pack's top-level `pack.yaml` carries only pack identity and presets. The bootstrap skill discovers packs at activation, unions their menus, and installs the selected subset.
 
-Two packs ship in-tree, each at its own root:
+One pack ships in-tree:
 
 | Pack | Location | Purpose | Default? |
 |---|---|---|---|
-| `governance-kit/core` | `governance/assets/packs/core/` | General-purpose directives usable in any repo. | Always selected — cannot be deselected. |
-| `duaility/agent-governance` | `extensions/packs/agent-governance/` | Directives for repos operating under agent-driven development (issue anchors, plans, token accounting). | Opt-in per-repo. |
+| `governance-kit/core` | `governance/assets/packs/core/` | General-purpose directives plus the agent audit chain (`receipt-per-issue` → `commit-issue-receipt-match` → `issue-templates` → `issues-tracked` → `agent-token-accounting`) and opt-in `agent-steering-accounting`. | Always selected — cannot be deselected. |
 
-`governance-kit/core` is the kit's bundled-in pack. `extensions/packs/` is the monorepo home for community-shaped packs — authored with scoped `<author>/<slug>` ids and installed through `governance pack add` as if hosted in their own repo.
-
-For authoring a **third-party pack**, see [AUTHORING_PACKS.md](AUTHORING_PACKS.md).
+Community packs live in their own repos and install via `governance pack add gh:<owner>/<repo>`. For authoring a **third-party pack**, see [AUTHORING_PACKS.md](AUTHORING_PACKS.md).
 
 ---
 
@@ -49,17 +46,7 @@ The three consolidated directives (`required-docs`, `repo-hygiene`, `secrets-hyg
 |---|---|
 | `repo-hygiene` | Rolled-up hygiene greps. **`always_install: true`** — bypasses the menu. Sub-checks: `merge-markers` (no `<<<<<<<` / `=======` / `>>>>>>>` at line start); `large-files` (no tracked file > 5 MB, override via `GOVERNANCE_MAX_FILE_SIZE_MB`); `build-artifacts` (denylist: `*.pyc`, `__pycache__/`, `*.class`, `*.o`, `node_modules/`, `dist/`, `build/`, `target/`, `out/`, `.DS_Store`, `Thumbs.db`, editor swap files); `debug-statements` (no `console.log` / `debugger` / `breakpoint()` / `import pdb` / `dbg!` / `fmt.Println` in non-test source; waiver `# governance: allow-repo-hygiene <reason>`); `file-size-limit` (no source file > 500 lines, override via `GOVERNANCE_FILE_SIZE_LIMIT`). To carve out a sub-check, use `governance directive modify`. |
 
-### `governance-kit/core` presets
-
-| Preset | Directives |
-|---|---|
-| `minimal`  | `required-docs`, `secrets-hygiene`, `repo-hygiene`, `workflows-hardened`, `no-broken-internal-doc-links` |
-| `standard` | *minimal* + `commit-message-format`, `doc-freshness` |
-| `strict`   | *standard* + `no-orphan-todos` |
-
----
-
-## `agent-governance` pack
+## Agent audit chain
 
 For repos where every tree-change is produced through an agent runtime (Codex, Claude Code, Cursor, ...). The directives form a chain: issue creation uses a durable template, issues are tracked, every issue has exactly one receipt, every commit matches its receipt, and every commit carries its cost. Breaking any link makes the chain non-auditable — the `standard` preset bundles the full chain.
 
@@ -73,13 +60,15 @@ For repos where every tree-change is produced through an agent runtime (Codex, C
 | `agent-token-accounting`   | Every non-merge, non-revert commit carries the full trailer set (`Agent`, `Issue`, `Session`, `Token-Input`, `Token-Output`, `Token-Total`, `Cost-Key`), satisfies `Total = Input + Output`, and has exactly one matching append-only row in `COSTS.md`. Ships `install-assets/COSTS.md` plus directive-owned pre-commit and prepare-commit-msg helpers. Runtime-agnostic — see [AGENT_TOKEN_ACCOUNTING.md](AGENT_TOKEN_ACCOUNTING.md) for Codex / Claude Code wiring. |
 | `agent-steering-accounting` | **Opt-in, not in any preset.** Every non-merge, non-revert commit stamps the always-on summary triple (`Steer-Count`, `Steer-Types`, `Steer-Tiers`); the numbers tally the rows newly added to append-only `STEERING.md` by the commit, and each newly-added row's `commit |` cell matches the pending subject. Independent of `agent-token-accounting` — installation is the gate, not the presence of an `Agent:` trailer. Detects human-steering events from the active session JSONL: interrupts (`tier: structural`) and semantic corrections classified by shelling out to the active runtime's headless CLI (`tier: classifier`, with regex `tier: lexical` as a silent fallback). Per-event `Steer-Key:` trailers were retired in #66 — the row → commit join uses the `commit |` column. No internal env-var gates — installation is the gate. Ships `install-assets/STEERING.md`, a Claude Code transcript reader, and pre-commit + prepare-commit-msg helpers. Privacy caveat — `user-reason` cells contain verbatim operator text. See [AGENT_STEERING_ACCOUNTING.md](AGENT_STEERING_ACCOUNTING.md). |
 
-### `agent-governance` presets
+### `governance-kit/core` presets (full)
 
 | Preset | Directives |
 |---|---|
-| `minimal`  | `receipt-per-issue`, `commit-issue-receipt-match` |
-| `standard` | *minimal* + `issue-templates`, `issues-tracked`, `agent-token-accounting` |
-| `strict`   | same as `standard` |
+| `minimal`  | `required-docs`, `secrets-hygiene`, `repo-hygiene`, `workflows-hardened`, `no-broken-internal-doc-links` |
+| `standard` | *minimal* + `commit-message-format`, `doc-freshness`, `issue-templates`, `issues-tracked`, `receipt-per-issue`, `commit-issue-receipt-match`, `agent-token-accounting` |
+| `strict`   | *standard* + `no-orphan-todos` |
+
+`agent-steering-accounting` is intentionally absent from every preset — opt-in only because it captures human correction text verbatim.
 
 ---
 
@@ -97,7 +86,7 @@ Waivers are visible in `git blame` and searchable by design. Only use them for d
 
 ## Adding a new directive to an existing pack
 
-1. Create `<pack-root>/<pack>/directives/<id>/` (where `<pack-root>` is `governance/assets/packs/` for `governance-kit/core`, or `extensions/packs/` for community-shaped packs) and populate it:
+1. Create `<pack-root>/<pack>/directives/<id>/` (where `<pack-root>` is `governance/assets/packs/` for the kit-bundled `governance-kit/core` pack, or your own pack's source tree for a community pack hosted in its own repo) and populate it:
    - `check.sh` — the bash test, `chmod +x`.
    - `constitution.md` — four sections: **Directive**, **Rationale**, **Enforced by**, **Exceptions**.
    - `directive.yaml` — scalar fields:

@@ -147,7 +147,7 @@ Show the user the exact plan:
 Reset scope: --all  (or: --directive <id>  /  --pack <id>)
 Pinned-source resolution:
   core                     → kit-bundled tree
-  duaility/agent-governance@5f3c... → cache: ~/.governance/packs/duaility__agent-governance@5f3c.../
+  acme/widgets@5f3c... → cache: ~/.governance/packs/acme__widgets@5f3c.../
 
 Directives to restore (kind: restore):
   constitution-exists    no diff — skipped

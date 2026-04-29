@@ -194,7 +194,7 @@ by tier:
 
 **Do not install this directive on a public repo without thinking through
 what those messages could leak.** The directive is opt-in only — it ships in
-`duaility/agent-governance` but is deliberately excluded from every preset
+`governance-kit/core` but is deliberately excluded from every preset
 (`minimal`, `standard`, `strict`). Installing the directive commits to
 recording every tier listed above; there are no per-tier opt-outs at runtime.
 For mixed-audience repos, the lowest-leak path is to keep the runtime CLI
@@ -203,17 +203,17 @@ actually runs.
 
 ## Installing
 
-The directive ships as a self-contained folder under the `agent-governance`
+The directive ships as a self-contained folder under the `governance-kit/core`
 pack. Manual install:
 
 ```sh
-cp -r <governance-kit>/extensions/packs/agent-governance/directives/agent-steering-accounting \
-      .governance/packs/<owner>/<repo>/directives/
-cp    <governance-kit>/extensions/packs/agent-governance/directives/agent-steering-accounting/install-assets/STEERING.md \
+cp -r <governance-kit>/governance/assets/packs/core/directives/agent-steering-accounting \
+      .governance/packs/governance-kit/core/directives/
+cp    <governance-kit>/governance/assets/packs/core/directives/agent-steering-accounting/install-assets/STEERING.md \
       STEERING.md
-chmod +x .governance/packs/<owner>/<repo>/directives/agent-steering-accounting/check.sh \
-         .governance/packs/<owner>/<repo>/directives/agent-steering-accounting/hooks/*.sh \
-         .governance/packs/<owner>/<repo>/directives/agent-steering-accounting/runtimes/*.sh
+chmod +x .governance/packs/governance-kit/core/directives/agent-steering-accounting/check.sh \
+         .governance/packs/governance-kit/core/directives/agent-steering-accounting/hooks/*.sh \
+         .governance/packs/governance-kit/core/directives/agent-steering-accounting/runtimes/*.sh
 ```
 
 Then add an `agent-steering-accounting` Directives subsection to

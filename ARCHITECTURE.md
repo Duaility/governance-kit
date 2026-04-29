@@ -19,14 +19,21 @@ The skill is a self-contained directory with frontmatter
 
 ## Directive packs
 
-Each pack is a directory. Two packs ship in-tree:
+Each pack is a directory. One pack ships in-tree:
 
-- `core` at `governance/assets/packs/core/` — kit-bundled general-purpose
-  directives, always selected. Also houses the shared pack `lib/`
+- `governance-kit/core` at `governance/assets/packs/core/` — kit-bundled,
+  always selected. Bundles general-purpose directives plus the agent
+  audit chain (`receipt-per-issue`, `commit-issue-receipt-match`,
+  `issue-templates`, `issues-tracked`, `agent-token-accounting`) and the
+  opt-in `agent-steering-accounting`. Also houses the shared pack `lib/`
   (`packs.sh`, `install.sh`, `hooks.sh`, `packctl.py`, `packverb.py`,
   `eval-lib.sh`).
-- `duaility/agent-governance` at `extensions/packs/agent-governance/` —
-  community-shaped, authored as if hosted in its own repo. Opt-in per-repo.
+
+Community packs live in their own repos and are consumed via
+`governance pack add gh:<owner>/<repo>`. The advisory catalog at
+`governance/assets/catalog.community.json` is the discoverability layer
+for `governance pack search`; `governance pack add` works against any
+GitHub ref whether or not it is in the catalog.
 
 Every pack has:
 

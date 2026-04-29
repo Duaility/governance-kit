@@ -29,7 +29,7 @@ LOCK_VERSION = "1"
 
 # Scoped pack id pattern: `<author>/<slug>` — both segments start with an
 # alphanumeric and allow `.`, `_`, `-` after that. Kept in sync with
-# extensions/catalog.schema.json.
+# governance/assets/catalog.schema.json.
 PACK_ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*$")
 
 # Pack refs look like:

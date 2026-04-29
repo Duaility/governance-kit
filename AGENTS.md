@@ -53,6 +53,8 @@ governance-kit/
 │   │   ├── setup-clone.sh
 │   │   ├── tests-bash/          # Universal bash runner shipped into every target repo.
 │   │   ├── amend/               # Templates for `directive *` (directive.template.sh, directive-section.template.md).
+│   │   ├── catalog.community.json   # Advisory index of known community packs (read by `governance pack search`).
+│   │   ├── catalog.schema.json      # JSON Schema for catalog entries.
 │   │   └── packs/               # Kit-bundled packs — today: `governance-kit/core` plus the shared `lib/`.
 │   │       └── core/
 │   │           ├── pack.yaml                 # pack id + presets
@@ -69,11 +71,6 @@ governance-kit/
 │   │                            #   DIRECTIVE_AUTHORING.md, UNINSTALL_MATRIX.md,
 │   │                            #   MANIFEST_SCHEMA.md, AGENT_TOKEN_ACCOUNTING.md.
 │   └── evals/                   # Behavioral fixtures for the verbs.
-├── extensions/                  # Community pack catalog + monorepo of community-shaped packs.
-│   ├── catalog.community.json
-│   ├── catalog.schema.json
-│   └── packs/
-│       └── agent-governance/    # duaility/agent-governance — authored as a community pack.
 ├── .governance/            # Directive tests for THIS repo (dogfood).
 │   ├── run.sh
 │   ├── lib.sh
@@ -97,13 +94,12 @@ Do not edit [CONSTITUTION.md](CONSTITUTION.md) by hand. Invoke the `governance` 
 
 ### Adding a new directive to the catalog
 
-Directives live inside **packs**, each at its own pack root. Today:
-`governance-kit/core` lives at `governance/assets/packs/core/` (kit-bundled),
-and `duaility/agent-governance` lives at `extensions/packs/agent-governance/`
-(community-shaped, authored as if hosted in its own repo but colocated
-here under the monorepo layout — see `extensions/README.md`).
-Each directive is a self-contained folder — test, snippet, metadata, and
-eval all live together under `directives/<directive-id>/`.
+Directives live inside **packs**, each at its own pack root. Today the kit
+ships exactly one bundled pack — `governance-kit/core`, at
+`governance/assets/packs/core/`. Community packs are authored in their own
+repos and consumed by target repos via `governance pack add gh:<owner>/<repo>`;
+they are not bundled here. Each directive is a self-contained folder — test,
+snippet, metadata, and eval all live together under `directives/<directive-id>/`.
 
 1. Create `<pack-root>/<pack-dir>/directives/<id>/` and populate it with:
    - `directive.yaml` — scalar fields `category`, `recommended`, `summary`,
