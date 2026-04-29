@@ -14,7 +14,7 @@ full rearchitecture context.
   - `../assets/CONSTITUTION.template.md`
   - `../assets/AGENTS.directive.md`
   - `../assets/packs/` (kit-bundled pack tree — today: `governance-kit/core` plus the shared `lib/`)
-  - `../../extensions/packs/` (monorepo of community-shaped packs — today: `duaility/agent-governance`)
+  - `../assets/catalog.community.json` (advisory community pack catalog — read by `pack search`)
   - `../assets/dot-governance/`
   - `../assets/governance.yml`
   - `../assets/setup-clone.sh`
@@ -48,7 +48,7 @@ Full flows live in [PACK_VERBS.md](PACK_VERBS.md). Summary:
 
 | Verb | Intent |
 |---|---|
-| `pack search [query]` | Search `extensions/catalog.community.json` and return matching entries via `packverb catalog-search`. |
+| `pack search [query]` | Search `governance/assets/catalog.community.json` and return matching entries via `packverb catalog-search`. |
 | `pack add <ref>` | Fetch a pack from a GitHub ref (`gh:owner/repo[/subpath][@rev]`), resolve to a concrete SHA, validate, show `check.sh` diffs before writing (diff-before-exec), install directive folders, and record the pin in `.governance/packs.lock`. Refuse if any directive declares `reads:`/`writes:` globs and the directive's `check.sh` references paths outside those globs. |
 | `pack update [<pack-id>]` | Resolve the ref to a newer SHA, re-run diff-before-exec, rewrite directive folders, update the lock. |
 | `pack remove <pack-id>` | Remove installed directive folders owned by the pack (from `.governance/installed-packs.yaml`), regenerate the hook dispatcher, prune the lock entry. |

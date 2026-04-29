@@ -62,7 +62,7 @@ During `pack add`, every directive in the fetched pack is capability-checked bef
 
 ## `pack search [query]`
 
-1. Read the built-in community catalog at `extensions/catalog.community.json` (in the governance-kit checkout).
+1. Read the built-in community catalog at `governance/assets/catalog.community.json` (in the governance-kit checkout).
 2. Run `packverb catalog-search <catalog> [query]`. Each line is `<id>\t<ref>\t<summary>`.
 3. Render the table to the user.
 

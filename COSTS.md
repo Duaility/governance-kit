@@ -197,3 +197,4 @@ Schema:
 | claude-code-abd20131-333-1777471738 | claude-code | abd20131-333b-4f4a-b2e9-831e15766050 | #95 | claude-opus-4-7 | 209 | 341864 | 11611385 | 91532 | 433605 | 10.2317 | ci: bump checkout@v5, consolidate kit-internal tests, fix umbrella git env leak  |
 | claude-code-abd20131-333-1777471839 | claude-code | abd20131-333b-4f4a-b2e9-831e15766050 | #95 | claude-opus-4-7 | 7 | 9515 | 851308 | 6821 | 16343 | 0.6557 | ci: bump checkout@v5, consolidate kit-internal tests, fix umbrella git env leak  |
 | claude-code-1b6e8b462ca-1777474500 | claude-code | 1b6e8b46-2cad-4ad9-b513-0eecc4ec897e | #96 | claude-opus-4-7 | 0 | 0 | 0 | 0 | 0 | 0.0000 | refactor(governance): collapse local/ into <owner>/<name> pack namespace          |
+| claude-code-d575136b-1c8-1777478193 | claude-code | d575136b-1c82-442f-b0ba-cfa93c9cd42a | #99 | claude-opus-4-7 | 5 | 16565 | 14869 | 45 | 16615 | 0.1121 | refactor(governance): fold agent-governance pack into core (#99) |

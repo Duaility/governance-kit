@@ -16,13 +16,11 @@ set -u
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 PACKS_ROOT="$ROOT/governance/assets/packs"
-# Pack-search roots. `governance/assets/packs/` hosts the in-tree
-# `core` pack plus the shared lib. `extensions/packs/` is the monorepo home
-# for community-shaped packs (authored in the `<author>/<slug>` id form) that
-# ship alongside the kit.
+# Pack-search root. `governance/assets/packs/` hosts the in-tree
+# `core` pack plus the shared lib. Community packs live in their own
+# repos and are pulled in via `governance pack add gh:<owner>/<repo>`.
 PACK_ROOTS=(
     "$PACKS_ROOT"
-    "$ROOT/extensions/packs"
 )
 LOADER="$PACKS_ROOT/lib/packs.sh"
 HOOKS_LIB="$PACKS_ROOT/lib/hooks.sh"
@@ -333,11 +331,13 @@ EOF
     git add -A
     bash .governance/run.sh
     bash -n .githooks/pre-commit .githooks/commit-msg .githooks/prepare-commit-msg .githooks/post-commit
+    # Format-rejection ping: confirm the commit-msg dispatcher fires on a
+    # malformed subject. A "good" synthetic message is no longer testable in
+    # isolation — the standard preset now bundles agent-token-accounting,
+    # which demands real runtime trailers + a matching COSTS.md row.
     printf 'feat: missing issue\n' > bad-msg.txt
-    printf 'feat(test): valid message (#23)\n' > good-msg.txt
     .githooks/commit-msg bad-msg.txt && exit 1
-    .githooks/commit-msg good-msg.txt
-    rm bad-msg.txt good-msg.txt
+    rm bad-msg.txt
     [[ -f .governance/installed-packs.yaml ]]
 )
 fresh_status=$?

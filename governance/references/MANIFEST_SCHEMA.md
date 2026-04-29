@@ -28,11 +28,6 @@ packs:
         installed_path: .governance/packs/governance-kit/core/directives/required-docs
       - id: secrets-hygiene
         installed_path: .governance/packs/governance-kit/core/directives/secrets-hygiene
-  - id: duaility/agent-governance
-    version: "0.1"
-    directives:
-      - id: agent-token-accounting
-        installed_path: .governance/packs/duaility/agent-governance/directives/agent-token-accounting
   - id: acme/widgets              # the repo's own local pack; appears once a directive is added
     version: "0.1"
     directives:
@@ -108,8 +103,8 @@ Repos bootstrapped before the v1 schema landed carry a flatter manifest. Shape i
 packs:
   core:
     directives: [constitution-exists, no-secrets, ...]
-  agent-governance:
-    directives: [agent-token-accounting]
+  acme/widgets:
+    directives: [no-relative-imports]
 ```
 
 When `uninstall` reads a manifest whose top-level `version` field is absent or not `"1"`:

@@ -23,7 +23,6 @@ ROOT = Path(__file__).resolve().parents[1]
 PACK_LIB = ROOT / "governance" / "assets" / "packs" / "lib"
 PACKCTL_PATH = PACK_LIB / "packctl.py"
 CORE_PACK = ROOT / "governance" / "assets" / "packs" / "core"
-AGENT_PACK = ROOT / "extensions" / "packs" / "agent-governance"
 
 
 def load_packctl():
@@ -278,26 +277,60 @@ def test_cli_preset_resolve_returns_nonzero_for_unknown_preset() -> None:
 
 def test_cli_union_preset_unions_across_packs_no_fallback() -> None:
     pkt = load_packctl()
-    result = run_packctl(
-        "union-preset",
-        "minimal",
-        str(CORE_PACK),
-        str(AGENT_PACK),
-    )
-    assert result.returncode == 0, result.stderr
-    out_ids = [line for line in result.stdout.splitlines() if line]
-    # Compare against direct library calls — order is preserved across packs.
-    expected: list[str] = []
-    seen: set[str] = set()
-    for pack in (CORE_PACK, AGENT_PACK):
-        try:
-            for did in pkt.resolve_preset(pack, "minimal"):
-                if did not in seen:
-                    seen.add(did)
-                    expected.append(did)
-        except KeyError:
-            continue
-    assert out_ids == expected
+    with tempfile.TemporaryDirectory() as tmp:
+        # Build a synthetic second pack so `union-preset` can be exercised
+        # against more than one pack.
+        second = make_pack(
+            Path(tmp),
+            pack_yaml=textwrap.dedent(
+                """\
+                id: acme/widgets
+                name: Demo
+                version: "0.1"
+                min_governance_kit: "0.1"
+                description: Synthetic demo pack for union-preset coverage.
+                author: tests
+                presets:
+                  minimal:
+                    directives: [demo-rule]
+                  standard:
+                    extends: minimal
+                    directives: []
+                  strict:
+                    extends: standard
+                    directives: []
+                """
+            ),
+            directives={
+                "demo-rule": {
+                    "directive_yaml": (
+                        "category: Foundation\nrecommended: true\n"
+                        "summary: demo\nsurface: repo-state\nhook: none\n"
+                    ),
+                    "check_sh": "#!/usr/bin/env bash\nexit 0\n",
+                    "constitution_md": "### demo-rule\n",
+                },
+            },
+        )
+        result = run_packctl(
+            "union-preset",
+            "minimal",
+            str(CORE_PACK),
+            str(second),
+        )
+        assert result.returncode == 0, result.stderr
+        out_ids = [line for line in result.stdout.splitlines() if line]
+        expected: list[str] = []
+        seen: set[str] = set()
+        for pack in (CORE_PACK, second):
+            try:
+                for did in pkt.resolve_preset(pack, "minimal"):
+                    if did not in seen:
+                        seen.add(did)
+                        expected.append(did)
+            except KeyError:
+                continue
+        assert out_ids == expected
 
 
 def test_cli_always_install_lists_only_always_install_directives() -> None:

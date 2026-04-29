@@ -123,18 +123,18 @@ Both legacy shapes are validated under the same `new-work` directive.
 
 ## Installing
 
-The directive ships as a self-contained folder under the `agent-governance` pack.
+The directive ships as a self-contained folder under the `governance-kit/core` pack.
 The `governance-bootstrap` skill copies it wholesale and the hook generator
 wires its `hooks/pre-commit.sh` and `hooks/prepare-commit-msg.sh` into the
 dispatchers automatically. Manual install is:
 
 ```sh
-cp -r <governance-kit>/extensions/packs/agent-governance/directives/agent-token-accounting \
-      .governance/packs/<owner>/<repo>/directives/
+cp -r <governance-kit>/governance/assets/packs/core/directives/agent-token-accounting \
+      .governance/packs/governance-kit/core/directives/
 cp    <governance-kit>/governance/assets/COSTS.template.md COSTS.md
-chmod +x .governance/packs/<owner>/<repo>/directives/agent-token-accounting/check.sh \
-         .governance/packs/<owner>/<repo>/directives/agent-token-accounting/hooks/*.sh \
-         .governance/packs/<owner>/<repo>/directives/agent-token-accounting/runtimes/*.sh
+chmod +x .governance/packs/governance-kit/core/directives/agent-token-accounting/check.sh \
+         .governance/packs/governance-kit/core/directives/agent-token-accounting/hooks/*.sh \
+         .governance/packs/governance-kit/core/directives/agent-token-accounting/runtimes/*.sh
 ```
 
 Everything the directive needs — the `lib/` Python (ledger, trailers, rates),

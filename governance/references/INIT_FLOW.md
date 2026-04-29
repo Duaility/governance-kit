@@ -10,10 +10,9 @@ The 8-step recipe `governance init` runs. Dispatched from
 3. A pre-commit hook (and commit-msg / prepare-commit-msg / post-commit / pre-push dispatchers when the selected directives need them) — runs `.governance/` before commits and pushes, with `SKIP_GOVERNANCE=1` and `git commit --no-verify` / `git push --no-verify` as escape hatches.
 4. A GitHub Actions workflow at `.github/workflows/governance.yml` — same tests, enforced in CI on every PR.
 
-Directives are grouped into **packs** — self-contained directories that bundle directives, their constitution snippets, and hook declarations. Two packs ship in-tree today, each at its own root:
+Directives are grouped into **packs** — self-contained directories that bundle directives, their constitution snippets, and hook declarations. One pack ships in-tree today:
 
-- **`governance-kit/core`** at `governance/assets/packs/core/` — the baseline directives every repo gets by default.
-- **`duaility/agent-governance`** at `extensions/packs/agent-governance/` — the agent-driven-development directives this kit dogfoods (opt-in for other repos), authored as a community-shaped pack in the monorepo's `extensions/packs/` tree.
+- **`governance-kit/core`** at `governance/assets/packs/core/` — the baseline directives plus the agent audit chain (`receipt-per-issue` → `commit-issue-receipt-match` → `issue-templates` → `issues-tracked` → `agent-token-accounting`) and the opt-in `agent-steering-accounting`.
 
 Governance evolves: new directives get added to `CONSTITUTION.md` *and* to `.governance/` together. The constitution without the tests is just a wishlist.
 
@@ -63,23 +62,20 @@ Record findings for use at Step 6.
 
 ### Step 2 — Discover directive packs
 
-Source the loader and enumerate packs from every pack root the kit ships
-(today: `governance/assets/packs/` for `governance-kit/core`, and
-`extensions/packs/` for community-shaped packs like
-`duaility/agent-governance`):
+Source the loader and enumerate packs from the kit's pack root
+(today: `governance/assets/packs/` for `governance-kit/core`):
 
 ```sh
 source governance/assets/packs/lib/packs.sh
 list_packs governance/assets/packs
-list_packs extensions/packs
 ```
 
-Union the results. The loader is a bash wrapper around
+The loader is a bash wrapper around
 `uv run --isolated --with PyYAML`, so pack manifests are parsed as real
 YAML. If `uv` is unavailable, stop and tell the user pack discovery
 requires `uv` (or install it before continuing).
 
-Every `<root>/<pack-dir>/pack.yaml` is a pack. Pack ids are scoped (`<author>/<slug>` — e.g. `governance-kit/core`, `duaility/agent-governance`); the directory name is the slug half. Directive metadata lives inside each directive's folder (`<pack-dir>/directives/<directive-id>/directive.yaml`) — the loader surfaces it via `directives_for` and `directive_field`. For each pack, build an in-memory catalog of:
+Every `<root>/<pack-dir>/pack.yaml` is a pack. Pack ids are scoped (`<author>/<slug>` — e.g. `governance-kit/core`, `acme/widgets`); the directory name is the slug half. Directive metadata lives inside each directive's folder (`<pack-dir>/directives/<directive-id>/directive.yaml`) — the loader surfaces it via `directives_for` and `directive_field`. For each pack, build an in-memory catalog of:
 
 - pack id, name, description, version (from `pack.yaml`)
 - declared presets (`minimal`, `standard`, `strict`, plus any pack-specific ones — from `pack.yaml`)
@@ -113,11 +109,11 @@ Three nested questions. Each subsequent question's option list is computed from 
 preset_rules = ⋃ { union_preset(<preset>, <pack-dir>) : pack-dir in selected-packs }
 ```
 
-A pack that does not declare the chosen preset (for example, `duaility/agent-governance` has no `strict` preset that adds new directives) contributes nothing for that preset — **no fallback to `recommended`**. This is deliberate: "my pack has no strict" means "strict adds nothing beyond what I already offer", not "give me everything".
+A pack that does not declare the chosen preset contributes nothing for that preset — **no fallback to `recommended`**. This is deliberate: "my pack has no strict" means "strict adds nothing beyond what I already offer", not "give me everything".
 
 Use `standard` as the recommended preset. If the user does not answer and you must proceed, assume `standard` and label it in the final summary as a material assumption.
 
-**Q2..Qn — Category menus.** For each category present across the union of selected packs' directives (canonical: `Foundation`, `Security`, `SystemOfRecord`, `CommitHygiene`, `Quality`; `duaility/agent-governance` adds `AgentDiscipline`; third-party packs may add more), present one `AskUserQuestion` with:
+**Q2..Qn — Category menus.** For each category present across the union of selected packs' directives (canonical: `Foundation`, `Security`, `SystemOfRecord`, `CommitHygiene`, `Quality`, `AgentDiscipline`; third-party packs may add more), present one `AskUserQuestion` with:
 
 - Header: the category name.
 - Options: every directive in that category from any selected pack. Pre-check based on the preset union from Q1. Each option's description is the directive's `summary` field from its manifest.
@@ -313,4 +309,4 @@ Every successful `init` run should leave the user with a summary that includes:
 - [DIRECTIVES_CATALOG.md](DIRECTIVES_CATALOG.md) — full list of ready-made directives with descriptions, and the template for adding new ones. Notes pack membership per directive.
 - [AUTHORING_PACKS.md](AUTHORING_PACKS.md) — how to write a third-party pack.
 - [NATIVE_TESTS.md](NATIVE_TESTS.md) — how to port bash directives to pytest / jest / go test, and husky / pre-commit-framework snippets.
-- [AGENT_TOKEN_ACCOUNTING.md](AGENT_TOKEN_ACCOUNTING.md) — wiring instructions for the `agent-token-accounting` directive shipped by the `duaility/agent-governance` pack.
+- [AGENT_TOKEN_ACCOUNTING.md](AGENT_TOKEN_ACCOUNTING.md) — wiring instructions for the `agent-token-accounting` directive shipped by the `governance-kit/core` pack.

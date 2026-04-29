@@ -53,7 +53,7 @@ If you're trusting agents to ship code, you need to see exactly what they were t
 - **Token cost** (`COSTS.md`). Every agent-authored commit carries token + cost trailers (`Token-Input`, `Token-Output`, `Cost-USD`, …) and a matching row in the ledger. Survives squash-merges via a stable `Cost-Key`. Every change has a price tag.
 - **Human steering** (`STEERING.md`). Every commit carries summary trailers (`Steer-Count`, `Steer-Types`, `Steer-Tiers`) tallying the rows it added to the ledger — one row per detected human-steering event (interrupt or redirect). See at a glance which commits ran on autopilot and which needed your hand on the wheel.
 
-These compose into a chain — **issue → receipt → commit → cost** — and breaking any link fails the next push. Directive provenance is core. Receipts, the chain, and token cost ship in the [`agent-governance`](#community-packs) pack; steering accounting is in the same pack but opt-in only (it records human correction text verbatim — privacy tradeoff).
+These compose into a chain — **issue → receipt → commit → cost** — and breaking any link fails the next push. Directive provenance, the chain, and token cost all ship in the [`governance-kit/core`](#whats-in-core) pack and land in the `standard` preset. Steering accounting (`agent-steering-accounting`) ships in the same pack but is opt-in only (it records human correction text verbatim — privacy tradeoff).
 
 ## Quickstart
 
@@ -181,26 +181,39 @@ Edits in the clone flow to both runtimes live — handy when contributing to gov
 
 </details>
 
-## Community packs
+## What's in core
 
-| Pack | Purpose | Install |
+The kit ships exactly one bundled pack — `governance-kit/core`. Everything below comes with `governance init` at the chosen preset.
+
+### General-purpose directives
+
+| Directive | What it enforces | Preset |
 |---|---|---|
-| [duaility/agent-governance](extensions/packs/agent-governance/README.md) | The audit chain for agent-driven repos. See below. | `governance pack add gh:Duaility/governance-kit/extensions/packs/agent-governance` |
+| `required-docs` | `README.md`, `LICENSE`, `SECURITY.md`, `ARCHITECTURE.md` exist with non-empty bodies. | minimal |
+| `secrets-hygiene` | No high-confidence secret patterns (AWS keys, GitHub tokens, Stripe live keys, etc.) committed to the tree. | minimal |
+| `repo-hygiene` | `.gitignore` exists; tracked files stay under the size limit. | minimal |
+| `workflows-hardened` | `.github/workflows/*.yml` declare `permissions:`, pin actions, and avoid `pull_request_target` foot-guns. | minimal |
+| `no-broken-internal-doc-links` | Internal markdown links resolve. | minimal |
+| `commit-message-format` | Conventional Commits with an issue suffix (`<type>(scope)?: <subject> (#N)`). | standard |
+| `doc-freshness` | Docs in `.governance/freshness.conf` carry an in-window `<!-- last-verified: YYYY-MM-DD -->` marker. | standard |
+| `no-orphan-todos` | Every `TODO`/`FIXME` references an issue. | strict |
 
-### `duaility/agent-governance`
+### The agent audit chain
 
-The chain — **issue → receipt → commit → cost** — turned into mechanical directives. Install when every commit in your repo is agent-authored and you need a reviewer-readable trail per issue.
+The chain — **issue → receipt → commit → cost** — turned into mechanical directives. Bundled into `standard` because every commit in this kit's mental model is agent-authored.
 
 | Directive | What it enforces | Preset |
 |---|---|---|
 | `issue-templates` | `.github/ISSUE_TEMPLATE/` carries `config.yml` (blank issues off), `proposal.yml`, `bug.yml` with the required handoff fields. | standard |
 | `issues-tracked` | `QUALITY.md` exists at repo root with `## Open` and `## Resolved` sections. | standard |
-| `receipt-per-issue` | Every `receipts/*.md` has a unique `issue-<N>` filename token, the four required sections, and each `- [x]` checklist item crosswalks into `## What changed` or `## Verification`. | minimal |
-| `commit-issue-receipt-match` | Every non-merge commit's issue anchor (`(#N)` or `Issue: #N`) matches an `issue-<N>` token on a touched receipt. | minimal |
+| `receipt-per-issue` | Every `receipts/*.md` has a unique `issue-<N>` filename token, the four required sections, and each `- [x]` checklist item crosswalks into `## What changed` or `## Verification`. | standard |
+| `commit-issue-receipt-match` | Every non-merge commit's issue anchor (`(#N)` or `Issue: #N`) matches an `issue-<N>` token on a touched receipt. | standard |
 | `agent-token-accounting` | Every commit carries token + cost trailers and a matching `COSTS.md` row keyed by `Cost-Key`. | standard |
-| `agent-steering-accounting` | Every agent-authored commit stamps `Steer-Count` / `Steer-Types` / `Steer-Tiers` and appends rows to `STEERING.md`. **Opt-in — not in any preset**, because it records human correction text verbatim. | — |
+| `agent-steering-accounting` | Every commit stamps `Steer-Count` / `Steer-Types` / `Steer-Tiers` and appends rows to `STEERING.md`. **Opt-in — not in any preset**, because it records human correction text verbatim. | — |
 
-Authoring your own pack: [governance/references/AUTHORING_PACKS.md](governance/references/AUTHORING_PACKS.md).
+## Community packs
+
+Community packs live in their own repos and install via `governance pack add gh:<owner>/<repo>`. Authoring your own: [governance/references/AUTHORING_PACKS.md](governance/references/AUTHORING_PACKS.md). Discovery via `governance pack search` reads the advisory catalog at [`governance/assets/catalog.community.json`](governance/assets/catalog.community.json) — currently empty; PRs welcome.
 
 ## Why not just pre-commit / husky / lefthook?
 

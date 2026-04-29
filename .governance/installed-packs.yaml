@@ -1,5 +1,5 @@
 version: "2"
-generated_at: 2026-04-23T17:08:30Z
+generated_at: 2026-04-29T00:00:00Z
 owner: duaility
 repo: governance-kit
 hook_strategy: githooks
@@ -11,7 +11,7 @@ agents_md_created: false
 setup_clone_script: scripts/setup-clone.sh
 packs:
   - id: governance-kit/core
-    version: "0.1"
+    version: "0.2"
     directives:
       - id: required-docs
         installed_path: .governance/packs/governance-kit/core/directives/required-docs
@@ -27,21 +27,18 @@ packs:
         installed_path: .governance/packs/governance-kit/core/directives/commit-message-format
       - id: doc-freshness
         installed_path: .governance/packs/governance-kit/core/directives/doc-freshness
-  - id: duaility/agent-governance
-    version: "0.2"
-    directives:
-      - id: receipt-per-issue
-        installed_path: .governance/packs/duaility/agent-governance/directives/receipt-per-issue
-      - id: commit-issue-receipt-match
-        installed_path: .governance/packs/duaility/agent-governance/directives/commit-issue-receipt-match
       - id: issue-templates
-        installed_path: .governance/packs/duaility/agent-governance/directives/issue-templates
+        installed_path: .governance/packs/governance-kit/core/directives/issue-templates
       - id: issues-tracked
-        installed_path: .governance/packs/duaility/agent-governance/directives/issues-tracked
+        installed_path: .governance/packs/governance-kit/core/directives/issues-tracked
+      - id: receipt-per-issue
+        installed_path: .governance/packs/governance-kit/core/directives/receipt-per-issue
+      - id: commit-issue-receipt-match
+        installed_path: .governance/packs/governance-kit/core/directives/commit-issue-receipt-match
       - id: agent-token-accounting
-        installed_path: .governance/packs/duaility/agent-governance/directives/agent-token-accounting
+        installed_path: .governance/packs/governance-kit/core/directives/agent-token-accounting
       - id: agent-steering-accounting
-        installed_path: .governance/packs/duaility/agent-governance/directives/agent-steering-accounting
+        installed_path: .governance/packs/governance-kit/core/directives/agent-steering-accounting
   - id: duaility/governance-kit
     version: "0.1"
     directives:

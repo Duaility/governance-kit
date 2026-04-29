@@ -141,4 +141,4 @@ Hand-authored directive flows for adding, modifying, or removing directives. Eve
 - [references/VERBS.md](references/VERBS.md) — per-verb reference, aliases, assets.
 - [references/DIRECTIVES_CATALOG.md](references/DIRECTIVES_CATALOG.md) — ready-made directives and the authoring template.
 - [references/AUTHORING_PACKS.md](references/AUTHORING_PACKS.md) — pack + directive schemas, capability declarations, and scoped pack ids.
-- [../extensions/catalog.community.json](../extensions/catalog.community.json) — community pack catalog (target of `governance pack search`).
+- [assets/catalog.community.json](assets/catalog.community.json) — community pack catalog (target of `governance pack search`).

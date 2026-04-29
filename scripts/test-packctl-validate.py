@@ -20,7 +20,6 @@ ROOT = Path(__file__).resolve().parents[1]
 PACK_LIB = ROOT / "governance" / "assets" / "packs" / "lib"
 PACKCTL_PATH = PACK_LIB / "packctl.py"
 CORE_PACK = ROOT / "governance" / "assets" / "packs" / "core"
-AGENT_PACK = ROOT / "extensions" / "packs" / "agent-governance"
 
 
 def load_packctl():
@@ -61,12 +60,6 @@ def make_pack(tmp: Path, *, pack_yaml: str, directives: dict[str, dict] | None =
 def test_validate_pack_dir_passes_on_shipped_core_pack() -> None:
     pkt = load_packctl()
     errors = pkt.validate_pack_dir(CORE_PACK)
-    assert errors == [], "\n".join(errors)
-
-
-def test_validate_pack_dir_passes_on_shipped_agent_pack() -> None:
-    pkt = load_packctl()
-    errors = pkt.validate_pack_dir(AGENT_PACK)
     assert errors == [], "\n".join(errors)
 
 

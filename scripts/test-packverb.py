@@ -45,26 +45,40 @@ def run_packverb(*args: str) -> subprocess.CompletedProcess[str]:
 
 
 def test_catalog_search_ref_includes_source_path() -> None:
-    result = run_packverb(
-        "catalog-search",
-        str(ROOT / "extensions" / "catalog.community.json"),
-        "agent",
-    )
-    assert result.returncode == 0, result.stderr
-    lines = [line.split("\t") for line in result.stdout.splitlines() if line.strip()]
-    rows = {cols[0]: cols for cols in lines}
-    ref = rows["duaility/agent-governance"][1]
-    assert ref == "gh:Duaility/governance-kit/extensions/packs/agent-governance"
+    with tempfile.TemporaryDirectory() as tmp:
+        catalog = Path(tmp) / "catalog.json"
+        catalog.write_text(json.dumps({
+            "version": "1",
+            "packs": [
+                {
+                    "id": "acme/widgets",
+                    "name": "Acme Widgets",
+                    "summary": "Demo pack used in catalog-search contract tests.",
+                    "source": {
+                        "type": "github",
+                        "ref": "Acme/governance-extras",
+                        "path": "packs/widgets",
+                    },
+                    "min_governance_kit": "0.2",
+                },
+            ],
+        }))
 
-    parsed = run_packverb("parse-ref", ref)
-    assert parsed.returncode == 0, parsed.stderr
-    assert "subpath=extensions/packs/agent-governance" in parsed.stdout
+        result = run_packverb("catalog-search", str(catalog), "widgets")
+        assert result.returncode == 0, result.stderr
+        rows = {line.split("\t")[0]: line.split("\t") for line in result.stdout.splitlines() if line.strip()}
+        ref = rows["acme/widgets"][1]
+        assert ref == "gh:Acme/governance-extras/packs/widgets"
+
+        parsed = run_packverb("parse-ref", ref)
+        assert parsed.returncode == 0, parsed.stderr
+        assert "subpath=packs/widgets" in parsed.stdout
 
 
 def test_packverb_validate_pack_public_command() -> None:
     result = run_packverb(
         "validate-pack",
-        str(ROOT / "extensions" / "packs" / "agent-governance"),
+        str(ROOT / "governance" / "assets" / "packs" / "core"),
     )
     assert result.returncode == 0, result.stderr
 
@@ -141,8 +155,8 @@ def test_parse_ref_accepts_owner_repo_only() -> None:
 
 def test_parse_ref_accepts_subpath_and_rev() -> None:
     packverb = load_packverb()
-    parsed = packverb.parse_ref("gh:Acme/governance/extensions/packs/foo@v1.2.3")
-    assert parsed["subpath"] == "extensions/packs/foo"
+    parsed = packverb.parse_ref("gh:Acme/governance/packs/foo@v1.2.3")
+    assert parsed["subpath"] == "packs/foo"
     assert parsed["rev"] == "v1.2.3"
 
 
@@ -377,14 +391,43 @@ def test_lockfile_packs_sorted_by_id_on_write() -> None:
 # ---- catalog-search -------------------------------------------------------
 
 def test_catalog_search_returns_all_when_query_empty() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        catalog = Path(tmp) / "catalog.json"
+        catalog.write_text(json.dumps({
+            "version": "1",
+            "packs": [
+                {
+                    "id": "acme/widgets",
+                    "name": "Widgets",
+                    "summary": "first",
+                    "source": {"type": "github", "ref": "Acme/widgets"},
+                    "min_governance_kit": "0.2",
+                },
+                {
+                    "id": "acme/sprockets",
+                    "name": "Sprockets",
+                    "summary": "second",
+                    "source": {"type": "github", "ref": "Acme/sprockets"},
+                    "min_governance_kit": "0.2",
+                },
+            ],
+        }))
+        result = run_packverb("catalog-search", str(catalog), "")
+        assert result.returncode == 0, result.stderr
+        rows = [line for line in result.stdout.splitlines() if line.strip()]
+        ids = {line.split("\t")[0] for line in rows}
+        assert ids == {"acme/widgets", "acme/sprockets"}
+
+
+def test_catalog_search_returns_empty_for_empty_catalog() -> None:
     result = run_packverb(
         "catalog-search",
-        str(ROOT / "extensions" / "catalog.community.json"),
+        str(ROOT / "governance" / "assets" / "catalog.community.json"),
         "",
     )
     assert result.returncode == 0, result.stderr
     rows = [line for line in result.stdout.splitlines() if line.strip()]
-    assert any(line.startswith("duaility/agent-governance\t") for line in rows)
+    assert rows == []
 
 
 def test_catalog_search_reports_missing_catalog_with_nonzero_exit() -> None:
