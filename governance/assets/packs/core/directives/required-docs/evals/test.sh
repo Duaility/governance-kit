@@ -52,7 +52,7 @@ EOF
 rm LICENSE
 EVAL_LABEL="$EVAL_ID missing license" expect_fail "$CHECK"
 
-# restore LICENSE, then verify DISABLE env var suppresses the missing check
+# restore LICENSE so the next assertion isolates the AGENTS.md failure
 cat > LICENSE <<'EOF'
 MIT License
 
@@ -61,47 +61,8 @@ Copyright (c) 2026
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software to deal in the Software without restriction.
 EOF
-
-# break license + architecture simultaneously, then disable both sub-checks → should pass
-rm LICENSE
-rm ARCHITECTURE.md
-GOVERNANCE_REQUIRED_DOCS_DISABLE="license,architecture" \
-    EVAL_LABEL="$EVAL_ID disable skips sub-checks" expect_pass "$CHECK"
-
-# restore license + architecture, then fail via AGENTS.md missing a link to CONSTITUTION.md.
-# Rewrite AGENTS.md with the required length + link count but no CONSTITUTION.md anchor.
-cat > LICENSE <<'EOF'
-MIT License
-
-Copyright (c) 2026
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software to deal in the Software without restriction.
-EOF
-cat > ARCHITECTURE.md <<'EOF'
-# Architecture
-
-## Overview
-
-Placeholder architecture doc with enough lines to clear the minimum
-threshold. Describes the layering and boundaries that would actually
-be documented in a real repo.
-
-## Layers
-
-- data
-- service
-- api
-
-## Invariants
-
-No upward dependencies. The api layer depends on service; service
-depends on data. Breaking this triggers review.
-
-## Further reading
-
-See the README and the constitution.
-EOF
+# rewrite AGENTS.md with required length + link count but no CONSTITUTION.md
+# anchor, so only the map-to-bedrock check fires
 cat > AGENTS.md <<'EOF'
 # AGENTS.md
 

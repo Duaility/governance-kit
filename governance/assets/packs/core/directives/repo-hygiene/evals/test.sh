@@ -43,13 +43,4 @@ GOVERNANCE_MAX_FILE_SIZE_MB=0 EVAL_LABEL="$EVAL_ID large file" expect_fail "$CHE
 git rm --quiet bloat.bin
 git commit --quiet --no-verify -m "chore: drop bloat"
 
-# verify DISABLE suppresses the fail
-printf 'x\n' > stray.pyc
-git add stray.pyc
-git commit --quiet --no-verify -m "chore: stray pyc"
-GOVERNANCE_REPO_HYGIENE_DISABLE="build-artifacts" \
-    EVAL_LABEL="$EVAL_ID disable skips sub-check" expect_pass "$CHECK"
-git rm --quiet stray.pyc
-git commit --quiet --no-verify -m "chore: drop stray pyc"
-
 eval_done

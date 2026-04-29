@@ -24,12 +24,12 @@ The three consolidated directives (`required-docs`, `repo-hygiene`, `secrets-hyg
 ### Foundation
 | Directive | What it checks |
 |---|---|
-| `required-docs` | Rolled-up presence check for repo-root docs and local-hook scaffolding. Sub-checks (all enabled by default, keys for `GOVERNANCE_REQUIRED_DOCS_DISABLE`): `constitution` (`CONSTITUTION.md` ≥ 10 lines); `agents` (`AGENTS.md` at repo root, 30–250 lines, ≥ 3 internal links, **and a link to `CONSTITUTION.md`** so the file is a map to the bedrock durable docs rather than a standalone manual); `readme` (`README.md`/`.rst` with heading + ≥ 30 words); `license` (`LICENSE`/variants at repo root, non-empty); `security` (`SECURITY.md` with contact); `architecture` (`ARCHITECTURE.md` ≥ 20 lines); `ci-workflow` (≥ 1 non-governance workflow); `env-example` (every key in local `.env` is declared in `.env.example`); `hooks` (`.githooks/pre-commit` tracked + executable, `core.hooksPath=.githooks`; no-ops on non-`githooks` strategies). |
+| `required-docs` | Rolled-up presence check for repo-root docs and local-hook scaffolding. Sub-checks (all enabled): `constitution` (`CONSTITUTION.md` ≥ 10 lines); `agents` (`AGENTS.md` at repo root, 30–250 lines, ≥ 3 internal links, **and a link to `CONSTITUTION.md`** so the file is a map to the bedrock durable docs rather than a standalone manual); `readme` (`README.md`/`.rst` with heading + ≥ 30 words); `license` (`LICENSE`/variants at repo root, non-empty); `security` (`SECURITY.md` with contact); `architecture` (`ARCHITECTURE.md` ≥ 20 lines); `ci-workflow` (≥ 1 non-governance workflow); `env-example` (every key in local `.env` is declared in `.env.example`); `hooks` (`.githooks/pre-commit` tracked + executable, `core.hooksPath=.githooks`; no-ops on non-`githooks` strategies). To carve out a sub-check for your repo, use `governance directive modify` (or `governance directive remove`). |
 
 ### Security
 | Directive | What it checks |
 |---|---|
-| `secrets-hygiene`    | Rolled-up secret-scanning. Sub-checks (keys for `GOVERNANCE_SECRETS_HYGIENE_DISABLE`): `no-secrets` (heuristic scan for AWS / GCP / GitHub / Slack / Stripe / private-key patterns; waiver `# governance: allow-secrets-hygiene <reason>`); `dotenv` (`.env` is not tracked **and** listed in `.gitignore`). |
+| `secrets-hygiene`    | Rolled-up secret-scanning. Sub-checks: `no-secrets` (heuristic scan for AWS / GCP / GitHub / Slack / Stripe / private-key patterns; waiver `# governance: allow-secrets-hygiene <reason>`); `dotenv` (`.env` is not tracked **and** listed in `.gitignore`). To carve out a sub-check, use `governance directive modify`. |
 | `workflows-hardened` | Every `.github/workflows/*.yml` declares a `permissions:` block **and** pins third-party actions (anything outside `actions/*` and `github/*`) to a full 40-char commit SHA. |
 
 ### System of record
@@ -47,7 +47,7 @@ The three consolidated directives (`required-docs`, `repo-hygiene`, `secrets-hyg
 ### Quality
 | Directive | What it checks |
 |---|---|
-| `repo-hygiene` | Rolled-up hygiene greps. **`always_install: true`** — bypasses the menu. Sub-checks (keys for `GOVERNANCE_REPO_HYGIENE_DISABLE`): `merge-markers` (no `<<<<<<<` / `=======` / `>>>>>>>` at line start); `large-files` (no tracked file > 5 MB, override via `GOVERNANCE_MAX_FILE_SIZE_MB`); `build-artifacts` (denylist: `*.pyc`, `__pycache__/`, `*.class`, `*.o`, `node_modules/`, `dist/`, `build/`, `target/`, `out/`, `.DS_Store`, `Thumbs.db`, editor swap files); `debug-statements` (no `console.log` / `debugger` / `breakpoint()` / `import pdb` / `dbg!` / `fmt.Println` in non-test source; waiver `# governance: allow-repo-hygiene <reason>`); `file-size-limit` (no source file > 500 lines, override via `GOVERNANCE_FILE_SIZE_LIMIT`). |
+| `repo-hygiene` | Rolled-up hygiene greps. **`always_install: true`** — bypasses the menu. Sub-checks: `merge-markers` (no `<<<<<<<` / `=======` / `>>>>>>>` at line start); `large-files` (no tracked file > 5 MB, override via `GOVERNANCE_MAX_FILE_SIZE_MB`); `build-artifacts` (denylist: `*.pyc`, `__pycache__/`, `*.class`, `*.o`, `node_modules/`, `dist/`, `build/`, `target/`, `out/`, `.DS_Store`, `Thumbs.db`, editor swap files); `debug-statements` (no `console.log` / `debugger` / `breakpoint()` / `import pdb` / `dbg!` / `fmt.Println` in non-test source; waiver `# governance: allow-repo-hygiene <reason>`); `file-size-limit` (no source file > 500 lines, override via `GOVERNANCE_FILE_SIZE_LIMIT`). To carve out a sub-check, use `governance directive modify`. |
 
 ### `core` presets
 
