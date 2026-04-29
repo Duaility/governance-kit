@@ -4,7 +4,7 @@ EVAL_ID="doc-freshness"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../../../.." && pwd)"
 source "$ROOT/governance/assets/packs/lib/eval-lib.sh"
 PACK_DIR="$ROOT/governance/assets/packs/core"
-CHECK=".governance/packs/core/directives/$EVAL_ID/check.sh"
+CHECK=".governance/packs/governance-kit/core/directives/$EVAL_ID/check.sh"
 
 fixture_init
 install_directive "$PACK_DIR" "$EVAL_ID"

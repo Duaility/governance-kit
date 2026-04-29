@@ -6,16 +6,16 @@ Two packs ship in-tree, each at its own root:
 
 | Pack | Location | Purpose | Default? |
 |---|---|---|---|
-| `core` | `governance/assets/packs/core/` | General-purpose directives usable in any repo. | Always selected — cannot be deselected. |
+| `governance-kit/core` | `governance/assets/packs/core/` | General-purpose directives usable in any repo. | Always selected — cannot be deselected. |
 | `duaility/agent-governance` | `extensions/packs/agent-governance/` | Directives for repos operating under agent-driven development (issue anchors, plans, token accounting). | Opt-in per-repo. |
 
-`core` is the kit's bundled-in pack. `extensions/packs/` is the monorepo home for community-shaped packs — authored with scoped `<author>/<slug>` ids and installed through `governance pack add` as if hosted in their own repo.
+`governance-kit/core` is the kit's bundled-in pack. `extensions/packs/` is the monorepo home for community-shaped packs — authored with scoped `<author>/<slug>` ids and installed through `governance pack add` as if hosted in their own repo.
 
 For authoring a **third-party pack**, see [AUTHORING_PACKS.md](AUTHORING_PACKS.md).
 
 ---
 
-## `core` pack
+## `governance-kit/core` pack
 
 Minimum floor of hygiene — required docs exist, secrets aren't committed, workflows are pinned, merge markers are caught. The `minimal` / `standard` / `strict` presets add progressively more commit-time discipline on top of the same baseline.
 
@@ -49,7 +49,7 @@ The three consolidated directives (`required-docs`, `repo-hygiene`, `secrets-hyg
 |---|---|
 | `repo-hygiene` | Rolled-up hygiene greps. **`always_install: true`** — bypasses the menu. Sub-checks: `merge-markers` (no `<<<<<<<` / `=======` / `>>>>>>>` at line start); `large-files` (no tracked file > 5 MB, override via `GOVERNANCE_MAX_FILE_SIZE_MB`); `build-artifacts` (denylist: `*.pyc`, `__pycache__/`, `*.class`, `*.o`, `node_modules/`, `dist/`, `build/`, `target/`, `out/`, `.DS_Store`, `Thumbs.db`, editor swap files); `debug-statements` (no `console.log` / `debugger` / `breakpoint()` / `import pdb` / `dbg!` / `fmt.Println` in non-test source; waiver `# governance: allow-repo-hygiene <reason>`); `file-size-limit` (no source file > 500 lines, override via `GOVERNANCE_FILE_SIZE_LIMIT`). To carve out a sub-check, use `governance directive modify`. |
 
-### `core` presets
+### `governance-kit/core` presets
 
 | Preset | Directives |
 |---|---|
@@ -97,7 +97,7 @@ Waivers are visible in `git blame` and searchable by design. Only use them for d
 
 ## Adding a new directive to an existing pack
 
-1. Create `<pack-root>/<pack>/directives/<id>/` (where `<pack-root>` is `governance/assets/packs/` for `core`, or `extensions/packs/` for community-shaped packs) and populate it:
+1. Create `<pack-root>/<pack>/directives/<id>/` (where `<pack-root>` is `governance/assets/packs/` for `governance-kit/core`, or `extensions/packs/` for community-shaped packs) and populate it:
    - `check.sh` — the bash test, `chmod +x`.
    - `constitution.md` — four sections: **Directive**, **Rationale**, **Enforced by**, **Exceptions**.
    - `directive.yaml` — scalar fields:
@@ -107,13 +107,13 @@ Waivers are visible in `git blame` and searchable by design. Only use them for d
      summary: <one-line menu description>
      surface: repo-state | change-set
      hook: pre-commit | commit-msg | prepare-commit-msg | none
-     # always_install: true   # optional; reserved to the core pack
+     # always_install: true   # optional; reserved to the `governance-kit/core` pack
      # requires_hook_strategy: githooks   # optional environment filter
      ```
    - `install-assets/` — optional files copied into the target repo before the first governance run. Use this for required seed files like `QUALITY.md` or `COSTS.md`; do not hide seed files in skill-specific special cases.
    - `evals/test.sh` — pass + fail fixtures using `eval-lib.sh`.
 2. If the directive should be part of a preset, add its id to the relevant block (`minimal` / `standard` / `strict`) in the pack's `pack.yaml`. The `directives:` block no longer lives there — directive metadata comes from each directive's `directive.yaml`.
-3. Run `bash scripts/test-packs.sh` — it validates every directive folder, installs `core.standard` into a fresh repo and runs it, runs every eval, and smoke-tests hook generation.
+3. Run `bash scripts/test-packs.sh` — it validates every directive folder, installs `governance-kit/governance-kit/core.standard` into a fresh repo and runs it, runs every eval, and smoke-tests hook generation.
 4. Document the directive in this file under the pack's category table.
 
 For directives that belong in a new pack, see [AUTHORING_PACKS.md](AUTHORING_PACKS.md).

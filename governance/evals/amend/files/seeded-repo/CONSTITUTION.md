@@ -7,14 +7,14 @@ Agents and humans working in this repo must read and follow this document. Mecha
 ## Principles
 
 - Keep changes small and reviewable.
-- Every Directive has a matching test script in `.governance/local/directives/`.
+- Every Directive has a matching test script in `.governance/packs/acme/seeded-repo/directives/`.
 - Amendments land atomically: directive + constitution + evolution-log entry in one commit.
 
 ## Directives
 
 ### no-secrets
 **Directive.** No credentials or private keys in tracked files.
-**Enforced by.** `.governance/local/directives/no-secrets/check.sh`
+**Enforced by.** `.governance/packs/acme/seeded-repo/directives/no-secrets/check.sh`
 **Waivers.** `# governance: allow-no-secrets <TICKET>` on the offending line.
 
 ## Evolution Log

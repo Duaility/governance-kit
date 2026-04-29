@@ -13,7 +13,7 @@
 #     - any directive fails → exit 1 + bypass instructions
 #     - single-directive filter `run.sh <id>` runs one check
 #     - filter that matches nothing exits 1 with a clear message
-#     - both pack-installed and local directive trees are discovered
+#     - directives discovered uniformly under packs/<owner>/<name>/directives/
 #   lib.sh:
 #     - directive_start / directive_end with no violations exits 0 + green ✓
 #     - violation increments count; directive_end exits 1 + lists violations
@@ -22,6 +22,12 @@
 #     - has_waiver matches `governance: allow-<id>` on the given line
 
 set -eu
+
+# Drop any GIT_* env state inherited from a parent process (e.g. when invoked
+# from a pre-commit hook). The require_git tests below escape into temp
+# dirs via subshell `cd`, but inherited GIT_DIR / GIT_WORK_TREE keep git
+# anchored to the parent repo and the "outside a git repo" assertions flip.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_COMMON_DIR
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 RUN_SH="$ROOT/governance/assets/dot-governance/run.sh"
@@ -71,7 +77,7 @@ surface: repo-state
 EOF
     cat > "$ddir/check.sh" <<EOF
 #!/usr/bin/env bash
-source "\$(dirname "\$0")/../../../../lib.sh"
+source "\$(dirname "\$0")/../../../../../lib.sh"
 directive_start "$directive_id"
 directive_end
 EOF
@@ -88,26 +94,9 @@ surface: repo-state
 EOF
     cat > "$ddir/check.sh" <<EOF
 #!/usr/bin/env bash
-source "\$(dirname "\$0")/../../../../lib.sh"
+source "\$(dirname "\$0")/../../../../../lib.sh"
 directive_start "$directive_id"
 violation "intentional fail"
-directive_end
-EOF
-    chmod +x "$ddir/check.sh"
-}
-
-add_local_directive_pass() {
-    local repo="$1" directive_id="$2"
-    local ddir="$repo/.governance/local/directives/$directive_id"
-    mkdir -p "$ddir"
-    cat > "$ddir/directive.yaml" <<EOF
-hook: none
-surface: repo-state
-EOF
-    cat > "$ddir/check.sh" <<EOF
-#!/usr/bin/env bash
-source "\$(dirname "\$0")/../../../lib.sh"
-directive_start "$directive_id"
 directive_end
 EOF
     chmod +x "$ddir/check.sh"
@@ -137,9 +126,9 @@ assert_contains "prints 'no governance directives' notice" "no governance direct
 
 printf '── run.sh: all checks pass ─────────────────────────────\n'
 make_repo "$WORK/r3"
-add_pack_directive_pass "$WORK/r3" "core" "alpha"
-add_pack_directive_pass "$WORK/r3" "core" "beta"
-add_local_directive_pass "$WORK/r3" "gamma"
+add_pack_directive_pass "$WORK/r3" "acme/alpha-pack" "alpha"
+add_pack_directive_pass "$WORK/r3" "acme/alpha-pack" "beta"
+add_pack_directive_pass "$WORK/r3" "acme/beta-pack" "gamma"
 set +e
 output="$(bash "$WORK/r3/.governance/run.sh" 2>&1)"
 exit_code=$?
@@ -148,14 +137,14 @@ assert_eq "exit 0 when every directive passes" 0 "$exit_code"
 assert_contains "summary line names the count" "all 3 directive(s) passed" "$output"
 assert_contains "discovers pack directive alpha" "alpha" "$output"
 assert_contains "discovers pack directive beta"  "beta"  "$output"
-assert_contains "discovers local directive gamma" "gamma" "$output"
+assert_contains "discovers second-pack directive gamma" "gamma" "$output"
 
 # ---- run.sh: at least one fail → exit 1 + bypass instructions -------------
 
 printf '── run.sh: failure surfaces bypass instructions ────────\n'
 make_repo "$WORK/r4"
-add_pack_directive_pass "$WORK/r4" "core" "happy"
-add_pack_directive_fail "$WORK/r4" "core" "sad"
+add_pack_directive_pass "$WORK/r4" "acme/test" "happy"
+add_pack_directive_fail "$WORK/r4" "acme/test" "sad"
 set +e
 output="$(bash "$WORK/r4/.governance/run.sh" 2>&1)"
 exit_code=$?
@@ -170,8 +159,8 @@ assert_contains "prints --no-verify bypass"    "git commit --no-verify" "$output
 
 printf '── run.sh: single-directive filter ─────────────────────\n'
 make_repo "$WORK/r5"
-add_pack_directive_pass "$WORK/r5" "core" "wanted"
-add_pack_directive_fail "$WORK/r5" "core" "unwanted"
+add_pack_directive_pass "$WORK/r5" "acme/test" "wanted"
+add_pack_directive_fail "$WORK/r5" "acme/test" "unwanted"
 # Filter to just "wanted" — should pass even though "unwanted" exists.
 set +e
 output="$(bash "$WORK/r5/.governance/run.sh" wanted 2>&1)"

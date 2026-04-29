@@ -12,7 +12,7 @@ The 8-step recipe `governance init` runs. Dispatched from
 
 Directives are grouped into **packs** — self-contained directories that bundle directives, their constitution snippets, and hook declarations. Two packs ship in-tree today, each at its own root:
 
-- **`core`** at `governance/assets/packs/core/` — the baseline directives every repo gets by default.
+- **`governance-kit/core`** at `governance/assets/packs/core/` — the baseline directives every repo gets by default.
 - **`duaility/agent-governance`** at `extensions/packs/agent-governance/` — the agent-driven-development directives this kit dogfoods (opt-in for other repos), authored as a community-shaped pack in the monorepo's `extensions/packs/` tree.
 
 Governance evolves: new directives get added to `CONSTITUTION.md` *and* to `.governance/` together. The constitution without the tests is just a wishlist.
@@ -64,7 +64,7 @@ Record findings for use at Step 6.
 ### Step 2 — Discover directive packs
 
 Source the loader and enumerate packs from every pack root the kit ships
-(today: `governance/assets/packs/` for `core`, and
+(today: `governance/assets/packs/` for `governance-kit/core`, and
 `extensions/packs/` for community-shaped packs like
 `duaility/agent-governance`):
 
@@ -79,7 +79,7 @@ Union the results. The loader is a bash wrapper around
 YAML. If `uv` is unavailable, stop and tell the user pack discovery
 requires `uv` (or install it before continuing).
 
-Every `<root>/<pack-dir>/pack.yaml` is a pack. Pack ids may be flat (`core`) or scoped (`duaility/agent-governance`); for scoped ids the directory name is the slug half. Directive metadata lives inside each directive's folder (`<pack-dir>/directives/<directive-id>/directive.yaml`) — the loader surfaces it via `directives_for` and `directive_field`. For each pack, build an in-memory catalog of:
+Every `<root>/<pack-dir>/pack.yaml` is a pack. Pack ids are scoped (`<author>/<slug>` — e.g. `governance-kit/core`, `duaility/agent-governance`); the directory name is the slug half. Directive metadata lives inside each directive's folder (`<pack-dir>/directives/<directive-id>/directive.yaml`) — the loader surfaces it via `directives_for` and `directive_field`. For each pack, build an in-memory catalog of:
 
 - pack id, name, description, version (from `pack.yaml`)
 - declared presets (`minimal`, `standard`, `strict`, plus any pack-specific ones — from `pack.yaml`)
@@ -95,7 +95,7 @@ Three nested questions. Each subsequent question's option list is computed from 
 
 **Q0 — "Which directive packs do you want?"** — multiselect.
 
-- `core` (always included, non-deselectable — present it as pre-checked with a note).
+- `governance-kit/core` (always included, non-deselectable — present it as pre-checked with a note).
 - Every other pack discovered in Step 2, with its description from the manifest.
 
 **Q1 — "Which preset?"** — single-select.
@@ -125,9 +125,9 @@ Use `standard` as the recommended preset. If the user does not answer and you mu
 
 Split into multiple `AskUserQuestion` calls — the tool caps at four questions per call. Follow the same pattern today's flow does: first call for Foundation / Security / SystemOfRecord / CommitHygiene; second call for Quality / AgentDiscipline / any additional categories. Category menus with only a single directive are fine — do not pad with filler.
 
-If the user picks "Other" and describes a new directive, generate a new directive folder under `.governance/local/directives/<id>/` with `directive.yaml`, `check.sh`, and `constitution.md`, following the template in [DIRECTIVES_CATALOG.md](DIRECTIVES_CATALOG.md), and add a matching Directives subsection to `CONSTITUTION.md`. The directive joins the target repo directly; it is not retrofitted into a pack (that is a pack-authoring activity, covered in [AUTHORING_PACKS.md](AUTHORING_PACKS.md)).
+If the user picks "Other" and describes a new directive, generate a new directive folder under `.governance/packs/<owner>/<repo>/directives/<id>/` with `directive.yaml`, `check.sh`, and `constitution.md`, following the template in [DIRECTIVES_CATALOG.md](DIRECTIVES_CATALOG.md), and add a matching Directives subsection to `CONSTITUTION.md`. The directive joins the target repo directly; it is not retrofitted into a pack (that is a pack-authoring activity, covered in [AUTHORING_PACKS.md](AUTHORING_PACKS.md)).
 
-**Always installed — bypass the menu.** Walk every selected pack's `always_install: true` directives and queue them for install regardless of user picks. This flag is **reserved to the `core` pack**; third-party packs declaring it are rejected at install.
+**Always installed — bypass the menu.** Walk every selected pack's `always_install: true` directives and queue them for install regardless of user picks. This flag is **reserved to the `governance-kit/core` pack**; third-party packs declaring it are rejected at install.
 
 **Install resolution.** The final install list is:
 
@@ -162,6 +162,7 @@ After all directives are installed, write `.governance/installed-packs.yaml` via
 
 ```sh
 write_installed_manifest "$repo_root" \
+    --owner "$repo_owner" --repo "$repo_name" \
     --hook-strategy githooks \
     --ci-workflow .github/workflows/governance.yml \
     --tests-dir .governance \
@@ -175,7 +176,7 @@ write_installed_manifest "$repo_root" \
     "$agent_pack_dir" agent-token-accounting
 ```
 
-`--install-asset` is repeatable (once per seeded file — `install_directive_assets` copied it). `--collision` is `path:resolution[:extra]` where `resolution` ∈ `wrap | skip | overwrite-with-backup` and `extra` is the userhook or `.bak` path. `--path-b-framework` + `--path-b-entry <file>:<fingerprint>` replace `--hook-strategy githooks` when `init` took Path B. Omit `--no-constitution` unless the user explicitly asked to skip the constitution (nonstandard). The manifest is `version: "1"`; installed directive folders are still user-owned copies and this file is not an auto-upgrade contract.
+`--owner` and `--repo` are required — they carry the `<owner>/<name>` identity surveyed in Step 1 and define the default repo-local pack at `.governance/packs/<owner>/<repo>/`. `--install-asset` is repeatable (once per seeded file — `install_directive_assets` copied it). `--collision` is `path:resolution[:extra]` where `resolution` ∈ `wrap | skip | overwrite-with-backup` and `extra` is the userhook or `.bak` path. `--path-b-framework` + `--path-b-entry <file>:<fingerprint>` replace `--hook-strategy githooks` when `init` took Path B. Omit `--no-constitution` unless the user explicitly asked to skip the constitution (nonstandard). The manifest is `version: "2"`; installed directive folders are still user-owned copies and this file is not an auto-upgrade contract.
 
 ### Step 4 — Write the constitution
 
@@ -224,7 +225,7 @@ generate_hooks <repo-root>/.githooks <pack-version-label> /tmp/governance-hook-s
 The generator:
 
 1. Emits all five dispatchers — `pre-commit`, `commit-msg`, `prepare-commit-msg`, `post-commit`, `pre-push` — so future user-owned amendments that add a compatible `hook:` declaration are discovered without regenerating hooks.
-2. Each dispatcher scans installed directive `directive.yaml` files under `.governance/packs/` and `.governance/local/directives/` at runtime, runs directive-owned `hooks/<kind>.sh` helpers first, then runs `check.sh` for directives whose `hook:` matches the dispatcher. Dispatchers honor `SKIP_GOVERNANCE=1`.
+2. Each dispatcher scans installed directive `directive.yaml` files under `.governance/packs/<owner>/<name>/directives/` at runtime, runs directive-owned `hooks/<kind>.sh` helpers first, then runs `check.sh` for directives whose `hook:` matches the dispatcher. Dispatchers honor `SKIP_GOVERNANCE=1`.
 3. Stamps each dispatcher with a **line-2 ownership marker**:
    ```sh
    #!/usr/bin/env bash
@@ -296,7 +297,7 @@ Every successful `init` run should leave the user with a summary that includes:
 
 - **The constitution and the tests evolve together.** Never add a directive to the constitution without a test. Never add a test without a directive. If the user asks to add one in isolation, push back and do both.
 - **Packs are the extension point.** Adding a directive to a pack is a two-file edit (the `.sh` + the manifest entry); every menu, hook dispatcher, and constitution snippet flows from the manifest. Do not shadow the manifest with hand-written lists in SKILL.md.
-- **`core` is non-optional.** Users can select additional packs but cannot deselect `core`. The `always_install: true` flag is reserved to `core` — third-party packs cannot force-install directives.
+- **`governance-kit/core` is non-optional.** Users can select additional packs but cannot deselect `governance-kit/core`. The `always_install: true` flag is reserved to `governance-kit/core` — third-party packs cannot force-install directives.
 - **Preset semantics are union, not fallback.** If a pack lacks the selected preset, it contributes nothing for that preset.
 - **Escape hatches are a feature, not a bug.** `SKIP_GOVERNANCE=1` exists because governance that blocks emergency hotfixes will get ripped out. CI enforces the directive even when the hook is skipped, which is the right layering.
 - **Bash-only at bootstrap; native is post-init.** Governance is a meta-layer over the project's code, so the directive suite must not depend on the project's own toolchain. `init` only installs the bash runner. Native test wrappers (pytest / jest / go test) are an opt-in users add later via [NATIVE_TESTS.md](NATIVE_TESTS.md) — never asked at bootstrap.

@@ -156,7 +156,7 @@ printf '── copy_tree_without_evals ─────────────�
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-make_fixture_pack "$WORK/fixture-pack" "fixture" "demo"
+make_fixture_pack "$WORK/fixture-pack" "acme/fixture-pack" "demo"
 src="$WORK/fixture-pack/directives/demo"
 dest="$WORK/copied"
 copy_tree_without_evals "$src" "$dest"
@@ -180,20 +180,20 @@ mkdir -p "$target"
 install_directive_folder "$WORK/fixture-pack" "demo" "$target"
 
 assert_file_exists "writes to packs/<pack>/directives/<id>/check.sh" \
-    "$target/.governance/packs/fixture/directives/demo/check.sh"
+    "$target/.governance/packs/acme/fixture-pack/directives/demo/check.sh"
 assert_file_exists "writes hooks/<kind>.sh" \
-    "$target/.governance/packs/fixture/directives/demo/hooks/pre-commit.sh"
+    "$target/.governance/packs/acme/fixture-pack/directives/demo/hooks/pre-commit.sh"
 assert_file_absent "does not copy evals/" \
-    "$target/.governance/packs/fixture/directives/demo/evals"
+    "$target/.governance/packs/acme/fixture-pack/directives/demo/evals"
 assert_file_absent "does not copy install-assets/" \
-    "$target/.governance/packs/fixture/directives/demo/install-assets"
+    "$target/.governance/packs/acme/fixture-pack/directives/demo/install-assets"
 
-if [[ -x "$target/.governance/packs/fixture/directives/demo/check.sh" ]]; then
+if [[ -x "$target/.governance/packs/acme/fixture-pack/directives/demo/check.sh" ]]; then
     PASS=$((PASS + 1)); printf '  ok - check.sh marked executable\n'
 else
     FAIL=$((FAIL + 1)); printf '  not ok - check.sh not executable\n'
 fi
-if [[ -x "$target/.governance/packs/fixture/directives/demo/hooks/pre-commit.sh" ]]; then
+if [[ -x "$target/.governance/packs/acme/fixture-pack/directives/demo/hooks/pre-commit.sh" ]]; then
     PASS=$((PASS + 1)); printf '  ok - hooks/pre-commit.sh marked executable\n'
 else
     FAIL=$((FAIL + 1)); printf '  not ok - hooks/pre-commit.sh not executable\n'
@@ -259,12 +259,15 @@ printf '── write_installed_manifest: minimum invocation ──────�
 target4="$WORK/target4"
 mkdir -p "$target4"
 write_installed_manifest "$target4" \
+    --owner acme --repo widgets \
     -- "$WORK/fixture-pack" demo
 manifest="$target4/.governance/installed-packs.yaml"
 assert_file_exists "manifest written" "$manifest"
 
 manifest_text="$(cat "$manifest")"
-assert_contains "version: \"1\"" 'version: "1"' "$manifest_text"
+assert_contains "version: \"2\"" 'version: "2"' "$manifest_text"
+assert_contains "emits owner" 'owner: acme' "$manifest_text"
+assert_contains "emits repo" 'repo: widgets' "$manifest_text"
 # Stack field must NOT be emitted (it was removed in the parent commit).
 assert_not_contains "no stack: line" "stack:" "$manifest_text"
 assert_contains "default hook_strategy is githooks" 'hook_strategy: githooks' "$manifest_text"
@@ -274,7 +277,7 @@ assert_contains "agents_md_created: false by default" 'agents_md_created: false'
 assert_contains "tests_dir defaults to .governance" 'tests_dir: .governance' "$manifest_text"
 assert_contains "directive listed under its pack" '      - id: demo' "$manifest_text"
 assert_contains "installed_path uses .governance/packs/<pack>/" \
-    'installed_path: .governance/packs/fixture/directives/demo' "$manifest_text"
+    'installed_path: .governance/packs/acme/fixture-pack/directives/demo' "$manifest_text"
 assert_contains "empty install_assets_seeded list" 'install_assets_seeded: []' "$manifest_text"
 assert_contains "empty collisions list" 'collisions: []' "$manifest_text"
 assert_not_contains "no path_b block when not requested" 'path_b:' "$manifest_text"
@@ -286,6 +289,7 @@ printf '── write_installed_manifest: full flag matrix ───────�
 target5="$WORK/target5"
 mkdir -p "$target5"
 write_installed_manifest "$target5" \
+    --owner acme --repo widgets \
     --hook-strategy husky \
     --ci-workflow .github/workflows/custom.yml \
     --tests-dir custom-governance \
@@ -325,12 +329,13 @@ assert_contains "renders path_b entry fingerprint" 'fingerprint: bash .governanc
 # ---- write_installed_manifest: multi-pack grouping ------------------------
 
 printf '── write_installed_manifest: multi-pack grouping ───────\n'
-make_fixture_pack "$WORK/fixture-pack-b" "fixture-b" "alpha"
-make_fixture_pack "$WORK/fixture-pack-b2" "fixture-b" "beta"  # share pack id
+make_fixture_pack "$WORK/fixture-pack-b" "acme/fixture-pack-b" "alpha"
+make_fixture_pack "$WORK/fixture-pack-b2" "acme/fixture-pack-b" "beta"  # share pack id
 
 target6="$WORK/target6"
 mkdir -p "$target6"
 write_installed_manifest "$target6" \
+    --owner acme --repo widgets \
     -- \
     "$WORK/fixture-pack" demo \
     "$WORK/fixture-pack-b" alpha \
@@ -338,13 +343,13 @@ write_installed_manifest "$target6" \
 
 manifest6_text="$(cat "$target6/.governance/installed-packs.yaml")"
 # Both packs appear, in input order.
-assert_contains "first pack id appears" '  - id: fixture' "$manifest6_text"
-assert_contains "second pack id appears" '  - id: fixture-b' "$manifest6_text"
+assert_contains "first pack id appears" '  - id: acme/fixture-pack' "$manifest6_text"
+assert_contains "second pack id appears" '  - id: acme/fixture-pack-b' "$manifest6_text"
 
 # Directives from same pack id share one block — both alpha and beta listed under fixture-b.
 # Slice from the fixture-b heading to the next pack heading (or install_assets_seeded:).
 fixture_b_block="$(printf '%s\n' "$manifest6_text" | awk '
-    /^  - id: fixture-b$/ { in_block = 1; print; next }
+    /^  - id: acme\/fixture-pack-b$/ { in_block = 1; print; next }
     in_block && (/^  - id: / || /^install_assets_seeded:/ || /^collisions:/) { exit }
     in_block { print }
 ')"
@@ -352,8 +357,8 @@ assert_contains "alpha listed under fixture-b" '      - id: alpha' "$fixture_b_b
 assert_contains "beta listed under fixture-b" '      - id: beta' "$fixture_b_block"
 
 # Pack ordering follows the order of first appearance in the input pairs.
-fixture_offset="$(printf '%s' "$manifest6_text" | grep -n '^  - id: fixture$' | head -1 | cut -d: -f1)"
-fixture_b_offset="$(printf '%s' "$manifest6_text" | grep -n '^  - id: fixture-b$' | head -1 | cut -d: -f1)"
+fixture_offset="$(printf '%s' "$manifest6_text" | grep -n '^  - id: acme/fixture-pack$' | head -1 | cut -d: -f1)"
+fixture_b_offset="$(printf '%s' "$manifest6_text" | grep -n '^  - id: acme/fixture-pack-b$' | head -1 | cut -d: -f1)"
 if [[ -n "$fixture_offset" && -n "$fixture_b_offset" && "$fixture_offset" -lt "$fixture_b_offset" ]]; then
     PASS=$((PASS + 1)); printf '  ok - pack order preserves input order\n'
 else
@@ -365,7 +370,7 @@ fi
 printf '── write_installed_manifest: zero directives ───────────\n'
 target7="$WORK/target7"
 mkdir -p "$target7"
-write_installed_manifest "$target7" --
+write_installed_manifest "$target7" --owner acme --repo widgets --
 manifest7_text="$(cat "$target7/.governance/installed-packs.yaml")"
 assert_contains "emits packs: [] when no directives passed" 'packs: []' "$manifest7_text"
 

@@ -1,6 +1,6 @@
 ---
 name: governance
-description: Single entry point for governance-kit's lifecycle verbs — `governance init` (bootstrap a repo), `governance uninstall` (clean tear-down), `governance reset` (restore amended directives to their pinned pack version), `governance pack {search,add,update,remove,list}` (community-pack lifecycle with SHA pinning + capability enforcement), and `governance directive {add,modify,remove}` (hand-authored directive amendments via the atomic triple). Use when the user says "governance init", "set up governance", "bootstrap governance", "governance uninstall", "tear down governance", "governance reset", "reset directives", "restore to original", "undo my amendments", "install a pack", "add pack X", "update packs", "remove pack X", "list installed packs", "add a directive", "amend the constitution", "new directive", "modify directive X", "remove directive X", or otherwise asks to manage governance-kit lifecycle, packs, or directives.
+description: Single entry point for governance-kit's lifecycle verbs — `governance init` (bootstrap a repo), `governance uninstall` (clean tear-down), `governance reset` (restore amended directives to their pinned pack version), `governance pack {search,create,add,update,remove,list}` (pack lifecycle — `create` scaffolds a hand-authored repo-local pack at `.governance/packs/<repo-owner>/<name>/`; `add`/`update`/`remove` cover community packs with SHA pinning + capability enforcement), and `governance directive {add,modify,remove}` (hand-authored directive amendments via the atomic triple, optionally `--pack <owner>/<name>` to target a specific pack). Use when the user says "governance init", "set up governance", "bootstrap governance", "governance uninstall", "tear down governance", "governance reset", "reset directives", "restore to original", "undo my amendments", "install a pack", "add pack X", "create a pack", "create a frontend pack", "scaffold a pack", "new local pack", "update packs", "remove pack X", "list installed packs", "add a directive", "amend the constitution", "new directive", "modify directive X", "remove directive X", or otherwise asks to manage governance-kit lifecycle, packs, or directives.
 license: MIT
 compatibility: Designed for Claude Code and Codex; requires git and bash.
 metadata:
@@ -19,11 +19,14 @@ Tracking issue: [Duaility/governance-kit#31](https://github.com/Duaility/governa
 ```
 governance init                                       # bootstrap a repo
 governance pack search [query]                        # search community catalog
+governance pack create <name>                         # scaffold a repo-local pack at packs/<repo-owner>/<name>/
 governance pack add <ref>                             # e.g. gh:acme/soc2-pack@main
 governance pack update [<pack-id>]                    # re-pin SHAs, diff-before-exec
-governance pack remove <pack-id>                      # uninstall a community pack
+governance pack remove <pack-id>                      # uninstall a pack (community or repo-local)
 governance pack list                                  # enumerate installed packs
-governance directive add|modify|remove <directive-id> # hand-authored directives (atomic triple)
+governance directive add|modify|remove <directive-id> [--pack <owner>/<name>]
+                                                      # hand-authored directives (atomic triple);
+                                                      # --pack defaults to the repo's own local pack
 governance reset --directive <id> | --pack <id> | --all
                                                       # restore drifted directives to pinned pack version
                                                       #   --drop-handauthored: also delete user-added directives (only with --all)
@@ -43,7 +46,7 @@ Infer the intended verb from the user's request:
 | "governance uninstall", "tear down governance", "uninstall governance-kit", "clean slate", "remove governance from this repo" | `uninstall` |
 | "governance reset", "reset directives", "restore to original", "undo my amendments", "the directive I changed broke something — put it back" | `reset` — see [references/RESET_FLOW.md](references/RESET_FLOW.md). Disambiguate from `uninstall` by asking "do you want to remove governance entirely, or just restore the rules to their pinned version?" if intent is unclear. |
 | "add / modify / remove directive X", "amend the constitution", "new directive" | `directive *` — see [references/DIRECTIVE_VERBS.md](references/DIRECTIVE_VERBS.md). |
-| "pack search / add / update / remove / list", "install pack X", "pin pack X", "update all packs" | `pack *` — see [references/PACK_VERBS.md](references/PACK_VERBS.md). Do **not** fall back to editing the in-tree pack tree by hand. |
+| "pack search / create / add / update / remove / list", "install pack X", "create a frontend pack", "new local pack", "scaffold a pack", "pin pack X", "update all packs" | `pack *` — see [references/PACK_VERBS.md](references/PACK_VERBS.md). `pack create <name>` scaffolds a hand-authored repo-local pack; `pack add <ref>` installs a community pack. Do **not** fall back to editing the in-tree pack tree by hand. |
 
 If the user's intent is ambiguous between `init` and `uninstall`, look at the repo state: `CONSTITUTION.md` + `.governance/` both present → `uninstall` is more likely; both absent → `init`. Ask once when still ambiguous.
 
@@ -113,7 +116,7 @@ See [references/PACK_VERBS.md](references/PACK_VERBS.md) for step-by-step flows.
 
 ## `governance directive *`
 
-Hand-authored directive flows for adding, modifying, or removing directives. Every amendment is the **atomic triple**: a directive folder at `.governance/local/directives/<id>/`, a **Directives** subsection in `CONSTITUTION.md`, and an **Evolution Log** entry — all land in one commit or none do.
+Hand-authored directive flows for adding, modifying, or removing directives. Every amendment is the **atomic triple**: a directive folder at `.governance/packs/<owner>/<repo>/directives/<id>/`, a **Directives** subsection in `CONSTITUTION.md`, and an **Evolution Log** entry — all land in one commit or none do.
 
 **Authoritative flow:** [references/DIRECTIVE_AMEND_FLOW.md](references/DIRECTIVE_AMEND_FLOW.md) Steps 1–7. Per-verb summaries and aliases live in [references/DIRECTIVE_VERBS.md](references/DIRECTIVE_VERBS.md). Authoring guidance in [references/DIRECTIVE_AUTHORING.md](references/DIRECTIVE_AUTHORING.md). Templates at [`assets/amend/directive.template.sh`](assets/amend/directive.template.sh) and [`assets/amend/directive-section.template.md`](assets/amend/directive-section.template.md).
 

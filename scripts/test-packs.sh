@@ -212,7 +212,7 @@ This file is deliberately long enough for the agents-md-exists directive. It is
 part of the fresh-repo install contract rather than a pack-author eval.
 
 Agents should preserve the installed governance folder shape:
-`.governance/local/directives/<id>/check.sh`.
+`.governance/packs/<owner>/<repo>/directives/<id>/check.sh`.
 
 Generated hooks discover installed `directive.yaml` files at runtime, so
 post-install amendments can add compatible directive folders without rewriting
@@ -257,14 +257,14 @@ satisfy `required-docs` at the expected line-count floor.
 ## Layers
 
 - surface — the tree shape installed by bootstrap
-- directives — executable checks under `.governance/local/directives/<id>/`
+- directives — executable checks under `.governance/packs/<owner>/<repo>/directives/<id>/`
 - hooks — `.githooks/*` dispatchers generated from the installed manifest
 
 ## Directives
 
 Directive folders are self-contained. The hook generator discovers installed
 directive metadata at runtime. Adding or removing a directive is a single directory
-operation on `.governance/local/directives/`.
+operation on `.governance/packs/<owner>/<repo>/directives/`.
 
 ## Notes
 
@@ -277,7 +277,7 @@ EOF
 *.log
 EOF
 
-    mkdir -p .github/workflows .governance/packs/core/directives
+    mkdir -p .github/workflows .governance/packs/governance-kit/core/directives
     cat > .github/workflows/ci.yml <<'EOF'
 name: CI
 on: [push, pull_request]
@@ -320,6 +320,7 @@ EOF
     done
 
     write_installed_manifest "$fresh_tmp" \
+        --owner acme --repo widgets \
         --hook-strategy githooks \
         --agents-md-directive \
         -- "${installed_pairs[@]}"

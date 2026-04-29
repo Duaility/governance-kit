@@ -40,14 +40,14 @@ For each directive, use this structure:
 
 - **Directive**: A `CONSTITUTION.md` exists at the repo root and is non-empty.
 - **Rationale**: Governance without a discoverable source of truth is tribal knowledge.
-- **Enforced by**: `.governance/local/directives/constitution-exists/check.sh`
+- **Enforced by**: `.governance/packs/<owner>/<repo>/directives/constitution-exists/check.sh`
 - **Exceptions**: none.
 
 <!-- governance-bootstrap will inject one subsection per directive the user selected. -->
 
 ## Amendment process
 
-1. Open a PR that modifies this file **and** `.governance/local/directives/` in the same commit.
+1. Open a PR that modifies this file **and** the directive folder under `.governance/packs/<owner>/<repo>/directives/` in the same commit.
 2. The PR description states *what* changed and *why* — link the incident, RFC, or discussion that motivated it.
 3. Add an entry to the **Evolution Log** below.
 4. At least one reviewer with governance authority approves.

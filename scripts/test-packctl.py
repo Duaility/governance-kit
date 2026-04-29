@@ -260,7 +260,7 @@ def test_cli_pack_field_prints_id_and_version() -> None:
     res_version = run_packctl("pack-field", str(CORE_PACK), "version")
     assert res_id.returncode == 0
     assert res_version.returncode == 0
-    assert res_id.stdout.strip() == "core"
+    assert res_id.stdout.strip() == "governance-kit/core"
     # Version is a string scalar.
     assert res_version.stdout.strip() != ""
 

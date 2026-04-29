@@ -2,15 +2,21 @@
 # install.sh — installer-facing helpers for pack-based governance bootstrap.
 #
 # These helpers define the installed-repo contract that bootstrap, tests,
-# amend, and generated hooks agree on:
+# amend, and generated hooks agree on. Every pack lives at the same shape on
+# disk, mirroring its `<owner>/<name>` GitHub identity:
 #
-#   .governance/packs/<pack-id>/directives/<directive-id>/
+#   .governance/packs/<owner>/<name>/directives/<directive-id>/
 #     directive.yaml
 #     check.sh
 #     constitution.md
 #     hooks/*.sh        # optional hook side-effect helpers
 #     lib/              # optional directive-owned libraries
 #     runtimes/         # optional runtime adapters
+#
+# Hand-authored repo-local packs use the repo's own `<owner>/<name>` (the
+# default is the pack at `<repo-owner>/<repo-name>/`); they are distinguished
+# from installed packs by the absence of a `source:` field in their
+# `pack.yaml`. The runner does not care which is which.
 #
 # Pack evals are author-side tests and are never copied into target repos.
 
@@ -104,17 +110,16 @@ PY
 )"
         printf '%s\t%s\t%s\t%s\n' "$id" "$hook" "$surface" "$dir" >> "$out"
     done < <(
-        {
-            [[ -d "$governance_dir/packs" ]] && find "$governance_dir/packs" -type d -path '*/directives/*'
-            [[ -d "$governance_dir/local/directives" ]] && find "$governance_dir/local/directives" -mindepth 1 -maxdepth 1 -type d
-        } | sort
+        [[ -d "$governance_dir/packs" ]] && find "$governance_dir/packs" -type d -path '*/directives/*' | sort
     )
 }
 
 write_installed_manifest() {
-    # Manifest schema v1. Call shape:
+    # Manifest schema v2. Call shape:
     #
     #   write_installed_manifest <target_repo> \
+    #       --owner <github-owner> \
+    #       --repo <github-repo-name> \
     #       [--hook-strategy githooks|husky|pre-commit] \
     #       [--ci-workflow <path>] \
     #       [--tests-dir <path>] \
@@ -127,6 +132,11 @@ write_installed_manifest() {
     #       [--path-b-framework husky|pre-commit] \
     #       [--path-b-entry <file>:<fingerprint>]        (repeatable)
     #       -- <pack_dir> <directive_id> [<pack_dir> <directive_id> ...]
+    #
+    # `owner` and `repo` are the GitHub-shaped identity of the bootstrapping
+    # repo, lowercased. They define the default repo-local pack at
+    # `.governance/packs/<owner>/<repo>/`, which is where `governance directive
+    # add` lands directives when no `--pack` is given.
     #
     # Directives are grouped by pack in the output. `governance-reset` reads this
     # manifest as the authoritative record of what the kit owns in the repo;
@@ -142,10 +152,13 @@ write_installed_manifest() {
     local agents_md_directive="false" agents_md_created="false"
     local path_b_framework=""
     local setup_clone_script=""
+    local owner="" repo=""
     local -a install_assets=() collisions=() path_b_entries=()
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            --owner)             owner="$2";             shift 2 ;;
+            --repo)              repo="$2";              shift 2 ;;
             --hook-strategy)     hook_strategy="$2";     shift 2 ;;
             --ci-workflow)       ci_workflow="$2";       shift 2 ;;
             --tests-dir)         tests_dir="$2";         shift 2 ;;
@@ -162,10 +175,17 @@ write_installed_manifest() {
         esac
     done
 
+    if [[ -z "$owner" || -z "$repo" ]]; then
+        echo "write_installed_manifest: --owner and --repo are required" >&2
+        return 1
+    fi
+
     mkdir -p "$(dirname "$out")"
     {
-        printf 'version: "1"\n'
+        printf 'version: "2"\n'
         printf 'generated_at: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        printf 'owner: %s\n' "$owner"
+        printf 'repo: %s\n' "$repo"
         printf 'hook_strategy: %s\n' "$hook_strategy"
         printf 'constitution: %s\n' "$constitution_flag"
         printf 'ci_workflow: %s\n' "$ci_workflow"

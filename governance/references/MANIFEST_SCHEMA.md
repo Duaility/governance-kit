@@ -4,13 +4,15 @@
 
 The manifest is not an auto-upgrade contract — installed directive folders are user-owned copies, and the user may have edited them. `uninstall` uses the manifest only to learn *what paths to consider*, then confirms ownership via per-file evidence (ownership marker, byte match against the shipped template, etc. — see [UNINSTALL_MATRIX.md](UNINSTALL_MATRIX.md)). `reset` uses the manifest as the pack-provenance ledger and refuses to run without it.
 
-## v1 shape (current)
+## v2 shape (current)
 
 This is what `write_installed_manifest` in `governance/assets/packs/lib/install.sh` actually emits today. Both `uninstall` and `reset` must parse this exact shape; regenerate the eval fixture whenever the emitter changes.
 
 ```yaml
-version: "1"
-generated_at: 2026-04-23T16:45:34Z
+version: "2"
+generated_at: 2026-04-29T16:45:34Z
+owner: acme                      # GitHub owner of the bootstrapping repo (lowercased)
+repo: widgets                    # GitHub repo name of the bootstrapping repo (lowercased)
 hook_strategy: githooks          # or: husky | pre-commit
 constitution: true               # CONSTITUTION.md was written at repo root
 ci_workflow: .github/workflows/governance.yml
@@ -19,24 +21,31 @@ agents_md_directive: true        # true when the marker-bounded block was insert
 agents_md_created: false         # true only when bootstrap Step 4b Case 2 ran (stub)
 setup_clone_script: scripts/setup-clone.sh  # Path A only; omitted under Path B
 packs:
-  - id: core
+  - id: governance-kit/core
     version: "0.1"
     directives:
-      - id: constitution-exists
-        installed_path: .governance/packs/<pack-id>/directives/constitution-exists
-      - id: no-secrets
-        installed_path: .governance/packs/<pack-id>/directives/no-secrets
+      - id: required-docs
+        installed_path: .governance/packs/governance-kit/core/directives/required-docs
+      - id: secrets-hygiene
+        installed_path: .governance/packs/governance-kit/core/directives/secrets-hygiene
   - id: duaility/agent-governance
     version: "0.1"
     directives:
       - id: agent-token-accounting
-        installed_path: .governance/packs/<pack-id>/directives/agent-token-accounting
+        installed_path: .governance/packs/duaility/agent-governance/directives/agent-token-accounting
+  - id: acme/widgets              # the repo's own local pack; appears once a directive is added
+    version: "0.1"
+    directives:
+      - id: no-relative-imports
+        installed_path: .governance/packs/acme/widgets/directives/no-relative-imports
 install_assets_seeded:           # files seeded by directives' install-assets/
   - QUALITY.md
   - COSTS.md
 collisions: []                   # empty list when Step 6 resolved nothing
 # path_b: block below only present when hook_strategy != githooks
 ```
+
+`owner:` and `repo:` are the GitHub-shaped identity of this repo, lowercased. They define **the default repo-local pack** at `.governance/packs/<owner>/<repo>/` — the pack `governance directive add` lands directives into when no `--pack` is given. They are detected at `governance init` from `git remote get-url origin`; if origin is missing or non-GitHub, `init` prompts and persists the answer here.
 
 When `collisions` or `path_b` are non-empty, they look like:
 
@@ -63,7 +72,8 @@ Notes on the emitted shape:
 
 | Field | Purpose in uninstall |
 |---|---|
-| `packs[*].directives[*].installed_path` | The list of `.governance/packs/<pack-id>/directives/<id>/` folders to remove. |
+| `owner` / `repo` | The repo's GitHub identity. Used to resolve the default repo-local pack at `.governance/packs/<owner>/<repo>/` for cleanup ordering and to prompt the user before deleting hand-authored packs. |
+| `packs[*].directives[*].installed_path` | The list of `.governance/packs/<owner>/<name>/directives/<id>/` folders to remove. |
 | `constitution` | Whether to remove `CONSTITUTION.md`. |
 | `ci_workflow` | Path of the workflow file to delete. |
 | `tests_dir` | Parent directory whose `run.sh`, `lib.sh`, and empty-after-cleanup shell are removed. |
@@ -87,7 +97,7 @@ Fields not listed here are reserved for future use; uninstall ignores them.
 | `packs[*].directives[*].id` | The set of pack-sourced directive ids (used to compute the hand-authored set as the complement). |
 | `packs[*].directives[*].installed_path` | Where the directive folder is on disk, so reset can overwrite it with the pristine source. |
 
-The pinned **SHA** for each non-`core` pack lives in `.governance/packs.lock`, not the install manifest — see [PACK_VERBS.md](PACK_VERBS.md). For `core`, the pristine source is the kit-bundled tree at `governance/assets/packs/core/`.
+The pinned **SHA** for each installed community pack lives in `.governance/packs.lock`, not the install manifest — see [PACK_VERBS.md](PACK_VERBS.md). For `governance-kit/core`, the pristine source is the kit-bundled tree at `governance/assets/packs/core/`. Repo-local packs (no `source:` in `pack.yaml`, no lockfile entry) have no upstream pristine source; `reset` skips them.
 
 ## Legacy fallback — v0.1 / pre-PR-#26 manifests
 
@@ -140,4 +150,4 @@ The heuristic path must **never** guess. If evidence for a given path is ambiguo
 
 ## Forward compatibility
 
-The manifest is versioned. `version: "1"` is the current shape. `uninstall` accepts unknown fields silently and unknown `version` values with a warning ("manifest written by a newer bootstrap; proceeding with best-effort field mapping"). A `version` mismatch never causes `uninstall` to refuse — the alternative is a repo the user cannot uninstall, which is worse than a partial clean-up they can finish by hand. `reset` is stricter: an unknown `version` triggers the same legacy-fallback path described above and may refuse if pack provenance cannot be read.
+The manifest is versioned. `version: "2"` is the current shape. `uninstall` accepts unknown fields silently and unknown `version` values with a warning ("manifest written by a newer bootstrap; proceeding with best-effort field mapping"). A `version` mismatch never causes `uninstall` to refuse — the alternative is a repo the user cannot uninstall, which is worse than a partial clean-up they can finish by hand. `reset` is stricter: an unknown `version` triggers the same legacy-fallback path described above and may refuse if pack provenance cannot be read.

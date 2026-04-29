@@ -1,5 +1,7 @@
-version: "1"
+version: "2"
 generated_at: 2026-01-15T09:00:00Z
+owner: acme
+repo: bootstrapped-repo
 hook_strategy: githooks
 constitution: true
 ci_workflow: .github/workflows/governance.yml
@@ -7,13 +9,13 @@ tests_dir: .governance
 agents_md_directive: true
 agents_md_created: false
 packs:
-  - id: core
+  - id: acme/bootstrapped-repo
     version: "0.1"
     directives:
       - id: constitution-exists
-        installed_path: .governance/local/directives/constitution-exists
+        installed_path: .governance/packs/acme/bootstrapped-repo/directives/constitution-exists
       - id: no-secrets
-        installed_path: .governance/local/directives/no-secrets
+        installed_path: .governance/packs/acme/bootstrapped-repo/directives/no-secrets
 install_assets_seeded:
   - QUALITY.md
   - COSTS.md

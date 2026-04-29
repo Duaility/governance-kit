@@ -95,7 +95,7 @@ Files to delete:
   .governance/run.sh
   .governance/lib.sh
   .governance/packs/<pack-id>/directives/<directive-a>/ (4 files)
-  .governance/local/directives/<directive-b>/           (4 files)
+  .governance/packs/<owner>/<repo>/directives/<directive-b>/           (4 files)
   .github/workflows/governance.yml
   .governance/installed-packs.yaml
   .githooks/pre-commit       (marker present)

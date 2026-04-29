@@ -130,11 +130,11 @@ dispatchers automatically. Manual install is:
 
 ```sh
 cp -r <governance-kit>/extensions/packs/agent-governance/directives/agent-token-accounting \
-      .governance/local/directives/
+      .governance/packs/<owner>/<repo>/directives/
 cp    <governance-kit>/governance/assets/COSTS.template.md COSTS.md
-chmod +x .governance/local/directives/agent-token-accounting/check.sh \
-         .governance/local/directives/agent-token-accounting/hooks/*.sh \
-         .governance/local/directives/agent-token-accounting/runtimes/*.sh
+chmod +x .governance/packs/<owner>/<repo>/directives/agent-token-accounting/check.sh \
+         .governance/packs/<owner>/<repo>/directives/agent-token-accounting/hooks/*.sh \
+         .governance/packs/<owner>/<repo>/directives/agent-token-accounting/runtimes/*.sh
 ```
 
 Everything the directive needs — the `lib/` Python (ledger, trailers, rates),
@@ -174,7 +174,7 @@ through untouched.
 git commit -m "feat: x (#13)"
       │
       ▼
-pre-commit ──► .governance/local/directives/agent-token-accounting/hooks/pre-commit.sh
+pre-commit ──► .governance/packs/<owner>/<repo>/directives/agent-token-accounting/hooks/pre-commit.sh
       │          1. Detect runtime from env (CLAUDECODE / CODEX_THREAD_ID / AGENT_NAME)
       │          2. Read parent argv (/proc/$PPID/cmdline or `ps`) to recover
       │             the -m subject and parse the (#N) issue anchor
@@ -300,7 +300,7 @@ are optional — cache fields default to `0`, model defaults to `unknown`.
 ## What gets enforced where
 
 All paths below are rooted at the installed directive folder
-`.governance/local/directives/agent-token-accounting/`.
+`.governance/packs/<owner>/<repo>/directives/agent-token-accounting/`.
 
 | Layer | What it checks |
 |---|---|

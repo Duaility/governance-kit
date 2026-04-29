@@ -1,6 +1,6 @@
 # Native tests & alternative hook frameworks
 
-`governance init` only installs the universal bash runner. Native test wrappers are a **post-init opt-in** — never scaffolded at bootstrap. The bash directives under `.governance/packs/*/directives/` and `.governance/local/directives/` are the baseline; they work in any repo without dependencies. This doc shows how to **also** run governance directives through the project's native test framework so they show up in the normal test report, and how to wire the pre-commit hook into frameworks the repo may already use.
+`governance init` only installs the universal bash runner. Native test wrappers are a **post-init opt-in** — never scaffolded at bootstrap. The bash directives under `.governance/packs/*/directives/` and `.governance/packs/<owner>/<repo>/directives/` are the baseline; they work in any repo without dependencies. This doc shows how to **also** run governance directives through the project's native test framework so they show up in the normal test report, and how to wire the pre-commit hook into frameworks the repo may already use.
 
 ## When to add native tests
 
