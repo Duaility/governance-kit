@@ -8,11 +8,15 @@
 # to stamp the always-on summary triple from.
 #
 # Always-on contract: when a runtime + transcript are detected, the handoff
-# is written even on commits with zero new events. prepare-commit-msg then
-# stamps `Steer-Count: 0` / `Steer-Types: none` / `Steer-Tiers: none` so an
-# agent-authored commit is never silent — a `git log`-skimmable assertion
-# that the directive ran and saw nothing. Commits authored outside a
-# recognised runtime stay silent (no handoff, no trailers).
+# is written even on commits with zero new events, and prepare-commit-msg
+# stamps the actual counts. When no runtime is detected (or pre-commit is
+# bypassed), this hook is a silent no-op and no handoff is written —
+# prepare-commit-msg then falls back to `Steer-Count: 0` / `Steer-Types:
+# none` / `Steer-Tiers: none`. Either way every non-merge, non-revert
+# commit lands with the summary triple stamped — a `git log`-skimmable
+# assertion that the directive ran. The directive is independent of
+# agent-token-accounting; the contract holds whether or not the commit
+# carries an `Agent:` trailer.
 #
 # Why pre-commit, not prepare-commit-msg: by the time prepare-commit-msg
 # runs, git has already snapshotted the tree. `git add` from there lands
@@ -54,8 +58,9 @@ if [[ "${CLAUDECODE:-}" == "1" ]]; then
 fi
 # Codex / other runtimes: future runtimes/<name>.sh adapters will land here.
 
-# Not in an agent-runtime session — silently no-op. This directive does
-# not block human-only commits.
+# Not in an agent-runtime session — pre-commit is a no-op (no transcript
+# to extract events from, no rows to append). prepare-commit-msg will
+# still fire and stamp the zero-defaults so the universal contract holds.
 [[ -z "$RUNTIME" ]] && exit 0
 
 ROOT="$(git rev-parse --show-toplevel)"

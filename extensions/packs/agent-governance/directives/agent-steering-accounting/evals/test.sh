@@ -22,9 +22,10 @@ SESSION_ID="abc123def456fixture"
 SS="abc123def456"
 EPOCH=1800000000
 
-# Fixture commits all carry an `Agent:` trailer so the always-on summary
-# rule kicks in. A non-agent fixture is added below to verify the exempt
-# branch.
+# Most fixtures carry an `Agent:` trailer to mirror real agent-driven repos
+# where `agent-token-accounting` ships alongside this directive. The
+# directive itself is independent — Cases 7/11 below exercise the contract
+# without an `Agent:` trailer.
 agent_block() {
     printf 'Agent: claude-code\n'
     printf 'Session: %s\n' "$SESSION_ID"
@@ -59,7 +60,26 @@ write_msg_raw() {
 }
 
 write_msg_human() {
-    # Non-agent commit — no Agent: trailer, no Steer-* trailers expected.
+    # write_msg_human <file> <subject> [count] [types-summary] [tiers-summary]
+    # Non-agent commit (no `Agent:`/`Session:` trailers). With no extra args,
+    # stamps `Steer-Count: 0` / `none` / `none` — the universal contract
+    # applies regardless of whether agent-token-accounting is installed.
+    local file="$1" subject="$2"
+    local count="${3:-0}"
+    local types="${4:-none}"
+    local tiers="${5:-none}"
+    {
+        printf '%s\n\n' "$subject"
+        printf 'Body line.\n\n'
+        printf 'Steer-Count: %s\n' "$count"
+        printf 'Steer-Types: %s\n' "$types"
+        printf 'Steer-Tiers: %s\n' "$tiers"
+    } > "$file"
+}
+
+write_msg_human_bare() {
+    # Non-agent commit with NO summary triple — exercises the universal
+    # contract failure mode (every commit must stamp the triple).
     local file="$1" subject="$2"
     {
         printf '%s\n\n' "$subject"
@@ -121,10 +141,10 @@ write_msg /tmp/msg-bad-count "feat: bad count" 99 "interrupt=99" "structural=99"
 EVAL_LABEL="$EVAL_ID bad-count" expect_fail "$CHECK" /tmp/msg-bad-count
 
 # ──────────────────────────────────────────────────────────────
-# Case 5 — fail: agent commit, summary trailers missing entirely
+# Case 5 — fail: summary trailers missing entirely (Agent: present)
 # ──────────────────────────────────────────────────────────────
 write_msg_raw /tmp/msg-no-summary "feat: no summary" ""
-EVAL_LABEL="$EVAL_ID missing-summary-agent" expect_fail "$CHECK" /tmp/msg-no-summary
+EVAL_LABEL="$EVAL_ID missing-summary" expect_fail "$CHECK" /tmp/msg-no-summary
 
 # ──────────────────────────────────────────────────────────────
 # Case 6 — fail: Steer-Types breakdown disagrees with matched row's type
@@ -133,11 +153,13 @@ write_msg /tmp/msg-bad-types "feat: bad count" 1 "correction=1" "structural=1"
 EVAL_LABEL="$EVAL_ID bad-types" expect_fail "$CHECK" /tmp/msg-bad-types
 
 # ──────────────────────────────────────────────────────────────
-# Case 7 — pass: non-agent (human) commit, no Steer-* trailers required
+# Case 7 — pass: commit with no `Agent:` trailer still satisfies the
+# universal contract when the summary triple is stamped. Demonstrates
+# independence from agent-token-accounting.
 # ──────────────────────────────────────────────────────────────
 reset_ledger
-write_msg_human /tmp/msg-human "fix: typo by hand"
-EVAL_LABEL="$EVAL_ID human-commit-exempt" expect_pass "$CHECK" /tmp/msg-human
+write_msg_human /tmp/msg-no-agent "fix: standalone steering"
+EVAL_LABEL="$EVAL_ID no-agent-with-triple" expect_pass "$CHECK" /tmp/msg-no-agent
 
 # ──────────────────────────────────────────────────────────────
 # Case 8 — fail: Steer-Count: 0 but Steer-Types totals to 1
@@ -175,5 +197,14 @@ append_row "$KEY_RETRY" "correction" "redirected" "feat: retry case"
 git add STEERING.md
 write_msg /tmp/msg-retry "feat: retry case" 1 "correction=1" "structural=1"
 EVAL_LABEL="$EVAL_ID retry-after-failed-commit-msg" expect_pass "$CHECK" /tmp/msg-retry
+
+# ──────────────────────────────────────────────────────────────
+# Case 11 — fail: commit with no `Agent:` trailer AND no summary triple.
+# The universal contract requires the triple on every in-scope commit;
+# the absence of agent-token-accounting trailers does not exempt it.
+# ──────────────────────────────────────────────────────────────
+reset_ledger
+write_msg_human_bare /tmp/msg-bare "chore: bare commit"
+EVAL_LABEL="$EVAL_ID bare-commit-no-triple" expect_fail "$CHECK" /tmp/msg-bare
 
 eval_done

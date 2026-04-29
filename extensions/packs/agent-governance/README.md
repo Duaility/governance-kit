@@ -49,19 +49,18 @@ Receipts are the **post-implementation** audit artifact — distinct from the pr
 
 ## Auxiliary directives
 
-Three directives in the pack tighten the loop without sitting on the chain itself:
+Two directives in the pack tighten the loop without sitting on the chain itself:
 
-- **`pr-required-when-checklist-complete`** (in `minimal`) — when HEAD's receipt has ≥1 `- [x]` and zero `- [ ]` on a non-default branch, an open PR must exist on the remote. The local `post-commit` hook is advisory (it cannot block a commit that already happened); CI hard-gates the same rule on every push.
-- **`pr-review-required-when-pr-ready`** (in `standard`) — sibling of the create-gate but on a different axis. When the open PR is **not in draft state** (marked ready for review), it must carry a codex-authored review (body contains `<!-- codex-review -->`). The trigger is GitHub's draft → ready transition (`gh pr ready`), decoupled from receipt checklist state — the agent may finish the checklist, push, and keep iterating in draft without firing a noisy review-mandate. Once the PR is marked ready, the next firing prompts the agent to run `codex exec "review PR #N ..."`. **Local-only** — skipped in CI, since codex is part of the local agent loop, not a merge-gate.
-- **`agent-steering-accounting`** (opt-in, **not in any preset**) — agent-authored commits stamp steering trailers and append rows to `STEERING.md`. Opt-in only because the rows record human correction text verbatim. Install when you want a per-commit measure of where the agent ran on autopilot vs. needed your hand on the wheel.
+- **`pr-review-required-when-pr-ready`** (in `standard`) — when the open PR is **not in draft state** (marked ready for review), it must carry a codex-authored review (body contains `<!-- codex-review -->`). The trigger is GitHub's draft → ready transition (`gh pr ready`), decoupled from receipt checklist state — the agent may finish the checklist, push, and keep iterating in draft without firing a noisy review-mandate. Once the PR is marked ready, the next firing prompts the agent to run `codex exec "review PR #N ..."`. **Local-only** — skipped in CI, since codex is part of the local agent loop, not a merge-gate.
+- **`agent-steering-accounting`** (opt-in, **not in any preset**) — every non-merge, non-revert commit stamps steering trailers and appends rows to `STEERING.md`. Opt-in only because the rows record human correction text verbatim. Install when you want a per-commit measure of where the agent ran on autopilot vs. needed your hand on the wheel.
 
 ## Presets
 
 | Preset | Adds | Cumulative |
 |---|---|---|
-| `minimal` | `receipt-per-issue`, `commit-issue-receipt-match`, `pr-required-when-checklist-complete` | 3 |
-| `standard` (extends minimal) | `issue-templates`, `issues-tracked`, `agent-token-accounting`, `pr-review-required-when-pr-ready` | 7 |
-| `strict` (extends standard) | (none) | 7 |
+| `minimal` | `receipt-per-issue`, `commit-issue-receipt-match` | 2 |
+| `standard` (extends minimal) | `issue-templates`, `issues-tracked`, `agent-token-accounting`, `pr-review-required-when-pr-ready` | 6 |
+| `strict` (extends standard) | (none) | 6 |
 
 `agent-steering-accounting` is never bundled in a preset — install explicitly with `governance directive add agent-steering-accounting` after the pack is in.
 
