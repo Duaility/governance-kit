@@ -13,14 +13,14 @@ The fix is to ship hook scripts as tracked files under `.githooks/` and require 
 
 1. Create `.githooks/pre-commit` and `.githooks/commit-msg` in this repo, copied from the current `.git/hooks/` versions (they already honor `SKIP_GOVERNANCE=1` and `--no-verify`). Mark both executable.
 2. Run `git config core.hooksPath .githooks` locally and verify both hooks still fire (commit-msg test + pre-commit test, same negative tests as before).
-3. Author `tests/governance/rules/hooks-configured.sh`. The rule asserts:
+3. Author `.governance/rules/hooks-configured.sh`. The rule asserts:
    - `.githooks/pre-commit` is tracked and executable.
-   - `.githooks/commit-msg` is tracked and executable **only if** `tests/governance/rules/conventional-commits.sh` is installed (the commit-msg hook is conditional on that rule).
+   - `.githooks/commit-msg` is tracked and executable **only if** `.governance/rules/conventional-commits.sh` is installed (the commit-msg hook is conditional on that rule).
    - `git config --get core.hooksPath` returns `.githooks`. If it doesn't, emit a violation with the exact one-line fix command — this is the rule that turns a silent misconfiguration into a noisy one.
 4. Delete `.git/hooks/pre-commit` and `.git/hooks/commit-msg` from local working state so we are actually relying on `.githooks/` from now on (not a belt-and-braces situation that hides bugs).
 5. Update `governance-bootstrap`:
    - Add `governance-bootstrap/assets/githooks/pre-commit` and `.../commit-msg` (move from `assets/pre-commit` / `assets/commit-msg`).
-   - Add `governance-bootstrap/assets/tests-bash/rules/hooks-configured.sh` (the shippable copy of the rule).
+   - Add `governance-bootstrap/assets/dot-governance/rules/hooks-configured.sh` (the shippable copy of the rule).
    - Rewrite **Step 6** of `governance-bootstrap/SKILL.md` to: copy hook scripts to `.githooks/` in the target repo (tracked, not `.git/hooks/`), then run `git config core.hooksPath .githooks`, then tell the user this config is per-clone and every contributor must run it (the `hooks-configured` rule will nag them if they forget).
    - Surface the new rule in the **always-installed** list (alongside `no-merge-conflict-markers`) — it's the meta-rule that makes every other local check actually run, so it should not be opt-in.
    - Update `governance-bootstrap/references/RULES_CATALOG.md`: add `hooks-configured` under "Always installed (not in the menu)" with the description.

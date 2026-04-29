@@ -280,7 +280,7 @@ def validate_pack_dir(pack_dir: Path) -> list[str]:
             errors.append(f"{pack_dir}/{directive_id}: constitution.md missing")
         else:
             text = constitution.read_text()
-            expected = f"tests/governance/directives/{directive_id}/check.sh"
+            expected = f".governance/packs/{pack_id}/directives/{directive_id}/check.sh"
             if expected not in text:
                 errors.append(f"{pack_dir}/{directive_id}: constitution.md must reference `{expected}`")
         eval_script = directive_path / "evals" / "test.sh"

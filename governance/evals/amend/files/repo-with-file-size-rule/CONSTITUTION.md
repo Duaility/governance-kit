@@ -2,7 +2,7 @@
 
 ## Compliance
 
-Agents and humans working in this repo must read and follow this document. Mechanical directives are enforced by `tests/governance/run.sh`.
+Agents and humans working in this repo must read and follow this document. Mechanical directives are enforced by `.governance/run.sh`.
 
 ## Principles
 
@@ -13,7 +13,7 @@ Agents and humans working in this repo must read and follow this document. Mecha
 
 ### file-size-limit
 **Directive.** No single tracked source file may exceed 500 lines.
-**Enforced by.** `tests/governance/directives/file-size-limit/check.sh` (limit controlled by `GOVERNANCE_FILE_SIZE_LIMIT`, default 500).
+**Enforced by.** `.governance/local/directives/file-size-limit/check.sh` (limit controlled by `GOVERNANCE_FILE_SIZE_LIMIT`, default 500).
 **Waivers.** Append `# governance: allow-file-size-limit <TICKET>` to the first line of the file.
 
 ## Evolution Log

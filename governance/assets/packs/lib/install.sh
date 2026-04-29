@@ -4,7 +4,7 @@
 # These helpers define the installed-repo contract that bootstrap, tests,
 # amend, and generated hooks agree on:
 #
-#   tests/governance/directives/<directive-id>/
+#   .governance/packs/<pack-id>/directives/<directive-id>/
 #     directive.yaml
 #     check.sh
 #     constitution.md
@@ -44,12 +44,14 @@ copy_tree_without_evals() {
 install_directive_folder() {
     local pack_dir="$1" directive_id="$2" target_repo="$3"
     local src="$pack_dir/directives/$directive_id"
-    local dest="$target_repo/tests/governance/directives/$directive_id"
+    local pack_id
+    pack_id="$(pack_field "$pack_dir" id)"
+    local dest="$target_repo/.governance/packs/$pack_id/directives/$directive_id"
     [[ -d "$src" ]] || {
         echo "install_directive_folder: missing directive folder: $src" >&2
         return 1
     }
-    mkdir -p "$target_repo/tests/governance/directives"
+    mkdir -p "$(dirname "$dest")"
     copy_tree_without_evals "$src" "$dest"
     chmod +x "$dest/check.sh"
     if [[ -d "$dest/hooks" ]]; then
@@ -80,12 +82,12 @@ install_directive_assets() {
 
 build_hook_spec_from_installed_directives() {
     local target_repo="$1" out="$2"
-    local directives_dir="$target_repo/tests/governance/directives"
+    local governance_dir="$target_repo/.governance"
     : > "$out"
-    [[ -d "$directives_dir" ]] || return 0
+    [[ -d "$governance_dir" ]] || return 0
 
     local dir id hook surface
-    for dir in "$directives_dir"/*; do
+    while IFS= read -r dir; do
         [[ -d "$dir" && -f "$dir/directive.yaml" ]] || continue
         id="${dir##*/}"
         hook="$(uv run --quiet --isolated --with PyYAML python - "$dir/directive.yaml" hook <<'PY'
@@ -101,7 +103,12 @@ print(data.get(sys.argv[2]) or "")
 PY
 )"
         printf '%s\t%s\t%s\t%s\n' "$id" "$hook" "$surface" "$dir" >> "$out"
-    done
+    done < <(
+        {
+            [[ -d "$governance_dir/packs" ]] && find "$governance_dir/packs" -type d -path '*/directives/*'
+            [[ -d "$governance_dir/local/directives" ]] && find "$governance_dir/local/directives" -mindepth 1 -maxdepth 1 -type d
+        } | sort
+    )
 }
 
 write_installed_manifest() {
@@ -127,11 +134,11 @@ write_installed_manifest() {
     # every field below is consumed there. See
     # governance/references/MANIFEST_SCHEMA.md for the full contract.
     local target_repo="$1"; shift
-    local out="$target_repo/.governance-kit/installed-packs.yaml"
+    local out="$target_repo/.governance/installed-packs.yaml"
 
     local hook_strategy="githooks" stack="bash"
     local ci_workflow=".github/workflows/governance.yml"
-    local tests_dir="tests/governance"
+    local tests_dir=".governance"
     local constitution_flag="true"
     local agents_md_directive="false" agents_md_created="false"
     local path_b_framework=""
@@ -208,7 +215,7 @@ write_installed_manifest() {
                     pack_id="$(pack_field "$pack_dir" id)"
                     if [[ "$pack_id" == "$ordered_id" ]]; then
                         printf '      - id: %s\n' "$directive_id"
-                        printf '        installed_path: tests/governance/directives/%s\n' "$directive_id"
+                        printf '        installed_path: .governance/packs/%s/directives/%s\n' "$pack_id" "$directive_id"
                     fi
                     i=$(( i + 2 ))
                 done

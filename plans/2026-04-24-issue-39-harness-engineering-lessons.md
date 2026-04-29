@@ -45,11 +45,11 @@ they duplicate ownership the existing rules already have.
    sub-check details and the validation-section requirement on
    `plan-per-issue`.
 6. **Verify.** Run `bash scripts/test-packs.sh` and
-   `bash tests/governance/run.sh` — both must pass.
+   `bash .governance/run.sh` — both must pass.
 
 ## Validation
 
-- `bash tests/governance/run.sh` exits 0 on this branch.
+- `bash .governance/run.sh` exits 0 on this branch.
 - `bash scripts/test-packs.sh` exits 0 — every rule eval (including the
   new fail fixtures for the strengthened checks) passes.
 - New negative assertions exist in

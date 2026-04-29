@@ -37,7 +37,7 @@ on one verb (seed / edit / tend); reset fits the same shape
 Three source-of-truth categories, deliberately in priority order:
 
 1. **Manifest-driven (authoritative).** If
-   `.governance-kit/installed-packs.yaml` is present, it records every
+   `.governance/installed-packs.yaml` is present, it records every
    pack, rule, and installed path. Drive reset from the manifest; it
    is the only reliable record of what the kit owns in this repo.
 
@@ -49,7 +49,7 @@ Three source-of-truth categories, deliberately in priority order:
 
 3. **Heuristic fallback.** When neither manifest nor marker exists
    but artifacts are detected (a `CONSTITUTION.md` whose header
-   sentinel matches bootstrap's template, `tests/governance/run.sh`
+   sentinel matches bootstrap's template, `.governance/run.sh`
    identical to ours, etc.), default to **dry-run** and require opt-in
    before deleting anything.
 
@@ -58,10 +58,10 @@ The full inventory the skill must know about:
 | Category | Artifact | Reset action |
 |---|---|---|
 | Files | `CONSTITUTION.md` | delete (soft + hard) |
-| Files | `tests/governance/**` including `run.sh`, `lib.sh`, every `rules/<id>/` | delete (soft + hard) |
-| Files | `tests/governance/freshness.conf` | delete with the rest |
+| Files | `.governance/**` including `run.sh`, `lib.sh`, every `rules/<id>/` | delete (soft + hard) |
+| Files | `.governance/freshness.conf` | delete with the rest |
 | Files | `.github/workflows/governance.yml` | delete (soft + hard) |
-| Files | `.governance-kit/installed-packs.yaml` (+ empty parent dir) | delete last, after reading it |
+| Files | `.governance/installed-packs.yaml` (+ empty parent dir) | delete last, after reading it |
 | Hooks | `.githooks/pre-commit`, `commit-msg`, `prepare-commit-msg` | delete **only if** line-2 marker present |
 | Hooks | `.githooks/<name>.userhook` (from Path A wrap resolution) | rename back to `<name>` |
 | Hooks | `<path>.pre-governance.bak` (from Path A overwrite resolution) | offer restore or delete |
@@ -118,7 +118,7 @@ Every commit closes `(#25)` and touches this plan file to satisfy
      artifact the kit can produce and its soft / hard / dry-run reset
      action. The skill consults this at execute time.
    - `references/MANIFEST_SCHEMA.md` — schema of
-     `.governance-kit/installed-packs.yaml` that reset reads, plus the
+     `.governance/installed-packs.yaml` that reset reads, plus the
      fallback heuristic when the manifest is absent.
 
    SKILL.md and references ship in one commit because the SKILL links
@@ -185,7 +185,7 @@ Every commit closes `(#25)` and touches this plan file to satisfy
      confirm. Documented in both the schema ref and the reset
      SKILL.md (interaction-policy table + Step 5 AGENTS.md surgery).
    - Regenerated
-     `governance-reset/evals/files/bootstrapped-repo/.governance-kit/installed-packs.yaml`
+     `governance-reset/evals/files/bootstrapped-repo/.governance/installed-packs.yaml`
      to match real v1 output byte-for-byte (verified against a live
      `write_installed_manifest` invocation, modulo the `generated_at`
      timestamp) so the fixture is no longer a strawman for what

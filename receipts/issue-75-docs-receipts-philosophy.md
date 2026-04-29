@@ -30,9 +30,9 @@ The kit's docs treated three append-only ledgers (`CONSTITUTION.md`, `COSTS.md`,
 
 - **Directive-level changes.** No `check.sh`, `directive.yaml`, `constitution.md`, or eval edits in this commit. The work is documentation and one stale-comment fix; no enforcement logic moves.
 - **New directives or new packs.** This commit adjusts how existing directives are described, not which directives exist.
-- **Test or eval changes.** `tests/governance/run.sh` and per-directive `evals/test.sh` are untouched.
+- **Test or eval changes.** `.governance/run.sh` and per-directive `evals/test.sh` are untouched.
 - **AGENT_TOKEN_ACCOUNTING.md / AGENT_STEERING_ACCOUNTING.md edits.** The pack README now points readers at these references for trailer schemas and runtime wiring, but the references themselves are correct as-is and out of scope here.
-- **Refreshing the dogfood `tests/governance/directives/` copies of any directive.** Not applicable — no directive content changed, so the dual-edit rule does not apply.
+- **Refreshing the dogfood `.governance/local/directives/` copies of any directive.** Not applicable — no directive content changed, so the dual-edit rule does not apply.
 - **Adding receipts as their own ledger directive (e.g., a `receipts-tracked` directive).** The `receipt-per-issue` directive already enforces the receipt shape; promoting receipts in the docs is sufficient. A separate index/ledger directive would be a follow-up if the pattern proves useful.
 
 ## Verification
@@ -47,5 +47,5 @@ A reviewer can confirm completion by running these checks:
 6. **Root README Anatomy of a directive flags optional sibling folders.** `grep -nE 'lib/.*hooks/.*runtimes/.*install-assets/' README.md` returns one hit immediately after the minimal directive code block.
 7. **Pack README is the install-decision shape.** `grep -nE '^## (When to install|What it costs you|The chain|Auxiliary directives|Presets|Install|Further reading)' extensions/packs/agent-governance/README.md` returns 7 hits.
 8. **pack.yaml stale "matching plan" residue is fixed.** `grep -n 'matching plan' extensions/packs/agent-governance/pack.yaml` returns no hits; `grep -n 'matching receipt' extensions/packs/agent-governance/pack.yaml` returns one hit on line 6.
-9. **All relative links resolve.** `bash tests/governance/directives/no-broken-internal-doc-links/check.sh` exits 0.
-10. **Dogfood suite stays green except the expected post-commit advisory.** `bash tests/governance/run.sh` reports failures only on `pr-required-when-checklist-complete` (because no PR exists yet for this branch) — every other directive passes.
+9. **All relative links resolve.** `bash .governance/local/directives/no-broken-internal-doc-links/check.sh` exits 0.
+10. **Dogfood suite stays green except the expected post-commit advisory.** `bash .governance/run.sh` reports failures only on `pr-required-when-checklist-complete` (because no PR exists yet for this branch) — every other directive passes.

@@ -1,6 +1,6 @@
 # Manifest schema
 
-`governance init` writes `.governance-kit/installed-packs.yaml` after installing directives. `governance uninstall` and `governance reset` both read it as the **authoritative** record of what the kit owns in this repo — `uninstall` to know what to delete, `reset` to know which directive came from which pack.
+`governance init` writes `.governance/installed-packs.yaml` after installing directives. `governance uninstall` and `governance reset` both read it as the **authoritative** record of what the kit owns in this repo — `uninstall` to know what to delete, `reset` to know which directive came from which pack.
 
 The manifest is not an auto-upgrade contract — installed directive folders are user-owned copies, and the user may have edited them. `uninstall` uses the manifest only to learn *what paths to consider*, then confirms ownership via per-file evidence (ownership marker, byte match against the shipped template, etc. — see [UNINSTALL_MATRIX.md](UNINSTALL_MATRIX.md)). `reset` uses the manifest as the pack-provenance ledger and refuses to run without it.
 
@@ -15,7 +15,7 @@ hook_strategy: githooks          # or: husky | pre-commit
 stack: bash                      # or: python | node | go | rust
 constitution: true               # CONSTITUTION.md was written at repo root
 ci_workflow: .github/workflows/governance.yml
-tests_dir: tests/governance
+tests_dir: .governance
 agents_md_directive: true        # true when the marker-bounded block was inserted
 agents_md_created: false         # true only when bootstrap Step 4b Case 2 ran (stub)
 setup_clone_script: scripts/setup-clone.sh  # Path A only; omitted under Path B
@@ -24,14 +24,14 @@ packs:
     version: "0.1"
     directives:
       - id: constitution-exists
-        installed_path: tests/governance/directives/constitution-exists
+        installed_path: .governance/packs/<pack-id>/directives/constitution-exists
       - id: no-secrets
-        installed_path: tests/governance/directives/no-secrets
+        installed_path: .governance/packs/<pack-id>/directives/no-secrets
   - id: duaility/agent-governance
     version: "0.1"
     directives:
       - id: agent-token-accounting
-        installed_path: tests/governance/directives/agent-token-accounting
+        installed_path: .governance/packs/<pack-id>/directives/agent-token-accounting
 install_assets_seeded:           # files seeded by directives' install-assets/
   - QUALITY.md
   - COSTS.md
@@ -50,7 +50,7 @@ path_b:
   framework: husky               # or: pre-commit
   entries:
     - file: .husky/pre-commit
-      fingerprint: bash tests/governance/run.sh
+      fingerprint: bash .governance/run.sh
 ```
 
 Notes on the emitted shape:
@@ -64,7 +64,7 @@ Notes on the emitted shape:
 
 | Field | Purpose in uninstall |
 |---|---|
-| `packs[*].directives[*].installed_path` | The list of `tests/governance/directives/<id>/` folders to remove. |
+| `packs[*].directives[*].installed_path` | The list of `.governance/packs/<pack-id>/directives/<id>/` folders to remove. |
 | `constitution` | Whether to remove `CONSTITUTION.md`. |
 | `ci_workflow` | Path of the workflow file to delete. |
 | `tests_dir` | Parent directory whose `run.sh`, `lib.sh`, and empty-after-cleanup shell are removed. |
@@ -119,8 +119,8 @@ A repo where the manifest was never written, or was deleted manually, is a **leg
 1. **Heuristic detection.** Look for the artifacts in the uninstall matrix by exact path. For each one found, require independent ownership evidence before deleting:
    - Hooks: line-2 `governance-kit:managed` marker.
    - `CONSTITUTION.md`: the template's header sentinel line (look for the literal phrase from `assets/CONSTITUTION.template.md`'s lead paragraph).
-   - `tests/governance/run.sh` / `lib.sh`: byte-for-byte match against the shipped copies in `governance/assets/tests-bash/`.
-   - Directive folders under `tests/governance/directives/`: presence of a `check.sh` shebang line identical to the shipped one is a weak signal; absence of user-added sibling files is a stronger one.
+   - `.governance/run.sh` / `lib.sh`: byte-for-byte match against the shipped copies in `governance/assets/dot-governance/`.
+   - Pack directive folders under `.governance/packs/<pack-id>/directives/`: presence of a `check.sh` shebang line identical to the shipped one is a weak signal; absence of user-added sibling files is a stronger one.
    - `AGENTS.md`: see *opening-marker-only* heuristic below.
 2. **Default mode = dry-run.** Present the plan and list each artifact with the evidence that classified it as kit-owned. Require explicit user confirmation to proceed in a destructive mode.
 3. **No manifest, no artifacts ⇒ `none-detected`.** Report "nothing to remove" and exit.

@@ -1,6 +1,6 @@
 # Native tests & alternative hook frameworks
 
-The bash directives in `tests/governance/directives/` are the baseline — they work in any repo without dependencies. This doc shows how to **also** run governance directives through the project's native test framework so they show up in the normal test report, and how to wire the pre-commit hook into frameworks the repo may already use.
+The bash directives under `.governance/packs/*/directives/` and `.governance/local/directives/` are the baseline — they work in any repo without dependencies. This doc shows how to **also** run governance directives through the project's native test framework so they show up in the normal test report, and how to wire the pre-commit hook into frameworks the repo may already use.
 
 ## When to add native tests
 
@@ -13,7 +13,7 @@ The bash directives stay either way. Native tests are additive, not a replacemen
 
 ## pytest (Python)
 
-Create `tests/governance/test_governance.py`:
+Create `.governance/test_governance.py`:
 
 ```python
 import subprocess
@@ -57,7 +57,7 @@ def test_no_wildcard_imports():
 
 ## jest / vitest (Node)
 
-Create `tests/governance/governance.test.js`:
+Create `.governance/governance.test.js`:
 
 ```javascript
 const { execSync } = require('node:child_process');
@@ -83,7 +83,7 @@ describe('governance directives', () => {
 
 ## go test (Go)
 
-Create `tests/governance/governance_test.go`:
+Create `.governance/governance_test.go`:
 
 ```go
 package governance_test
@@ -118,7 +118,7 @@ func TestGovernanceDirectives(t *testing.T) {
 If `package.json` has `husky` configured, don't write to `.git/hooks/pre-commit` directly. Instead:
 
 ```bash
-npx husky add .husky/pre-commit "bash tests/governance/run.sh"
+npx husky add .husky/pre-commit "bash .governance/run.sh"
 ```
 
 Add the `SKIP_GOVERNANCE` guard at the top of `.husky/pre-commit`:
@@ -128,7 +128,7 @@ Add the `SKIP_GOVERNANCE` guard at the top of `.husky/pre-commit`:
 . "$(dirname -- "$0")/_/husky.sh"
 
 [[ "${SKIP_GOVERNANCE:-0}" == "1" ]] && exit 0
-bash tests/governance/run.sh
+bash .governance/run.sh
 ```
 
 ### pre-commit framework (pre-commit.com)
@@ -141,7 +141,7 @@ repos:
     hooks:
       - id: governance
         name: governance
-        entry: bash tests/governance/run.sh
+        entry: bash .governance/run.sh
         language: system
         pass_filenames: false
         stages: [commit]
@@ -155,7 +155,7 @@ Users can skip with `SKIP=governance git commit ...` (the framework's native ski
 pre-commit:
   commands:
     governance:
-      run: bash tests/governance/run.sh
+      run: bash .governance/run.sh
       skip_empty: true
 ```
 

@@ -65,9 +65,9 @@ def parse_ref(ref: str) -> dict[str, str]:
 
 
 def cache_root() -> Path:
-    """Shared pack cache root. Honors `GOVERNANCE_KIT_HOME`; defaults to ~/.governance-kit/."""
+    """Shared pack cache root. Honors `GOVERNANCE_KIT_HOME`; defaults to ~/.governance/cache/."""
     override = os.environ.get("GOVERNANCE_KIT_HOME")
-    base = Path(override) if override else Path.home() / ".governance-kit"
+    base = Path(override) if override else Path.home() / ".governance" / "cache"
     return base / "packs"
 
 

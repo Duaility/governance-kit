@@ -27,6 +27,6 @@ Out of scope:
 
 ## Validation
 
-- `bash tests/governance/run.sh` passes (no directive regressions).
+- `bash .governance/run.sh` passes (no directive regressions).
 - Macro diagram renders cleanly on GitHub — `A -.->|"logs"| S & Co` and `C & S & Co -.->|...| H` are mermaid's multi-target shorthand and need a render check before merge.
 - Cold-read: a developer reaching the README sees the steering + visibility framing within the first screen of Why, the three ledgers immediately after, and no implementation detail before they've been sold.

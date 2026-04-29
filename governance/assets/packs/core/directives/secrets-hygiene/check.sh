@@ -7,7 +7,7 @@
 # entirely). Per-occurrence waivers via `# governance: allow-secrets-hygiene
 # <reason>` remain available for the no-secrets sub-check.
 set -u
-source "$(dirname "$0")/../../lib.sh"
+source "$(dirname "$0")/../../../../lib.sh"
 directive_start "secrets-hygiene"
 require_git
 
@@ -25,7 +25,7 @@ _patterns=(
     "Stripe live key|sk_live_[A-Za-z0-9]{24,}"
 )
 _excludes=(
-    ":!tests/governance/directives/secrets-hygiene/**"
+    ":!.governance/packs/core/directives/secrets-hygiene/**"
     ":!CONSTITUTION.md"
     ":!governance/assets/packs/*/directives/*/evals/**"
     ":!extensions/packs/*/directives/*/evals/**"

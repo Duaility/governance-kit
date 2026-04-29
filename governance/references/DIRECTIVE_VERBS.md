@@ -8,7 +8,7 @@ Authoritative flow for the hand-authored directive verbs: `governance directive 
 
 Every directive amendment is **three logical changes, committed atomically**:
 
-1. A directive folder at `tests/governance/directives/<directive-id>/` — `directive.yaml`, `check.sh`, `constitution.md` (+ optional `hooks/`, `lib/`, `runtimes/`, `install-assets/`).
+1. A directive folder at `.governance/local/directives/<directive-id>/` — `directive.yaml`, `check.sh`, `constitution.md` (+ optional `hooks/`, `lib/`, `runtimes/`, `install-assets/`).
 2. A **Directives** subsection in `CONSTITUTION.md` — the human-readable directive + rationale + enforcement pointer.
 3. A new entry in the `CONSTITUTION.md` **Evolution Log** — dated, one line per amendment.
 
@@ -22,7 +22,7 @@ A commit that touches the directive folder without the matching constitution edi
   - [`../assets/amend/directive.template.sh`](../assets/amend/directive.template.sh) — `check.sh` skeleton.
   - [`../assets/amend/directive-section.template.md`](../assets/amend/directive-section.template.md) — constitution subsection skeleton.
   - [DIRECTIVE_AUTHORING.md](DIRECTIVE_AUTHORING.md) — naming conventions, check patterns, smoke-test guidance.
-- **Preconditions:** governance-kit must already be installed (`CONSTITUTION.md` present with `Directives` + `Evolution Log` headings, `tests/governance/directives/` exists). If the kit is missing, stop and route to `governance init`.
+- **Preconditions:** governance-kit must already be installed (`CONSTITUTION.md` present with `Directives` + `Evolution Log` headings, `.governance/local/directives/` exists). If the kit is missing, stop and route to `governance init`.
 - **Smoke test before commit:** the drafted `check.sh` must pass against the current tree. If it fails on pre-existing violators, ask the single blocking question — **loosen** (which threshold), **grandfather** (add waivers to specific violators), or **block** (commit as-is, user fixes tree separately) — then act. Never ship a directive that red-lights HEAD.
 
 ## `directive modify <directive-id>`
@@ -36,7 +36,7 @@ A commit that touches the directive folder without the matching constitution edi
 - **Aliases a user might type:** "remove directive X", "retire directive X", "drop the directive about X".
 - **Authoritative flow:** [DIRECTIVE_AMEND_FLOW.md](DIRECTIVE_AMEND_FLOW.md) — the removal branch at the end of Step 5.
 - **Mechanics:**
-  1. Delete `tests/governance/directives/<directive-id>/`.
+  1. Delete `.governance/local/directives/<directive-id>/`.
   2. Remove the directive's **Directives** subsection from `CONSTITUTION.md`.
   3. Append an **Evolution Log** entry recording the removal date and reason.
   4. Surface any dangling references (mentions in `README.md`, `AGENTS.md`, CI config) so the user can clean them up.

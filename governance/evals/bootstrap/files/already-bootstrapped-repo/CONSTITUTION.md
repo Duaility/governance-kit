@@ -14,7 +14,7 @@ Agents and humans working in this repo must read and follow this document.
 
 ### no-secrets
 **Directive.** No credentials or private keys in tracked files.
-**Enforced by.** tests/governance/directives/no-secrets/check.sh
+**Enforced by.** .governance/local/directives/no-secrets/check.sh
 
 ## Evolution Log
 

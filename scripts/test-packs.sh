@@ -158,6 +158,9 @@ printf '\n── fresh repo install contract ───────────�
 fresh_tmp="$(mktemp -d)"
 (
     cd "$fresh_tmp" || exit 1
+    for var in $(git rev-parse --local-env-vars 2>/dev/null || true); do
+        unset "$var"
+    done
     git init --quiet --initial-branch=main .
     git config user.email eval@example.com
     git config user.name "Eval Harness"
@@ -209,7 +212,7 @@ This file is deliberately long enough for the agents-md-exists directive. It is
 part of the fresh-repo install contract rather than a pack-author eval.
 
 Agents should preserve the installed governance folder shape:
-`tests/governance/directives/<id>/check.sh`.
+`.governance/local/directives/<id>/check.sh`.
 
 Generated hooks discover installed `directive.yaml` files at runtime, so
 post-install amendments can add compatible directive folders without rewriting
@@ -254,14 +257,14 @@ satisfy `required-docs` at the expected line-count floor.
 ## Layers
 
 - surface — the tree shape installed by bootstrap
-- directives — executable checks under `tests/governance/directives/<id>/`
+- directives — executable checks under `.governance/local/directives/<id>/`
 - hooks — `.githooks/*` dispatchers generated from the installed manifest
 
 ## Directives
 
 Directive folders are self-contained. The hook generator discovers installed
 directive metadata at runtime. Adding or removing a directive is a single directory
-operation on `tests/governance/directives/`.
+operation on `.governance/local/directives/`.
 
 ## Notes
 
@@ -274,7 +277,7 @@ EOF
 *.log
 EOF
 
-    mkdir -p .github/workflows tests/governance/directives
+    mkdir -p .github/workflows .governance/packs/core/directives
     cat > .github/workflows/ci.yml <<'EOF'
 name: CI
 on: [push, pull_request]
@@ -285,12 +288,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: bash tests/governance/run.sh
+      - run: bash .governance/run.sh
 EOF
 
-    cp "$ROOT/governance/assets/tests-bash/run.sh" tests/governance/run.sh
-    cp "$ROOT/governance/assets/tests-bash/lib.sh" tests/governance/lib.sh
-    chmod +x tests/governance/run.sh
+    cp "$ROOT/governance/assets/dot-governance/run.sh" .governance/run.sh
+    cp "$ROOT/governance/assets/dot-governance/lib.sh" .governance/lib.sh
+    chmod +x .governance/run.sh
 
     core_pack="$PACKS_ROOT/core"
     selected=()
@@ -328,14 +331,14 @@ EOF
     git config core.hooksPath .githooks
 
     git add -A
-    bash tests/governance/run.sh
+    bash .governance/run.sh
     bash -n .githooks/pre-commit .githooks/commit-msg .githooks/prepare-commit-msg .githooks/post-commit
     printf 'feat: missing issue\n' > bad-msg.txt
     printf 'feat(test): valid message (#23)\n' > good-msg.txt
     .githooks/commit-msg bad-msg.txt && exit 1
     .githooks/commit-msg good-msg.txt
     rm bad-msg.txt good-msg.txt
-    [[ -f .governance-kit/installed-packs.yaml ]]
+    [[ -f .governance/installed-packs.yaml ]]
 )
 fresh_status=$?
 if [[ $fresh_status -eq 0 ]]; then

@@ -9,7 +9,7 @@ Two small, related corrections to `governance-bootstrap` surfaced while re-boots
 
 1. **Per-clone onboarding UX.** Path A bootstrap currently runs `git config core.hooksPath .githooks` in the bootstrapping clone, then relies on every subsequent contributor hearing the "run this one command after you clone" reminder through the `hooks-configured` nag. With worktrees in the picture, the nag is misleading in one direction (worktrees inherit `.git/config` from their parent, so no per-worktree action is needed) and under-served in the other (a fresh human clone gets a cryptic "core.hooksPath is not set" message with no canonical command to point to). Ship a tiny, idempotent `scripts/setup-clone.sh` so the bootstrap step is discoverable, greppable, and one command.
 
-2. **`copy_tree_without_evals` leaked `install-assets/`.** The installer copies rule folders into `tests/governance/rules/<id>/` while excluding `evals/`. It did not exclude `install-assets/`, so repos using rules that seed root-level files (e.g. `issues-tracked` → `QUALITY.md`, `agent-token-accounting` → `COSTS.md`) ended up with a duplicate copy of those files nested inside the installed rule folder. The duplicates were harmless (no rule reads them from that path) but unmistakably noise in `git status` after every re-bootstrap.
+2. **`copy_tree_without_evals` leaked `install-assets/`.** The installer copies rule folders into `.governance/rules/<id>/` while excluding `evals/`. It did not exclude `install-assets/`, so repos using rules that seed root-level files (e.g. `issues-tracked` → `QUALITY.md`, `agent-token-accounting` → `COSTS.md`) ended up with a duplicate copy of those files nested inside the installed rule folder. The duplicates were harmless (no rule reads them from that path) but unmistakably noise in `git status` after every re-bootstrap.
 
 Closes [#27](https://github.com/Duaility/governance-kit/issues/27).
 
@@ -41,7 +41,7 @@ The one-line script is the minimum viable improvement: explicit, idempotent, wor
 
 - `scripts/setup-clone.sh` installed from the new asset.
 - `README.md` gains an **After cloning** section with the command.
-- `.governance-kit/installed-packs.yaml` regenerated with the new `setup_clone_script` field.
+- `.governance/installed-packs.yaml` regenerated with the new `setup_clone_script` field.
 - `CONSTITUTION.md` is a complete re-write from the rebootstrap earlier in this session (principles and evolution log preserved from the pre-reset HEAD; invariants regenerated from the pack-source snippets so a handful of stale wording differences in the installed rule folders get reconciled).
 
 ## Steps
@@ -51,9 +51,9 @@ The one-line script is the minimum viable improvement: explicit, idempotent, wor
 3. Edit `governance-bootstrap/SKILL.md` Step 6 Path A — split the existing step 4 into steps 4 (bootstrapping-clone config) and 5 (setup-clone asset copy for other contributors). Mention worktree inheritance and where the user should point new contributors.
 4. Edit `governance-reset/references/UNINSTALL_MATRIX.md` — add the `scripts/setup-clone.sh` row.
 5. Edit `governance-reset/references/MANIFEST_SCHEMA.md` — document `setup_clone_script` in both the v1 shape block and the reset-relies-on table.
-6. Apply the fix + enhancement locally: reset, rebootstrap, install `scripts/setup-clone.sh`, rewrite manifest with `--setup-clone-script scripts/setup-clone.sh`, clean up leftover `install-assets/` duplicates inside `tests/governance/rules/*/`.
+6. Apply the fix + enhancement locally: reset, rebootstrap, install `scripts/setup-clone.sh`, rewrite manifest with `--setup-clone-script scripts/setup-clone.sh`, clean up leftover `install-assets/` duplicates inside `.governance/rules/*/`.
 7. Update `README.md` with the **After cloning** section.
-8. Run `bash tests/governance/run.sh` — all 16 rules should pass.
+8. Run `bash .governance/run.sh` — all 16 rules should pass.
 9. Commit with `(#27)` and push.
 10. Open PR.
 
@@ -61,4 +61,4 @@ The one-line script is the minimum viable improvement: explicit, idempotent, wor
 
 - The setup script is intentionally a shell one-liner rather than a Makefile target. Many downstream repos are bash-first and have no Makefile; adding one just for this would expand the bootstrap surface area for every target repo, which is backwards.
 - The `hooks-configured` check.sh is already worktree-aware (tolerates an absolute path whose basename is `.githooks`) and CI-aware (skips when `CI` or `GITHUB_ACTIONS` is set). No changes to the rule itself — the nag behavior is fine once the script exists to quiet it in one command.
-- The `install-assets/` leak was dormant — nothing in the repo reads files from `tests/governance/rules/<id>/install-assets/`, so the duplicates were not load-bearing. But they polluted the post-bootstrap `git status` and would have rotted out of sync with the root-level seeds over time.
+- The `install-assets/` leak was dormant — nothing in the repo reads files from `.governance/rules/<id>/install-assets/`, so the duplicates were not load-bearing. But they polluted the post-bootstrap `git status` and would have rotted out of sync with the root-level seeds over time.

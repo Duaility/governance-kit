@@ -64,7 +64,7 @@ target to point at.
 
 - SHA pinning of community packs, `.governance/packs.lock`, and
   diff-before-exec UX land with the `governance pack *` follow-up.
-- Shared `~/.governance-kit/packs/<pack-id>@<sha>/` cache likewise.
+- Shared `~/.governance/packs/<pack-id>@<sha>/` cache likewise.
 
 ## Progress
 
@@ -125,7 +125,7 @@ target to point at.
   evolution log, `QUALITY.md` debt log) retain their original paths as
   frozen history. `AGENTS.md`, `README.md`, and `ARCHITECTURE.md` now
   describe only `governance/` and `governance-gardener/`. Both
-  `scripts/test-packs.sh` and `tests/governance/run.sh` pass green after
+  `scripts/test-packs.sh` and `.governance/run.sh` pass green after
   the move.
 - **Codex review on PR #32:** addressed four findings.
   (1) `packverb catalog-search` now appends `source.path` to the emitted
@@ -145,7 +145,7 @@ target to point at.
   and `AGENT_TOKEN_ACCOUNTING.md` drop the same stale rule names.
 - **Step 3 — `governance pack *` verbs:** `packctl` now owns ref parsing
   (`gh:owner/repo[/subpath][@rev]`), shared-cache resolution
-  (`${GOVERNANCE_KIT_HOME:-$HOME/.governance-kit}/packs/<id>@<sha>/`),
+  (`${GOVERNANCE_KIT_HOME:-$HOME/.governance/cache}/packs/<id>@<sha>/`),
   shallow git fetch with SHA pinning, static capability-glob enforcement
   (`reads:`/`writes:` vs. paths referenced in `check.sh`), lockfile I/O
   on `.governance/packs.lock`, and catalog search. Per-verb flow recipes

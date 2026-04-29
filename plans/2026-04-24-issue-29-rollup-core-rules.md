@@ -69,9 +69,9 @@ concern that earns its own rule.
 
 This repo's governance install migrates to the new rule set:
 
-- `.governance-kit/installed-packs.yaml` lists the 7 core + 4
+- `.governance/installed-packs.yaml` lists the 7 core + 4
   agent-governance rules (down from 12 core + 4).
-- `tests/governance/rules/{required-docs,repo-hygiene,secrets-hygiene}/`
+- `.governance/rules/{required-docs,repo-hygiene,secrets-hygiene}/`
   replace 15 individual rule folders.
 - `CONSTITUTION.md` invariants replaced + evolution log entry.
 - Added real `SECURITY.md` and `ARCHITECTURE.md` so `required-docs`
@@ -85,7 +85,7 @@ This repo's governance install migrates to the new rule set:
 
 - `bash scripts/test-packs.sh` — 2 packs, 12 rules, 12 evals pass.
   Fresh-repo contract seeds LICENSE / SECURITY.md / ARCHITECTURE.md.
-- `bash tests/governance/run.sh` — all 11 rules pass in this repo.
+- `bash .governance/run.sh` — all 11 rules pass in this repo.
 
 ## Follow-ups
 

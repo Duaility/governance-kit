@@ -3,7 +3,7 @@
 #
 # Each eval at `packs/<pack>/evals/<directive>/test.sh` sources this library,
 # spins up a temp git repo, installs the directive under test into
-# `tests/governance/directives/<directive>/check.sh`, then drives pass + fail
+# `.governance/packs/<pack-id>/directives/<directive>/check.sh`, then drives pass + fail
 # fixtures through `expect_pass` / `expect_fail`.
 #
 # The harness is intentionally small. The contract:
@@ -16,9 +16,9 @@
 #       Individual evals mutate this baseline for their pass/fail cases.
 #
 #   install_directive <pack-dir> <directive-id>
-#       Copies `assets/tests-bash/lib.sh` into `tests/governance/lib.sh`
+#       Copies `assets/dot-governance/lib.sh` into `.governance/lib.sh`
 #       and the entire directive folder (`<pack-dir>/directives/<id>/`) into
-#       the fixture's `tests/governance/directives/<id>/`. Idempotent.
+#       the fixture's `.governance/packs/<pack-id>/directives/<id>/`. Idempotent.
 #
 #   stage_all
 #       git add -A in the fixture.
@@ -45,7 +45,7 @@ set -u
 EVAL_LIB_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 # ^ governance/  (not the repo root — the pack is under assets/)
 # Actually resolve the tests-bash lib.sh path directly:
-_EVAL_LIB_SH="$EVAL_LIB_ROOT/assets/tests-bash/lib.sh"
+_EVAL_LIB_SH="$EVAL_LIB_ROOT/assets/dot-governance/lib.sh"
 
 FIXTURE_DIR=""
 eval_failures=0
@@ -54,6 +54,9 @@ eval_assertions=0
 fixture_init() {
     FIXTURE_DIR="$(mktemp -d)"
     cd "$FIXTURE_DIR" || exit 1
+    for var in $(git rev-parse --local-env-vars 2>/dev/null || true); do
+        unset "$var"
+    done
 
     git init --quiet --initial-branch=main .
     git config user.email eval@example.com
@@ -214,10 +217,19 @@ EOF
 
 install_directive() {
     local pack_dir="$1" directive_id="$2"
-    mkdir -p tests/governance/directives
-    cp "$_EVAL_LIB_SH" tests/governance/lib.sh
+    local pack_id
+    pack_id="$(awk '
+        $1 == "id:" {
+            sub(/^[[:space:]]*id:[[:space:]]*/, "")
+            gsub(/^"|"$/, "")
+            print
+            exit
+        }
+    ' "$pack_dir/pack.yaml")"
+    mkdir -p .governance
+    cp "$_EVAL_LIB_SH" .governance/lib.sh
     local src="$pack_dir/directives/$directive_id"
-    local dest="tests/governance/directives/$directive_id"
+    local dest=".governance/packs/$pack_id/directives/$directive_id"
     rm -rf "$dest"
     mkdir -p "$dest"
     # Copy the entire directive folder so siblings (lib/, hooks/, runtimes/) come

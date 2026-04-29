@@ -10,7 +10,7 @@ Entry format:
 
 ## Open
 
-- 2026-04-22 — `no-broken-internal-doc-links` linter doesn't skip markdown inline-code spans. A bracket-paren link example inside backticks is treated as a real link, forcing prose rewrites whenever docs want to show link syntax. Fix: teach `tests/governance/rules/no-broken-internal-doc-links.sh` (and the shipped asset copy in `governance-bootstrap/assets/tests-bash/rules/`) to strip inline-code spans before extracting links.
+- 2026-04-22 — `no-broken-internal-doc-links` linter doesn't skip markdown inline-code spans. A bracket-paren link example inside backticks is treated as a real link, forcing prose rewrites whenever docs want to show link syntax. Fix: teach `.governance/rules/no-broken-internal-doc-links.sh` (and the shipped asset copy in `governance-bootstrap/assets/dot-governance/rules/`) to strip inline-code spans before extracting links.
 
 ## Resolved
 

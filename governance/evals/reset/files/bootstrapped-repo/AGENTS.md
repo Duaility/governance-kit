@@ -6,7 +6,7 @@ Entry point for humans and agents working in this repo.
 
 ## Rules to follow
 
-If you are an agent — or a human — working in this repo, **read [CONSTITUTION.md](CONSTITUTION.md) and follow it**. The mechanical invariants are enforced by `tests/governance/run.sh`.
+If you are an agent — or a human — working in this repo, **read [CONSTITUTION.md](CONSTITUTION.md) and follow it**. The mechanical invariants are enforced by `.governance/run.sh`.
 
 <!-- /governance: rules-to-follow -->
 

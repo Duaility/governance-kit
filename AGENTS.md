@@ -9,7 +9,7 @@ Entry point for humans and agents working in this repo. Skim top-to-bottom, then
 
 If you are an agent — or a human — working in this repo, **read [CONSTITUTION.md](CONSTITUTION.md) and follow it**. It defines the principles, guidelines, and directives that every change in this repo must satisfy.
 
-- The mechanical directives are enforced by `tests/governance/run.sh` (run via the pre-commit hook locally and the [governance.yml](.github/workflows/governance.yml) workflow in CI).
+- The mechanical directives are enforced by `.governance/run.sh` (run via the pre-commit hook locally and the [governance.yml](.github/workflows/governance.yml) workflow in CI).
 - The principles and guidelines cannot be mechanically checked — you are expected to read them and apply judgment. A change that defies a principle without explanation will block the PR.
 
 See the **Compliance** section of [CONSTITUTION.md](CONSTITUTION.md) for the full directive, including how to document approved deviations.
@@ -27,12 +27,12 @@ The user-facing entry point is the unified [`governance`](governance/SKILL.md) s
 
 ## How governance works here
 
-This repo dogfoods its own tooling. The live directive set lives in [CONSTITUTION.md](CONSTITUTION.md); directive scripts live under [tests/governance/directives/](tests/governance/directives/).
+This repo dogfoods its own tooling. The live directive set lives in [CONSTITUTION.md](CONSTITUTION.md); directive scripts live under [.governance/packs/](.governance/packs/) for pack-installed policy and [.governance/local/directives/](.governance/local/directives/) for hand-authored policy.
 
 Run the suite locally:
 
 ```sh
-bash tests/governance/run.sh
+bash .governance/run.sh
 ```
 
 Escape hatches: `SKIP_GOVERNANCE=1 git commit ...` or `git commit --no-verify` skip the local hook for hotfixes. CI re-enforces every directive on every PR — there is no developer-side bypass for CI.
@@ -74,7 +74,7 @@ governance-kit/
 │   ├── catalog.schema.json
 │   └── packs/
 │       └── agent-governance/    # duaility/agent-governance — authored as a community pack.
-├── tests/governance/            # Directive tests for THIS repo (dogfood).
+├── .governance/            # Directive tests for THIS repo (dogfood).
 │   ├── run.sh
 │   ├── lib.sh
 │   └── directives/<id>/check.sh  # each directive is a self-contained folder

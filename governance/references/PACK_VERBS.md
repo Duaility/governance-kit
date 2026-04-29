@@ -33,13 +33,13 @@ packs:
       - soc2-retention
 ```
 
-**`core` is not recorded here** — it ships in-tree and its directives are owned by the install manifest (`.governance-kit/installed-packs.yaml`). The lockfile is the community-pack pin record; together they cover every installed directive.
+**`core` is not recorded here** — it ships in-tree and its directives are owned by the install manifest (`.governance/installed-packs.yaml`). The lockfile is the community-pack pin record; together they cover every installed directive.
 
 Lockfile I/O goes through `packverb lock-{read,add,remove,list}`. Never hand-edit — the canonical key order and timestamp format are set by the helper.
 
 ### Shared cache
 
-`${GOVERNANCE_KIT_HOME:-$HOME/.governance-kit}/packs/<pack-id-slug>@<sha>/`
+`${GOVERNANCE_KIT_HOME:-$HOME/.governance/cache}/packs/<pack-id-slug>@<sha>/`
 
 `/` in the pack id is encoded as `__` on disk. Cache entries are SHA-addressed and immutable — hitting a SHA already in the cache skips the network round-trip. `packverb fetch <ref>` emits a JSON envelope with `sha`, `pack_dir`, `cache_dir`, `id`.
 
@@ -61,19 +61,19 @@ If `query` is omitted, print the full catalog. If the catalog file is missing, f
 
 1. **Parse + pre-flight.** `packverb parse-ref <ref>` to confirm the syntax, then refuse to run if:
    - not inside a git repo;
-   - `CONSTITUTION.md` or `tests/governance/` are missing (run `governance init` first);
+   - `CONSTITUTION.md` or `.governance/` are missing (run `governance init` first);
    - the ref's `@rev` is an unqualified branch name (`@main`, `@master`) → accept, but warn that the pinned SHA — not the branch — is what gets recorded.
 2. **Fetch.** `packverb fetch <ref>` clones the requested rev shallowly into the shared cache, drops `.git`, and returns the resolved SHA + `pack_dir`.
 3. **Validate pack.** `packverb validate-pack <pack_dir>` — rejects on missing required fields, preset cycles, `min_governance_kit > KIT_VERSION`, bad capability fields, etc.
 4. **Capability-check every directive.** For each directive folder under `<pack_dir>/directives/`, run `packverb capability-check <directive_dir>`. Any violation aborts the install with the violating path surfaced to the user.
 5. **Diff-before-exec.** For each directive that would install:
-   - If a directive with the same id is already installed (from `.governance-kit/installed-packs.yaml`), show `diff -ruN <installed-directive-dir> <fetched-directive-dir>/<directive-id>` so the user sees exactly what `check.sh` code is about to start running on their commits.
+   - If a directive with the same id is already installed (from `.governance/installed-packs.yaml`), show `diff -ruN <installed-directive-dir> <fetched-directive-dir>/<directive-id>` so the user sees exactly what `check.sh` code is about to start running on their commits.
    - If the directive is new, show the directive folder tree and the first 50 lines of `check.sh`.
    - **Confirm before proceeding.** This step is the user's last chance to reject.
-6. **Install.** Reuse `install_directive_folder` from `governance/assets/packs/lib/install.sh`: copy each directive folder into `tests/governance/directives/<directive-id>/` minus the `evals/` directory, make scripts executable, lay down `install-assets/` where applicable.
+6. **Install.** Reuse `install_directive_folder` from `governance/assets/packs/lib/install.sh`: copy each directive folder into `.governance/packs/<pack-id>/directives/<directive-id>/` minus the `evals/` directory, make scripts executable, lay down `install-assets/` where applicable.
 7. **Regenerate the hook dispatcher.** Reuse the hook-generation path from `governance/assets/packs/lib/hooks.sh`. A pack add may introduce directives with `hook: commit-msg` or `hook: prepare-commit-msg` that require adding dispatchers.
 8. **Update the lockfile.** `packverb lock-add .governance/packs.lock <pack-id> <ref> <sha> [--subpath <s>] [--min-kit <v>] --directive <id> ...` for each installed directive.
-9. **Update the install manifest.** Append the new directives to `.governance-kit/installed-packs.yaml` under the pack id, using the existing `write_installed_manifest` contract. The manifest is the ownership ledger `uninstall` trusts.
+9. **Update the install manifest.** Append the new directives to `.governance/installed-packs.yaml` under the pack id, using the existing `write_installed_manifest` contract. The manifest is the ownership ledger `uninstall` trusts.
 10. **Report.** Print the pinned SHA, the directive ids installed, and the updated hook scripts.
 
 Failure modes: any step 2–5 fails → abort with the fetched cache entry intact (future retries are cache-hits). Failure at step 6+ → roll back any already-copied directive folders before returning non-zero.
@@ -91,10 +91,10 @@ Default target: every lockfile entry. With a `<pack-id>` argument, update only t
 
 ## `pack remove <pack-id>`
 
-1. Read `.governance-kit/installed-packs.yaml` and `.governance/packs.lock`; confirm the pack id exists in both.
+1. Read `.governance/installed-packs.yaml` and `.governance/packs.lock`; confirm the pack id exists in both.
 2. List the directives the manifest attributes to this pack. Preview to the user which directive folders will be deleted.
 3. On confirmation, for each directive:
-   - `rm -rf tests/governance/directives/<directive-id>/`
+   - `rm -rf .governance/packs/<pack-id>/directives/<directive-id>/`
    - Remove the directive's subsection from `CONSTITUTION.md` if present (ownership marker guarded — same discipline as `governance uninstall`).
 4. Regenerate the hook dispatcher so removed directives are no longer invoked.
 5. `packverb lock-remove .governance/packs.lock <pack-id>`.
@@ -105,7 +105,7 @@ Never remove `core` — it is not recorded in the lockfile and has no `pack remo
 ## `pack list`
 
 1. If `.governance/packs.lock` exists, `packverb lock-list <lockfile>` — prints `<id>\t<sha>\t<ref>`.
-2. Also print the `core` pack line from `.governance-kit/installed-packs.yaml` so the user sees the full picture.
+2. Also print the `core` pack line from `.governance/installed-packs.yaml` so the user sees the full picture.
 3. If neither file exists, tell the user there are no installed packs and suggest `governance init`.
 
 ## Error discipline

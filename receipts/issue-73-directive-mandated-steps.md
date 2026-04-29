@@ -10,7 +10,7 @@ Issue: [#73](https://github.com/Duaility/governance-kit/issues/73)
 - [x] Agent contract bullet mirrored into root CONSTITUTION.md directive section
 - [x] pack copy and dogfood install edited together per the dual-edit rule
 - [x] eval suite re-run and stays green
-- [x] dogfood tests/governance/run.sh re-run; the only failure is the directive itself firing on this branch with the new imperative message
+- [x] dogfood .governance/run.sh re-run; the only failure is the directive itself firing on this branch with the new imperative message
 - [x] Evolution Log entry appended to CONSTITUTION.md
 - [ ] AGENTS.md subsection capturing the norm with a canonical example and bounded exceptions (deferred — the in-pack tightening is the load-bearing change; the prose pass can follow)
 - [ ] CONSTITUTION.md Principles entry cross-linked from the AGENTS.md subsection (deferred with the AGENTS.md prose)
@@ -23,9 +23,9 @@ Issue #73's original "Decision" leaned on agent-facing prose in `AGENTS.md` plus
 - check.sh header docstring updated to flag that the message imperative is intentional — the next maintainer reading the file should not soften the message back into a hint.
 - Agent contract bullet added to the directive's constitution.md (pack copy) under `extensions/packs/agent-governance/directives/pr-required-when-checklist-complete/`. Names the next action explicitly (`gh pr create --fill --base main --head <branch>`), rules out the question form ("want me to open the PR?"), and cabin's the exception (if the agent has a real blocker — auth failure, network failure, branch-state ambiguity — it surfaces the blocker and remediation, not a request for permission).
 - Agent contract bullet mirrored into root CONSTITUTION.md directive section so the dogfood and the pack export the same text.
-- pack copy and dogfood install edited together per the dual-edit rule (`extensions/packs/agent-governance/directives/...` and `tests/governance/directives/...`).
+- pack copy and dogfood install edited together per the dual-edit rule (`extensions/packs/agent-governance/directives/...` and `.governance/local/directives/...`).
 - eval suite re-run and stays green: 8/8 cases pass. The eval matches exit codes, not message text, so the rewrite is invisible to the harness — which is correct (the eval is testing the gate's logic, not the prose).
-- dogfood tests/governance/run.sh re-run; the only failure is the directive itself firing on this branch with the new imperative message — expected, because the branch carries fully-ticked historical receipts (#63, #65, #66, #69, #71) and no PR yet. The fail surfaces the new message verbatim so the change is self-evident in the suite output.
+- dogfood .governance/run.sh re-run; the only failure is the directive itself firing on this branch with the new imperative message — expected, because the branch carries fully-ticked historical receipts (#63, #65, #66, #69, #71) and no PR yet. The fail surfaces the new message verbatim so the change is self-evident in the suite output.
 - Evolution Log entry appended to CONSTITUTION.md describing the divergence from #73's original "Decision" and the rationale (encoding the mandate in the pack directive ships the norm to every install, not just this repo's docs).
 
 The two unchecked items capture the original-issue scope that this commit deliberately defers: an AGENTS.md subsection with a canonical example and a Principles entry. The in-pack tightening is the load-bearing change; the prose pass can follow as a separate amendment without changing the directive's mechanism.
@@ -42,11 +42,11 @@ The two unchecked items capture the original-issue scope that this commit delibe
 
 A reviewer can confirm the change is complete by checking:
 
-1. **Violation message is imperative and agent-directed.** `grep -n "directive mandates opening one now" extensions/packs/agent-governance/directives/pr-required-when-checklist-complete/check.sh tests/governance/directives/pr-required-when-checklist-complete/check.sh` returns one hit per file; both occurrences are inside the `if [[ "$count" -eq 0 ]]` violation branch.
-2. **check.sh header docstring is updated.** `grep -n "violation message is imperative on purpose" extensions/packs/agent-governance/directives/pr-required-when-checklist-complete/check.sh tests/governance/directives/pr-required-when-checklist-complete/check.sh` returns one hit per file in the top-of-file comment block.
+1. **Violation message is imperative and agent-directed.** `grep -n "directive mandates opening one now" extensions/packs/agent-governance/directives/pr-required-when-checklist-complete/check.sh .governance/local/directives/pr-required-when-checklist-complete/check.sh` returns one hit per file; both occurrences are inside the `if [[ "$count" -eq 0 ]]` violation branch.
+2. **check.sh header docstring is updated.** `grep -n "violation message is imperative on purpose" extensions/packs/agent-governance/directives/pr-required-when-checklist-complete/check.sh .governance/local/directives/pr-required-when-checklist-complete/check.sh` returns one hit per file in the top-of-file comment block.
 3. **Agent contract bullet is present in pack copy.** `grep -n "Agent contract" extensions/packs/agent-governance/directives/pr-required-when-checklist-complete/constitution.md` returns one hit; the bullet names `gh pr create --fill --base main --head <branch>` and explicitly forbids the "want me to open the PR?" question form.
 4. **Agent contract bullet is mirrored into root CONSTITUTION.md.** `grep -n "Agent contract" CONSTITUTION.md` returns one hit inside the `### pr-required-when-checklist-complete` section.
-5. **Pack and dogfood diff is identical.** `diff extensions/packs/agent-governance/directives/pr-required-when-checklist-complete/check.sh tests/governance/directives/pr-required-when-checklist-complete/check.sh` prints nothing — the dual-edit rule held.
+5. **Pack and dogfood diff is identical.** `diff extensions/packs/agent-governance/directives/pr-required-when-checklist-complete/check.sh .governance/local/directives/pr-required-when-checklist-complete/check.sh` prints nothing — the dual-edit rule held.
 6. **Eval suite stays green.** `bash extensions/packs/agent-governance/directives/pr-required-when-checklist-complete/evals/test.sh` shows 8 passing cases.
-7. **Dogfood suite fails only on the expected directive.** `bash tests/governance/run.sh` reports `14 passed, 1 failed`; the failure is `pr-required-when-checklist-complete` and its violation message contains the new imperative phrasing ("this directive mandates opening one now").
+7. **Dogfood suite fails only on the expected directive.** `bash .governance/run.sh` reports `14 passed, 1 failed`; the failure is `pr-required-when-checklist-complete` and its violation message contains the new imperative phrasing ("this directive mandates opening one now").
 8. **Evolution Log entry is appended.** The latest Evolution Log entry in `CONSTITUTION.md` is dated 2026-04-27 and references the tightening of `pr-required-when-checklist-complete` and the agent contract bullet.

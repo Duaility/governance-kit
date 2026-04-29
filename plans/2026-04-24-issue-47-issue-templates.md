@@ -48,8 +48,8 @@ with title prefixes that mirror Conventional Commit types so an issue
 
 ## Validation
 
-- `bash tests/governance/run.sh` passes.
-- `bash tests/governance/run.sh issue-templates` passes.
+- `bash .governance/run.sh` passes.
+- `bash .governance/run.sh issue-templates` passes.
 - `bash scripts/test-packs.sh` passes.
 - After merge, the GitHub new-issue picker shows both `proposal` and
   `bug` templates.

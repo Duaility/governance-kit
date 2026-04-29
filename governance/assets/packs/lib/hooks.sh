@@ -29,7 +29,8 @@
 #       post-commit, and pre-push. The spec file is still accepted so callers can
 #       validate the selected install set before generation, but generated
 #       hooks do not bake in selected directive ids. They scan installed
-#       `tests/governance/directives/<id>/directive.yaml` files on every
+#       `.governance/packs/*/directives/<id>/directive.yaml` and
+#       `.governance/local/directives/<id>/directive.yaml` files on every
 #       invocation. This keeps user-owned post-install amendments working
 #       without perfect hook regeneration.
 #
@@ -124,24 +125,28 @@ directive_field() {
     ' "$manifest"
 }
 
-directive_ids_for_hook() {
+directive_dirs_for_hook() {
     local kind="$1" mode="$2"
-    local dir id hook helper
-    [[ -d "$DIRECTIVES_DIR" ]] || return 0
-    for dir in "$DIRECTIVES_DIR"/*; do
+    local dir hook helper
+    [[ -d "$GOVERNANCE_DIR" ]] || return 0
+    while IFS= read -r dir; do
         [[ -d "$dir" && -f "$dir/directive.yaml" ]] || continue
-        id="${dir##*/}"
         hook="$(directive_field "$dir/directive.yaml" hook)"
         helper="$dir/hooks/$kind.sh"
         case "$mode" in
             helper)
-                [[ -x "$helper" ]] && printf '%s\n' "$id"
+                [[ -x "$helper" ]] && printf '%s\n' "$dir"
                 ;;
             check)
-                [[ "$hook" == "$kind" && -x "$dir/check.sh" ]] && printf '%s\n' "$id"
+                [[ "$hook" == "$kind" && -x "$dir/check.sh" ]] && printf '%s\n' "$dir"
                 ;;
         esac
-    done | sort
+    done < <(
+        {
+            [[ -d "$GOVERNANCE_DIR/packs" ]] && find "$GOVERNANCE_DIR/packs" -type d -path '*/directives/*'
+            [[ -d "$GOVERNANCE_DIR/local/directives" ]] && find "$GOVERNANCE_DIR/local/directives" -mindepth 1 -maxdepth 1 -type d
+        } | sort
+    )
 }
 HEADER
 }
@@ -167,21 +172,25 @@ if [[ "${SKIP_GOVERNANCE:-0}" == "1" ]]; then
 fi
 
 ROOT="$(git rev-parse --show-toplevel)"
-DIRECTIVES_DIR="$ROOT/tests/governance/directives"
+GOVERNANCE_DIR="$ROOT/.governance"
 
 HEADER
         _emit_runtime_discovery_helpers
         cat <<'FOOTER'
-while IFS= read -r id; do
-    [[ -z "$id" ]] && continue
-    bash "$DIRECTIVES_DIR/$id/hooks/pre-commit.sh" || exit 1
-done < <(directive_ids_for_hook pre-commit helper)
+if [[ -x "$ROOT/scripts/test-packs.sh" ]]; then
+    bash "$ROOT/scripts/test-packs.sh" || exit 1
+fi
+
+while IFS= read -r dir; do
+    [[ -z "$dir" ]] && continue
+    bash "$dir/hooks/pre-commit.sh" || exit 1
+done < <(directive_dirs_for_hook pre-commit helper)
 
 fail=0
-while IFS= read -r id; do
-    [[ -z "$id" ]] && continue
-    bash "$DIRECTIVES_DIR/$id/check.sh" || fail=1
-done < <(directive_ids_for_hook pre-commit check)
+while IFS= read -r dir; do
+    [[ -z "$dir" ]] && continue
+    bash "$dir/check.sh" || fail=1
+done < <(directive_dirs_for_hook pre-commit check)
 
 if [[ $fail -ne 0 ]]; then
     cat >&2 <<EOF
@@ -223,23 +232,24 @@ if [[ "${SKIP_GOVERNANCE:-0}" == "1" ]]; then
 fi
 
 ROOT="$(git rev-parse --show-toplevel)"
-DIRECTIVES_DIR="$ROOT/tests/governance/directives"
+GOVERNANCE_DIR="$ROOT/.governance"
 MSG_FILE="$1"
 HEADER
         _emit_runtime_discovery_helpers
         cat <<'FOOTER'
-while IFS= read -r id; do
-    [[ -z "$id" ]] && continue
-    bash "$DIRECTIVES_DIR/$id/hooks/commit-msg.sh" "$MSG_FILE" || exit 1
-done < <(directive_ids_for_hook commit-msg helper)
+while IFS= read -r dir; do
+    [[ -z "$dir" ]] && continue
+    bash "$dir/hooks/commit-msg.sh" "$MSG_FILE" || exit 1
+done < <(directive_dirs_for_hook commit-msg helper)
 
-while IFS= read -r id; do
-    [[ -z "$id" ]] && continue
-    if ! bash "$DIRECTIVES_DIR/$id/check.sh" "$MSG_FILE"; then
+while IFS= read -r dir; do
+    [[ -z "$dir" ]] && continue
+    id="${dir##*/}"
+    if ! bash "$dir/check.sh" "$MSG_FILE"; then
         echo "✗ commit blocked by governance (${id})" >&2
         exit 1
     fi
-done < <(directive_ids_for_hook commit-msg check)
+done < <(directive_dirs_for_hook commit-msg check)
 
 exit 0
 FOOTER
@@ -263,22 +273,22 @@ if [[ "${SKIP_GOVERNANCE:-0}" == "1" ]]; then
 fi
 
 ROOT="$(git rev-parse --show-toplevel)"
-DIRECTIVES_DIR="$ROOT/tests/governance/directives"
+GOVERNANCE_DIR="$ROOT/.governance"
 MSG_FILE="$1"
 SOURCE="${2:-}"
 SHA="${3:-}"
 HEADER
         _emit_runtime_discovery_helpers
         cat <<'FOOTER'
-while IFS= read -r id; do
-    [[ -z "$id" ]] && continue
-    bash "$DIRECTIVES_DIR/$id/hooks/prepare-commit-msg.sh" "$MSG_FILE" "$SOURCE" "$SHA" || exit 1
-done < <(directive_ids_for_hook prepare-commit-msg helper)
+while IFS= read -r dir; do
+    [[ -z "$dir" ]] && continue
+    bash "$dir/hooks/prepare-commit-msg.sh" "$MSG_FILE" "$SOURCE" "$SHA" || exit 1
+done < <(directive_dirs_for_hook prepare-commit-msg helper)
 
-while IFS= read -r id; do
-    [[ -z "$id" ]] && continue
-    bash "$DIRECTIVES_DIR/$id/check.sh" "$MSG_FILE" "$SOURCE" "$SHA" || exit 1
-done < <(directive_ids_for_hook prepare-commit-msg check)
+while IFS= read -r dir; do
+    [[ -z "$dir" ]] && continue
+    bash "$dir/check.sh" "$MSG_FILE" "$SOURCE" "$SHA" || exit 1
+done < <(directive_dirs_for_hook prepare-commit-msg check)
 
 exit 0
 FOOTER
@@ -296,7 +306,7 @@ FOOTER
 # readers — the framing exists specifically to compensate for the missing
 # exit-code signal. The agent's contract is to execute the mandated action
 # from each directive's violation message and re-run
-# `bash tests/governance/run.sh` until clean.
+# `bash .governance/run.sh` until clean.
 _emit_post_commit() {
     local out="$1" version="$2"
 
@@ -321,22 +331,22 @@ if [[ "${SKIP_GOVERNANCE:-0}" == "1" ]]; then
 fi
 
 ROOT="$(git rev-parse --show-toplevel)"
-DIRECTIVES_DIR="$ROOT/tests/governance/directives"
+GOVERNANCE_DIR="$ROOT/.governance"
 HEADER
         _emit_runtime_discovery_helpers
         cat <<'FOOTER'
-while IFS= read -r id; do
-    [[ -z "$id" ]] && continue
-    bash "$DIRECTIVES_DIR/$id/hooks/post-commit.sh" || true
-done < <(directive_ids_for_hook post-commit helper)
+while IFS= read -r dir; do
+    [[ -z "$dir" ]] && continue
+    bash "$dir/hooks/post-commit.sh" || true
+done < <(directive_dirs_for_hook post-commit helper)
 
 advisories=0
-while IFS= read -r id; do
-    [[ -z "$id" ]] && continue
-    if ! bash "$DIRECTIVES_DIR/$id/check.sh"; then
+while IFS= read -r dir; do
+    [[ -z "$dir" ]] && continue
+    if ! bash "$dir/check.sh"; then
         advisories=$((advisories + 1))
     fi
-done < <(directive_ids_for_hook post-commit check)
+done < <(directive_dirs_for_hook post-commit check)
 
 if [[ $advisories -gt 0 ]]; then
     cat >&2 <<EOF
@@ -352,7 +362,7 @@ if [[ $advisories -gt 0 ]]; then
   Execute the mandated action(s) shown in each directive's output,
   then re-run:
 
-      bash tests/governance/run.sh
+      bash .governance/run.sh
 
   to confirm convergence. The directive's firing is the durable
   authorization — run the mandated step now, do not re-pose it as a
@@ -396,7 +406,7 @@ if [[ "${SKIP_GOVERNANCE:-0}" == "1" ]]; then
 fi
 
 ROOT="$(git rev-parse --show-toplevel)"
-DIRECTIVES_DIR="$ROOT/tests/governance/directives"
+GOVERNANCE_DIR="$ROOT/.governance"
 REMOTE_NAME="${1:-}"
 REMOTE_URL="${2:-}"
 
@@ -406,16 +416,16 @@ cat > "$REFS_FILE"
 HEADER
         _emit_runtime_discovery_helpers
         cat <<'FOOTER'
-while IFS= read -r id; do
-    [[ -z "$id" ]] && continue
-    bash "$DIRECTIVES_DIR/$id/hooks/pre-push.sh" "$REMOTE_NAME" "$REMOTE_URL" < "$REFS_FILE" || exit 1
-done < <(directive_ids_for_hook pre-push helper)
+while IFS= read -r dir; do
+    [[ -z "$dir" ]] && continue
+    bash "$dir/hooks/pre-push.sh" "$REMOTE_NAME" "$REMOTE_URL" < "$REFS_FILE" || exit 1
+done < <(directive_dirs_for_hook pre-push helper)
 
 fail=0
-while IFS= read -r id; do
-    [[ -z "$id" ]] && continue
-    bash "$DIRECTIVES_DIR/$id/check.sh" "$REMOTE_NAME" "$REMOTE_URL" < "$REFS_FILE" || fail=1
-done < <(directive_ids_for_hook pre-push check)
+while IFS= read -r dir; do
+    [[ -z "$dir" ]] && continue
+    bash "$dir/check.sh" "$REMOTE_NAME" "$REMOTE_URL" < "$REFS_FILE" || fail=1
+done < <(directive_dirs_for_hook pre-push check)
 
 if [[ $fail -ne 0 ]]; then
     cat >&2 <<EOF

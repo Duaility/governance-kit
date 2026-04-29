@@ -28,6 +28,6 @@ Out of scope:
 
 ## Validation
 
-- `bash tests/governance/run.sh` passes (no directive regressions).
+- `bash .governance/run.sh` passes (no directive regressions).
 - Mermaid diagrams render correctly on GitHub (verified by reading the rendered PR preview).
 - Cold-read: a developer reaching the README sees the macro pitch (humans steer, agents do) and a picture of the loop within the first screen of the Why section, with no internal jargon to parse.

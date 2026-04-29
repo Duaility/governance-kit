@@ -32,9 +32,9 @@ under `TERM=dumb` / stripped CI.
    reason; pre-commit prints a red `✗` error and fails. The operator
    either adds a family-prefix row to `lib/rates.py` or uses
    `SKIP_GOVERNANCE=1` for a one-off hot-fix.
-4. **`tput` in `tests/governance/lib.sh`** — swap raw `\033[…]` for
+4. **`tput` in `.governance/lib.sh`** — swap raw `\033[…]` for
    `tput setaf`/`bold`/`sgr0`, gated on `-t 1` + tput probe. Same change
-   in `governance/assets/tests-bash/lib.sh` so bootstrap-generated copies
+   in `governance/assets/dot-governance/lib.sh` so bootstrap-generated copies
    pick it up. `TERM=dumb` and piped invocations verified clean.
 5. **`commit-issue-plan-match`: accept body `Issue:` trailers** — squash
    merges naturally carry a PR-number subject while the folded
@@ -57,5 +57,5 @@ under `TERM=dumb` / stripped CI.
 - Existing v3 rows on `main` with a non-empty `model` but empty
   `cost-usd` are backfilled (rows 101–102, gpt-5.5) using the new
   family-prefix price so the ledger validator stays clean.
-- `scripts/test-packs.sh` green (12/12 evals); `tests/governance/run.sh`
+- `scripts/test-packs.sh` green (12/12 evals); `.governance/run.sh`
   green (12/12 rules).

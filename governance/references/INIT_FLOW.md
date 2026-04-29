@@ -6,8 +6,8 @@ The 8-step recipe `governance init` runs. Dispatched from
 `init` sets up governance-driven development in the current repository:
 
 1. A `CONSTITUTION.md` at the repo root — the evolving source of truth for directives, guidelines, and directives.
-2. Machine-enforced tests under `tests/governance/` — every directive in the constitution has a corresponding test.
-3. A pre-commit hook (and commit-msg / prepare-commit-msg / post-commit / pre-push dispatchers when the selected directives need them) — runs `tests/governance/` before commits and pushes, with `SKIP_GOVERNANCE=1` and `git commit --no-verify` / `git push --no-verify` as escape hatches.
+2. Machine-enforced tests under `.governance/` — every directive in the constitution has a corresponding test.
+3. A pre-commit hook (and commit-msg / prepare-commit-msg / post-commit / pre-push dispatchers when the selected directives need them) — runs `.governance/` before commits and pushes, with `SKIP_GOVERNANCE=1` and `git commit --no-verify` / `git push --no-verify` as escape hatches.
 4. A GitHub Actions workflow at `.github/workflows/governance.yml` — same tests, enforced in CI on every PR.
 
 Directives are grouped into **packs** — self-contained directories that bundle directives, their constitution snippets, and hook declarations. Two packs ship in-tree today, each at its own root:
@@ -15,7 +15,7 @@ Directives are grouped into **packs** — self-contained directories that bundle
 - **`core`** at `governance/assets/packs/core/` — the baseline directives every repo gets by default.
 - **`duaility/agent-governance`** at `extensions/packs/agent-governance/` — the agent-driven-development directives this kit dogfoods (opt-in for other repos), authored as a community-shaped pack in the monorepo's `extensions/packs/` tree.
 
-Governance evolves: new directives get added to `CONSTITUTION.md` *and* to `tests/governance/` together. The constitution without the tests is just a wishlist.
+Governance evolves: new directives get added to `CONSTITUTION.md` *and* to `.governance/` together. The constitution without the tests is just a wishlist.
 
 ## Interaction policy
 
@@ -41,7 +41,7 @@ Before touching anything, run these in parallel:
 - `git rev-parse --show-toplevel` to confirm this is a git repo and find the root.
 - `ls -la` at the root.
 - Check for stack markers: `package.json`, `pyproject.toml`, `setup.py`, `requirements.txt`, `go.mod`, `Cargo.toml`, `pom.xml`, `build.gradle`, `Gemfile`.
-- Check for existing `CONSTITUTION.md`, `tests/governance/`, `.github/workflows/governance.yml`, `.githooks/`, and `.git/hooks/pre-commit` (legacy location — flag if present).
+- Check for existing `CONSTITUTION.md`, `.governance/`, `.github/workflows/governance.yml`, `.githooks/`, and `.git/hooks/pre-commit` (legacy location — flag if present).
 
 If this is not a git repo, stop and tell the user — `governance init` requires git.
 
@@ -51,7 +51,7 @@ Also detect hook strategy before you offer or install hook-related directives:
 - If `.husky/` exists, `package.json` references husky, or `.pre-commit-config.yaml` exists, treat the repo as using an existing hook framework.
 - Otherwise, use the repo-local `.githooks/` strategy described below.
 
-This choice is recorded as `hook_strategy:` in `.governance-kit/installed-packs.yaml` (`githooks` | `husky` | `pre-commit`). The `required-docs` directive's `hooks` sub-check inspects that value and only enforces the `.githooks/` scaffolding when `hook_strategy` is `githooks`. Do not present `.githooks/` as universal if the repo already has a tracked hook framework.
+This choice is recorded as `hook_strategy:` in `.governance/installed-packs.yaml` (`githooks` | `husky` | `pre-commit`). The `required-docs` directive's `hooks` sub-check inspects that value and only enforces the `.githooks/` scaffolding when `hook_strategy` is `githooks`. Do not present `.githooks/` as universal if the repo already has a tracked hook framework.
 
 **Hook-collision survey.** As part of the survey, inspect existing hook files at:
 
@@ -77,7 +77,7 @@ Pick exactly one primary stack from the markers:
 
 Multiple markers → pick the one the user points to. If unclear, ask once.
 
-**Default** for every stack: also install the universal **bash** test runner from `../assets/tests-bash/`. Bash tests are language-agnostic (grep/find/wc based) and work anywhere. The native test runner is a second, stack-idiomatic copy that lets governance directives integrate with the project's normal test command. The user picks in Step 3 whether to install native tests, bash tests, or both.
+**Default** for every stack: also install the universal **bash** test runner from `../assets/dot-governance/`. Bash tests are language-agnostic (grep/find/wc based) and work anywhere. The native test runner is a second, stack-idiomatic copy that lets governance directives integrate with the project's normal test command. The user picks in Step 3 whether to install native tests, bash tests, or both.
 
 ### Step 2.5 — Discover directive packs
 
@@ -143,7 +143,7 @@ Use `standard` as the recommended preset. If the user does not answer and you mu
 
 Split into multiple `AskUserQuestion` calls — the tool caps at four questions per call. Follow the same pattern today's flow does: first call for Foundation / Security / SystemOfRecord / CommitHygiene; second call for Quality / AgentDiscipline / any additional categories. Category menus with only a single directive are fine — do not pad with filler.
 
-If the user picks "Other" and describes a new directive, generate a new directive folder under `tests/governance/directives/<id>/` with `directive.yaml`, `check.sh`, and `constitution.md`, following the template in [DIRECTIVES_CATALOG.md](DIRECTIVES_CATALOG.md), and add a matching Directives subsection to `CONSTITUTION.md`. The directive joins the target repo directly; it is not retrofitted into a pack (that is a pack-authoring activity, covered in [AUTHORING_PACKS.md](AUTHORING_PACKS.md)).
+If the user picks "Other" and describes a new directive, generate a new directive folder under `.governance/local/directives/<id>/` with `directive.yaml`, `check.sh`, and `constitution.md`, following the template in [DIRECTIVES_CATALOG.md](DIRECTIVES_CATALOG.md), and add a matching Directives subsection to `CONSTITUTION.md`. The directive joins the target repo directly; it is not retrofitted into a pack (that is a pack-authoring activity, covered in [AUTHORING_PACKS.md](AUTHORING_PACKS.md)).
 
 **Always installed — bypass the menu.** Walk every selected pack's `always_install: true` directives and queue them for install regardless of user picks. This flag is **reserved to the `core` pack**; third-party packs declaring it are rejected at install.
 
@@ -155,7 +155,7 @@ install = always_install_core
        ∪ user_selected_rules (from Q2..Qn, which may add or remove items)
 ```
 
-If two selected packs list the same directive `id`, reject with a clear error before touching the filesystem. The target repo's directive namespace is flat by folder name (`tests/governance/directives/<id>/`), so collisions there would be silent overwrites.
+If two selected packs list the same directive `id`, reject with a clear error before touching the filesystem. The target repo.s directive id namespace is still flat even though pack-installed files live under `.governance/packs/<pack-id>/directives/<id>/`, so collisions there would be silent overwrites.
 
 Before installing, classify any user-described custom directive by surface:
 
@@ -172,18 +172,18 @@ Do not accept a repo-exists proxy for a change-set obligation unless you explici
 
 For each directive in the final install list, use `../assets/packs/lib/install.sh`:
 
-- `install_directive_folder <pack-dir> <directive> <repo-root>` copies `<pack-dir>/directives/<directive>/` into `tests/governance/directives/<directive>/`, excluding `evals/`, and marks `check.sh` plus directive-owned hooks/runtimes executable.
+- `install_directive_folder <pack-dir> <directive> <repo-root>` copies `<pack-dir>/directives/<directive>/` into `.governance/packs/<pack-id>/directives/<directive>/`, excluding `evals/`, and marks `check.sh` plus directive-owned hooks/runtimes executable.
 - `install_directive_assets <pack-dir> <directive> <repo-root>` copies optional `install-assets/` files into the target repo without overwriting existing files in augment mode. This is how directives such as `issues-tracked` seed `QUALITY.md` and `agent-token-accounting` seeds `COSTS.md`.
-- If the user selects `doc-freshness`, also copy `../assets/freshness.conf` to `tests/governance/freshness.conf` (the seed file is commented — every path is opt-in by uncommenting).
+- If the user selects `doc-freshness`, also copy `../assets/freshness.conf` to `.governance/freshness.conf` (the seed file is commented — every path is opt-in by uncommenting).
 
-After all directives are installed, write `.governance-kit/installed-packs.yaml` via `write_installed_manifest`. Pass every flag that applies to the install — `governance uninstall` treats this file as the authoritative record of what the kit owns and will key off every field:
+After all directives are installed, write `.governance/installed-packs.yaml` via `write_installed_manifest`. Pass every flag that applies to the install — `governance uninstall` treats this file as the authoritative record of what the kit owns and will key off every field:
 
 ```sh
 write_installed_manifest "$repo_root" \
     --hook-strategy githooks \
     --stack bash \
     --ci-workflow .github/workflows/governance.yml \
-    --tests-dir tests/governance \
+    --tests-dir .governance \
     --agents-md-directive \                # add --agents-md-created if Step 4b Case 2 fired
     --install-asset QUALITY.md \           # repeat per seeded install-asset
     --install-asset COSTS.md \
@@ -221,15 +221,15 @@ Three cases:
 
 3. **`AGENTS.md` is missing AND `required-docs` was not installed.** Skip silently. Do not nag — the user opted out, and creating a file they didn't ask for is presumptuous.
 
-After injecting, run `bash tests/governance/run.sh` once so the user sees whether the newly-seeded AGENTS.md still needs more content.
+After injecting, run `bash .governance/run.sh` once so the user sees whether the newly-seeded AGENTS.md still needs more content.
 
 ### Step 5 — Install the test runner
 
-Copy `../assets/tests-bash/run.sh` to `tests/governance/run.sh` and mark it executable (`chmod +x`). This is the entrypoint — it discovers and runs every `directives/<id>/check.sh`, prints a summary, and exits non-zero on any failure.
+Copy `../assets/dot-governance/run.sh` to `.governance/run.sh` and mark it executable (`chmod +x`). This is the entrypoint — it discovers and runs every `directives/<id>/check.sh`, prints a summary, and exits non-zero on any failure.
 
-Copy `../assets/tests-bash/lib.sh` to `tests/governance/lib.sh` — shared helpers (pass/fail/skip output, `tracked_files` helper that respects `.gitignore`).
+Copy `../assets/dot-governance/lib.sh` to `.governance/lib.sh` — shared helpers (pass/fail/skip output, `tracked_files` helper that respects `.gitignore`).
 
-If the user wants **native** tests in addition to bash, read [NATIVE_TESTS.md](NATIVE_TESTS.md) for the port pattern for their stack (pytest / jest / go test). Generate the native test file(s) inline — do not invent a separate `run.sh` for the native side; the project's existing test runner (`pytest tests/governance`, `npx jest tests/governance`, `go test ./tests/governance/...`) is the entrypoint.
+If the user wants **native** tests in addition to bash, read [NATIVE_TESTS.md](NATIVE_TESTS.md) for the port pattern for their stack (pytest / jest / go test). Generate the native test file(s) inline — do not invent a separate `run.sh` for the native side; the project's existing test runner (`pytest .governance`, `npx jest .governance`, `go test ./.governance/...`) is the entrypoint.
 
 ### Step 6 — Install the git hooks
 
@@ -243,13 +243,13 @@ generate_hooks <repo-root>/.githooks <pack-version-label> /tmp/governance-hook-s
 The generator:
 
 1. Emits all five dispatchers — `pre-commit`, `commit-msg`, `prepare-commit-msg`, `post-commit`, `pre-push` — so future user-owned amendments that add a compatible `hook:` declaration are discovered without regenerating hooks.
-2. Each dispatcher scans installed `tests/governance/directives/<id>/directive.yaml` at runtime, runs directive-owned `hooks/<kind>.sh` helpers first, then runs `check.sh` for directives whose `hook:` matches the dispatcher. Dispatchers honor `SKIP_GOVERNANCE=1`.
+2. Each dispatcher scans installed directive `directive.yaml` files under `.governance/packs/` and `.governance/local/directives/` at runtime, runs directive-owned `hooks/<kind>.sh` helpers first, then runs `check.sh` for directives whose `hook:` matches the dispatcher. Dispatchers honor `SKIP_GOVERNANCE=1`.
 3. Stamps each dispatcher with a **line-2 ownership marker**:
    ```sh
    #!/usr/bin/env bash
    # governance-kit:managed pack-version=<v> generated=<YYYY-MM-DD>
    ```
-   The `pack-version` marker is an ownership/regeneration marker, not an upgrade promise; installed pack/directive details live in `.governance-kit/installed-packs.yaml`.
+   The `pack-version` marker is an ownership/regeneration marker, not an upgrade promise; installed pack/directive details live in `.governance/installed-packs.yaml`.
 
 Path choice:
 
@@ -257,7 +257,7 @@ Path choice:
 
 1. Generate `.githooks/pre-commit`, `.githooks/commit-msg`, `.githooks/prepare-commit-msg`, `.githooks/post-commit`, and `.githooks/pre-push`.
 2. `chmod +x` every generated hook.
-3. Record `hook_strategy: githooks` in `.governance-kit/installed-packs.yaml` so `required-docs`' `hooks` sub-check enforces the `.githooks/` scaffolding.
+3. Record `hook_strategy: githooks` in `.governance/installed-packs.yaml` so `required-docs`' `hooks` sub-check enforces the `.githooks/` scaffolding.
 4. Run `git config core.hooksPath .githooks` in the bootstrapping clone.
 5. Copy `../assets/setup-clone.sh` to `<repo-root>/scripts/setup-clone.sh` (create `scripts/` if missing) and `chmod +x` it. This is the one-command onboarding for every other contributor: they run `./scripts/setup-clone.sh` once per fresh clone and `core.hooksPath` is set. Worktrees inherit `.git/config` from their parent, so the script does not need to run per worktree. In the final report, tell the user to point new contributors at this script (mentioning it in `README.md` or `AGENTS.md` is a good place). Until a contributor runs it, `required-docs` nags on every commit with the exact command.
 6. **Do not** create files under `.git/hooks/`. If `.git/hooks/pre-commit` (or `commit-msg`) already exists from a previous bootstrap or another tool, ask the user before deleting — it could be a husky or pre-commit.com hook (see Path B).
@@ -273,7 +273,7 @@ If the existing hook **has** the marker, overwrite silently — `governance dire
 **Path B — existing hook framework.** If the project uses `husky` or the `pre-commit` framework, *do not* set `core.hooksPath` and do not copy into `.githooks/` — those frameworks already have their own tracked hook-config mechanism. Instead, add a hook entry to the existing config (ask the user which framework they use, or infer it from the files you found). See [NATIVE_TESTS.md](NATIVE_TESTS.md) for the husky / pre-commit.com snippets.
 
 In this path:
-- Record `hook_strategy: husky` or `hook_strategy: pre-commit` in `.governance-kit/installed-packs.yaml` so `required-docs`' `hooks` sub-check transparently skips (it only enforces `.githooks/` scaffolding when `hook_strategy` is `githooks`).
+- Record `hook_strategy: husky` or `hook_strategy: pre-commit` in `.governance/installed-packs.yaml` so `required-docs`' `hooks` sub-check transparently skips (it only enforces `.githooks/` scaffolding when `hook_strategy` is `githooks`).
 - Tell the user explicitly that the repo is using its existing tracked hook framework instead of `.githooks/`.
 
 ### Step 7 — Install the CI workflow
@@ -290,7 +290,7 @@ Print a concise summary:
 - Directives installed (with file paths, grouped by pack if multiple packs were selected).
 - Directives deliberately skipped (with reasons) when that matters.
 - Any pre-existing hook collisions encountered and how they were resolved.
-- How to run locally: `bash tests/governance/run.sh`.
+- How to run locally: `bash .governance/run.sh`.
 - How to skip the hook: `SKIP_GOVERNANCE=1 git commit ...` or `git commit --no-verify`.
 - Assumptions made. If none, say `Assumptions: none`.
 - Reminder: **constitution amendments must land with their test.** Point to [DIRECTIVES_CATALOG.md](DIRECTIVES_CATALOG.md) and (if multiple packs were selected) [AUTHORING_PACKS.md](AUTHORING_PACKS.md) for the templates.
@@ -308,7 +308,7 @@ Every successful `init` run should leave the user with a summary that includes:
 - `Directives skipped:` only when the omission is meaningful.
 - `Hook collisions:` the resolution chosen for each pre-existing unmarked hook, or `none`.
 - `Assumptions:` any material assumptions, or `none`.
-- `Next command:` `bash tests/governance/run.sh`
+- `Next command:` `bash .governance/run.sh`
 
 ---
 

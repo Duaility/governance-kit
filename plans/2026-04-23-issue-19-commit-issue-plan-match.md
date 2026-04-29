@@ -22,7 +22,7 @@ Closes [#19](https://github.com/Duaility/governance-kit/issues/19).
 
 ## Steps
 
-1. **Author `tests/governance/rules/commit-issue-plan-match.sh`**:
+1. **Author `.governance/rules/commit-issue-plan-match.sh`**:
    - Mode A (commit-msg hook): take a msg-file path, read the subject and the
      staged diff. Validate the pending commit.
    - Mode B (CI / run.sh): walk `merge-base(HEAD, default-branch)..HEAD` and
@@ -42,7 +42,7 @@ Closes [#19](https://github.com/Duaility/governance-kit/issues/19).
      `conventional-commits` / `agent-token-accounting`). Per-commit waiver:
      `governance: allow-commit-issue-plan-match <reason>` anywhere in the
      commit body.
-2. **Delete `tests/governance/rules/plan-captured.sh`**.
+2. **Delete `.governance/rules/plan-captured.sh`**.
 3. **Amend `CONSTITUTION.md`**:
    - Remove the `### plan-captured` invariant subsection.
    - Add a `### commit-issue-plan-match` invariant subsection in the
@@ -61,7 +61,7 @@ Closes [#19](https://github.com/Duaility/governance-kit/issues/19).
    template as a harmless no-op (per the issue's guidance: retired-rule
    waivers stay as comments). Waiver lines in `COSTS.md` and
    `scripts/governance/lib/ledger.py` similarly stay.
-6. **Run `bash tests/governance/run.sh`** — all remaining rules pass, the
+6. **Run `bash .governance/run.sh`** — all remaining rules pass, the
    new rule passes on this commit (subject `(#19)`, plan
    `plans/2026-04-23-issue-19-commit-issue-plan-match.md` carries
    `issue-19`), and `plan-captured` is gone from the rule count.
@@ -84,6 +84,6 @@ this into two PRs doubles review burden with zero safety gain.
 - [ ] Revert commit → skipped.
 - [ ] Body carries `governance: allow-commit-issue-plan-match <reason>` →
       skipped.
-- [ ] `bash tests/governance/run.sh` is green on `main` after the amendment
+- [ ] `bash .governance/run.sh` is green on `main` after the amendment
       lands; `plan-captured.sh` is gone; no tracked doc references the
       retired rule as a live invariant.

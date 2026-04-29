@@ -13,7 +13,7 @@ that the `agent-token-accounting` governance rule validates.
 The `agent-token-accounting` rule's `hooks/pre-commit.sh` appends a row
 before git snapshots the tree; its `hooks/prepare-commit-msg.sh` stamps
 the matching trailers. Both live inside the rule folder at
-`tests/governance/rules/agent-token-accounting/hooks/`. See
+`.governance/rules/agent-token-accounting/hooks/`. See
 [governance/references/AGENT_TOKEN_ACCOUNTING.md](governance/references/AGENT_TOKEN_ACCOUNTING.md)
 for wiring instructions.
 
@@ -177,3 +177,8 @@ Schema:
 | claude-code-81c29f54-b18-1777449179 | claude-code | 81c29f54-b18f-432d-82e6-ab0d68651bd3 | #87 | claude-opus-4-7 | 5 | 15727 | 14869 | 45 | 15777 | 0.1069 | refactor(governance): retire GOVERNANCE_*_DISABLE env-var sub-check toggles (#87 |
 | claude-code-9c1412c3-084-1777449396 | claude-code | 9c1412c3-0840-4404-9c79-0ac0414b3ea0 | #87 | claude-opus-4-7 | 160 | 319831 | 11304599 | 104826 | 424817 | 10.2727 | refactor(governance): retire GOVERNANCE_*_DISABLE env-var sub-check toggles (#87 |
 | claude-code-9c1412c3-084-1777449484 | claude-code | 9c1412c3-0840-4404-9c79-0ac0414b3ea0 | #87 | claude-opus-4-7 | 6 | 14915 | 1056139 | 7251 | 22172 | 0.8026 | refactor(governance): retire GOVERNANCE_*_DISABLE env-var sub-check toggles (#87 |
+| codex-019dd851-4ff-1777453216 | codex | 019dd851-4ffb-74c3-abd6-f9ffcc0920d3 | #89 | gpt-5.5 | 700167 | 0 | 16548224 | 30883 | 731050 | 6.3507 | refactor(governance): relocate state to dotfolder (#89) |
+| codex-019dd851-4ff-1777453404 | codex | 019dd851-4ffb-74c3-abd6-f9ffcc0920d3 | #89 | gpt-5.5 | 14732 | 0 | 1184000 | 921 | 15653 | 0.3466 |  |
+| codex-019dd851-4ff-1777453495 | codex | 019dd851-4ffb-74c3-abd6-f9ffcc0920d3 | #89 | gpt-5.5 | 8079 | 0 | 1425536 | 849 | 8928 | 0.3893 |  |
+| claude-code-c3833f65-231-1777456515 | claude-code | c3833f65-231c-4c20-8f64-f11b90b9eb6e | #89 | claude-opus-4-7 | 331 | 534447 | 24908248 | 185206 | 719984 | 20.4262 | fix(agent-governance): repair lib.sh comment and add cross-worktree transcript f |
+| claude-code-c3833f65-231-1777456586 | claude-code | c3833f65-231c-4c20-8f64-f11b90b9eb6e | #89 | claude-opus-4-7 | 6 | 8813 | 761759 | 3984 | 12803 | 0.5356 | fix(agent-governance): repair lib.sh comment and add cross-worktree transcript f |

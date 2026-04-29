@@ -62,7 +62,7 @@ Every signal carries its own threshold, evidence requirement, and confidence lev
 9. **Update `README.md`** — skill list.
 10. **Update `governance-bootstrap/SKILL.md` and `governance-bootstrap/assets/freshness.conf`** — the `doc-freshness` rule's companion skill reference, plus the config header comment.
 11. **Update `plans/2026-04-22-add-compliance-directive.md`** — drop the old skill name from two incidental references.
-12. **Run `bash tests/governance/run.sh`** — all 12 rules should still pass. The health report file under `governance-health/` (once the gardener writes one) carries `<!-- governance: allow-plan-captured -->` so it doesn't trip `plan-captured`.
+12. **Run `bash .governance/run.sh`** — all 12 rules should still pass. The health report file under `governance-health/` (once the gardener writes one) carries `<!-- governance: allow-plan-captured -->` so it doesn't trip `plan-captured`.
 13. **Commit as a single `refactor(skills): replace doc-gardener with governance-gardener`.**
 
 ## Design rules the new skill must honor

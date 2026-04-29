@@ -41,9 +41,9 @@ philosophy section claims rationale unlocks.
 
 ## Validation
 
-- `bash tests/governance/run.sh` passes — in particular
+- `bash .governance/run.sh` passes — in particular
   `no-broken-internal-doc-links` confirms the new
-  `tests/governance/rules/doc-freshness/check.sh` reference
+  `.governance/rules/doc-freshness/check.sh` reference
   resolves.
 - Visual pass that the rule-folder tree and the
   `constitution.md` snippet render cleanly on GitHub.

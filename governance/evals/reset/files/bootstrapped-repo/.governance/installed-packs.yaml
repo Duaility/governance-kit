@@ -1,0 +1,21 @@
+version: "1"
+generated_at: 2026-01-15T09:00:00Z
+hook_strategy: githooks
+stack: bash
+constitution: true
+ci_workflow: .github/workflows/governance.yml
+tests_dir: .governance
+agents_md_directive: true
+agents_md_created: false
+packs:
+  - id: core
+    version: "0.1"
+    directives:
+      - id: constitution-exists
+        installed_path: .governance/local/directives/constitution-exists
+      - id: no-secrets
+        installed_path: .governance/local/directives/no-secrets
+install_assets_seeded:
+  - QUALITY.md
+  - COSTS.md
+collisions: []
