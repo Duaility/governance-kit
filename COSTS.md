@@ -182,3 +182,6 @@ Schema:
 | codex-019dd851-4ff-1777453495 | codex | 019dd851-4ffb-74c3-abd6-f9ffcc0920d3 | #89 | gpt-5.5 | 8079 | 0 | 1425536 | 849 | 8928 | 0.3893 |  |
 | claude-code-c3833f65-231-1777456515 | claude-code | c3833f65-231c-4c20-8f64-f11b90b9eb6e | #89 | claude-opus-4-7 | 331 | 534447 | 24908248 | 185206 | 719984 | 20.4262 | fix(agent-governance): repair lib.sh comment and add cross-worktree transcript f |
 | claude-code-c3833f65-231-1777456586 | claude-code | c3833f65-231c-4c20-8f64-f11b90b9eb6e | #89 | claude-opus-4-7 | 6 | 8813 | 761759 | 3984 | 12803 | 0.5356 | fix(agent-governance): repair lib.sh comment and add cross-worktree transcript f |
+| claude-code-6a5db1ad-46c-1777460054 | claude-code | 6a5db1ad-46c9-4268-ac9f-6b80e670aaa8 | #91 | claude-opus-4-7 | 5 | 16423 | 14869 | 146 | 16574 | 0.1138 | refactor(governance): bash-only init; drop stack classification (#91) |
+| claude-code-51bf1a91-346-1777460130 | claude-code | 51bf1a91-3461-487e-b78d-5fdbdb18ce6c | #91 | claude-opus-4-7 | 183 | 241265 | 8735431 | 40900 | 282348 | 6.8990 | refactor(governance): bash-only init; drop stack classification (#91) |
+| claude-code-51bf1a91-346-1777460210 | claude-code | 51bf1a91-3461-487e-b78d-5fdbdb18ce6c | #91 | claude-opus-4-7 | 6 | 7737 | 702232 | 5207 | 12950 | 0.5297 | refactor(governance): bash-only init; drop stack classification (#91) |

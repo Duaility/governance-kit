@@ -116,7 +116,6 @@ write_installed_manifest() {
     #
     #   write_installed_manifest <target_repo> \
     #       [--hook-strategy githooks|husky|pre-commit] \
-    #       [--stack bash|python|node|go|rust] \
     #       [--ci-workflow <path>] \
     #       [--tests-dir <path>] \
     #       [--no-constitution] \
@@ -136,7 +135,7 @@ write_installed_manifest() {
     local target_repo="$1"; shift
     local out="$target_repo/.governance/installed-packs.yaml"
 
-    local hook_strategy="githooks" stack="bash"
+    local hook_strategy="githooks"
     local ci_workflow=".github/workflows/governance.yml"
     local tests_dir=".governance"
     local constitution_flag="true"
@@ -148,7 +147,6 @@ write_installed_manifest() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --hook-strategy)     hook_strategy="$2";     shift 2 ;;
-            --stack)             stack="$2";             shift 2 ;;
             --ci-workflow)       ci_workflow="$2";       shift 2 ;;
             --tests-dir)         tests_dir="$2";         shift 2 ;;
             --no-constitution)   constitution_flag="false";  shift ;;
@@ -169,7 +167,6 @@ write_installed_manifest() {
         printf 'version: "1"\n'
         printf 'generated_at: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         printf 'hook_strategy: %s\n' "$hook_strategy"
-        printf 'stack: %s\n' "$stack"
         printf 'constitution: %s\n' "$constitution_flag"
         printf 'ci_workflow: %s\n' "$ci_workflow"
         printf 'tests_dir: %s\n' "$tests_dir"
