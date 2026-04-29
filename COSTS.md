@@ -180,3 +180,5 @@ Schema:
 | codex-019dd851-4ff-1777453216 | codex | 019dd851-4ffb-74c3-abd6-f9ffcc0920d3 | #89 | gpt-5.5 | 700167 | 0 | 16548224 | 30883 | 731050 | 6.3507 | refactor(governance): relocate state to dotfolder (#89) |
 | codex-019dd851-4ff-1777453404 | codex | 019dd851-4ffb-74c3-abd6-f9ffcc0920d3 | #89 | gpt-5.5 | 14732 | 0 | 1184000 | 921 | 15653 | 0.3466 |  |
 | codex-019dd851-4ff-1777453495 | codex | 019dd851-4ffb-74c3-abd6-f9ffcc0920d3 | #89 | gpt-5.5 | 8079 | 0 | 1425536 | 849 | 8928 | 0.3893 |  |
+| claude-code-c3833f65-231-1777456515 | claude-code | c3833f65-231c-4c20-8f64-f11b90b9eb6e | #89 | claude-opus-4-7 | 331 | 534447 | 24908248 | 185206 | 719984 | 20.4262 | fix(agent-governance): repair lib.sh comment and add cross-worktree transcript f |
+| claude-code-c3833f65-231-1777456586 | claude-code | c3833f65-231c-4c20-8f64-f11b90b9eb6e | #89 | claude-opus-4-7 | 6 | 8813 | 761759 | 3984 | 12803 | 0.5356 | fix(agent-governance): repair lib.sh comment and add cross-worktree transcript f |

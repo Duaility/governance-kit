@@ -34,6 +34,25 @@ if [[ -z "$TRANSCRIPT" ]]; then
     done
 fi
 
+# Cross-worktree fallback: the cwd-encoded lookup above misses when the
+# user starts a Claude session in worktree A and runs `git commit` from
+# worktree B (different `git rev-parse --show-toplevel`, so a different
+# encoded project dir). When CLAUDECODE=1 confirms a live session, the
+# active transcript is being written to *now* — so the most recently
+# modified `.jsonl` anywhere under CLAUDE_PROJECTS is almost always it.
+# A 10-minute mtime window keeps long-closed sessions out. If multiple
+# Claude sessions are running concurrently, set CLAUDE_TRANSCRIPT_PATH
+# explicitly to disambiguate.
+if [[ -z "$TRANSCRIPT" && "${CLAUDECODE:-}" == "1" && -d "$CLAUDE_PROJECTS" ]]; then
+    candidate=""
+    while IFS= read -r f; do
+        if [[ -z "$candidate" || "$f" -nt "$candidate" ]]; then
+            candidate="$f"
+        fi
+    done < <(find "$CLAUDE_PROJECTS" -type f -name '*.jsonl' -mmin -10 2>/dev/null)
+    [[ -n "$candidate" && -f "$candidate" ]] && TRANSCRIPT="$candidate"
+fi
+
 [[ -z "$TRANSCRIPT" || ! -f "$TRANSCRIPT" ]] && exit 1
 
 # Recover the session id from the first JSONL entry that carries one.

@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Shared helpers for governance directive tests.
-# Source this from every directive check: `source "20 20 12 61 79 80 81 98 703 702 701 33 100 204 250 395 398 399 400dirname "-e")/../../../../lib.sh" (pack directives) or `../../../lib.sh` (local directives)`
+# Source this from every directive's check.sh. The relative path depends on depth:
+#   .governance/local/directives/<id>/check.sh
+#     source "$(dirname "$0")/../../../lib.sh"
+#   .governance/packs/<pack-id>/directives/<id>/check.sh
+#     source "$(dirname "$0")/../../../../lib.sh"
+#   .governance/packs/<author>/<pack-slug>/directives/<id>/check.sh
+#     source "$(dirname "$0")/../../../../../lib.sh"
 
 set -u
 
