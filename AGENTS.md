@@ -27,7 +27,7 @@ The user-facing entry point is the unified [`governance`](governance/SKILL.md) s
 
 ## How governance works here
 
-This repo dogfoods its own tooling. The live directive set lives in [CONSTITUTION.md](CONSTITUTION.md); directive scripts live under [.governance/packs/](.governance/packs/) for pack-installed policy and [.governance/local/directives/](.governance/local/directives/) for hand-authored policy.
+This repo dogfoods its own tooling. The live directive set lives in [CONSTITUTION.md](CONSTITUTION.md); every directive — kit-bundled, community-pack, or hand-authored — lives under [.governance/packs/](.governance/packs/) at `<owner>/<name>/directives/<id>/`. Hand-authored repo-local packs (this repo's own dogfood lives at [.governance/packs/duaility/governance-kit/](.governance/packs/duaility/governance-kit/)) are just packs whose `pack.yaml` has no `source:` field.
 
 Run the suite locally:
 
@@ -53,7 +53,7 @@ governance-kit/
 │   │   ├── setup-clone.sh
 │   │   ├── tests-bash/          # Universal bash runner shipped into every target repo.
 │   │   ├── amend/               # Templates for `directive *` (directive.template.sh, directive-section.template.md).
-│   │   └── packs/               # Kit-bundled packs — today: `core` plus the shared `lib/`.
+│   │   └── packs/               # Kit-bundled packs — today: `governance-kit/core` plus the shared `lib/`.
 │   │       └── core/
 │   │           ├── pack.yaml                 # pack id + presets
 │   │           └── directives/
@@ -77,7 +77,8 @@ governance-kit/
 ├── .governance/            # Directive tests for THIS repo (dogfood).
 │   ├── run.sh
 │   ├── lib.sh
-│   └── directives/<id>/check.sh  # each directive is a self-contained folder
+│   ├── installed-packs.yaml
+│   └── packs/<owner>/<name>/directives/<id>/check.sh  # every directive lives in some pack
 └── .github/workflows/
     └── governance.yml
 ```
@@ -97,7 +98,7 @@ Do not edit [CONSTITUTION.md](CONSTITUTION.md) by hand. Invoke the `governance` 
 ### Adding a new directive to the catalog
 
 Directives live inside **packs**, each at its own pack root. Today:
-`core` lives at `governance/assets/packs/core/` (kit-bundled),
+`governance-kit/core` lives at `governance/assets/packs/core/` (kit-bundled),
 and `duaility/agent-governance` lives at `extensions/packs/agent-governance/`
 (community-shaped, authored as if hosted in its own repo but colocated
 here under the monorepo layout — see `extensions/README.md`).
@@ -108,7 +109,7 @@ eval all live together under `directives/<directive-id>/`.
    - `directive.yaml` — scalar fields `category`, `recommended`, `summary`,
      `surface` (`repo-state`|`change-set`), `hook`
      (`pre-commit`|`commit-msg`|`prepare-commit-msg`|`post-commit`|`pre-push`|`none`), optional
-     `always_install` (reserved to `core`).
+     `always_install` (reserved to `governance-kit/core`).
    - `check.sh` — the bash test.
    - `constitution.md` — the Directive subsection (Directive / Rationale /
      Enforced by / Exceptions).

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Governance test runner. Discovers every directive under ./packs/* and ./local.
+# Governance test runner. Discovers every directive under ./packs/<owner>/<name>/.
 # Directives are folder-shaped — each directive is `directives/<id>/check.sh`.
 # Anything the directive needs (lib/, hooks/, runtimes/) lives in the same folder.
 # Exits 0 if all directive checks pass, 1 if any fails.
@@ -20,20 +20,16 @@ fi
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PACKS_DIR="$HERE/packs"
-LOCAL_DIR="$HERE/local/directives"
 
 check_files=()
 while IFS= read -r f; do
     [[ -n "$f" ]] && check_files+=("$f")
 done < <(
-    {
-        [[ -d "$PACKS_DIR" ]] && find "$PACKS_DIR" -type f -path '*/directives/*/check.sh'
-        [[ -d "$LOCAL_DIR" ]] && find "$LOCAL_DIR" -mindepth 2 -maxdepth 2 -type f -name 'check.sh'
-    } | sort
+    [[ -d "$PACKS_DIR" ]] && find "$PACKS_DIR" -type f -path '*/directives/*/check.sh' | sort
 )
 
 if [[ ${#check_files[@]} -eq 0 ]]; then
-    echo "⊘ no governance directives defined under $HERE/packs or $HERE/local"
+    echo "⊘ no governance directives defined under $HERE/packs"
     exit 0
 fi
 

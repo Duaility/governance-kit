@@ -4,10 +4,10 @@
     {
       "id": 1,
       "prompt": "We had an incident yesterday (INC-4117) — someone committed a private key file (*.pem) and we had to rotate half our credentials. Add a governance rule that blocks committing *.pem, *.key, and *.p12 files. Wire it into the constitution properly.",
-      "expected_output": "Three coordinated artifacts land together in one commit: (a) a new .governance/local/directives/<directive-name>/ directive folder with directive.yaml, check.sh, and constitution.md that blocks committing the listed key/cert extensions, (b) a new Directives subsection in CONSTITUTION.md describing the directive and citing INC-4117, and (c) an Evolution Log entry with today's date summarizing the amendment. The directive is tested against a seeded repo with and without a .pem file. The skill drafts, smoke-tests, and commits in one pass without asking for approval of the draft. The final summary reports the directive name, action type, smoke-test result, the commit sha+subject, and that the next step is `git push` for PR review.",
+      "expected_output": "Three coordinated artifacts land together in one commit: (a) a new .governance/packs/<owner>/<repo>/directives/<directive-name>/ directive folder with directive.yaml, check.sh, and constitution.md that blocks committing the listed key/cert extensions, (b) a new Directives subsection in CONSTITUTION.md describing the directive and citing INC-4117, and (c) an Evolution Log entry with today's date summarizing the amendment. The directive is tested against a seeded repo with and without a .pem file. The skill drafts, smoke-tests, and commits in one pass without asking for approval of the draft. The final summary reports the directive name, action type, smoke-test result, the commit sha+subject, and that the next step is `git push` for PR review.",
       "files": ["evals/files/seeded-repo/"],
       "assertions": [
-        "A new directive folder was created under .governance/local/directives/ with a name matching the directive (e.g., no-key-material/check.sh)",
+        "A new directive folder was created under .governance/packs/<owner>/<repo>/directives/ with a name matching the directive (e.g., no-key-material/check.sh)",
         "The directive check blocks at least these extensions: .pem, .key, .p12",
         "The directive check has a rationale comment naming INC-4117",
         "The directive check uses directive_start, violation, directive_end, and sources lib.sh (consistent with existing conventions)",
@@ -41,7 +41,7 @@
       "expected_output": "Three coordinated deletions/edits: the directive folder is removed, the corresponding Directives subsection is removed from CONSTITUTION.md, and an Evolution Log entry records the removal with a reason (structured logging via pino makes the directive redundant). The skill warns if any other docs or code references the removed directive by name.",
       "files": ["evals/files/repo-with-console-log-rule/"],
       "assertions": [
-        ".governance/local/directives/no-console-log no longer exists",
+        ".governance/packs/<owner>/<repo>/directives/no-console-log no longer exists",
         "The Directives section of CONSTITUTION.md no longer describes no-console-log",
         "A new Evolution Log entry dated today records the removal with the stated reason",
         "Running .governance/run.sh still exits 0 on the seeded repo after removal",
@@ -55,7 +55,7 @@
       "expected_output": "The skill recognizes that this is a health-check request, not a targeted amendment. It does not edit files, does not stage changes, and answers directly.",
       "files": ["evals/files/seeded-repo/"],
       "assertions": [
-        "No files under .governance/local/directives/ or CONSTITUTION.md were modified",
+        "No files under .governance/packs/<owner>/<repo>/directives/ or CONSTITUTION.md were modified",
         "The skill explicitly identified the request as a review/health-check rather than an amendment request",
         "The skill answered directly without staging changes"
       ]

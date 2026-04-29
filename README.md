@@ -66,7 +66,7 @@ claude
 > governance init
 ```
 
-`npx skills` auto-detects [governance/SKILL.md](governance/SKILL.md) and symlinks it into every skills-compatible runtime on your machine (`~/.claude/skills/`, `~/.codex/skills/`, `~/.cursor/skills/`, …). `governance init` bootstraps `CONSTITUTION.md`, `.governance/`, a pre-commit hook, and the `core` pack.
+`npx skills` auto-detects [governance/SKILL.md](governance/SKILL.md) and symlinks it into every skills-compatible runtime on your machine (`~/.claude/skills/`, `~/.codex/skills/`, `~/.cursor/skills/`, …). `governance init` bootstraps `CONSTITUTION.md`, `.governance/`, a pre-commit hook, and the `governance-kit/core` pack.
 
 Make a bad commit to see the gate fire:
 
@@ -94,7 +94,7 @@ governance directive {add,modify,remove}              # atomic directive amendme
 
 ### Anatomy of a directive
 
-Every directive is a self-contained folder. The minimum, here `doc-freshness` from the `core` pack:
+Every directive is a self-contained folder. The minimum, here `doc-freshness` from the `governance-kit/core` pack:
 
 ```
 doc-freshness/
@@ -116,7 +116,7 @@ The `constitution.md` carries the *why*:
 - **Rationale**: Critical runbooks and onboarding docs decay. A periodic
   "someone re-read this" checkpoint keeps them honest — if the deadline
   passes, either bump the date or fix the doc.
-- **Enforced by**: `.governance/packs/core/directives/doc-freshness/check.sh`
+- **Enforced by**: `.governance/packs/governance-kit/core/directives/doc-freshness/check.sh`
 - **Exceptions**: Remove a doc from `freshness.conf` to opt it out.
 ```
 
@@ -208,7 +208,7 @@ Those tools run hooks. governance-kit runs hooks **and** carries the rationale, 
 
 ## Contributing
 
-See [AGENTS.md](AGENTS.md) for repo layout, how to add directives to the `core` pack, and the dogfooding setup. One-time-per-clone:
+See [AGENTS.md](AGENTS.md) for repo layout, how to add directives to the `governance-kit/core` pack, and the dogfooding setup. One-time-per-clone:
 
 ```sh
 ./scripts/setup-clone.sh   # sets core.hooksPath=.githooks

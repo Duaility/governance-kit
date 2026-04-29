@@ -193,15 +193,24 @@ def validate_pack_dir(pack_dir: Path) -> list[str]:
     for field in PACK_FIELDS:
         if field not in manifest or manifest.get(field) in (None, ""):
             errors.append(f"{pack_dir}: pack.yaml missing required field {field!r}")
-    # Unscoped ids (e.g. `core`) must match the directory name. Scoped community
-    # ids (`<author>/<slug>`) match against the slug portion — the author
-    # namespace doesn't need to surface in the filesystem layout.
+    # Pack ids are always scoped `<author>/<slug>` so installed copies land at
+    # `.governance/packs/<author>/<slug>/`, mirroring the pack's GitHub
+    # `<owner>/<name>` identity. The directory name on the kit-source side is
+    # the slug half — the author namespace lives only in the pack id and the
+    # installed-target layout. Reject unscoped ids; they would install to a
+    # one-segment path and silently keep the old pre-v2 namespace alive.
     if pack_id:
-        expected = pack_id.split("/", 1)[-1] if "/" in pack_id else pack_id
-        if expected != pack_dir.name:
+        if "/" not in pack_id:
             errors.append(
-                f"{pack_dir}: pack id {pack_id!r} does not match directory name {pack_dir.name!r}"
+                f"{pack_dir}: pack id {pack_id!r} must be scoped as '<author>/<slug>' "
+                f"(e.g. 'acme/{pack_dir.name}')"
             )
+        else:
+            expected = pack_id.split("/", 1)[-1]
+            if expected != pack_dir.name:
+                errors.append(
+                    f"{pack_dir}: pack id {pack_id!r} does not match directory name {pack_dir.name!r}"
+                )
 
     min_kit = scalar(manifest.get("min_governance_kit"))
     if min_kit and not kit_supports(min_kit):
@@ -258,8 +267,8 @@ def validate_pack_dir(pack_dir: Path) -> list[str]:
             errors.append(
                 f"{pack_dir}/{directive_id}: unknown requires_hook_strategy value {hook_strategy!r}"
             )
-        if directive.get("always_install") is True and pack_id != "core":
-            errors.append(f"{pack_dir}/{directive_id}: always_install: true is reserved to the core pack")
+        if directive.get("always_install") is True and pack_id != "governance-kit/core":
+            errors.append(f"{pack_dir}/{directive_id}: always_install: true is reserved to the governance-kit/core pack")
         for capability in CAPABILITY_FIELDS:
             if capability not in directive:
                 continue

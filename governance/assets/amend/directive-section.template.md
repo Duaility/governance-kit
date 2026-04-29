@@ -2,7 +2,7 @@
 
 - **Directive**: <one-sentence present-tense statement of what code must or must not do>.
 - **Rationale**: <why this matters — link to the incident, policy, or constraint that motivates it>.
-- **Enforced by**: `.governance/local/directives/<directive-name>/check.sh`
+- **Enforced by**: `.governance/packs/<pack-owner>/<pack-name>/directives/<directive-name>/check.sh`
 - **Exceptions**: <one of:
     - `none` — no deviations allowed.
     - `Waiver comment: # governance: allow-<directive-name> <ticket-id>` — approved deviation, per-line.

@@ -13,7 +13,7 @@ Agents and humans working in this repo must read and follow this document. Mecha
 
 ### no-console-log
 **Directive.** No `console.log` / `console.debug` calls in tracked `.ts` / `.tsx` / `.js` / `.jsx` files.
-**Enforced by.** `.governance/local/directives/no-console-log/check.sh`
+**Enforced by.** `.governance/packs/acme/repo-with-console-log-rule/directives/no-console-log/check.sh`
 **Waivers.** `// governance: allow-no-console-log <TICKET>` on the offending line.
 
 ## Evolution Log

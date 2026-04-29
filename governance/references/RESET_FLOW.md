@@ -56,7 +56,7 @@ Run in parallel:
 - `git rev-parse --show-toplevel` — confirm we're inside a git repo; capture the root.
 - Read `<root>/.governance/installed-packs.yaml`. Schema in [MANIFEST_SCHEMA.md](MANIFEST_SCHEMA.md).
 - Check for `<root>/CONSTITUTION.md`.
-- Check for `<root>/.governance/local/directives/`.
+- Check for `<root>/.governance/packs/<owner>/<repo>/directives/`.
 - Read `<root>/.governance/packs.lock` if present. Schema in [PACK_VERBS.md](PACK_VERBS.md).
 
 If the manifest is missing, stop. Reset is **manifest-driven** — the
@@ -85,7 +85,7 @@ Build the in-scope directive set:
 | `--all` | Every directive in `manifest.packs[*].directives[*].id` across every pack. |
 
 Build the **hand-authored set** by scanning
-`.governance/local/directives/<id>/` for any folder whose `<id>` does
+`.governance/packs/<owner>/<repo>/directives/<id>/` for any folder whose `<id>` does
 **not** appear under any `manifest.packs[*].directives[*].id`. These
 are the directives a user added via `governance directive add`.
 
@@ -103,7 +103,7 @@ hand-authored directives in scope").
 For each pack-sourced directive in scope:
 
 1. Look up the pack id and the directive id in the manifest.
-2. **`core` pack** — pristine source is the kit-bundled tree at
+2. **`governance-kit/core` pack** — pristine source is the kit-bundled tree at
    `${KIT_ROOT}/governance/assets/packs/core/directives/<directive-id>/`.
    `KIT_ROOT` is the governance-kit checkout that is supplying the
    skill (resolve from the symlink target, not the consumer repo).
@@ -121,7 +121,7 @@ them `kind: drop`.
 
 For each pack-sourced directive, also compute:
 
-- The byte-diff between the installed `.governance/local/directives/<id>/`
+- The byte-diff between the installed `.governance/packs/<owner>/<repo>/directives/<id>/`
   and the pristine source (excluding `evals/`, which is not
   installed). If empty, mark the directive `kind: skip` and
   surface that in the report.
@@ -183,7 +183,7 @@ so confirmation is part of the help.
 For each directive marked `kind: restore`, in order:
 
 1. **Replace the directive folder.** Remove
-   `.governance/local/directives/<id>/` and copy the pristine
+   `.governance/packs/<owner>/<repo>/directives/<id>/` and copy the pristine
    `directives/<id>/` from the source resolved in Step 3, minus the
    `evals/` directory. This mirrors `install_directive_folder` from
    `governance/assets/packs/lib/install.sh` — same contract, same
@@ -201,7 +201,7 @@ For each directive marked `kind: restore`, in order:
 For each directive marked `kind: drop` (only present under
 `--all --drop-handauthored`), in order:
 
-1. `rm -rf .governance/local/directives/<id>/`.
+1. `rm -rf .governance/packs/<owner>/<repo>/directives/<id>/`.
 2. Strip the matching subsection from `CONSTITUTION.md`. If no
    subsection is found, note it in the report.
 

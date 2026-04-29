@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # scripts/test.sh — umbrella entrypoint for every test that covers the kit's
-# own product code. Wired into both local git hooks (via the kit-tests-pass
-# directive in .governance/local/) and the CI workflow.
+# own product code. Wired into both local git hooks (via the
+# pre-commit-test-gate directive in .governance/packs/duaility/governance-kit/)
+# and the CI workflow.
 #
 # Layers:
 #   1. test-packctl.py     — packctl.py library + CLI (preset, validation)

@@ -94,7 +94,7 @@ def test_validate_pack_dir_flags_id_directory_mismatch() -> None:
         pack = make_pack(
             Path(tmp),
             pack_yaml=textwrap.dedent("""\
-                id: not-demo
+                id: acme/not-demo
                 name: D
                 version: "0.1"
                 min_governance_kit: "0.1"
@@ -106,6 +106,28 @@ def test_validate_pack_dir_flags_id_directory_mismatch() -> None:
         )
         errors = pkt.validate_pack_dir(pack)
         assert any("does not match directory name" in e for e in errors)
+
+
+def test_validate_pack_dir_rejects_unscoped_pack_id() -> None:
+    """Pack ids must be `<author>/<slug>`. An unscoped id (no `/`) is rejected
+    so installed packs always land at `.governance/packs/<owner>/<name>/`."""
+    pkt = load_packctl()
+    with tempfile.TemporaryDirectory() as tmp:
+        pack = make_pack(
+            Path(tmp),
+            pack_yaml=textwrap.dedent("""\
+                id: demo
+                name: D
+                version: "0.1"
+                min_governance_kit: "0.1"
+                description: d
+                author: T
+                presets: {}
+            """),
+            directives={},
+        )
+        errors = pkt.validate_pack_dir(pack)
+        assert any("must be scoped" in e for e in errors), "\n".join(errors)
 
 
 def test_validate_pack_dir_accepts_scoped_id_against_slug() -> None:
@@ -134,7 +156,7 @@ def test_validate_pack_dir_rejects_min_kit_newer_than_installed() -> None:
         pack = make_pack(
             Path(tmp),
             pack_yaml=textwrap.dedent("""\
-                id: demo
+                id: acme/demo
                 name: D
                 version: "0.1"
                 min_governance_kit: "999.0"
@@ -156,7 +178,7 @@ def test_validate_pack_dir_flags_preset_referencing_unknown_directive() -> None:
         pack = make_pack(
             Path(tmp),
             pack_yaml=textwrap.dedent("""\
-                id: demo
+                id: acme/demo
                 name: D
                 version: "0.1"
                 min_governance_kit: "0.1"
@@ -206,7 +228,7 @@ def test_validate_pack_dir_rejects_always_install_outside_core() -> None:
         renamed = pack.parent / "not-core"
         pack.rename(renamed)
         errors = pkt.validate_pack_dir(renamed)
-        assert any("always_install: true is reserved to the core pack" in e for e in errors)
+        assert any("always_install: true is reserved to the governance-kit/core pack" in e for e in errors)
 
 
 def test_validate_pack_dir_flags_unknown_hook_value() -> None:
@@ -215,7 +237,7 @@ def test_validate_pack_dir_flags_unknown_hook_value() -> None:
         pack = make_pack(
             Path(tmp),
             pack_yaml=textwrap.dedent("""\
-                id: demo
+                id: acme/demo
                 name: D
                 version: "0.1"
                 min_governance_kit: "0.1"
@@ -247,7 +269,7 @@ def test_validate_pack_dir_flags_unknown_surface_value() -> None:
         pack = make_pack(
             Path(tmp),
             pack_yaml=textwrap.dedent("""\
-                id: demo
+                id: acme/demo
                 name: D
                 version: "0.1"
                 min_governance_kit: "0.1"
@@ -279,7 +301,7 @@ def test_validate_pack_dir_requires_constitution_to_reference_check_path() -> No
         pack = make_pack(
             Path(tmp),
             pack_yaml=textwrap.dedent("""\
-                id: demo
+                id: acme/demo
                 name: D
                 version: "0.1"
                 min_governance_kit: "0.1"
@@ -311,7 +333,7 @@ def test_validate_pack_dir_flags_non_executable_check_sh() -> None:
         pack = make_pack(
             Path(tmp),
             pack_yaml=textwrap.dedent("""\
-                id: demo
+                id: acme/demo
                 name: D
                 version: "0.1"
                 min_governance_kit: "0.1"

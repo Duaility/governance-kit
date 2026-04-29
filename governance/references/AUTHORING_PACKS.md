@@ -22,7 +22,7 @@ Directives are **atoms**. Each directive is a self-contained folder that owns it
 
 Adding, moving, deleting, or shipping a directive to another pack is a single `git mv` of its folder. The folder name **is** the directive id — there is no separate registry to update.
 
-Kit-bundled packs (today: `core`) live under `governance/assets/packs/<pack>/`. Community-shaped packs that ship alongside the kit live under `extensions/packs/<slug>/` — `<slug>` is the slug half of a scoped `<author>/<slug>` id. Out-of-tree packs live anywhere the bootstrap skill is pointed at.
+Kit-bundled packs (today: `governance-kit/core`) live under `governance/assets/packs/<pack>/`. Community-shaped packs that ship alongside the kit live under `extensions/packs/<slug>/` — `<slug>` is the slug half of a scoped `<author>/<slug>` id. Out-of-tree packs live anywhere the bootstrap skill is pointed at.
 
 ## `pack.yaml` schema
 
@@ -32,7 +32,7 @@ Kit-bundled packs (today: `core`) live under `governance/assets/packs/<pack>/`. 
 
 | Field | Required | Notes |
 |---|---|---|
-| `id` | yes | Pack id. Kit-bundled packs (e.g. `core`) use a flat id that matches the directory name. Community packs — whether monorepo-hosted under `extensions/packs/` or out-of-tree — use a scoped id of the form `<author>/<slug>` (e.g. `duaility/agent-governance`); the validator accepts these when the slug half matches the directory name. The scoped form prevents collisions across the community catalog. |
+| `id` | yes | Pack id. Kit-bundled packs (e.g. `governance-kit/core`) use a flat id that matches the directory name. Community packs — whether monorepo-hosted under `extensions/packs/` or out-of-tree — use a scoped id of the form `<author>/<slug>` (e.g. `duaility/agent-governance`); the validator accepts these when the slug half matches the directory name. The scoped form prevents collisions across the community catalog. |
 | `name` | yes | Human label shown in the pack-selection screen. |
 | `version` | yes | SemVer-ish string, e.g. `"0.1"`. Stamped into hook ownership markers. |
 | `min_governance_kit` | yes | Minimum `governance-kit` version the pack depends on. Validated against the kit's built-in `KIT_VERSION` constant (`governance/assets/packs/lib/packctl.py`). Packs declaring a minimum newer than the installed kit are rejected at install. |
@@ -83,7 +83,7 @@ writes: []                      # optional; most directives are read-only
 | `summary` | Shown next to the id in the multi-select picker. Keep it to one line. |
 | `surface` | `repo-state` for directives that inspect the tree at rest; `change-set` for directives that inspect a specific commit or diff. Documented for the authoring guardrail (see DIRECTIVES_CATALOG.md). |
 | `hook` | Hook kind the directive wants to run in. Drives dispatcher generation. Use `none` only if the directive runs exclusively in CI. |
-| `always_install` | Reserved to `core`. Skips the menu. If you need an unconditionally installed directive in a third-party pack, file an issue first — the guarantee only holds for `core`. |
+| `always_install` | Reserved to `governance-kit/core`. Skips the menu. If you need an unconditionally installed directive in a third-party pack, file an issue first — the guarantee only holds for `governance-kit/core`. |
 | `requires_hook_strategy` | Optional environment filter. Use this for directives whose check is only meaningful under one hook strategy — e.g. a directive asserting `.githooks/` scaffolding would declare `requires_hook_strategy: githooks` so it is skipped for husky/pre-commit.com repos. |
 | `reads` / `writes` | Optional capability declaration. List of path globs the directive's `check.sh` inspects (`reads`) or mutates (`writes`) relative to the target repo root. Most directives declare a short `reads:` list and an empty `writes:` — governance directives are overwhelmingly read-only. The schema is validated at install time (each entry must be a non-empty string); semantic enforcement (refusing install when a directive reaches outside its declared bounds) is scheduled for the `governance pack add` verb. Declare capabilities now so community packs are forward-compatible. |
 
@@ -179,7 +179,7 @@ Directives with external dependencies (Python libraries, per-runtime helpers, ho
 At activation the bootstrap skill:
 
 1. Discovers every `pack.yaml` under its asset tree (and optional external paths).
-2. Offers pack selection (`core` is pre-selected and locked).
+2. Offers pack selection (`governance-kit/core` is pre-selected and locked).
 3. Offers a preset (`minimal` / `standard` / `strict`) and per-category multi-selects for the remaining directives.
 4. Computes `always_install ∪ preset_rules ∪ user_selections` across the selected packs.
 5. Applies environment filters such as `requires_hook_strategy`.
@@ -204,4 +204,4 @@ From the `governance-kit` root:
 bash scripts/test-packs.sh
 ```
 
-This walks every pack, validates each directive folder, bootstraps `core.standard` into a fresh repo and runs its installed governance suite, runs every `directives/<directive>/evals/test.sh`, and smoke-tests hook generation for the union of all directives. Every directive must have at least one pass and one fail fixture; test-packs fails if an eval is missing.
+This walks every pack, validates each directive folder, bootstraps `governance-kit/governance-kit/core.standard` into a fresh repo and runs its installed governance suite, runs every `directives/<directive>/evals/test.sh`, and smoke-tests hook generation for the union of all directives. Every directive must have at least one pass and one fail fixture; test-packs fails if an eval is missing.

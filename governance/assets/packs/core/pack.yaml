@@ -11,7 +11,7 @@
 # optional `evals/`. This file carries only pack-level identity and the
 # presets that select directives by id.
 
-id: core
+id: governance-kit/core
 name: Core governance directives
 version: "0.1"
 min_governance_kit: "0.1"

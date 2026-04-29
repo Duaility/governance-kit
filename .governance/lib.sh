@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
 # Shared helpers for governance directive tests.
-# Source this from every directive's check.sh. The relative path depends on depth:
-#   .governance/local/directives/<id>/check.sh
-#     source "$(dirname "$0")/../../../lib.sh"
-#   .governance/packs/<pack-id>/directives/<id>/check.sh
-#     source "$(dirname "$0")/../../../../lib.sh"
-#   .governance/packs/<author>/<pack-slug>/directives/<id>/check.sh
-#     source "$(dirname "$0")/../../../../../lib.sh"
+# Source this from every directive's check.sh. Packs always live two levels
+# deep, so directives at `.governance/packs/<owner>/<name>/directives/<id>/check.sh`
+# reach lib.sh with five `..` segments:
+#   source "$(dirname "$0")/../../../../../lib.sh"
 
 set -u
 

@@ -2,7 +2,18 @@
 
 # governance pack * — verb flows
 
-Authoritative flow for the `governance pack {search,add,update,remove,list}` verbs. The unified `governance` skill dispatches to these flows; the supporting helpers live in `governance/assets/packs/lib/packverb.py` (and reuse pack/directive manifest loaders from `packctl.py`).
+Authoritative flow for the `governance pack {search,create,add,update,remove,list}` verbs. The unified `governance` skill dispatches to these flows; the supporting helpers live in `governance/assets/packs/lib/packverb.py` (and reuse pack/directive manifest loaders from `packctl.py`).
+
+## Pack identity
+
+Every pack — kit-bundled, community-installed, or hand-authored in this repo — lives at `.governance/packs/<owner>/<name>/` mirroring its GitHub identity at `github.com/<owner>/<name>`. Two-level on disk, no exceptions.
+
+**Installed vs local.** Packs are distinguished only by their `pack.yaml`:
+
+- **Installed packs** carry a `source:` (or are recorded in `.governance/packs.lock`). The pack came from a fetched ref and `pack update` will re-pin it.
+- **Repo-local packs** have no `source:` field and no lockfile entry. Their content was hand-authored in this repo. `pack update` skips them.
+
+The runner walks `.governance/packs/*/*/directives/*/check.sh` uniformly — it does not branch on installed-vs-local.
 
 ## Common concepts
 
@@ -33,7 +44,7 @@ packs:
       - soc2-retention
 ```
 
-**`core` is not recorded here** — it ships in-tree and its directives are owned by the install manifest (`.governance/installed-packs.yaml`). The lockfile is the community-pack pin record; together they cover every installed directive.
+**`governance-kit/core` is not recorded here** — it ships in-tree and its directives are owned by the install manifest (`.governance/installed-packs.yaml`). Repo-local packs (no `source:` in their `pack.yaml`) are also not recorded here — there is no upstream to pin. The lockfile is the community-pack pin record; together with the install manifest it covers every installed directive.
 
 Lockfile I/O goes through `packverb lock-{read,add,remove,list}`. Never hand-edit — the canonical key order and timestamp format are set by the helper.
 
@@ -56,6 +67,29 @@ During `pack add`, every directive in the fetched pack is capability-checked bef
 3. Render the table to the user.
 
 If `query` is omitted, print the full catalog. If the catalog file is missing, fall back to telling the user no catalog is available.
+
+## `pack create <name>`
+
+Scaffolds an empty repo-local pack at `.governance/packs/<repo-owner>/<name>/` for hand-authored team-scoped directives. `<repo-owner>` is read from the top-level `owner:` field in `.governance/installed-packs.yaml` (set at `governance init` from the GitHub origin remote, or via `--owner` if `init` couldn't auto-detect).
+
+1. **Pre-flight.** Refuse if `.governance/installed-packs.yaml` is absent (run `governance init` first), if a pack already exists at the target path, or if `<name>` is not a slug-safe lowercase token (`^[a-z0-9][a-z0-9._-]*$`).
+2. **Resolve the target path.** Read the manifest's `owner:`. Compute the install path `.governance/packs/<owner>/<name>/`.
+3. **Scaffold.** Create the directory and write a minimal `pack.yaml`:
+
+   ```yaml
+   id: <owner>/<name>
+   name: <human-readable name>
+   version: "0.1"
+   min_governance_kit: "0.2"
+   description: <one-line description>
+   author: <owner>
+   ```
+
+   No `source:` field — that is the marker that distinguishes a repo-local pack from an installed one. Also create an empty `directives/` subdirectory.
+
+4. **Report.** Tell the user the pack is empty and that `governance directive add --pack <owner>/<name> <id>` is the next step.
+
+`pack create` does **not** edit `.governance/installed-packs.yaml` or any hook scripts — the pack has no directives yet, so nothing to register or wire. The first `directive add --pack <owner>/<name>` is the step that adds the pack block to the manifest and regenerates hooks.
 
 ## `pack add <ref>`
 
@@ -80,7 +114,7 @@ Failure modes: any step 2–5 fails → abort with the fetched cache entry intac
 
 ## `pack update [<pack-id>]`
 
-Default target: every lockfile entry. With a `<pack-id>` argument, update only that pack.
+Default target: every lockfile entry. With a `<pack-id>` argument, update only that pack. Repo-local packs (no `source:` in `pack.yaml`) are silently skipped — they have no upstream to re-pin.
 
 > Distinct from `governance reset --pack <id>`: `pack update` re-pins to a **newer** SHA (picks up upstream changes); `reset` restores to the **currently pinned** SHA (undoes local drift). Reach for `pack update` when the user wants newer rules, `reset` when they want pristine ones. See [RESET_FLOW.md](RESET_FLOW.md).
 
@@ -91,22 +125,27 @@ Default target: every lockfile entry. With a `<pack-id>` argument, update only t
 
 ## `pack remove <pack-id>`
 
-1. Read `.governance/installed-packs.yaml` and `.governance/packs.lock`; confirm the pack id exists in both.
+Works on both installed and repo-local packs.
+
+1. Read `.governance/installed-packs.yaml` (and `.governance/packs.lock` when the pack is installed); confirm the pack id is present.
 2. List the directives the manifest attributes to this pack. Preview to the user which directive folders will be deleted.
 3. On confirmation, for each directive:
    - `rm -rf .governance/packs/<pack-id>/directives/<directive-id>/`
    - Remove the directive's subsection from `CONSTITUTION.md` if present (ownership marker guarded — same discipline as `governance uninstall`).
-4. Regenerate the hook dispatcher so removed directives are no longer invoked.
-5. `packverb lock-remove .governance/packs.lock <pack-id>`.
-6. Rewrite the installed-packs manifest without the pack block.
+4. Remove the pack's `pack.yaml` (and the now-empty `<owner>/<name>/` directory).
+5. Regenerate the hook dispatcher so removed directives are no longer invoked.
+6. For installed packs only: `packverb lock-remove .governance/packs.lock <pack-id>`.
+7. Rewrite the installed-packs manifest without the pack block.
 
-Never remove `core` — it is not recorded in the lockfile and has no `pack remove` path. Removing `core` directives is done with `governance directive remove <id>` instead.
+Never remove `governance-kit/core` — it is not recorded in the lockfile and has no `pack remove` path. Removing `governance-kit/core` directives is done with `governance directive remove <id>` instead.
 
 ## `pack list`
 
-1. If `.governance/packs.lock` exists, `packverb lock-list <lockfile>` — prints `<id>\t<sha>\t<ref>`.
-2. Also print the `core` pack line from `.governance/installed-packs.yaml` so the user sees the full picture.
-3. If neither file exists, tell the user there are no installed packs and suggest `governance init`.
+1. Walk `.governance/packs/*/*/pack.yaml` and group by source vs local (presence of `source:` or a matching lockfile entry).
+2. For installed packs, `packverb lock-list <lockfile>` — prints `<id>\t<sha>\t<ref>`.
+3. For `governance-kit/core`, print its pack-id line from `.governance/installed-packs.yaml`.
+4. For repo-local packs, print `<id>\t(local)`.
+5. If `.governance/installed-packs.yaml` is missing, tell the user there is no governance setup and suggest `governance init`.
 
 ## Error discipline
 

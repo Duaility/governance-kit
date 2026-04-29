@@ -33,7 +33,7 @@ Direct alternatives all break under squash:
 What works: durable rows in `STEERING.md` keyed by `steer-key`, with the row
 → commit join carried by the `commit |` column, plus a per-commit summary
 trailer triple cross-checked by
-`.governance/local/directives/agent-steering-accounting/check.sh`.
+`.governance/packs/<owner>/<repo>/directives/agent-steering-accounting/check.sh`.
 
 ## Trailer schema
 
@@ -208,12 +208,12 @@ pack. Manual install:
 
 ```sh
 cp -r <governance-kit>/extensions/packs/agent-governance/directives/agent-steering-accounting \
-      .governance/local/directives/
+      .governance/packs/<owner>/<repo>/directives/
 cp    <governance-kit>/extensions/packs/agent-governance/directives/agent-steering-accounting/install-assets/STEERING.md \
       STEERING.md
-chmod +x .governance/local/directives/agent-steering-accounting/check.sh \
-         .governance/local/directives/agent-steering-accounting/hooks/*.sh \
-         .governance/local/directives/agent-steering-accounting/runtimes/*.sh
+chmod +x .governance/packs/<owner>/<repo>/directives/agent-steering-accounting/check.sh \
+         .governance/packs/<owner>/<repo>/directives/agent-steering-accounting/hooks/*.sh \
+         .governance/packs/<owner>/<repo>/directives/agent-steering-accounting/runtimes/*.sh
 ```
 
 Then add an `agent-steering-accounting` Directives subsection to
@@ -228,7 +228,7 @@ is `python3` on `$PATH`.
 git commit -m "feat: x (#13)"
       │
       ▼
-pre-commit ──► .governance/local/directives/agent-steering-accounting/hooks/pre-commit.sh
+pre-commit ──► .governance/packs/<owner>/<repo>/directives/agent-steering-accounting/hooks/pre-commit.sh
       │          1. Detect runtime (CLAUDECODE=1 → claude-code; future: codex).
       │          2. Resolve session id + transcript via runtimes/<runtime>.sh.
       │          3. Walk parent argv to recover the (#N) issue anchor + subject.
@@ -257,7 +257,7 @@ prepare-commit-msg ──► sources the handoff env if present, stamps the
                        contract holds for every commit.
       │
       ▼
-commit-msg ──► .governance/local/directives/agent-steering-accounting/check.sh <msg>
+commit-msg ──► .governance/packs/<owner>/<repo>/directives/agent-steering-accounting/check.sh <msg>
                   Mode A. Cross-checks:
                     - every in-scope commit carries the full summary triple
                     - Steer-Count equals the count of rows the commit adds
@@ -308,5 +308,5 @@ install step is the only gate.
   different transcript parser; the CLI hook in `_detect_cli` already picks
   up `codex` when present.
 - Cross-session aggregation / dashboards.
-- Inclusion in `core` pack or any default preset.
+- Inclusion in `governance-kit/core` pack or any default preset.
 - Backfilling historical steering events from old session JSONLs.

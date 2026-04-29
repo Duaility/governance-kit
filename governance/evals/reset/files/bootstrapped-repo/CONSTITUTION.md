@@ -17,14 +17,14 @@ This document is the source of truth for the directives that govern development 
 
 - **Directive**: A `CONSTITUTION.md` exists at the repo root, is non-empty, and has at least 10 lines.
 - **Rationale**: Governance without a discoverable source of truth is tribal knowledge.
-- **Enforced by**: `.governance/local/directives/constitution-exists/check.sh`
+- **Enforced by**: `.governance/packs/acme/bootstrapped-repo/directives/constitution-exists/check.sh`
 - **Exceptions**: none.
 
 ### no-secrets
 
 - **Directive**: No tracked file contains AWS / GCP / GitHub / Slack / Stripe / private-key patterns.
 - **Rationale**: A committed secret is a compromised secret.
-- **Enforced by**: `.governance/local/directives/no-secrets/check.sh`
+- **Enforced by**: `.governance/packs/acme/bootstrapped-repo/directives/no-secrets/check.sh`
 - **Exceptions**: Annotate intentional fixture strings with `# governance: allow-secret <reason>` on the same line.
 
 ## Evolution Log

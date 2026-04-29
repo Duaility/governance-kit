@@ -29,10 +29,11 @@
 #       post-commit, and pre-push. The spec file is still accepted so callers can
 #       validate the selected install set before generation, but generated
 #       hooks do not bake in selected directive ids. They scan installed
-#       `.governance/packs/*/directives/<id>/directive.yaml` and
-#       `.governance/local/directives/<id>/directive.yaml` files on every
-#       invocation. This keeps user-owned post-install amendments working
-#       without perfect hook regeneration.
+#       `.governance/packs/<owner>/<name>/directives/<id>/directive.yaml`
+#       files on every invocation, including hand-authored repo-local packs
+#       (which are just packs without a `source:` in their `pack.yaml`).
+#       This keeps user-owned post-install amendments working without
+#       perfect hook regeneration.
 #
 #         <directive-id>\t<hook>\t<surface>\t<directive-folder>
 #
@@ -142,10 +143,7 @@ directive_dirs_for_hook() {
                 ;;
         esac
     done < <(
-        {
-            [[ -d "$GOVERNANCE_DIR/packs" ]] && find "$GOVERNANCE_DIR/packs" -type d -path '*/directives/*'
-            [[ -d "$GOVERNANCE_DIR/local/directives" ]] && find "$GOVERNANCE_DIR/local/directives" -mindepth 1 -maxdepth 1 -type d
-        } | sort
+        [[ -d "$GOVERNANCE_DIR/packs" ]] && find "$GOVERNANCE_DIR/packs" -type d -path '*/directives/*' | sort
     )
 }
 HEADER

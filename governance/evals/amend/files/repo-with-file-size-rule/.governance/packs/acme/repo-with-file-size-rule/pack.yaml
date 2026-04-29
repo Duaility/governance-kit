@@ -1,0 +1,6 @@
+id: acme/repo-with-file-size-rule
+name: Repo-local directives
+version: "0.1"
+min_governance_kit: "0.2"
+description: Hand-authored directives for the repo-with-file-size-rule eval fixture.
+author: acme

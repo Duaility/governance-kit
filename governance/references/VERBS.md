@@ -13,7 +13,7 @@ full rearchitecture context.
 - **Assets used:**
   - `../assets/CONSTITUTION.template.md`
   - `../assets/AGENTS.directive.md`
-  - `../assets/packs/` (kit-bundled pack tree — today: `core` plus the shared `lib/`)
+  - `../assets/packs/` (kit-bundled pack tree — today: `governance-kit/core` plus the shared `lib/`)
   - `../../extensions/packs/` (monorepo of community-shaped packs — today: `duaility/agent-governance`)
   - `../assets/dot-governance/`
   - `../assets/governance.yml`
@@ -37,7 +37,7 @@ full rearchitecture context.
 - **Scopes (exactly one required):** `--directive <id>`, `--pack <id>`, `--all`.
 - **Flags:** `--drop-handauthored` (only with `--all`), `--dry-run`, `--force` (override the dirty-working-tree refusal).
 - **Authoritative flow:** [RESET_FLOW.md](RESET_FLOW.md) Steps 1–7.
-- **Pinned, not latest.** Reset restores to the SHA in `.governance/packs.lock` (or the kit-bundled `core` tree). For newer upstream content use `pack update`.
+- **Pinned, not latest.** Reset restores to the SHA in `.governance/packs.lock` (or the kit-bundled `governance-kit/core` tree). For newer upstream content use `pack update`.
 - **Hand-authored is preserved by default.** Pass `--drop-handauthored` to delete user-added directives that have no pristine source.
 - **Diff-before-exec.** Per-directive diff is shown before any file is written.
 - **One atomic commit.** Conventional-commit subject + Evolution Log entry, same discipline as `directive *`.

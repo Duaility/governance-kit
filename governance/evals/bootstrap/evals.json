@@ -10,7 +10,7 @@
         "The skill detected both Python and TypeScript/JS before proposing directives (visible in its summary or in which directives it enabled)",
         "The skill surfaced a preset choice or clearly stated the assumed preset before installing directives",
         ".governance/run.sh exists and is executable",
-        ".governance/local/directives/ contains at least one directive folder with directive.yaml and check.sh per enabled category",
+        ".governance/packs/<owner>/<repo>/directives/ contains at least one directive folder with directive.yaml and check.sh per enabled category",
         ".governance/lib.sh exists and defines directive_start, violation, directive_end, has_waiver",
         ".githooks/pre-commit exists, is executable, and honors SKIP_GOVERNANCE=1 when the repo uses the default hook strategy",
         ".githooks/commit-msg exists and rejects messages that don't match Conventional Commits when that directive was enabled under the default hook strategy",
@@ -29,7 +29,7 @@
       "files": ["evals/files/already-bootstrapped-repo/"],
       "assertions": [
         "The skill did NOT overwrite the pre-existing .governance/run.sh",
-        "The skill did NOT overwrite the pre-existing .governance/local/directives/ directive folders",
+        "The skill did NOT overwrite the pre-existing .governance/packs/<owner>/<repo>/directives/ directive folders",
         "The skill explicitly acknowledged the existing setup in its user-facing output (e.g., 'governance already bootstrapped' or similar)",
         "The skill either exited cleanly or pointed the user to governance-amend for incremental changes",
         "No new CONSTITUTION.md was written over an existing one"
@@ -41,9 +41,9 @@
       "expected_output": "The Security category directives (no-secrets, dotenv-gitignored, security-md-exists, workflows-hardened) are enabled. Go-specific directives are chosen over Python/JS-specific ones. Stylistic directives are NOT enabled. The skill's summary explains which categories were included and which were deliberately dropped.",
       "files": ["evals/files/go-service-repo/"],
       "assertions": [
-        ".governance/local/directives/no-secrets/check.sh exists",
-        ".governance/local/directives/dotenv-gitignored/check.sh exists or was explicitly skipped with a reason (Go services often don't use .env)",
-        ".governance/local/directives/workflows-hardened/check.sh exists",
+        ".governance/packs/<owner>/<repo>/directives/no-secrets/check.sh exists",
+        ".governance/packs/<owner>/<repo>/directives/dotenv-gitignored/check.sh exists or was explicitly skipped with a reason (Go services often don't use .env)",
+        ".governance/packs/<owner>/<repo>/directives/workflows-hardened/check.sh exists",
         "No directive folders targeting Python-only or JS-only patterns (e.g., no-pdb, no-console-log) were installed",
         "The skill's summary explicitly names the Security category or an equivalent preset-derived directive set as enabled",
         ".governance/run.sh exits 0 on the seeded clean Go repo"

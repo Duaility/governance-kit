@@ -1,0 +1,6 @@
+id: acme/already-bootstrapped-repo
+name: Repo-local directives
+version: "0.1"
+min_governance_kit: "0.2"
+description: Hand-authored directives for the already-bootstrapped-repo eval fixture.
+author: acme
