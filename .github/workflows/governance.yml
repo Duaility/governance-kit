@@ -21,6 +21,14 @@ jobs:
       - name: Run bash governance directives
         run: bash .governance/run.sh
 
+      - name: Install uv (required by scripts/test.sh — packctl/packverb run via `uv run --with PyYAML`)
+        if: hashFiles('scripts/test.sh') != ''
+        run: pip install uv
+
+      - name: Run kit-internal test umbrella
+        if: hashFiles('scripts/test.sh') != ''
+        run: bash scripts/test.sh
+
       # Native test runners (pytest / jest / go test) are an opt-in users add
       # post-init by following governance/references/NATIVE_TESTS.md. They are
       # not scaffolded by `governance init` — governance is a meta-layer over
