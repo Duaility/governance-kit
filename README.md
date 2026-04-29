@@ -197,7 +197,6 @@ The chain — **issue → receipt → commit → cost** — turned into mechanic
 | `issues-tracked` | `QUALITY.md` exists at repo root with `## Open` and `## Resolved` sections. | standard |
 | `receipt-per-issue` | Every `receipts/*.md` has a unique `issue-<N>` filename token, the four required sections, and each `- [x]` checklist item crosswalks into `## What changed` or `## Verification`. | minimal |
 | `commit-issue-receipt-match` | Every non-merge commit's issue anchor (`(#N)` or `Issue: #N`) matches an `issue-<N>` token on a touched receipt. | minimal |
-| `pr-review-required-when-pr-ready` | When the branch has an open PR that is **not in draft state** (marked ready for review), the PR must carry a codex-authored review (body contains `<!-- codex-review -->`). Trigger is GitHub's draft → ready transition (`gh pr ready`). **Local-only** — skipped in CI. | standard |
 | `agent-token-accounting` | Every commit carries token + cost trailers and a matching `COSTS.md` row keyed by `Cost-Key`. | standard |
 | `agent-steering-accounting` | Every agent-authored commit stamps `Steer-Count` / `Steer-Types` / `Steer-Tiers` and appends rows to `STEERING.md`. **Opt-in — not in any preset**, because it records human correction text verbatim. | — |
 
