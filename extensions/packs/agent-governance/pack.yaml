@@ -38,7 +38,6 @@ presets:
       - issue-templates
       - issues-tracked
       - agent-token-accounting
-      - pr-review-required-when-pr-ready
   strict:
     extends: standard
     directives: []

@@ -321,7 +321,6 @@ EOF
 
     write_installed_manifest "$fresh_tmp" \
         --hook-strategy githooks \
-        --stack bash \
         --agents-md-directive \
         -- "${installed_pairs[@]}"
 

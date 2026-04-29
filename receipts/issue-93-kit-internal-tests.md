@@ -1,0 +1,46 @@
+# Issue 93: Comprehensive Kit-Internal Test Coverage + Local Pre-Commit + CI Gates
+
+## Checklist
+
+- [x] Add scripts/test-packctl.py covering preset resolution, CLI subcommands; split validate_pack_dir tests into scripts/test-packctl-validate.py to satisfy the repo-hygiene 500-line file limit.
+- [x] Expand scripts/test-packverb.py covering ref parsing, capability glob, lockfile round-trip, catalog search.
+- [x] Add scripts/test-install-sh.sh covering install helpers and write_installed_manifest flag matrix.
+- [x] Add scripts/test-hooks-sh.sh covering hook_has_marker, collision_check, dispatcher generation, SKIP_GOVERNANCE handling.
+- [x] Add scripts/test-runtime.sh covering shipped dot-governance/run.sh and lib.sh.
+- [x] Add scripts/test.sh umbrella that fans out to all six test layers.
+- [x] Wire umbrella into the pre-commit dispatcher generator and the dogfood pre-commit hook.
+- [x] Tighten pre-commit-test-gate directive to enforce umbrella presence and every layer.
+- [x] Add bash scripts/test.sh step to .github/workflows/governance.yml, gated by hashFiles.
+
+## What changed
+
+The kit's product code (packctl.py, packverb.py, install.sh, hooks.sh, dot-governance/run.sh + lib.sh) previously had thin or zero direct test coverage. Bugs in any of these surfaces silently changed which directives got installed, how the manifest was written, or how the pre-commit hook routed work. This change adds direct coverage across every product-code surface, routes every layer through one umbrella entrypoint, and gates that umbrella in both the local pre-commit hook and CI.
+
+**Add scripts/test-packctl.py covering preset resolution, CLI subcommands; split validate_pack_dir tests into scripts/test-packctl-validate.py to satisfy the repo-hygiene 500-line file limit.** 30 tests total, split across two files. `test-packctl.py` covers `_version_tuple` ordering (numeric vs lexicographic), `kit_supports`, `resolve_preset` (declared order, dedup across inheritance, cycle detection, KeyError on unknown preset), `directives_for_pack` sorting, and the CLI subcommands (`kit-version`, `directives-for`, `pack-field`, `directive-field`, `preset-resolve`, `union-preset`, `always-install-directives`, `validate-pack-set` duplicate-id detection across packs). `test-packctl-validate.py` carries the full `validate_pack_dir` matrix (missing required pack fields, id/directory mismatch, scoped-id slug acceptance, `min_governance_kit` rejection when newer than KIT_VERSION, preset references unknown directive, `always_install: true` outside core, unknown hook value, unknown surface value, constitution.md must reference its check.sh path, non-executable check.sh) plus positive smoke against the shipped `core` and `agent-governance` packs.
+
+**Expand scripts/test-packverb.py covering ref parsing, capability glob, lockfile round-trip, catalog search.** Existing 4 tests grew to 24. New coverage for `parse_ref` (every documented form: owner/repo only, subpath + rev, SHA rev, rejects non-`gh:` scheme, rejects missing repo segment), `cache_root` honoring `GOVERNANCE_KIT_HOME` and defaulting under `$HOME`, `_slugify_pack_id`, `_matches_any` capability-glob semantics (doublestar, trailing-slash directory-prefix), `capability_violations` (returns empty when no globs declared, passes inside globs, flags paths outside, reports missing directive.yaml), `load_lockfile` empty-when-missing, full lockfile CLI round-trip (lock-add → re-add same id replaces → lock-list → lock-remove → idempotent fail), `lock-read` versioned JSON shape, `catalog-search` empty-query and missing-catalog handling.
+
+**Add scripts/test-install-sh.sh covering install helpers and write_installed_manifest flag matrix.** 58 assertions in pure bash, no external deps. Covers `copy_tree_without_evals` (copies content, excludes `evals/` + `install-assets/`, re-runnable), `install_directive_folder` (writes to `.governance/packs/<pack>/directives/<id>/`, marks check.sh + hooks/* executable, does not copy evals/install-assets), `install_directive_assets` augment vs overwrite (augment preserves user changes, overwrite replaces, silent no-op when no install-assets/), `directive_supports_hook_strategy` (matching strategy supported, mismatched unsupported, no-requirement portable), and the full `write_installed_manifest` flag matrix exercising every documented flag (`--hook-strategy`, `--ci-workflow`, `--tests-dir`, `--no-constitution`, `--agents-md-directive`, `--agents-md-created`, repeated `--install-asset`, `--setup-clone-script`, multiple `--collision` resolutions including wrap and overwrite, `--path-b-framework` + `--path-b-entry`), multi-pack grouping (directives bucket under their pack id, pack input order preserved), `packs: []` for zero directives, unknown flag returns non-zero, and confirms no `stack:` line is emitted.
+
+**Add scripts/test-hooks-sh.sh covering hook_has_marker, collision_check, dispatcher generation, SKIP_GOVERNANCE handling.** 47 assertions over `hook_has_marker` (marker on line 2 detected, marker on wrong line ignored, missing file unmarked), `collision_check` (lists unmarked existing hooks, ignores missing files and marker-bearing files), `generate_hooks` emits all five dispatchers (pre-commit, commit-msg, prepare-commit-msg, post-commit, pre-push) each with the line-2 ownership marker carrying `pack-version=<v>` and parsing under `bash -n`, every dispatcher honors `SKIP_GOVERNANCE=1` (verified inside a fake git repo built per-test), regeneration overwrites a marker-bearing hook silently and updates pack-version, regeneration refuses to clobber an unmarked hook (user content preserved on abort), and routing assertions confirm commit-msg passes `$MSG_FILE` to check.sh, post-commit prints the agent-readable failure banner and always exits 0, and pre-push slurps refs from stdin into a tempfile and replays to each check.sh.
+
+**Add scripts/test-runtime.sh covering shipped dot-governance/run.sh and lib.sh.** 38 assertions covering the runtime files shipped to every consumer repo. `run.sh`: `SKIP_GOVERNANCE=1` silences the runner, empty `.governance/` exits 0 with a clear notice, all-pass run reports "all N directive(s) passed" and discovers both pack-installed and local directive trees, any failure exits 1 plus prints both bypass instructions, single-directive filter `run.sh <id>` runs only that one and exits 1 with a clear miss notice when nothing matches. `lib.sh`: `directive_start`/`directive_end` exits 0 with green ✓ when clean and exits 1 with red ✗ + lists every violation, plural/singular agreement on the count, `require_git` short-circuits with ⊘ outside a repo and is a no-op inside, `tracked_files` respects `.gitignore` and pathspec filters, `has_waiver` matches `governance: allow-<id>` only on the named line and only for the named directive id.
+
+**Add scripts/test.sh umbrella that fans out to all six test layers.** Single bash entrypoint that runs each layer in order (packctl, packverb, install-sh, hooks-sh, runtime, packs), captures per-layer pass/fail, and prints a final summary. The umbrella is the canonical entrypoint that the pre-commit hook and the CI workflow both invoke.
+
+**Wire umbrella into the pre-commit dispatcher generator and the dogfood pre-commit hook.** The pre-commit emitter in `governance/assets/packs/lib/hooks.sh` now invokes `scripts/test.sh` when present, falling back to `scripts/test-packs.sh` for backward compatibility with consumer repos that haven't adopted the umbrella yet. The dogfood `.githooks/pre-commit` was regenerated to match.
+
+**Tighten pre-commit-test-gate directive to enforce umbrella presence and every layer.** The local `pre-commit-test-gate` directive (`.governance/local/directives/pre-commit-test-gate/check.sh`) was upgraded from "pre-commit hook must run scripts/test-packs.sh" to "pre-commit hook must invoke scripts/test.sh, the umbrella must invoke each of the six layer files, and each layer file must exist". The matching constitution subsection in `CONSTITUTION.md` was rewritten to describe the new contract.
+
+**Add bash scripts/test.sh step to .github/workflows/governance.yml, gated by hashFiles.** CI now installs `uv` (required by `packctl`/`packverb` which run via `uv run --with PyYAML`) and invokes the umbrella when `scripts/test.sh` exists. The step is conditional so the same workflow template can ship to consumer repos without the umbrella.
+
+## Out of scope
+
+Behavioral evals under `governance/evals/{bootstrap,amend,reset}/evals.json` are LLM-judge fixtures with no included runner; wiring them into a harness is a separate task. The `eval-lib.sh` helpers used by directive evals were not given direct unit tests — they are exercised transitively by every pack eval.
+
+## Verification
+
+- `bash .governance/run.sh` — all 14 dogfood directives pass.
+- `bash scripts/test.sh` — all 7 test layers pass: 30 packctl tests (split across test-packctl.py + test-packctl-validate.py), 24 packverb tests, 58 install-sh assertions, 47 hooks-sh assertions, 38 runtime assertions, plus 14 pack evals + hook generation smoke + fresh-repo install contract + packverb contract.
+- `bash -n` parse check on every generated dispatcher (covered by test-hooks-sh.sh).
+- Local pre-commit hook re-runs the umbrella before each commit; CI re-runs it on every PR and push to main.

@@ -177,7 +177,9 @@ GOVERNANCE_DIR="$ROOT/.governance"
 HEADER
         _emit_runtime_discovery_helpers
         cat <<'FOOTER'
-if [[ -x "$ROOT/scripts/test-packs.sh" ]]; then
+if [[ -x "$ROOT/scripts/test.sh" ]]; then
+    bash "$ROOT/scripts/test.sh" || exit 1
+elif [[ -x "$ROOT/scripts/test-packs.sh" ]]; then
     bash "$ROOT/scripts/test-packs.sh" || exit 1
 fi
 

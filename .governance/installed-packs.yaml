@@ -1,7 +1,6 @@
 version: "1"
 generated_at: 2026-04-23T17:08:30Z
 hook_strategy: githooks
-stack: bash
 constitution: true
 ci_workflow: .github/workflows/governance.yml
 tests_dir: .governance
@@ -39,8 +38,6 @@ packs:
         installed_path: .governance/packs/duaility/agent-governance/directives/issues-tracked
       - id: agent-token-accounting
         installed_path: .governance/packs/duaility/agent-governance/directives/agent-token-accounting
-      - id: pr-review-required-when-pr-ready
-        installed_path: .governance/packs/duaility/agent-governance/directives/pr-review-required-when-pr-ready
       - id: agent-steering-accounting
         installed_path: .governance/packs/duaility/agent-governance/directives/agent-steering-accounting
 install_assets_seeded:

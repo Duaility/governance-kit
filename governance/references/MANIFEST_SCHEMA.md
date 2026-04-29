@@ -12,7 +12,6 @@ This is what `write_installed_manifest` in `governance/assets/packs/lib/install.
 version: "1"
 generated_at: 2026-04-23T16:45:34Z
 hook_strategy: githooks          # or: husky | pre-commit
-stack: bash                      # or: python | node | go | rust
 constitution: true               # CONSTITUTION.md was written at repo root
 ci_workflow: .github/workflows/governance.yml
 tests_dir: .governance

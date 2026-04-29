@@ -24,7 +24,6 @@ Governance evolves: new directives get added to `CONSTITUTION.md` *and* to `.gov
 | Repo is not a git repo | Stop and tell the user `governance init` requires git. |
 | Repo already has governance artifacts and the user asked for setup | Continue in augment/overwrite mode; default to augment. |
 | Repo already has governance artifacts and the user asked for review, explanation, or one targeted change | Do not run `init`. Answer directly or route to `governance directive *`. |
-| Multiple plausible primary stacks exist | Ask once. If no answer is available, fall back to bash-first generic setup and label it as an assumption. |
 | Hook framework is unclear | Infer from tracked files. If still unclear, assume `.githooks/` and label that as an assumption. |
 | Structured question tools are unavailable | Ask concise free-text questions, then proceed with defaults if the user does not provide more detail. |
 
@@ -40,7 +39,6 @@ Before touching anything, run these in parallel:
 
 - `git rev-parse --show-toplevel` to confirm this is a git repo and find the root.
 - `ls -la` at the root.
-- Check for stack markers: `package.json`, `pyproject.toml`, `setup.py`, `requirements.txt`, `go.mod`, `Cargo.toml`, `pom.xml`, `build.gradle`, `Gemfile`.
 - Check for existing `CONSTITUTION.md`, `.governance/`, `.github/workflows/governance.yml`, `.githooks/`, and `.git/hooks/pre-commit` (legacy location — flag if present).
 
 If this is not a git repo, stop and tell the user — `governance init` requires git.
@@ -63,23 +61,7 @@ This choice is recorded as `hook_strategy:` in `.governance/installed-packs.yaml
 
 Record findings for use at Step 6.
 
-### Step 2 — Classify the project stack
-
-Pick exactly one primary stack from the markers:
-
-| Marker                              | Stack     | Test runner                  |
-| ----------------------------------- | --------- | ---------------------------- |
-| `pyproject.toml` / `requirements.txt` | python    | pytest                       |
-| `package.json`                      | node      | detect jest / vitest / node  |
-| `go.mod`                            | go        | `go test`                    |
-| `Cargo.toml`                        | rust      | `cargo test`                 |
-| none of the above                   | generic   | bash                         |
-
-Multiple markers → pick the one the user points to. If unclear, ask once.
-
-**Default** for every stack: also install the universal **bash** test runner from `../assets/dot-governance/`. Bash tests are language-agnostic (grep/find/wc based) and work anywhere. The native test runner is a second, stack-idiomatic copy that lets governance directives integrate with the project's normal test command. The user picks in Step 3 whether to install native tests, bash tests, or both.
-
-### Step 2.5 — Discover directive packs
+### Step 2 — Discover directive packs
 
 Source the loader and enumerate packs from every pack root the kit ships
 (today: `governance/assets/packs/` for `core`, and
@@ -114,7 +96,7 @@ Three nested questions. Each subsequent question's option list is computed from 
 **Q0 — "Which directive packs do you want?"** — multiselect.
 
 - `core` (always included, non-deselectable — present it as pre-checked with a note).
-- Every other pack discovered in Step 2.5, with its description from the manifest.
+- Every other pack discovered in Step 2, with its description from the manifest.
 
 **Q1 — "Which preset?"** — single-select.
 
@@ -181,7 +163,6 @@ After all directives are installed, write `.governance/installed-packs.yaml` via
 ```sh
 write_installed_manifest "$repo_root" \
     --hook-strategy githooks \
-    --stack bash \
     --ci-workflow .github/workflows/governance.yml \
     --tests-dir .governance \
     --agents-md-directive \                # add --agents-md-created if Step 4b Case 2 fired
@@ -205,7 +186,7 @@ Copy `../assets/CONSTITUTION.template.md` to `<repo-root>/CONSTITUTION.md`. Then
 - Under **Directives**, for each directive in the final install list, read the directive's subsection snippet (`<pack-dir>/directives/<directive>/constitution.md`) and splice it verbatim into the **Directives** section. Every snippet is already in the standard Directive / Rationale / Enforced by / Exceptions shape — do not rewrite.
 - Leave the **Evolution Log** section with a template entry and a note that each amendment needs a commit.
 
-Do not invent principles the user did not pick. It is better to ship a short constitution than a bloated one. If you had to infer anything material — stack, preset, or hook strategy — record it under `Assumptions:` in the final summary. If you install any custom or change-set-aware directive, make sure the directive text says what merge it blocks, not just what file shape it checks.
+Do not invent principles the user did not pick. It is better to ship a short constitution than a bloated one. If you had to infer anything material — preset or hook strategy — record it under `Assumptions:` in the final summary. If you install any custom or change-set-aware directive, make sure the directive text says what merge it blocks, not just what file shape it checks.
 
 ### Step 4b — Inject the Compliance directive into AGENTS.md
 
@@ -229,7 +210,7 @@ Copy `../assets/dot-governance/run.sh` to `.governance/run.sh` and mark it execu
 
 Copy `../assets/dot-governance/lib.sh` to `.governance/lib.sh` — shared helpers (pass/fail/skip output, `tracked_files` helper that respects `.gitignore`).
 
-If the user wants **native** tests in addition to bash, read [NATIVE_TESTS.md](NATIVE_TESTS.md) for the port pattern for their stack (pytest / jest / go test). Generate the native test file(s) inline — do not invent a separate `run.sh` for the native side; the project's existing test runner (`pytest .governance`, `npx jest .governance`, `go test ./.governance/...`) is the entrypoint.
+`init` only installs the bash runner. Governance is a meta-layer that sits on top of the project's code — coupling the directive suite to the project's own test runner (pytest / jest / go test) inverts the dependency. Bash works in any repo, in any CI, without install steps. Users who want governance failures to surface alongside their normal test report can add native test wrappers post-init by following [NATIVE_TESTS.md](NATIVE_TESTS.md) — that is an opt-in enhancement, not part of bootstrap.
 
 ### Step 6 — Install the git hooks
 
@@ -278,7 +259,7 @@ In this path:
 
 ### Step 7 — Install the CI workflow
 
-Copy `../assets/governance.yml` to `.github/workflows/governance.yml`. Adjust the test-runner step based on the stack chosen in Step 2. The workflow runs on `push` to `main` and on every `pull_request`, and it never skips — CI is the backstop the pre-commit hook can be bypassed around.
+Copy `../assets/governance.yml` to `.github/workflows/governance.yml`. The workflow runs `bash .governance/run.sh` on `push` to `main` and on every `pull_request`, and it never skips — CI is the backstop the pre-commit hook can be bypassed around. If the user later opts into native tests via [NATIVE_TESTS.md](NATIVE_TESTS.md), they extend the workflow at that point.
 
 ### Step 8 — Report to the user
 
@@ -286,7 +267,6 @@ Print a concise summary:
 - Packs selected.
 - Preset chosen and whether it was explicit or assumed.
 - Hook strategy chosen (`.githooks/`, husky, or `pre-commit`).
-- Stack detected.
 - Directives installed (with file paths, grouped by pack if multiple packs were selected).
 - Directives deliberately skipped (with reasons) when that matters.
 - Any pre-existing hook collisions encountered and how they were resolved.
@@ -319,12 +299,12 @@ Every successful `init` run should leave the user with a summary that includes:
 - **`core` is non-optional.** Users can select additional packs but cannot deselect `core`. The `always_install: true` flag is reserved to `core` — third-party packs cannot force-install directives.
 - **Preset semantics are union, not fallback.** If a pack lacks the selected preset, it contributes nothing for that preset.
 - **Escape hatches are a feature, not a bug.** `SKIP_GOVERNANCE=1` exists because governance that blocks emergency hotfixes will get ripped out. CI enforces the directive even when the hook is skipped, which is the right layering.
-- **Bash-first, native as enhancement.** Bash tests work in any repo, in any CI, without install steps. Native tests (pytest etc.) are nicer DX but add friction. Default to bash; offer native.
+- **Bash-only at bootstrap; native is post-init.** Governance is a meta-layer over the project's code, so the directive suite must not depend on the project's own toolchain. `init` only installs the bash runner. Native test wrappers (pytest / jest / go test) are an opt-in users add later via [NATIVE_TESTS.md](NATIVE_TESTS.md) — never asked at bootstrap.
 - **Respect the repo's existing hook framework.** `.githooks/` is the default only when no tracked hook framework already exists. Do not force repos off husky or `pre-commit`.
 - **Hook ownership is explicit.** Every generated hook carries the `governance-kit:managed` marker on line 2. An unmarked hook at a target path is somebody else's file — prompt before touching it.
 - **Match the enforcement surface to the real intent.** If a directive is meant to govern each substantive change, do not implement it as a repo-exists or file-count check.
 - **Reject weak proxies when they create false confidence.** A directive that says "every change must do X" but only checks "the repo contains one X somewhere" is a bad bootstrap output, not a partial success.
-- **State material assumptions explicitly.** If you had to infer the preset, stack, or hook strategy, surface that in the summary.
+- **State material assumptions explicitly.** If you had to infer the preset or hook strategy, surface that in the summary.
 - **No invented directives.** When writing the constitution, only include directives the user selected. Governance loses authority the moment it contains directives nobody signed off on.
 
 ## References

@@ -1,7 +1,6 @@
 version: "1"
 generated_at: 2026-01-15T09:00:00Z
 hook_strategy: githooks
-stack: bash
 constitution: true
 ci_workflow: .github/workflows/governance.yml
 tests_dir: .governance

@@ -1,15 +1,17 @@
 # Native tests & alternative hook frameworks
 
-The bash directives under `.governance/packs/*/directives/` and `.governance/local/directives/` are the baseline — they work in any repo without dependencies. This doc shows how to **also** run governance directives through the project's native test framework so they show up in the normal test report, and how to wire the pre-commit hook into frameworks the repo may already use.
+`governance init` only installs the universal bash runner. Native test wrappers are a **post-init opt-in** — never scaffolded at bootstrap. The bash directives under `.governance/packs/*/directives/` and `.governance/local/directives/` are the baseline; they work in any repo without dependencies. This doc shows how to **also** run governance directives through the project's native test framework so they show up in the normal test report, and how to wire the pre-commit hook into frameworks the repo may already use.
 
 ## When to add native tests
 
 Add native tests when:
 
-- The repo already runs `pytest` / `jest` / `go test` in CI — governance violations should appear in the same report.
+- The repo already runs `pytest` / `jest` / `go test` in CI and you want governance violations to appear in the same report.
 - A directive is easier to express in code than in bash (e.g. AST checks on Python imports, TypeScript type assertions).
 
 The bash directives stay either way. Native tests are additive, not a replacement.
+
+Note that adding native tests couples the governance suite to the project's toolchain — a `pytest` or `npm` regression will turn the governance suite red even when no directive failed. Bash-only avoids that coupling. Pick native deliberately, not by default.
 
 ## pytest (Python)
 
