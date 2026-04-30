@@ -308,81 +308,117 @@ def test_capability_violations_reports_missing_directive_yaml() -> None:
 
 # ---- lockfile I/O ---------------------------------------------------------
 
+_GH_SHA = "0123456789abcdef0123456789abcdef01234567"
+
+
+def _lock_add_gh(lockfile: Path, pack_id: str, version: str, *directives: str,
+                 min_kit: str = "") -> subprocess.CompletedProcess[str]:
+    """Helper: lock-add a gh-sourced pack with the canonical fixture SHA."""
+    args = ["lock-add", str(lockfile), pack_id,
+            "--source", "gh", "--version", version,
+            "--ref", f"gh:{pack_id}@main", "--sha", _GH_SHA]
+    for d in directives:
+        args += ["--directive", d]
+    if min_kit:
+        args += ["--min-kit", min_kit]
+    return run_packverb(*args)
+
+
 def test_load_lockfile_returns_empty_when_missing() -> None:
     packverb = load_packverb()
     with tempfile.TemporaryDirectory() as tmp:
         data = packverb.load_lockfile(Path(tmp) / "no-such.lock")
-        assert data == {"version": "1", "packs": []}
+        assert data == {"version": "2", "packs": []}
 
 
 def test_lockfile_round_trip_via_cli() -> None:
-    sha = "0123456789abcdef0123456789abcdef01234567"
     with tempfile.TemporaryDirectory() as tmp:
         lockfile = Path(tmp) / "packs.lock"
-        # lock-add #1
-        result = run_packverb(
-            "lock-add",
-            str(lockfile),
-            "acme/foo",
-            "gh:acme/foo",
-            sha,
-            "--directive", "alpha",
-            "--directive", "beta",
-            "--min-kit", "0.2",
-        )
-        assert result.returncode == 0, result.stderr
+        # lock-add #1 (gh source)
+        assert _lock_add_gh(lockfile, "acme/foo", "0.3",
+                            "alpha", "beta", min_kit="0.2").returncode == 0
         # lock-add same id again — replaces, not appends
-        result = run_packverb(
-            "lock-add",
-            str(lockfile),
-            "acme/foo",
-            "gh:acme/foo",
-            sha,
-            "--directive", "gamma",
-        )
-        assert result.returncode == 0
+        assert _lock_add_gh(lockfile, "acme/foo", "0.4", "gamma").returncode == 0
         listing = run_packverb("lock-list", str(lockfile))
         rows = [line for line in listing.stdout.splitlines() if line.strip()]
         assert len(rows) == 1
         assert rows[0].startswith("acme/foo\t")
-        # lock-remove
-        result = run_packverb("lock-remove", str(lockfile), "acme/foo")
-        assert result.returncode == 0
-        # Repeat remove → fails because pack is no longer present.
-        result = run_packverb("lock-remove", str(lockfile), "acme/foo")
-        assert result.returncode != 0
+        # lock-remove + repeat-remove fails
+        assert run_packverb("lock-remove", str(lockfile), "acme/foo").returncode == 0
+        assert run_packverb("lock-remove", str(lockfile), "acme/foo").returncode != 0
+
+
+def test_lock_add_builtin_and_local_record_minimal_entry() -> None:
+    """builtin (governance-kit/core, in-tree) and local (repo-local pack) sources
+    have no upstream pin → no ref/sha/installed_at fields are emitted."""
+    cases = [
+        ("builtin", "governance-kit/core", "0.2", ["required-docs"]),
+        ("local", "duaility/governance-kit", "0.1", ["pre-commit-test-gate"]),
+    ]
+    for source, pack_id, version, directives in cases:
+        with tempfile.TemporaryDirectory() as tmp:
+            lockfile = Path(tmp) / "packs.lock"
+            args = ["lock-add", str(lockfile), pack_id,
+                    "--source", source, "--version", version]
+            for d in directives:
+                args += ["--directive", d]
+            result = run_packverb(*args)
+            assert result.returncode == 0, result.stderr
+            entry = json.loads(result.stdout)
+            assert entry["source"] == source
+            assert entry["version"] == version
+            assert entry["directives"] == sorted(directives)
+            for absent in ("ref", "sha", "installed_at"):
+                assert absent not in entry, f"{source}: {absent} should be absent"
+
+
+def test_lock_add_validates_source_ref_sha_combinations() -> None:
+    """gh source requires ref+sha; builtin/local must not carry them."""
+    with tempfile.TemporaryDirectory() as tmp:
+        lockfile = Path(tmp) / "packs.lock"
+        r = run_packverb("lock-add", str(lockfile), "acme/foo",
+                         "--source", "gh", "--version", "0.1", "--directive", "x")
+        assert r.returncode != 0 and "requires --ref and --sha" in r.stderr
+        r = run_packverb("lock-add", str(lockfile), "governance-kit/core",
+                         "--source", "builtin", "--version", "0.2",
+                         "--ref", "gh:x@main", "--sha", _GH_SHA, "--directive", "y")
+        assert r.returncode != 0 and "does not accept --ref/--sha" in r.stderr
 
 
 def test_lock_read_returns_versioned_json() -> None:
-    sha = "0123456789abcdef0123456789abcdef01234567"
     with tempfile.TemporaryDirectory() as tmp:
         lockfile = Path(tmp) / "packs.lock"
-        run_packverb(
-            "lock-add",
-            str(lockfile),
-            "acme/foo",
-            "gh:acme/foo",
-            sha,
-            "--directive", "alpha",
-        )
+        _lock_add_gh(lockfile, "acme/foo", "0.3", "alpha")
         result = run_packverb("lock-read", str(lockfile))
         assert result.returncode == 0
         data = json.loads(result.stdout)
-        assert data["version"] == "1"
+        assert data["version"] == "2"
         assert data["packs"][0]["id"] == "acme/foo"
+        assert data["packs"][0]["version"] == "0.3"
+        assert data["packs"][0]["source"] == "gh"
         assert data["packs"][0]["directives"] == ["alpha"]
+
+
+def test_lock_list_long_format_emits_source_and_version() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        lockfile = Path(tmp) / "packs.lock"
+        _lock_add_gh(lockfile, "acme/foo", "0.3", "alpha")
+        run_packverb("lock-add", str(lockfile), "governance-kit/core",
+                     "--source", "builtin", "--version", "0.2",
+                     "--directive", "required-docs")
+        listing = run_packverb("lock-list", str(lockfile), "--long")
+        rows = [line.split("\t") for line in listing.stdout.splitlines() if line.strip()]
+        assert rows[0] == ["acme/foo", "gh", "0.3", _GH_SHA, "gh:acme/foo@main"]
+        assert rows[1] == ["governance-kit/core", "builtin", "0.2", "", ""]
 
 
 def test_lockfile_packs_sorted_by_id_on_write() -> None:
     """Pack rows are written in id order regardless of insert order — so a fresh
     PR doesn't churn the lockfile when a new pack lands ahead of existing ones."""
-    sha = "0123456789abcdef0123456789abcdef01234567"
     with tempfile.TemporaryDirectory() as tmp:
         lockfile = Path(tmp) / "packs.lock"
         for pid in ("zeta/zz", "alpha/aa", "mu/mm"):
-            run_packverb(
-                "lock-add", str(lockfile), pid, f"gh:{pid}", sha, "--directive", "x",
-            )
+            _lock_add_gh(lockfile, pid, "0.1", "x")
         listing = run_packverb("lock-list", str(lockfile))
         rows = [line.split("\t")[0] for line in listing.stdout.splitlines() if line.strip()]
         assert rows == ["alpha/aa", "mu/mm", "zeta/zz"]

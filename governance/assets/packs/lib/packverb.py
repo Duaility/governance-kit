@@ -25,7 +25,14 @@ import yaml
 
 from packctl import load_yaml, pack_manifest, scalar, validate_pack_dir
 
-LOCK_VERSION = "1"
+LOCK_VERSION = "2"
+
+# Pack source discriminator. Recorded on every lockfile entry so downstream
+# consumers (reset, pack update) can branch without re-reading pack.yaml.
+#   builtin — governance-kit/core, ships in-tree with the kit. No upstream pin.
+#   gh      — community pack fetched from GitHub. Carries ref/sha/installed_at.
+#   local   — repo-local hand-authored pack (no `source:` in pack.yaml).
+PACK_SOURCES = {"builtin", "gh", "local"}
 
 # Scoped pack id pattern: `<author>/<slug>` — both segments start with an
 # alphanumeric and allow `.`, `_`, `-` after that. Kept in sync with
@@ -272,16 +279,36 @@ def cmd_lock_read(args: argparse.Namespace) -> int:
 
 def cmd_lock_add(args: argparse.Namespace) -> int:
     path = Path(args.lockfile)
+    if args.source not in PACK_SOURCES:
+        print(
+            f"lock-add: unknown source {args.source!r} (expected one of: "
+            f"{', '.join(sorted(PACK_SOURCES))})",
+            file=sys.stderr,
+        )
+        return 1
+    if args.source == "gh" and not (args.ref and args.sha):
+        print("lock-add: --source gh requires --ref and --sha", file=sys.stderr)
+        return 1
+    if args.source in {"builtin", "local"} and (args.ref or args.sha):
+        print(
+            f"lock-add: --source {args.source} does not accept --ref/--sha "
+            "(no upstream pin)",
+            file=sys.stderr,
+        )
+        return 1
     data = load_lockfile(path)
-    entry = {
+    entry: dict[str, Any] = {
         "id": args.pack_id,
-        "ref": args.ref,
-        "sha": args.sha,
-        "subpath": args.subpath or "",
-        "min_governance_kit": args.min_kit or "",
-        "installed_at": _utc_now(),
+        "version": args.version,
+        "source": args.source,
         "directives": sorted(args.directives or []),
     }
+    if args.source == "gh":
+        entry["ref"] = args.ref
+        entry["sha"] = args.sha
+        entry["subpath"] = args.subpath or ""
+        entry["min_governance_kit"] = args.min_kit or ""
+        entry["installed_at"] = _utc_now()
     data["packs"] = [p for p in data["packs"] if p.get("id") != args.pack_id]
     data["packs"].append(entry)
     write_lockfile(path, data)
@@ -304,7 +331,16 @@ def cmd_lock_remove(args: argparse.Namespace) -> int:
 def cmd_lock_list(args: argparse.Namespace) -> int:
     data = load_lockfile(Path(args.lockfile))
     for pack in data["packs"]:
-        print(f"{pack.get('id')}\t{pack.get('sha')}\t{pack.get('ref')}")
+        # builtin/local packs have no ref/sha — print empty fields rather than
+        # the literal string "None" so downstream `cut -f` users see blanks.
+        sha = pack.get("sha") or ""
+        ref = pack.get("ref") or ""
+        if args.long:
+            source = pack.get("source") or ""
+            version = pack.get("version") or ""
+            print(f"{pack.get('id')}\t{source}\t{version}\t{sha}\t{ref}")
+        else:
+            print(f"{pack.get('id')}\t{sha}\t{ref}")
     return 0
 
 
@@ -363,8 +399,10 @@ def main(argv: list[str]) -> int:
     p = sub.add_parser("lock-add")
     p.add_argument("lockfile")
     p.add_argument("pack_id")
-    p.add_argument("ref")
-    p.add_argument("sha")
+    p.add_argument("--source", required=True, choices=sorted(PACK_SOURCES))
+    p.add_argument("--version", required=True)
+    p.add_argument("--ref", default="")
+    p.add_argument("--sha", default="")
     p.add_argument("--subpath", default="")
     p.add_argument("--min-kit", dest="min_kit", default="")
     p.add_argument("--directive", action="append", dest="directives", default=[])
@@ -377,6 +415,8 @@ def main(argv: list[str]) -> int:
 
     p = sub.add_parser("lock-list")
     p.add_argument("lockfile")
+    p.add_argument("--long", action="store_true",
+                   help="emit id\\tsource\\tversion\\tsha\\tref instead of id\\tsha\\tref")
     p.set_defaults(func=cmd_lock_list)
 
     p = sub.add_parser("catalog-search")

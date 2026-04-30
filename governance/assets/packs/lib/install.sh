@@ -115,7 +115,7 @@ PY
 }
 
 write_installed_manifest() {
-    # Manifest schema v2. Call shape:
+    # install.yaml schema v3. Call shape:
     #
     #   write_installed_manifest <target_repo> \
     #       --owner <github-owner> \
@@ -131,19 +131,19 @@ write_installed_manifest() {
     #       [--collision <path>:<resolution>[:<extra>]]  (repeatable)
     #       [--path-b-framework husky|pre-commit] \
     #       [--path-b-entry <file>:<fingerprint>]        (repeatable)
-    #       -- <pack_dir> <directive_id> [<pack_dir> <directive_id> ...]
     #
     # `owner` and `repo` are the GitHub-shaped identity of the bootstrapping
     # repo, lowercased. They define the default repo-local pack at
     # `.governance/packs/<owner>/<repo>/`, which is where `governance directive
     # add` lands directives when no `--pack` is given.
     #
-    # Directives are grouped by pack in the output. `governance-reset` reads this
-    # manifest as the authoritative record of what the kit owns in the repo;
-    # every field below is consumed there. See
-    # governance/references/MANIFEST_SCHEMA.md for the full contract.
+    # Pack pin state is **not** written here — it lives in `.governance/packs.lock`
+    # and is managed via `packverb.py lock-add`. install.yaml carries only the
+    # init-time choices and side-effect ledgers (install_assets_seeded,
+    # collisions, path_b). See governance/references/INSTALL_SCHEMA.md and
+    # LOCK_SCHEMA.md for the contracts.
     local target_repo="$1"; shift
-    local out="$target_repo/.governance/installed-packs.yaml"
+    local out="$target_repo/.governance/install.yaml"
 
     local hook_strategy="githooks"
     local ci_workflow=".github/workflows/governance.yml"
@@ -180,9 +180,14 @@ write_installed_manifest() {
         return 1
     fi
 
+    if (( $# > 0 )); then
+        echo "write_installed_manifest: unexpected positional args (pack/directive pairs moved to packs.lock)" >&2
+        return 1
+    fi
+
     mkdir -p "$(dirname "$out")"
     {
-        printf 'version: "2"\n'
+        printf 'version: "3"\n'
         printf 'generated_at: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         printf 'owner: %s\n' "$owner"
         printf 'repo: %s\n' "$repo"
@@ -194,51 +199,6 @@ write_installed_manifest() {
         printf 'agents_md_created: %s\n' "$agents_md_created"
         if [[ -n "$setup_clone_script" ]]; then
             printf 'setup_clone_script: %s\n' "$setup_clone_script"
-        fi
-
-        # Directives grouped by pack. Iterate input pack_dir/directive_id pairs,
-        # bucket by pack id, emit a pack block per unique pack_dir.
-        # Uses a space-delimited string as a portable "seen" set so we stay
-        # compatible with bash 3.2 (macOS default; no associative arrays).
-        local seen_pack=" "
-        local pack_order=()
-        local pack_dir directive_id pack_id pack_version
-        local i=0
-        local pairs=("$@")
-        # First pass: collect pack order.
-        while (( i < ${#pairs[@]} )); do
-            pack_dir="${pairs[i]}"
-            pack_id="$(pack_field "$pack_dir" id)"
-            case "$seen_pack" in
-                *" $pack_id "*) ;;
-                *) seen_pack="$seen_pack$pack_id "; pack_order+=("$pack_dir") ;;
-            esac
-            i=$(( i + 2 ))
-        done
-
-        if (( ${#pack_order[@]} > 0 )); then
-            printf 'packs:\n'
-            local ordered_dir ordered_id
-            for ordered_dir in "${pack_order[@]}"; do
-                ordered_id="$(pack_field "$ordered_dir" id)"
-                pack_version="$(pack_field "$ordered_dir" version)"
-                printf '  - id: %s\n' "$ordered_id"
-                printf '    version: "%s"\n' "$pack_version"
-                printf '    directives:\n'
-                i=0
-                while (( i < ${#pairs[@]} )); do
-                    pack_dir="${pairs[i]}"
-                    directive_id="${pairs[i+1]}"
-                    pack_id="$(pack_field "$pack_dir" id)"
-                    if [[ "$pack_id" == "$ordered_id" ]]; then
-                        printf '      - id: %s\n' "$directive_id"
-                        printf '        installed_path: .governance/packs/%s/directives/%s\n' "$pack_id" "$directive_id"
-                    fi
-                    i=$(( i + 2 ))
-                done
-            done
-        else
-            printf 'packs: []\n'
         fi
 
         if (( ${#install_assets[@]} > 0 )); then

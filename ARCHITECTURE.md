@@ -56,8 +56,9 @@ Every pack has:
    every eval, and installs `core.standard` into a disposable repo to
    confirm the bootstrap contract still holds.
 3. `governance init` copies the directive folder into
-   `.governance/local/directives/<id>/` in the target repo and records the
-   selection in `.governance/installed-packs.yaml`.
+   `.governance/packs/<owner>/<name>/directives/<id>/` in the target repo, records
+   the install receipt in `.governance/install.yaml`, and pins each pack in
+   `.governance/packs.lock`.
 4. Hook generator builds `.githooks/pre-commit`, `.githooks/commit-msg`,
    `.githooks/prepare-commit-msg` from the installed manifest. Each
    dispatcher carries an ownership marker so `governance uninstall` can

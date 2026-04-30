@@ -1,15 +1,15 @@
-# Manifest schema
+# Install schema (`.governance/install.yaml`)
 
-`governance init` writes `.governance/installed-packs.yaml` after installing directives. `governance uninstall` and `governance reset` both read it as the **authoritative** record of what the kit owns in this repo — `uninstall` to know what to delete, `reset` to know which directive came from which pack.
+`governance init` writes `.governance/install.yaml` after seeding directives. This file is the **install receipt** — it records the choices `init` made and the side effects it left in the repo. It does **not** record what packs are installed: that lives in [`.governance/packs.lock`](LOCK_SCHEMA.md).
 
-The manifest is not an auto-upgrade contract — installed directive folders are user-owned copies, and the user may have edited them. `uninstall` uses the manifest only to learn *what paths to consider*, then confirms ownership via per-file evidence (ownership marker, byte match against the shipped template, etc. — see [UNINSTALL_MATRIX.md](UNINSTALL_MATRIX.md)). `reset` uses the manifest as the pack-provenance ledger and refuses to run without it.
+`uninstall` reads it as the authoritative ownership ledger to know what to delete. `reset` reads it for hook-strategy and identity context, but reaches into `packs.lock` for pack provenance.
 
-## v2 shape (current)
+## v3 shape (current)
 
-This is what `write_installed_manifest` in `governance/assets/packs/lib/install.sh` actually emits today. Both `uninstall` and `reset` must parse this exact shape; regenerate the eval fixture whenever the emitter changes.
+This is what `write_installed_manifest` in `governance/assets/packs/lib/install.sh` emits today.
 
 ```yaml
-version: "2"
+version: "3"
 generated_at: 2026-04-29T16:45:34Z
 owner: acme                      # GitHub owner of the bootstrapping repo (lowercased)
 repo: widgets                    # GitHub repo name of the bootstrapping repo (lowercased)
@@ -20,19 +20,6 @@ tests_dir: .governance
 agents_md_directive: true        # true when the marker-bounded block was inserted
 agents_md_created: false         # true only when bootstrap Step 4b Case 2 ran (stub)
 setup_clone_script: scripts/setup-clone.sh  # Path A only; omitted under Path B
-packs:
-  - id: governance-kit/core
-    version: "0.1"
-    directives:
-      - id: required-docs
-        installed_path: .governance/packs/governance-kit/core/directives/required-docs
-      - id: secrets-hygiene
-        installed_path: .governance/packs/governance-kit/core/directives/secrets-hygiene
-  - id: acme/widgets              # the repo's own local pack; appears once a directive is added
-    version: "0.1"
-    directives:
-      - id: no-relative-imports
-        installed_path: .governance/packs/acme/widgets/directives/no-relative-imports
 install_assets_seeded:           # files seeded by directives' install-assets/
   - QUALITY.md
   - COSTS.md
@@ -58,17 +45,16 @@ path_b:
 
 Notes on the emitted shape:
 
-- `version` is a **quoted string** (`"1"`), not a bare integer. YAML treats both identically, but fixture byte-diffs depend on the exact form the emitter writes.
-- Directive entries carry only `id` and `installed_path`. `hook` / `always_install` are intentionally **not** duplicated here — `uninstall` (and `reset`, when restoring a directive's hook contract) discovers those at execute time by reading the installed `directive.yaml` under `installed_path`.
+- `version` is a **quoted string** (`"3"`), not a bare integer. YAML treats both identically, but fixture byte-diffs depend on the exact form the emitter writes.
 - `collisions[*]` uses a flat `extra` field, not named `backup_path` / `userhook_path` sub-fields. Interpret `extra` based on `resolution`: `wrap` ⇒ userhook sibling path; `overwrite` ⇒ `.pre-governance.bak` backup path; `skip` ⇒ no extra.
-- Keys appear in the emitter's fixed order (metadata → flags → `packs` → `install_assets_seeded` → `collisions` → optional `path_b`). Do not rely on order when parsing, but **do** preserve it when regenerating fixtures — byte-diffs matter for the eval harness.
+- Keys appear in the emitter's fixed order (metadata → flags → `install_assets_seeded` → `collisions` → optional `path_b`). Do not rely on order when parsing, but **do** preserve it when regenerating fixtures — byte-diffs matter for the eval harness.
+- The `packs:` block from v2 is gone. Pack pin state — id, version, source, ref, sha, directives — lives in `.governance/packs.lock`. See [LOCK_SCHEMA.md](LOCK_SCHEMA.md).
 
 ## Fields uninstall relies on
 
 | Field | Purpose in uninstall |
 |---|---|
 | `owner` / `repo` | The repo's GitHub identity. Used to resolve the default repo-local pack at `.governance/packs/<owner>/<repo>/` for cleanup ordering and to prompt the user before deleting hand-authored packs. |
-| `packs[*].directives[*].installed_path` | The list of `.governance/packs/<owner>/<name>/directives/<id>/` folders to remove. |
 | `constitution` | Whether to remove `CONSTITUTION.md`. |
 | `ci_workflow` | Path of the workflow file to delete. |
 | `tests_dir` | Parent directory whose `run.sh`, `lib.sh`, and empty-after-cleanup shell are removed. |
@@ -80,45 +66,38 @@ Notes on the emitted shape:
 | `path_b.framework` / `path_b.entries` | Which framework config to edit instead of `.githooks/`, and which entries to remove. |
 | `collisions[*]` | Which hooks came from Path A wrap/overwrite resolution; drives *restore wrap* and *delete with backup* offers. |
 
-Fields not listed here are reserved for future use; uninstall ignores them.
+The list of installed pack/directive folders comes from [`packs.lock`](LOCK_SCHEMA.md), not this file. Fields not listed here are reserved for future use; uninstall ignores them.
 
 ## Fields reset relies on
 
-`reset` reads a much smaller slice of the manifest than `uninstall`:
+`reset` reads almost nothing from this file — pack provenance lives in `packs.lock`. Reset reads:
 
 | Field | Purpose in reset |
 |---|---|
-| `packs[*].id` | Maps each installed directive to the pack it came from. |
-| `packs[*].directives[*].id` | The set of pack-sourced directive ids (used to compute the hand-authored set as the complement). |
-| `packs[*].directives[*].installed_path` | Where the directive folder is on disk, so reset can overwrite it with the pristine source. |
+| `hook_strategy` | Determines which dispatcher to regenerate after a successful restore. |
+| `tests_dir` | Where to place `run.sh` / `lib.sh` if a restore puts them back. |
 
-The pinned **SHA** for each installed community pack lives in `.governance/packs.lock`, not the install manifest — see [PACK_VERBS.md](PACK_VERBS.md). For `governance-kit/core`, the pristine source is the kit-bundled tree at `governance/assets/packs/core/`. Repo-local packs (no `source:` in `pack.yaml`, no lockfile entry) have no upstream pristine source; `reset` skips them.
+Everything else reset needs (which packs exist, which directives belong to each, where to copy from) it gets from `packs.lock`.
 
-## Legacy fallback — v0.1 / pre-PR-#26 manifests
+## Legacy fallback — v0.1 / v2 manifests
 
-Repos bootstrapped before the v1 schema landed carry a flatter manifest. Shape is approximately:
+Repos bootstrapped before v3 carry an older, flatter manifest. Common shapes:
 
-```yaml
-# (no version key, or version: "0.1")
-packs:
-  core:
-    directives: [constitution-exists, no-secrets, ...]
-  acme/widgets:
-    directives: [no-relative-imports]
-```
+- **v0.1** (pre-PR-#26): no `version` key, packs nested as a map.
+- **v2** (PR-#26 through this change): single combined `installed-packs.yaml` with metadata **and** `packs:` block.
 
-When `uninstall` reads a manifest whose top-level `version` field is absent or not `"1"`:
+When `uninstall` reads a manifest whose top-level `version` field is not `"3"`:
 
 1. Log a one-line warning: *"manifest schema v<found>; falling back to heuristic detection for fields absent in this version"*.
-2. Treat the `packs:` entries as an authoritative directive list (still trustworthy — this is what the repo actually has installed).
-3. Fill every missing v1 field from **heuristic evidence** (see below), with each assumption called out in the Step 6 report's `Assumptions:` line.
+2. Treat any embedded `packs:` block as an authoritative directive list (still trustworthy — this is what the repo actually has installed). For v2 the block is in this same file; for v3 the block is gone and the user must have a corresponding `packs.lock`.
+3. Fill every missing field from **heuristic evidence** (see below), with each assumption called out in the Step 6 report's `Assumptions:` line.
 4. Do **not** refuse the uninstall. The alternative is a repo the user cannot uninstall, which is worse than a partial clean-up they can finish by hand.
 
-`reset` handles legacy manifests differently: it can still parse the `packs:` directive list and proceed, but if the legacy manifest does not record the pack `id` shape `reset` expects, it stops and tells the user to use `uninstall` + `init` instead. Reset is recovery, not archaeology.
+`reset` handles legacy manifests differently: it can still parse a v2 `packs:` block and proceed, but if neither the legacy block nor a v3 `packs.lock` is present, it stops and tells the user to use `uninstall` + `init` instead. Reset is recovery, not archaeology.
 
 ## When the manifest is missing entirely
 
-A repo where the manifest was never written, or was deleted manually, is a **legitimate uninstall target** — we just have less evidence to work from. **Not** a legitimate `reset` target — pack provenance cannot be reconstructed without the manifest, so `reset` refuses and routes the user to `uninstall` + `init`. The fallback order for `uninstall`:
+A repo where `install.yaml` was never written, or was deleted manually, is a **legitimate uninstall target** — we just have less evidence to work from. **Not** a legitimate `reset` target — pack provenance cannot be reconstructed without the manifest pair, so `reset` refuses and routes the user to `uninstall` + `init`. The fallback order for `uninstall`:
 
 1. **Heuristic detection.** Look for the artifacts in the uninstall matrix by exact path. For each one found, require independent ownership evidence before deleting:
    - Hooks: line-2 `governance-kit:managed` marker.
@@ -145,4 +124,4 @@ The heuristic path must **never** guess. If evidence for a given path is ambiguo
 
 ## Forward compatibility
 
-The manifest is versioned. `version: "2"` is the current shape. `uninstall` accepts unknown fields silently and unknown `version` values with a warning ("manifest written by a newer bootstrap; proceeding with best-effort field mapping"). A `version` mismatch never causes `uninstall` to refuse — the alternative is a repo the user cannot uninstall, which is worse than a partial clean-up they can finish by hand. `reset` is stricter: an unknown `version` triggers the same legacy-fallback path described above and may refuse if pack provenance cannot be read.
+The manifest is versioned. `version: "3"` is the current shape. `uninstall` accepts unknown fields silently and unknown `version` values with a warning ("manifest written by a newer bootstrap; proceeding with best-effort field mapping"). A `version` mismatch never causes `uninstall` to refuse — the alternative is a repo the user cannot uninstall, which is worse than a partial clean-up they can finish by hand. `reset` is stricter: an unknown `version` triggers the same legacy-fallback path described above and may refuse if pack provenance cannot be read.

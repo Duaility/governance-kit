@@ -5,17 +5,20 @@
 # and the CI workflow.
 #
 # Layers:
-#   1. test-packctl.py     — packctl.py library + CLI (preset, validation)
-#   2. test-packverb.py    — packverb.py (refs, capability glob, lockfile, catalog)
-#   3. test-install-sh.sh  — install.sh helpers (copy_tree_without_evals,
-#                            install_directive_folder, install_directive_assets,
-#                            write_installed_manifest flag matrix)
-#   4. test-hooks-sh.sh    — hooks.sh dispatcher generation, marker policy,
-#                            SKIP_GOVERNANCE handling
-#   5. test-runtime.sh     — runtime files shipped to consumer repos
-#                            (dot-governance/run.sh + lib.sh)
-#   6. test-packs.sh       — pack smoke + hook generation smoke + fresh repo
-#                            install contract + pack evals
+#   1. test-packctl.py        — packctl.py library + CLI (preset, validation)
+#   2. test-packverb.py       — packverb.py (refs, capability glob, lockfile, catalog)
+#   3. test-install-sh.sh     — install.sh helpers (copy_tree_without_evals,
+#                               install_directive_folder, install_directive_assets,
+#                               write_installed_manifest flag matrix)
+#   4. test-hooks-sh.sh       — hooks.sh dispatcher generation, marker policy,
+#                               SKIP_GOVERNANCE handling
+#   5. test-runtime.sh        — runtime files shipped to consumer repos
+#                               (dot-governance/run.sh + lib.sh)
+#   6. test-schema-split.sh   — install.yaml + packs.lock cross-file invariants
+#                               (no packs[] in install.yaml; every source kind
+#                               recorded in packs.lock with the right fields)
+#   7. test-packs.sh          — pack smoke + hook generation smoke + fresh repo
+#                               install contract + pack evals
 #
 # All layers are non-destructive: each builds its own tmpdirs and tears down.
 
@@ -68,6 +71,10 @@ run_layer "hooks.sh dispatcher generation (bash)" \
 run_layer "shipped runtime: run.sh + lib.sh (bash)" \
     bash "$ROOT/scripts/test-runtime.sh" \
     || failed_layers+=("test-runtime.sh")
+
+run_layer "schema split: install.yaml + packs.lock (bash)" \
+    bash "$ROOT/scripts/test-schema-split.sh" \
+    || failed_layers+=("test-schema-split.sh")
 
 run_layer "pack smoke + hook generation + evals (bash)" \
     bash "$ROOT/scripts/test-packs.sh" \

@@ -1,0 +1,19 @@
+version: "3"
+generated_at: 2026-04-30T00:00:00Z
+owner: duaility
+repo: governance-kit
+hook_strategy: githooks
+constitution: true
+ci_workflow: .github/workflows/governance.yml
+tests_dir: .governance
+agents_md_directive: true
+agents_md_created: false
+setup_clone_script: scripts/setup-clone.sh
+install_assets_seeded:
+  - .github/ISSUE_TEMPLATE/config.yml
+  - .github/ISSUE_TEMPLATE/proposal.yml
+  - .github/ISSUE_TEMPLATE/bug.yml
+  - QUALITY.md
+  - COSTS.md
+  - STEERING.md
+collisions: []

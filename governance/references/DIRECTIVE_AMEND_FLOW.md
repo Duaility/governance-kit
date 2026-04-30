@@ -27,7 +27,7 @@ The flow stages and **commits** the amendment in one conventional commit. Review
 | Request removes a directive | Remove the test and directive together, add an evolution-log entry, and surface dangling references. |
 | Smoke test fails on pre-existing violators | Ask one blocking question — **loosen** (which threshold), **grandfather** (add waivers to the specific violators), or **block** (commit as-is, user fixes tree separately). Act on the answer, then commit. Do not punt a red-CI PR to the reviewer. |
 | Structured question tools are unavailable | Use short free-text questions instead of stopping. |
-| Directive is owned by a community pack (appears in `.governance/packs.lock`) | Refuse. Route the user to `governance pack update` / `governance pack remove` so the lockfile stays consistent. |
+| Directive is owned by an upstream-pinned pack (lockfile entry has `source: gh` for community packs, or `source: builtin` for `governance-kit/core`) | Refuse `directive add` / `directive modify`. Route the user to `governance pack update` / `governance pack remove` for `gh` packs; `governance-kit/core` directives are kit-managed and can only be **removed** via `directive remove`, never added or modified locally. `source: local` entries are repo-local hand-authored packs — `directive *` owns those. |
 
 ---
 
@@ -77,7 +77,16 @@ Default operating mode is **fast path**: draft → syntax-check → smoke-test �
 - If `CONSTITUTION.md` already has a subsection whose header closely matches the proposed name → same: proceed with update, note it.
 - If the user asked to **remove** a directive, verify the matching script and directive exist before deleting, and grep for dangling references in docs or CI notes. If references exist, surface them in the summary — do not silently delete around them.
 
-**Refuse to amend packaged directives.** Before editing, check whether the directive id appears in `.governance/packs.lock`. If it does, stop and tell the user to use `governance pack update` (to re-pin to a version of the pack that has the change) or `governance pack remove` (to stop tracking the pack). The lockfile is the source of truth for pack-owned directives; hand-editing them silently would create drift that the next `pack update` would overwrite.
+**Refuse to amend upstream-pinned directives.** Before editing, look up the directive in `.governance/packs.lock` (e.g. `packverb lock-list <lockfile> --long` and grep for the directive id under each pack's `directives:` list — schema in [LOCK_SCHEMA.md](LOCK_SCHEMA.md)). The decision matrix:
+
+| Owning pack's `source` | `directive add` / `directive modify` | `directive remove` |
+|---|---|---|
+| `gh` (community) | Refuse — use `governance pack update` (re-pin to a version that has the change) or `governance pack remove` (stop tracking the pack). |  Refuse — use `governance pack remove`. |
+| `builtin` (`governance-kit/core`) | Refuse — kit-managed, cannot be added or modified from a consumer repo. | Allowed — repo opts out of a kit-bundled directive. Update the pack's lockfile entry to drop the directive id (Step 5b). |
+| `local` (repo-local) | **Allowed** — this is what `directive *` is for. The lockfile entry's `directives:` list must stay in sync (Step 5b). |  Allowed — drop from the lockfile entry; if it was the pack's last directive, `lock-remove` the entry entirely (Step 5b). |
+| (no entry — directive is on disk but not in the lockfile) | Treat as a corrupted install state. Stop and tell the user to run `governance init` again, or scaffold the missing entry via `governance pack create <name>` if the directive lives in a hand-authored pack with no lockfile presence yet. | Same. |
+
+The lockfile is the source of truth for pack provenance; hand-editing directives owned by `gh`/`builtin` packs silently would create drift that the next `pack update` would overwrite.
 
 Do not proceed until the intent map is coherent. A valid amendment needs a concrete bad merge, a policy surface, and a check shape that would actually fail that bad merge.
 
@@ -148,9 +157,24 @@ If this is an **update** to an existing directive, preserve the original rationa
 
 Use today's date from the session environment (not a placeholder).
 
+### Step 5b — Keep `.governance/packs.lock` in sync
+
+The lockfile is the single source of truth for pack provenance. After the directive folder and constitution edits land, mutate the owning pack's lockfile entry so `governance pack list`, `governance reset`, and `governance uninstall` see the change. The owning pack is the one whose directory the directive folder lives under (`.governance/packs/<owner>/<name>/directives/<directive-name>/`).
+
+`packverb lock-add` is **upsert** — it replaces the existing entry by id. To preserve sibling directives, read the current entry first, then re-add with the merged directive list.
+
+| Action | What to do |
+|---|---|
+| **Add** a new directive into a `source: local` pack | Read the current entry: `packverb lock-read .governance/packs.lock` and pull the pack's `directives:` list (or empty list if the pack has no entry yet — first-directive case). Re-add with the new directive id appended: `packverb lock-add .governance/packs.lock <owner>/<name> --source local --version <pack-version-from-pack.yaml> --directive <existing-1> --directive <existing-2> --directive <new-id>`. |
+| **Modify** an existing directive (any owning source) | No lockfile mutation. The id is unchanged; only the folder contents shifted. |
+| **Remove** a directive from a `source: local` or `source: builtin` pack | Two cases. (a) **Last directive in a `local` pack:** `packverb lock-remove .governance/packs.lock <owner>/<name>`, and also delete the now-empty `pack.yaml` and `<owner>/<name>/` directory. (b) **Otherwise:** re-add the entry with the removed directive id absent: `packverb lock-add ... --source <source> --version <v> --directive <surviving-1> ...`. |
+| **Add into a `source: local` pack that has no lockfile entry yet** (e.g., the auto-created default `<owner>/<repo>` pack on first `directive add`) | Make sure `pack.yaml` exists at `.governance/packs/<owner>/<name>/pack.yaml` (scaffold if missing — same shape as `governance pack create` writes), then `lock-add` as the "Add" row above. |
+
+For an `add` against the kit's default `<owner>/<repo>` pack, scaffolding `pack.yaml` and writing the first lockfile entry land in this step, in that order. The `pack.yaml` write must precede `lock-add` so the recorded `version` matches the on-disk pack metadata.
+
 ### Step 6 — Stage and commit the three artifacts
 
-Use `git add -A .governance/packs/<owner>/<repo>/directives/<directive-name> CONSTITUTION.md` so removals are staged correctly too.
+Use `git add -A .governance/packs/<owner>/<repo>/directives/<directive-name> .governance/packs/<owner>/<repo>/pack.yaml .governance/packs.lock CONSTITUTION.md` so the directive triple **plus** the lockfile sync land in one commit. Removals stage correctly under `-A`.
 
 Then run `git status` to confirm the three changes are staged and nothing else unrelated is picked up. If other unstaged changes exist, leave them unstaged — they're not part of this amendment.
 
@@ -174,7 +198,7 @@ Pass the message via a HEREDOC so the formatting survives the shell. Do **not** 
 Print:
 - The directive name.
 - The action type: added, updated, or removed.
-- The three files changed (with paths).
+- The files changed (with paths) — the directive triple plus, when the action is `add` or `remove`, the lockfile (and `pack.yaml` if the pack was just scaffolded).
 - The intent map: bad merge to block, policy surface, and chosen enforcement surface.
 - Smoke-test result: pass, fail-with-violators (list them), or crashed-then-fixed.
 - Commit status: the SHA and subject of the commit just made.

@@ -19,9 +19,9 @@ A commit that touches the directive folder without the matching constitution edi
 `directive {add,modify,remove}` operate on a single pack. Two ways to specify the target:
 
 - **`--pack <owner>/<name>`** — operate on the named pack. The pack must already exist at `.governance/packs/<owner>/<name>/` (use `governance pack create <name>` to scaffold a new repo-local pack first).
-- **No `--pack`** — defaults to the **repo's own local pack** at `.governance/packs/<owner>/<repo>/` where `<owner>/<repo>` is read from the top-level `owner:` and `repo:` fields in `.governance/installed-packs.yaml` (set at `governance init` from the GitHub origin remote). The default pack is auto-created on first `directive add` if it doesn't exist yet.
+- **No `--pack`** — defaults to the **repo's own local pack** at `.governance/packs/<owner>/<repo>/` where `<owner>/<repo>` is read from the top-level `owner:` and `repo:` fields in `.governance/install.yaml` (set at `governance init` from the GitHub origin remote). The default pack is auto-created on first `directive add` if it doesn't exist yet.
 
-`directive *` cannot target an *installed* community pack — those are owned by their lockfile entry; edit them by forking the upstream pack or by running `governance pack update`. The verbs detect installed-pack ownership via the presence of `source:` in `pack.yaml` (or a matching `.governance/packs.lock` entry) and refuse to mutate them.
+`directive *` cannot target an *installed* community pack — those are owned by their lockfile entry; edit them by forking the upstream pack or by running `governance pack update`. The verbs detect installed-pack ownership via `.governance/packs.lock` (`source: gh`) and refuse to mutate them.
 
 ## `directive add <directive-id>`
 
@@ -31,7 +31,7 @@ A commit that touches the directive folder without the matching constitution edi
   - [`../assets/amend/directive.template.sh`](../assets/amend/directive.template.sh) — `check.sh` skeleton.
   - [`../assets/amend/directive-section.template.md`](../assets/amend/directive-section.template.md) — constitution subsection skeleton.
   - [DIRECTIVE_AUTHORING.md](DIRECTIVE_AUTHORING.md) — naming conventions, check patterns, smoke-test guidance.
-- **Preconditions:** governance-kit must already be installed (`CONSTITUTION.md` present with `Directives` + `Evolution Log` headings, `.governance/installed-packs.yaml` present with `owner:` and `repo:` set). If the kit is missing, stop and route to `governance init`.
+- **Preconditions:** governance-kit must already be installed (`CONSTITUTION.md` present with `Directives` + `Evolution Log` headings, `.governance/install.yaml` present with `owner:` and `repo:` set, `.governance/packs.lock` present). If the kit is missing, stop and route to `governance init`.
 - **Smoke test before commit:** the drafted `check.sh` must pass against the current tree. If it fails on pre-existing violators, ask the single blocking question — **loosen** (which threshold), **grandfather** (add waivers to specific violators), or **block** (commit as-is, user fixes tree separately) — then act. Never ship a directive that red-lights HEAD.
 
 ## `directive modify <directive-id>`
@@ -46,11 +46,11 @@ A commit that touches the directive folder without the matching constitution edi
 - **Authoritative flow:** [DIRECTIVE_AMEND_FLOW.md](DIRECTIVE_AMEND_FLOW.md) — the removal branch at the end of Step 5.
 - **Mechanics:**
   1. Resolve the owning pack (from `--pack`, the default `<owner>/<repo>`, or by scanning `.governance/packs/*/*/directives/<directive-id>/`) and delete `.governance/packs/<pack-owner>/<pack-name>/directives/<directive-id>/`.
-  2. If that was the pack's last directive AND the pack is repo-local (no `source:`), also remove the pack's `pack.yaml` and the now-empty `<owner>/<name>/` directory, plus its block from `.governance/installed-packs.yaml`.
+  2. If that was the pack's last directive AND the pack is repo-local (`source: local` in the lockfile), also remove the pack's `pack.yaml` and the now-empty `<owner>/<name>/` directory, plus its lockfile entry via `packverb lock-remove .governance/packs.lock <pack-id>`.
   3. Remove the directive's **Directives** subsection from `CONSTITUTION.md`.
   4. Append an **Evolution Log** entry recording the removal date and reason.
   5. Surface any dangling references (mentions in `README.md`, `AGENTS.md`, CI config) so the user can clean them up.
-  6. If the directive belonged to a community pack tracked in `.governance/packs.lock`, this verb is the wrong tool — use `governance pack remove <pack-id>` instead so the lockfile stays consistent.
+  6. If the directive belongs to a `source: gh` (community) pack in `.governance/packs.lock`, this verb is the wrong tool — use `governance pack remove <pack-id>` instead so the lockfile stays consistent.
 
 ## Boundaries
 

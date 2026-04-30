@@ -18,11 +18,12 @@ Legend:
 | `CONSTITUTION.md` | Step 4 | manifest: `constitution: true` OR header sentinel from the template | delete | delete |
 | `.governance/run.sh` | Step 5 | manifest: `tests_dir: .governance` OR byte match against shipped `assets/dot-governance/run.sh` | delete | delete |
 | `.governance/lib.sh` | Step 5 | manifest OR byte match against shipped `assets/dot-governance/lib.sh` | delete | delete |
-| `.governance/packs/<pack-id>/directives/<id>/` | Step 3 (`install_directive_folder`) | manifest: directive listed under `packs[*].directives[*].id` | delete recursively | delete recursively |
+| `.governance/packs/<pack-id>/directives/<id>/` | Step 3 (`install_directive_folder`) | lockfile: directive listed under `packs[*].directives[*]` | delete recursively | delete recursively |
 | `.governance/freshness.conf` | Step 3 (`doc-freshness` selected) | manifest: `doc_freshness: true` OR header comment from shipped template | delete | delete |
 | `.github/workflows/governance.yml` | Step 7 | manifest: `ci_workflow: .github/workflows/governance.yml` OR filename match | delete | delete |
 | `scripts/setup-clone.sh` | Step 6 Path A step 5 | manifest: `setup_clone_script: scripts/setup-clone.sh` OR byte match against shipped `assets/setup-clone.sh` | delete; `rmdir scripts/` only if empty (it often is not) | same |
-| `.governance/installed-packs.yaml` | Step 3 (`write_installed_manifest`) | file exists | delete **last** (after it has been read); `rmdir .governance/` if empty | same |
+| `.governance/install.yaml` | Step 3 (`write_installed_manifest`) | file exists | delete **last** (after it has been read); `rmdir .governance/` if empty | same |
+| `.governance/packs.lock` | Step 3 (`packverb lock-add` per installed pack) | file exists | delete **last** (after it has been read); `rmdir .governance/` if empty | same |
 
 ## Hooks (Path A — `.githooks/`)
 

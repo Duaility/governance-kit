@@ -71,7 +71,7 @@ Bootstraps governance-driven development in the current repo:
 
 Cleanly tears down a previously-bootstrapped governance-kit setup. Reverses every side-effect `init` can produce, honoring the three-layer source-of-truth model (manifest → ownership marker → heuristic fallback that defaults to dry-run).
 
-**Authoritative flow:** [references/UNINSTALL_FLOW.md](references/UNINSTALL_FLOW.md) Steps 1–6. The uninstall matrix and manifest schema live in [references/UNINSTALL_MATRIX.md](references/UNINSTALL_MATRIX.md) and [references/MANIFEST_SCHEMA.md](references/MANIFEST_SCHEMA.md).
+**Authoritative flow:** [references/UNINSTALL_FLOW.md](references/UNINSTALL_FLOW.md) Steps 1–6. The uninstall matrix lives in [references/UNINSTALL_MATRIX.md](references/UNINSTALL_MATRIX.md). The two governance state files have separate schemas: [references/INSTALL_SCHEMA.md](references/INSTALL_SCHEMA.md) (`install.yaml`) and [references/LOCK_SCHEMA.md](references/LOCK_SCHEMA.md) (`packs.lock`).
 
 Key invariants:
 
@@ -105,7 +105,7 @@ Key invariants:
 
 ## `governance pack *`
 
-Install, update, list, and remove community packs. Packs are resolved from GitHub refs (`gh:owner/repo[/subpath][@rev]`), validated, capability-checked, and pinned by resolved SHA in `.governance/packs.lock`. Shared cache at `${GOVERNANCE_KIT_HOME:-$HOME/.governance/cache}/packs/<id>@<sha>/`.
+Install, update, list, and remove community packs. Packs are resolved from GitHub refs (`gh:owner/repo[/subpath][@rev]`), validated, capability-checked, and pinned by resolved SHA in `.governance/packs.lock` (which also records `governance-kit/core` and any repo-local packs — see [references/LOCK_SCHEMA.md](references/LOCK_SCHEMA.md)). Shared cache at `${GOVERNANCE_KIT_HOME:-$HOME/.governance/cache}/packs/<id>@<sha>/`.
 
 See [references/PACK_VERBS.md](references/PACK_VERBS.md) for step-by-step flows. Key guarantees:
 
@@ -124,7 +124,7 @@ Hand-authored directive flows for adding, modifying, or removing directives. Eve
 
 ## Key design rules
 
-- **One writer.** Mutations to the governance surface (`CONSTITUTION.md`, `.governance/`, hooks, `.governance/installed-packs.yaml`, AGENTS.md directive block) flow through this skill.
+- **One writer.** Mutations to the governance surface (`CONSTITUTION.md`, `.governance/`, hooks, `.governance/install.yaml`, `.governance/packs.lock`, AGENTS.md directive block) flow through this skill.
 - **Verb dispatch before flow.** Confirm the verb before running any flow. A user who said "uninstall" is not asking for a fresh bootstrap because the repo looks unsetup.
 - **Pack-contract forward-compatibility.** New community packs will declare `reads:` / `writes:` capabilities and may depend on a specific `min_governance_kit`. Both are validated by `packctl.py` today; runtime enforcement of capabilities is tied to `governance pack add`.
 - **No network at commit time.** All pack fetching happens inside user-invoked verbs. Commit hooks must not reach the network — this is enforced implicitly by keeping fetch logic out of directive `check.sh` scripts.
