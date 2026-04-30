@@ -1,0 +1,5 @@
+category: Style
+recommended: true
+summary: Widgets follow the Widget* naming convention.
+surface: repo-state
+hook: pre-commit

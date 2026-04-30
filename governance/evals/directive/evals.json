@@ -1,0 +1,94 @@
+{
+  "skill_name": "governance",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "We had an incident yesterday (INC-4117) — someone committed a private key file (*.pem) and we had to rotate half our credentials. Add a governance directive that blocks committing *.pem, *.key, and *.p12 files. Wire it into the constitution properly.",
+      "expected_output": "Following DIRECTIVE_AMEND_FLOW.md Steps 1–7: the atomic triple lands in one commit — (a) a new `.governance/packs/<owner>/<repo>/directives/<id>/` directive folder with `directive.yaml`, `check.sh`, and `constitution.md` blocking the listed extensions, (b) a new Directives subsection in `CONSTITUTION.md` citing INC-4117, (c) an Evolution Log entry dated today. Step 5b updates `.governance/packs.lock` (the local pack entry's `directives:` list gains the new id; if the local pack has no entry yet, `pack.yaml` is scaffolded and a `source: local` entry is created). The skill drafts, smoke-tests against the seeded repo, and commits in one pass without asking for approval of the draft. The summary reports the directive name, action type, intent map, smoke-test result, the commit sha+subject, and `Next: git push`.",
+      "files": ["evals/files/seeded-repo/"],
+      "assertions": [
+        "A new directive folder exists under `.governance/packs/<owner>/<repo>/directives/` with `directive.yaml`, `check.sh`, and `constitution.md`",
+        "The directive `check.sh` blocks at least these extensions: `.pem`, `.key`, `.p12`",
+        "The directive `check.sh` (or its `constitution.md`) names INC-4117 as the rationale",
+        "The directive `check.sh` sources `../../../../lib.sh` (or equivalent relative path) and uses `directive_start`, `violation`, `directive_end`",
+        "`CONSTITUTION.md` gained a new Directives subsection (Directive / Rationale / Enforced by / Exceptions) that names the directive and cites INC-4117",
+        "`CONSTITUTION.md`'s Evolution Log gained a new entry dated today describing the amendment",
+        "`.governance/packs.lock` has a `<owner>/<repo>` entry with `source: local` whose `directives:` list contains the new directive id (in addition to any pre-existing siblings)",
+        "Running `bash .governance/run.sh` on a repo containing a staged `*.pem` file produces a violation referencing the new directive",
+        "Running `bash .governance/run.sh` on the clean repo (no key files) exits 0 after the amendment",
+        "The skill created exactly one new commit containing the directive folder, `CONSTITUTION.md`, and `.governance/packs.lock` with a Conventional Commits subject (e.g. `feat(governance): add no-key-material — block *.pem/*.key/*.p12 (INC-4117)`)",
+        "The skill did not pause for approval of the draft before writing or committing",
+        "The summary reports: Directive, Action, Files changed (including `.governance/packs.lock`), Intent map (bad merge / policy surface / enforcement surface), Smoke-test result, Committed sha+subject, and `Next: git push`"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "We want to raise our file-size-limit from 500 lines to 800 lines — the old limit is triggering too many false positives in the data-pipeline package. Modify the directive.",
+      "expected_output": "Following DIRECTIVE_AMEND_FLOW.md, the existing `file-size-limit` directive's threshold is updated to 800 (in `check.sh` or via the directive's documented env-var convention). The constitution's directive subsection is updated to reflect 800. A new Evolution Log entry records the change with the data-pipeline false-positive reason. No new directive folder is created. Per Step 5b, modify is a no-op for `.governance/packs.lock` (id unchanged).",
+      "files": ["evals/files/repo-with-file-size-rule/"],
+      "assertions": [
+        "The existing `file-size-limit` directive folder was edited (not duplicated)",
+        "The new limit value (800) appears in `check.sh` or its documented env-var default",
+        "The CONSTITUTION.md directive subsection for `file-size-limit` references 800 (not 500)",
+        "A new Evolution Log entry was added with today's date describing the limit change and citing the data-pipeline false-positive reason",
+        "No new directive folder was created",
+        "`.governance/packs.lock` is byte-identical to the pre-amendment fixture (modify does not mutate the lockfile)",
+        "The skill created exactly one new commit containing the amendment with a Conventional Commits subject (e.g. `refactor(governance): raise file-size-limit to 800 lines`)",
+        "The summary classifies the action as `updated` (or equivalent) rather than `added`"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Remove the no-console-log directive — we're keeping structured logs via pino and the rule is noisy. Do it properly.",
+      "expected_output": "Following DIRECTIVE_AMEND_FLOW.md: the directive folder is removed, the Directives subsection is removed from CONSTITUTION.md, and an Evolution Log entry records the removal with the structured-logging reason. Step 5b updates `.governance/packs.lock` — the directive id is dropped from the owning local pack's `directives:` list (and if it was the last directive, the lock entry and `pack.yaml` are removed). The skill warns if any other docs or code reference the removed directive by name.",
+      "files": ["evals/files/repo-with-console-log-rule/"],
+      "assertions": [
+        "`.governance/packs/<owner>/<repo>/directives/no-console-log/` no longer exists",
+        "The Directives section of `CONSTITUTION.md` no longer describes `no-console-log`",
+        "A new Evolution Log entry dated today records the removal with the stated reason",
+        "`.governance/packs.lock` reflects the removal — either the directive id is dropped from the local pack's `directives:` list, or (if it was the only directive) the lock entry is removed and the pack's `pack.yaml` is deleted",
+        "Running `bash .governance/run.sh` still exits 0 on the seeded repo after removal",
+        "The skill created exactly one new commit containing the removal with a Conventional Commits subject (e.g. `chore(governance): remove no-console-log — structured logs via pino`)",
+        "The fixture's `docs/LOGGING.md` reference to `no-console-log` was surfaced in the summary as a dangling reference rather than silently left in place"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Can you run a governance health check and tell me if any of these rules look stale?",
+      "expected_output": "The skill recognizes that this is a health-check / review request, not a targeted amendment (per DIRECTIVE_AMEND_FLOW.md Interaction policy). It does not edit files, does not stage changes, and answers directly.",
+      "files": ["evals/files/seeded-repo/"],
+      "assertions": [
+        "No files under `.governance/packs/<owner>/<repo>/directives/` or `CONSTITUTION.md` were modified",
+        "`.governance/packs.lock` was not modified",
+        "The skill explicitly identified the request as a review/health-check rather than an amendment request",
+        "The skill answered directly without staging changes"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Add a directive called plan-captured. The goal is that every substantive change ships with an updated plan in plans/*.md so reviewers can see the intent, not just the diff.",
+      "expected_output": "The skill treats this as a change-set obligation (per DIRECTIVE_AMEND_FLOW.md Step 2's intent map), not a repo-state existence check. It creates a directive whose `check.sh` inspects the staged diff locally and the branch diff in CI so a substantive change without a companion `plans/*.md` update fails mechanically. The constitution entry says the directive blocks substantive changes landing without an updated plan, and the summary explicitly names the bad merge, policy surface, and enforcement surface. Step 5b adds the directive id to the local pack's `.governance/packs.lock` entry.",
+      "files": ["evals/files/seeded-repo/"],
+      "assertions": [
+        "The summary explicitly classifies the directive as a change-set obligation (or equivalent wording)",
+        "The new directive's `check.sh` inspects changed files (e.g. via `git diff --cached`, `git diff origin/main...HEAD`, or branch-diff fallback) rather than only checking whether `plans/*.md` exists",
+        "The directive `check.sh` can fail when substantive files change without a companion `plans/*.md` update (smoke-tested or explicitly noted)",
+        "The CONSTITUTION.md directive subsection for `plan-captured` describes the blocked bad merge in per-change terms, not just repo structure",
+        "`.governance/packs.lock` has a `<owner>/<repo>` entry with `source: local` whose `directives:` list contains `plan-captured`",
+        "The summary includes the chosen enforcement surface (staged diff / branch diff) and why it fits"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Modify the secrets-hygiene directive — I want to also block AWS access keys (AKIA*).",
+      "expected_output": "The skill detects via `.governance/packs.lock` that `secrets-hygiene` is owned by `governance-kit/core` (`source: builtin`) and refuses the modify per DIRECTIVE_AMEND_FLOW.md's upstream-pinned table. It does NOT edit the directive locally; it routes the user to the correct verb — for a `builtin` directive, that is to either fork the directive into a local override (and remove the original via `directive remove` to opt out) or update the kit. No files are mutated.",
+      "files": ["evals/files/seeded-repo/"],
+      "assertions": [
+        "No files were modified — the directive folder, `CONSTITUTION.md`, and `.governance/packs.lock` are byte-identical to the fixture",
+        "The skill explicitly stated that `secrets-hygiene` is owned by an upstream pack (lockfile `source: builtin`) and cannot be modified locally",
+        "The skill pointed the user at the correct path: opting out via `directive remove` (allowed for `builtin`) or updating the kit, NOT silently editing the installed directive",
+        "The skill did not stage or commit any change"
+      ]
+    }
+  ]
+}

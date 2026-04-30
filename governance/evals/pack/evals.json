@@ -1,0 +1,97 @@
+{
+  "skill_name": "governance",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Search the community pack catalog for SOC2 directives.",
+      "expected_output": "Following PACK_VERBS.md `pack search [query]`: the skill reads `governance/assets/catalog.community.json` (in the kit checkout), runs `packverb catalog-search <catalog> soc2`, and renders the matched entries (`<id>\\t<ref>\\t<summary>`) as a readable table. No files are modified in the consumer repo.",
+      "files": ["evals/files/seeded-repo/"],
+      "assertions": [
+        "The skill read the kit's catalog at `governance/assets/catalog.community.json`",
+        "The skill called `packverb catalog-search` (or equivalent helper) with the user's `soc2` query",
+        "The result is rendered as a table with columns for id, ref, and summary",
+        "No files in the consumer repo were created, deleted, or modified",
+        "If the catalog is empty or the query has no matches, the skill says so explicitly rather than fabricating entries"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Create a new repo-local pack called frontend for our team's frontend-specific directives.",
+      "expected_output": "Following PACK_VERBS.md `pack create <name>`: the skill reads `owner:` from `.governance/install.yaml`, validates `frontend` is slug-safe, and scaffolds a hand-authored pack at `.governance/packs/<owner>/frontend/`. The new `pack.yaml` has NO `source:` field (the marker that distinguishes a repo-local pack from an installed one). No `directive add` is performed yet, no lockfile mutation, no hook regeneration — the pack is empty and the skill points the user at `governance directive add --pack <owner>/frontend <id>` as the next step.",
+      "files": ["evals/files/seeded-repo/"],
+      "assertions": [
+        "The skill read `owner:` from `.governance/install.yaml` (it should be `acme` for this fixture)",
+        "`.governance/packs/acme/frontend/pack.yaml` was created",
+        "`pack.yaml` has `id: acme/frontend`, `version: \"0.1\"`, `min_governance_kit:`, `description:`, and `author:` fields",
+        "`pack.yaml` has NO `source:` field (this is the marker distinguishing repo-local packs from installed ones)",
+        "`.governance/packs/acme/frontend/directives/` exists as an empty directory",
+        "`.governance/packs.lock` was NOT modified (pack-create does not register the empty pack — first `directive add` does)",
+        "Hooks were NOT regenerated (no directives yet)",
+        "The skill's report names `governance directive add --pack acme/frontend <id>` as the next step"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Install the pack at gh:acme/soc2-pack@main into this repo.",
+      "expected_output": "Following PACK_VERBS.md `pack add <ref>` Steps 1–9: the skill parses the ref, refuses if not in a git repo or if `.governance/` is missing, fetches the pack into the shared cache (warning that `@main` is resolved to a concrete SHA), validates the manifest, capability-checks every directive, prints diff-before-exec for each directive, asks for confirmation, installs the directive folders into `.governance/packs/acme/soc2-pack/directives/`, regenerates the hook dispatcher, and writes the lockfile entry with `source: gh`, the resolved `sha`, the original `ref`, and the directive list. The report names the pinned SHA, directive ids installed, and updated hook scripts.",
+      "files": ["evals/files/seeded-repo/"],
+      "assertions": [
+        "The skill parsed `gh:acme/soc2-pack@main` and warned that the pinned SHA (not the branch) is what gets recorded",
+        "The skill called `packverb fetch` to populate the shared cache at `${GOVERNANCE_KIT_HOME:-$HOME/.governance/cache}/packs/acme__soc2-pack@<sha>/`",
+        "The skill validated the pack manifest before writing any file (rejects on `min_governance_kit > KIT_VERSION`, missing required fields, etc.)",
+        "The skill capability-checked every directive in the fetched pack — any out-of-bound `reads:`/`writes:` reference would have aborted the install",
+        "The skill printed diff-before-exec for each directive (full file tree + first 50 lines of `check.sh` for new directives) and asked for explicit confirmation",
+        "Each installed directive lives under `.governance/packs/acme/soc2-pack/directives/<id>/` with `directive.yaml`, `check.sh`, and `constitution.md`",
+        "The hook dispatcher was regenerated via `generate_hooks_for_strategy` honoring the manifest's `hook_strategy`",
+        "`.governance/packs.lock` gained an entry for `acme/soc2-pack` with `source: gh`, `ref: gh:acme/soc2-pack@main`, the resolved `sha:` (40-char), `installed_at:`, and a `directives:` list",
+        "The report names: pinned SHA, directive ids installed, hook scripts updated"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Update all installed packs.",
+      "expected_output": "Following PACK_VERBS.md `pack update [<pack-id>]` with no argument: the skill reads the lockfile, re-fetches each `source: gh` entry using its original `ref` string, compares the new resolved SHA to the locked SHA, skips entries whose SHA hasn't drifted, and for drifted entries runs validation + capability-check + diff-before-exec before overwriting the directive folders. `governance-kit/core` (`source: builtin`) and any `source: local` packs are silently skipped. The lockfile is upserted with the new SHAs.",
+      "files": ["evals/files/repo-with-installed-pack/"],
+      "assertions": [
+        "The skill re-fetched the `acme/widgets` pack using its original ref string (which carries the floating `@main`)",
+        "If the resolved SHA matched the locked SHA, the skill skipped the entry and reported it as already up-to-date",
+        "For SHA-drifted entries, the skill ran validation + capability-check + diff-before-exec against the already-installed directive folders before overwriting",
+        "The skill silently skipped `governance-kit/core` (`source: builtin`) — its update path is the kit itself, not `pack update`",
+        "The skill silently skipped any `source: local` pack — there is no upstream to re-pin",
+        "On confirmation of a SHA drift, the directive folders were overwritten and the lockfile entry was upserted with the new `sha:` and `installed_at:`",
+        "The hook dispatcher was regenerated"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Remove the acme/widgets pack from this repo.",
+      "expected_output": "Following PACK_VERBS.md `pack remove <pack-id>`: the skill reads the lockfile, confirms `acme/widgets` is present and is NOT `source: builtin` (refuses on `governance-kit/core`), lists the directives the lockfile attributes to the pack, asks for confirmation, deletes each directive folder, removes their CONSTITUTION.md subsections, removes the pack's `pack.yaml` + the now-empty pack directory, regenerates the hook dispatcher, removes the lockfile entry, and prunes any seeded `install_assets_seeded` paths from `.governance/install.yaml`.",
+      "files": ["evals/files/repo-with-installed-pack/"],
+      "assertions": [
+        "The skill read `.governance/packs.lock` and confirmed `acme/widgets` is `source: gh` (not `builtin`)",
+        "The skill listed the directives attributed to `acme/widgets` and asked for explicit confirmation",
+        "Each directive folder under `.governance/packs/acme/widgets/directives/` was deleted",
+        "Each directive's CONSTITUTION.md subsection was removed (ownership-marker guarded — same discipline as `governance uninstall`)",
+        "`.governance/packs/acme/widgets/pack.yaml` was deleted and the now-empty `acme/widgets/` directory was removed",
+        "The hook dispatcher was regenerated so removed directives are no longer invoked",
+        "The lockfile entry for `acme/widgets` was removed via `packverb lock-remove`",
+        "Any `install_assets_seeded` entries the pack had originally seeded were pruned from `.governance/install.yaml`",
+        "Attempting to `pack remove governance-kit/core` would have been refused (this assertion is implied by the `source: builtin` check)"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "List all installed packs.",
+      "expected_output": "Following PACK_VERBS.md `pack list`: the skill calls `packverb lock-list .governance/packs.lock --long` and renders every pack — `governance-kit/core` (`builtin`), community packs (`gh`), and repo-local packs (`local`) — in a single table with columns for id, source, version, sha (when applicable), and ref (when applicable). No mutations.",
+      "files": ["evals/files/repo-with-installed-pack/"],
+      "assertions": [
+        "The skill called `packverb lock-list` (or equivalent) on `.governance/packs.lock`",
+        "The output includes `governance-kit/core` with `source: builtin` and no `sha` column value (or an explicit `—`)",
+        "The output includes `acme/widgets` with `source: gh`, the pinned 40-char `sha:`, and the original `ref:` string",
+        "The output includes `acme/repo-with-installed-pack` (or whichever repo-local pack the fixture has) with `source: local` and no `sha`/`ref`",
+        "No files were modified",
+        "If `.governance/packs.lock` were missing, the skill would tell the user there is no governance setup and suggest `governance init` (this assertion is informational; the fixture has a lockfile)"
+      ]
+    }
+  ]
+}

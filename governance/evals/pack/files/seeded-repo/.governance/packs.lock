@@ -1,0 +1,7 @@
+version: "2"
+packs:
+  - id: governance-kit/core
+    version: "0.2"
+    source: builtin
+    directives:
+      - secrets-hygiene

@@ -1,0 +1,7 @@
+version: "2"
+packs:
+  - id: acme/repo-with-console-log-rule
+    version: "0.1"
+    source: local
+    directives:
+      - no-console-log
