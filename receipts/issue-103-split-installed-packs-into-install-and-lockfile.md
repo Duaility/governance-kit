@@ -12,6 +12,7 @@ Closes [#103](https://github.com/Duaility/governance-kit/issues/103).
 - [x] Dogfood files reshaped
 - [x] Docs split + updated
 - [x] test-schema-split.sh end-to-end
+- [x] DIRECTIVE_AMEND_FLOW follow-up (post-review)
 
 ## What changed
 
@@ -22,6 +23,7 @@ Closes [#103](https://github.com/Duaility/governance-kit/issues/103).
 - **Reset eval fixture reshaped.** `governance/evals/reset/files/bootstrapped-repo/.governance/installed-packs.yaml` renamed to `install.yaml` with the `packs:` block stripped; new sibling `packs.lock` carries the one-pack `acme/bootstrapped-repo` entry as `source: local`. `governance/evals/reset/evals.json` updates the eval-1 expected_output and assertions to mention both files.
 - **Dogfood files reshaped.** `.governance/installed-packs.yaml` → `.governance/install.yaml` (packs[] dropped). New `.governance/packs.lock` records `governance-kit/core` (source=builtin, version 0.2, all 13 installed directives) and `duaility/governance-kit` (source=local, version 0.1, 1 directive — `pre-commit-test-gate`).
 - **Docs split + updated.** `governance/references/MANIFEST_SCHEMA.md` deleted; replaced by `INSTALL_SCHEMA.md` (init receipt: shape, fields uninstall reads, fields reset reads, legacy fallback, AGENTS.md heuristic) and `LOCK_SCHEMA.md` (pin record: source discriminator table, field reference, packverb CLI). `PACK_VERBS.md`, `RESET_FLOW.md`, `UNINSTALL_FLOW.md`, `UNINSTALL_MATRIX.md`, `INIT_FLOW.md`, `DIRECTIVE_VERBS.md`, `VERBS.md`, `AUTHORING_PACKS.md`, plus root `AGENTS.md` / `ARCHITECTURE.md` / `governance/SKILL.md` / `governance/evals/reset/files/README.md` updated end-to-end to reference the new file pair, the new schema versions (`install.yaml` v3, `packs.lock` v2), and the new lock-add CLI.
+- **DIRECTIVE_AMEND_FLOW follow-up (post-review).** Two issues raised on PR #104 by reviewer: (1) the "refuse to amend packaged directives" rule was too broad — `source: local` packs are now in the lockfile too and `directive *` owns them, so the rule must narrow to `source: gh` (and `source: builtin` for add/modify only — kit-managed). (2) The amend flow committed the directive triple but never mutated `packs.lock`, leaving a new repo-local directive invisible to `pack list` / `reset --all --drop-handauthored` / uninstall. Both fixed: the interaction-policy row plus the Step-2 refusal block in `governance/references/DIRECTIVE_AMEND_FLOW.md` are now keyed off the lockfile entry's `source` (table per source × verb), and a new **Step 5b — Keep `.governance/packs.lock` in sync** sits between the constitution edit and Stage-and-commit. Step 6's `git add` line picks up `pack.yaml` (when first-directive scaffolding fires) and `packs.lock` so the lockfile sync lands in the same atomic commit as the directive triple.
 
 ## Out of scope
 
