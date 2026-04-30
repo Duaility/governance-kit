@@ -1,0 +1,100 @@
+# Lockfile schema (`.governance/packs.lock`)
+
+`packs.lock` is the **pack pin record** — every pack installed in this repo, with the version, source, and (for community packs) the resolved upstream SHA. Following the npm/cargo/poetry convention, it carries both a human-readable version and a content hash; the hash is the trust unit, the version is for humans.
+
+`packs.lock` is the single source of truth for `pack add` / `pack update` / `pack remove` / `reset`. Companion file: [`install.yaml`](INSTALL_SCHEMA.md), which carries the install receipt (init choices, side effects) but no pack pin state.
+
+## v2 shape (current)
+
+```yaml
+version: "2"
+packs:
+  - id: governance-kit/core
+    version: "0.2"
+    source: builtin
+    directives:
+      - required-docs
+      - secrets-hygiene
+
+  - id: acme/soc2
+    version: "0.3"
+    source: gh
+    ref: gh:acme/soc2-pack@main
+    sha: 5f3c8b1a9d2e4c6f8a0b3d5e7f9a1c3e5d7f9a1b
+    subpath: ""
+    min_governance_kit: "0.2"
+    installed_at: 2026-04-24T12:00:00Z
+    directives:
+      - soc2-audit-logs
+      - soc2-retention
+
+  - id: duaility/governance-kit
+    version: "0.1"
+    source: local
+    directives:
+      - pre-commit-test-gate
+```
+
+## Source discriminator
+
+Every entry carries a `source` field. It controls which other fields are present and how `pack update` / `reset` treat the entry.
+
+| `source` | Meaning | Required fields | Forbidden fields |
+|---|---|---|---|
+| `builtin` | `governance-kit/core`, ships in-tree with the kit. No upstream pin. | `id`, `version`, `directives` | `ref`, `sha`, `installed_at`, `subpath`, `min_governance_kit` |
+| `gh` | Community pack fetched from `github.com/<owner>/<repo>` via `pack add`. | `id`, `version`, `source`, `ref`, `sha`, `directives`, `installed_at` | — |
+| `local` | Repo-local hand-authored pack (no `source:` in `pack.yaml`). | `id`, `version`, `directives` | `ref`, `sha`, `installed_at`, `subpath`, `min_governance_kit` |
+
+`min_governance_kit` and `subpath` are optional even on `gh` entries — empty strings are emitted when the source pack does not declare one.
+
+## Field reference
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | `<owner>/<name>`, lowercased. Matches the directory at `.governance/packs/<owner>/<name>/`. |
+| `version` | string | Self-declared by the pack's `pack.yaml`. **Not** authoritative for trust — the SHA is. Recorded so a reviewer can read `core@0.2 (sha 5f3c…)` without resolving the SHA. |
+| `source` | string | One of `builtin`, `gh`, `local`. See above. |
+| `ref` | string | (`gh` only) The user's pin ref — e.g., `gh:acme/soc2-pack@main`. Resolved to a SHA at install time. |
+| `sha` | 40-char hex | (`gh` only) The resolved commit SHA. The trust unit — `pack update` re-pins this. |
+| `subpath` | string | (`gh` only) Subpath inside the repo where `pack.yaml` lives. Empty for monorepo-root packs. |
+| `min_governance_kit` | string | (`gh` only) Minimum kit version the pack declares. Used by `pack update` to refuse pins that exceed the running kit. |
+| `installed_at` | RFC 3339 | (`gh` only) When `lock-add` recorded this entry. Empty/absent for `builtin`/`local`. |
+| `directives` | list[string] | Sorted list of directive ids the pack contributes. Used by `reset --pack` and `pack remove`. |
+
+Pack rows are written **sorted by `id`**, regardless of insert order. This keeps PR diffs minimal when a new pack lands ahead of existing ones.
+
+## Helpers — `packverb.py`
+
+The lockfile is exclusively written via `governance/assets/packs/lib/packverb.py`. Never hand-edit. The CLI:
+
+```sh
+# add or replace an entry
+packverb lock-add <lockfile> <pack_id> \
+    --source {builtin|gh|local} \
+    --version <v> \
+    [--ref <r>]            # gh only
+    [--sha <sha40>]        # gh only
+    [--subpath <p>]        # gh only
+    [--min-kit <v>]        # gh only
+    --directive <id> ...
+
+# remove by pack id
+packverb lock-remove <lockfile> <pack_id>
+
+# emit JSON of the full lockfile
+packverb lock-read <lockfile>
+
+# tab-separated rows
+packverb lock-list <lockfile>          # id\tsha\tref
+packverb lock-list <lockfile> --long   # id\tsource\tversion\tsha\tref
+```
+
+Validation in `lock-add`:
+
+- `--source gh` requires `--ref` and `--sha`.
+- `--source builtin` and `--source local` reject `--ref`/`--sha` (no upstream pin).
+- Pack rows are sorted by id on every write.
+
+## Forward compatibility
+
+`load_lockfile` raises on any `version` other than `"2"`. V0 — no migration shim. A repo carrying an older `packs.lock` (v1, the pre-split shape) must be re-installed via `governance init`. CI re-enforces every directive on every PR; there is no developer-side bypass.

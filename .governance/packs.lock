@@ -1,0 +1,24 @@
+version: '2'
+packs:
+- id: duaility/governance-kit
+  version: '0.1'
+  source: local
+  directives:
+  - pre-commit-test-gate
+- id: governance-kit/core
+  version: '0.2'
+  source: builtin
+  directives:
+  - agent-steering-accounting
+  - agent-token-accounting
+  - commit-issue-receipt-match
+  - commit-message-format
+  - doc-freshness
+  - issue-templates
+  - issues-tracked
+  - no-broken-internal-doc-links
+  - receipt-per-issue
+  - repo-hygiene
+  - required-docs
+  - secrets-hygiene
+  - workflows-hardened

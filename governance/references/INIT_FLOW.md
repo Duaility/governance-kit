@@ -48,7 +48,7 @@ Also detect hook strategy before you offer or install hook-related directives:
 - If `.husky/` exists, `package.json` references husky, or `.pre-commit-config.yaml` exists, treat the repo as using an existing hook framework.
 - Otherwise, use the repo-local `.githooks/` strategy described below.
 
-This choice is recorded as `hook_strategy:` in `.governance/installed-packs.yaml` (`githooks` | `husky` | `pre-commit`). The `required-docs` directive's `hooks` sub-check inspects that value and only enforces the `.githooks/` scaffolding when `hook_strategy` is `githooks`. Do not present `.githooks/` as universal if the repo already has a tracked hook framework.
+This choice is recorded as `hook_strategy:` in `.governance/install.yaml` (`githooks` | `husky` | `pre-commit`). The `required-docs` directive's `hooks` sub-check inspects that value and only enforces the `.githooks/` scaffolding when `hook_strategy` is `githooks`. Do not present `.githooks/` as universal if the repo already has a tracked hook framework.
 
 **Hook-collision survey.** As part of the survey, inspect existing hook files at:
 
@@ -154,9 +154,10 @@ For each directive in the final install list, use `../assets/packs/lib/install.s
 - `install_directive_assets <pack-dir> <directive> <repo-root>` copies optional `install-assets/` files into the target repo without overwriting existing files in augment mode. This is how directives such as `issues-tracked` seed `QUALITY.md` and `agent-token-accounting` seeds `COSTS.md`.
 - If the user selects `doc-freshness`, also copy `../assets/freshness.conf` to `.governance/freshness.conf` (the seed file is commented — every path is opt-in by uncommenting).
 
-After all directives are installed, write `.governance/installed-packs.yaml` via `write_installed_manifest`. Pass every flag that applies to the install — `governance uninstall` treats this file as the authoritative record of what the kit owns and will key off every field:
+After all directives are installed, write the install state pair:
 
 ```sh
+# 1) write the install receipt — init choices + side-effect ledger
 write_installed_manifest "$repo_root" \
     --owner "$repo_owner" --repo "$repo_name" \
     --hook-strategy githooks \
@@ -165,14 +166,19 @@ write_installed_manifest "$repo_root" \
     --agents-md-directive \                # add --agents-md-created if Step 4b Case 2 fired
     --install-asset QUALITY.md \           # repeat per seeded install-asset
     --install-asset COSTS.md \
-    --collision .githooks/pre-commit:wrap:.githooks/pre-commit.userhook \  # only if Step 6 hit collisions
-    -- \
-    "$core_pack_dir" required-docs \
-    "$core_pack_dir" secrets-hygiene \
-    "$agent_pack_dir" agent-token-accounting
+    --collision .githooks/pre-commit:wrap:.githooks/pre-commit.userhook   # only if Step 6 hit collisions
+
+# 2) record governance-kit/core in the lockfile (source: builtin)
+packverb lock-add "$repo_root/.governance/packs.lock" governance-kit/core \
+    --source builtin --version "$core_pack_version" \
+    --directive required-docs \
+    --directive secrets-hygiene \
+    --directive agent-token-accounting     # ... one --directive per installed core directive
 ```
 
-`--owner` and `--repo` are required — they carry the `<owner>/<name>` identity surveyed in Step 1 and define the default repo-local pack at `.governance/packs/<owner>/<repo>/`. `--install-asset` is repeatable (once per seeded file — `install_directive_assets` copied it). `--collision` is `path:resolution[:extra]` where `resolution` ∈ `wrap | skip | overwrite-with-backup` and `extra` is the userhook or `.bak` path. `--path-b-framework` + `--path-b-entry <file>:<fingerprint>` replace `--hook-strategy githooks` when `init` took Path B. Omit `--no-constitution` unless the user explicitly asked to skip the constitution (nonstandard). The manifest is `version: "2"`; installed directive folders are still user-owned copies and this file is not an auto-upgrade contract.
+`--owner` and `--repo` are required — they carry the `<owner>/<name>` identity surveyed in Step 1 and define the default repo-local pack at `.governance/packs/<owner>/<repo>/`. `--install-asset` is repeatable (once per seeded file — `install_directive_assets` copied it). `--collision` is `path:resolution[:extra]` where `resolution` ∈ `wrap | skip | overwrite-with-backup` and `extra` is the userhook or `.bak` path. `--path-b-framework` + `--path-b-entry <file>:<fingerprint>` replace `--hook-strategy githooks` when `init` took Path B. Omit `--no-constitution` unless the user explicitly asked to skip the constitution (nonstandard).
+
+The install pair is `install.yaml` v3 + `packs.lock` v2; installed directive folders are still user-owned copies and the pair is not an auto-upgrade contract. `governance uninstall` treats both files as the authoritative record of what the kit owns. See [INSTALL_SCHEMA.md](INSTALL_SCHEMA.md) and [LOCK_SCHEMA.md](LOCK_SCHEMA.md).
 
 ### Step 4 — Write the constitution
 
@@ -229,7 +235,7 @@ The generator:
    #!/usr/bin/env bash
    # governance-kit:managed pack-version=<v> generated=<YYYY-MM-DD>
    ```
-   The `pack-version` marker is an ownership/regeneration marker, not an upgrade promise; installed pack/directive details live in `.governance/installed-packs.yaml`.
+   The `pack-version` marker is an ownership/regeneration marker, not an upgrade promise; installed pack/directive details live in `.governance/packs.lock`.
 
 Path choice:
 
@@ -237,7 +243,7 @@ Path choice:
 
 1. Generate `.githooks/pre-commit`, `.githooks/commit-msg`, `.githooks/prepare-commit-msg`, `.githooks/post-commit`, and `.githooks/pre-push`.
 2. `chmod +x` every generated hook.
-3. Record `hook_strategy: githooks` in `.governance/installed-packs.yaml` so `required-docs`' `hooks` sub-check enforces the `.githooks/` scaffolding.
+3. Record `hook_strategy: githooks` in `.governance/install.yaml` so `required-docs`' `hooks` sub-check enforces the `.githooks/` scaffolding.
 4. Run `git config core.hooksPath .githooks` in the bootstrapping clone.
 5. Copy `../assets/setup-clone.sh` to `<repo-root>/scripts/setup-clone.sh` (create `scripts/` if missing) and `chmod +x` it. This is the one-command onboarding for every other contributor: they run `./scripts/setup-clone.sh` once per fresh clone and `core.hooksPath` is set. Worktrees inherit `.git/config` from their parent, so the script does not need to run per worktree. In the final report, tell the user to point new contributors at this script (mentioning it in `README.md` or `AGENTS.md` is a good place). Until a contributor runs it, `required-docs` nags on every commit with the exact command.
 6. **Do not** create files under `.git/hooks/`. If `.git/hooks/pre-commit` (or `commit-msg`) already exists from a previous bootstrap or another tool, ask the user before deleting — it could be a husky or pre-commit.com hook (see Path B).
@@ -255,7 +261,7 @@ If the existing hook **has** the marker, overwrite silently — `governance dire
 In this path:
 - For husky: call `generate_hooks_for_strategy <repo-root> husky <version> <spec>`. The wrapper writes all five dispatchers into `.husky/` so directive-owned populator hooks (`directives/<id>/hooks/<kind>.sh`) are wired uniformly. Each generated file carries the line-2 ownership marker; existing unmarked hooks trigger the same collision flow as Path A.
 - For pre-commit.com: call `generate_hooks_for_strategy <repo-root> pre-commit <version> <spec>` to materialize dispatchers under `.governance/hooks/`, then add a `.pre-commit-config.yaml` hook block per stage that shells out to `bash .governance/hooks/<kind>`. See [NATIVE_TESTS.md](NATIVE_TESTS.md) for the per-framework snippets.
-- Record `hook_strategy: husky` or `hook_strategy: pre-commit` in `.governance/installed-packs.yaml` so `required-docs`' `hooks` sub-check transparently skips (it only enforces `.githooks/` scaffolding when `hook_strategy` is `githooks`).
+- Record `hook_strategy: husky` or `hook_strategy: pre-commit` in `.governance/install.yaml` so `required-docs`' `hooks` sub-check transparently skips (it only enforces `.githooks/` scaffolding when `hook_strategy` is `githooks`).
 - Record each materialized hook file under `path_b.entries` with its fingerprint so `governance uninstall` and `governance reset` can recognize the kit's output.
 - Tell the user explicitly that the repo is using its existing tracked hook framework instead of `.githooks/`, and that populator coverage (token-accounting, steering-accounting) now matches Path A.
 

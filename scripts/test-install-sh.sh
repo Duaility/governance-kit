@@ -254,30 +254,37 @@ else
 fi
 
 # ---- write_installed_manifest: minimum-flag invocation --------------------
+# install.yaml schema v3 — no `packs:` block, that lives in `.governance/packs.lock`.
 
 printf '── write_installed_manifest: minimum invocation ────────\n'
 target4="$WORK/target4"
 mkdir -p "$target4"
-write_installed_manifest "$target4" \
-    --owner acme --repo widgets \
-    -- "$WORK/fixture-pack" demo
-manifest="$target4/.governance/installed-packs.yaml"
-assert_file_exists "manifest written" "$manifest"
+write_installed_manifest "$target4" --owner acme --repo widgets
+manifest="$target4/.governance/install.yaml"
+assert_file_exists "install.yaml written" "$manifest"
+assert_file_absent_helper() {
+    local label="$1" path="$2"
+    if [[ ! -e "$path" ]]; then
+        PASS=$((PASS + 1)); printf '  ok - %s\n' "$label"
+    else
+        FAIL=$((FAIL + 1)); printf '  not ok - %s (path exists: %s)\n' "$label" "$path"
+    fi
+}
+assert_file_absent_helper "old installed-packs.yaml not emitted" "$target4/.governance/installed-packs.yaml"
 
 manifest_text="$(cat "$manifest")"
-assert_contains "version: \"2\"" 'version: "2"' "$manifest_text"
+assert_contains "version: \"3\"" 'version: "3"' "$manifest_text"
 assert_contains "emits owner" 'owner: acme' "$manifest_text"
 assert_contains "emits repo" 'repo: widgets' "$manifest_text"
-# Stack field must NOT be emitted (it was removed in the parent commit).
+# Stack field must NOT be emitted (it was removed earlier).
 assert_not_contains "no stack: line" "stack:" "$manifest_text"
+# packs[] block moved to packs.lock — must not appear here.
+assert_not_contains "no packs: block" "packs:" "$manifest_text"
 assert_contains "default hook_strategy is githooks" 'hook_strategy: githooks' "$manifest_text"
 assert_contains "constitution: true by default" 'constitution: true' "$manifest_text"
 assert_contains "agents_md_directive: false by default" 'agents_md_directive: false' "$manifest_text"
 assert_contains "agents_md_created: false by default" 'agents_md_created: false' "$manifest_text"
 assert_contains "tests_dir defaults to .governance" 'tests_dir: .governance' "$manifest_text"
-assert_contains "directive listed under its pack" '      - id: demo' "$manifest_text"
-assert_contains "installed_path uses .governance/packs/<pack>/" \
-    'installed_path: .governance/packs/acme/fixture-pack/directives/demo' "$manifest_text"
 assert_contains "empty install_assets_seeded list" 'install_assets_seeded: []' "$manifest_text"
 assert_contains "empty collisions list" 'collisions: []' "$manifest_text"
 assert_not_contains "no path_b block when not requested" 'path_b:' "$manifest_text"
@@ -302,10 +309,9 @@ write_installed_manifest "$target5" \
     --collision .githooks/pre-commit:wrap:.githooks/pre-commit.userhook \
     --collision .githooks/commit-msg:overwrite:.githooks/commit-msg.pre-governance.bak \
     --path-b-framework husky \
-    --path-b-entry .husky/pre-commit:bash\ .governance/run.sh \
-    -- "$WORK/fixture-pack" demo
+    --path-b-entry .husky/pre-commit:bash\ .governance/run.sh
 
-manifest5="$target5/.governance/installed-packs.yaml"
+manifest5="$target5/.governance/install.yaml"
 manifest5_text="$(cat "$manifest5")"
 
 assert_contains "honors --hook-strategy" 'hook_strategy: husky' "$manifest5_text"
@@ -326,53 +332,20 @@ assert_contains "renders path_b framework" 'framework: husky' "$manifest5_text"
 assert_contains "renders path_b entry file" 'file: .husky/pre-commit' "$manifest5_text"
 assert_contains "renders path_b entry fingerprint" 'fingerprint: bash .governance/run.sh' "$manifest5_text"
 
-# ---- write_installed_manifest: multi-pack grouping ------------------------
+# ---- write_installed_manifest: rejects positional pack/directive pairs ----
+# v3 schema killed the packs[] block — the old `-- <pack_dir> <directive>` tail
+# is no longer accepted. Callers wire packs.lock separately via packverb.py.
 
-printf '── write_installed_manifest: multi-pack grouping ───────\n'
-make_fixture_pack "$WORK/fixture-pack-b" "acme/fixture-pack-b" "alpha"
-make_fixture_pack "$WORK/fixture-pack-b2" "acme/fixture-pack-b" "beta"  # share pack id
-
+printf '── write_installed_manifest: rejects positional pairs ──\n'
 target6="$WORK/target6"
 mkdir -p "$target6"
-write_installed_manifest "$target6" \
-    --owner acme --repo widgets \
-    -- \
-    "$WORK/fixture-pack" demo \
-    "$WORK/fixture-pack-b" alpha \
-    "$WORK/fixture-pack-b2" beta
-
-manifest6_text="$(cat "$target6/.governance/installed-packs.yaml")"
-# Both packs appear, in input order.
-assert_contains "first pack id appears" '  - id: acme/fixture-pack' "$manifest6_text"
-assert_contains "second pack id appears" '  - id: acme/fixture-pack-b' "$manifest6_text"
-
-# Directives from same pack id share one block — both alpha and beta listed under fixture-b.
-# Slice from the fixture-b heading to the next pack heading (or install_assets_seeded:).
-fixture_b_block="$(printf '%s\n' "$manifest6_text" | awk '
-    /^  - id: acme\/fixture-pack-b$/ { in_block = 1; print; next }
-    in_block && (/^  - id: / || /^install_assets_seeded:/ || /^collisions:/) { exit }
-    in_block { print }
-')"
-assert_contains "alpha listed under fixture-b" '      - id: alpha' "$fixture_b_block"
-assert_contains "beta listed under fixture-b" '      - id: beta' "$fixture_b_block"
-
-# Pack ordering follows the order of first appearance in the input pairs.
-fixture_offset="$(printf '%s' "$manifest6_text" | grep -n '^  - id: acme/fixture-pack$' | head -1 | cut -d: -f1)"
-fixture_b_offset="$(printf '%s' "$manifest6_text" | grep -n '^  - id: acme/fixture-pack-b$' | head -1 | cut -d: -f1)"
-if [[ -n "$fixture_offset" && -n "$fixture_b_offset" && "$fixture_offset" -lt "$fixture_b_offset" ]]; then
-    PASS=$((PASS + 1)); printf '  ok - pack order preserves input order\n'
+if write_installed_manifest "$target6" --owner acme --repo widgets -- "$WORK/fixture-pack" demo 2>/dev/null; then
+    FAIL=$((FAIL + 1))
+    printf '  not ok - positional pack/directive pairs should be rejected\n'
 else
-    FAIL=$((FAIL + 1)); printf '  not ok - pack order should preserve input order\n'
+    PASS=$((PASS + 1))
+    printf '  ok - positional pack/directive pairs rejected\n'
 fi
-
-# ---- write_installed_manifest: empty packs --------------------------------
-
-printf '── write_installed_manifest: zero directives ───────────\n'
-target7="$WORK/target7"
-mkdir -p "$target7"
-write_installed_manifest "$target7" --owner acme --repo widgets --
-manifest7_text="$(cat "$target7/.governance/installed-packs.yaml")"
-assert_contains "emits packs: [] when no directives passed" 'packs: []' "$manifest7_text"
 
 # ---- write_installed_manifest: rejects unknown flag -----------------------
 

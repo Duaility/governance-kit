@@ -186,7 +186,7 @@ At activation the bootstrap skill:
 6. Copies each selected `directives/<id>/` folder (minus `evals/`) into the target's `.governance/packs/<pack-id>/directives/<id>/`, so `check.sh`, `lib/`, `hooks/`, and `runtimes/` all land as a unit.
 7. Copies optional directive-owned `install-assets/` files into the target repo without overwriting existing files in augment mode.
 8. Splices each selected `directives/<id>/constitution.md` into the target's `CONSTITUTION.md`.
-9. Writes `.governance/installed-packs.yaml` as an audit/debug manifest. Installed directives are still user-owned copies; the manifest is not an auto-upgrade contract.
+9. Writes `.governance/install.yaml` (init choices + side-effect ledger) and `.governance/packs.lock` (one entry per installed pack, with `version` + `source` + optional ref/sha). Installed directives are still user-owned copies; neither file is an auto-upgrade contract.
 10. Generates hook dispatchers (`pre-commit`, `commit-msg`, `prepare-commit-msg`, `post-commit`, `pre-push`) that discover installed `directive.yaml` files at runtime. Each hook carries an ownership marker (`# governance-kit:managed pack-version=<v> generated=<date>`). Pre-existing unmarked hooks trigger a collision prompt. The `post-commit` dispatcher is advisory-only — it surfaces violations to stderr but always exits 0, since `git commit` has already succeeded by the time post-commit fires. The `pre-push` dispatcher blocks the push when any wired check fails.
 11. Appends an evolution-log entry in `CONSTITUTION.md`.
 
@@ -194,7 +194,7 @@ Re-running bootstrap is idempotent: marked hooks get overwritten silently, direc
 
 ## Versioning
 
-Bump `version` in `pack.yaml` whenever directive semantics, ids, or the preset graph change. The hook marker only says the file is managed/regeneratable; the installed pack/directive details live in `.governance/installed-packs.yaml`. `min_governance_kit` guards against installing into an older bootstrap skill than the pack was built for.
+Bump `version` in `pack.yaml` whenever directive semantics, ids, or the preset graph change. The hook marker only says the file is managed/regeneratable; the installed pack/directive details live in `.governance/packs.lock`. `min_governance_kit` guards against installing into an older bootstrap skill than the pack was built for.
 
 ## Testing a pack
 

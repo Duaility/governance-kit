@@ -159,7 +159,7 @@ fi
 # strategy is `githooks`. Skip transparently for husky / pre-commit.com
 # repos (the framework has its own tracked hook-config mechanism).
 _hook_strategy="githooks"
-_manifest="$ROOT/.governance/installed-packs.yaml"
+_manifest="$ROOT/.governance/install.yaml"
 if [[ -f "$_manifest" ]]; then
     _hs=$(grep -E '^hook_strategy:' "$_manifest" | head -1 | awk '{print $2}' | tr -d '"')
     [[ -n "$_hs" ]] && _hook_strategy="$_hs"

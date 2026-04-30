@@ -1,0 +1,8 @@
+version: '2'
+packs:
+- id: acme/bootstrapped-repo
+  version: '0.1'
+  source: local
+  directives:
+  - constitution-exists
+  - no-secrets

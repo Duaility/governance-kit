@@ -69,12 +69,13 @@ governance-kit/
 │   │                            #   VERBS.md, DIRECTIVE_VERBS.md, PACK_VERBS.md,
 │   │                            #   DIRECTIVES_CATALOG.md, AUTHORING_PACKS.md, NATIVE_TESTS.md,
 │   │                            #   DIRECTIVE_AUTHORING.md, UNINSTALL_MATRIX.md,
-│   │                            #   MANIFEST_SCHEMA.md, AGENT_TOKEN_ACCOUNTING.md.
+│   │                            #   INSTALL_SCHEMA.md, LOCK_SCHEMA.md, AGENT_TOKEN_ACCOUNTING.md.
 │   └── evals/                   # Behavioral fixtures for the verbs.
 ├── .governance/            # Directive tests for THIS repo (dogfood).
 │   ├── run.sh
 │   ├── lib.sh
-│   ├── installed-packs.yaml
+│   ├── install.yaml             # init choices + side-effect ledger
+│   ├── packs.lock               # pack pin state (id, version, source, sha)
 │   └── packs/<owner>/<name>/directives/<id>/check.sh  # every directive lives in some pack
 └── .github/workflows/
     └── governance.yml

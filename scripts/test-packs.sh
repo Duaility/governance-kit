@@ -320,8 +320,24 @@ EOF
     write_installed_manifest "$fresh_tmp" \
         --owner acme --repo widgets \
         --hook-strategy githooks \
-        --agents-md-directive \
-        -- "${installed_pairs[@]}"
+        --agents-md-directive
+
+    # Pack pin state lives in packs.lock, not install.yaml — record the core
+    # pack and every installed directive so the schema is realistic.
+    core_version="$(pack_field "$core_pack" version)"
+    lock_args=(
+        lock-add "$fresh_tmp/.governance/packs.lock"
+        governance-kit/core
+        --source builtin
+        --version "$core_version"
+    )
+    i=0
+    while (( i < ${#installed_pairs[@]} )); do
+        lock_args+=(--directive "${installed_pairs[i+1]}")
+        i=$(( i + 2 ))
+    done
+    uv run --quiet --isolated --with PyYAML python \
+        "$ROOT/governance/assets/packs/lib/packverb.py" "${lock_args[@]}" >/dev/null
 
     hook_spec="$fresh_tmp/hook-spec.tsv"
     build_hook_spec_from_installed_directives "$fresh_tmp" "$hook_spec"
@@ -338,7 +354,7 @@ EOF
     printf 'feat: missing issue\n' > bad-msg.txt
     .githooks/commit-msg bad-msg.txt && exit 1
     rm bad-msg.txt
-    [[ -f .governance/installed-packs.yaml ]]
+    [[ -f .governance/install.yaml ]] && [[ -f .governance/packs.lock ]]
 )
 fresh_status=$?
 if [[ $fresh_status -eq 0 ]]; then

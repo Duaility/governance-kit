@@ -7,9 +7,9 @@ The 6-step recipe `governance uninstall` runs. Dispatched from
 
 Three source-of-truth layers drive what `uninstall` deletes, in priority order:
 
-1. **Install manifest** at `.governance/installed-packs.yaml` — the authoritative record of packs, directives, and paths `init` installed.
+1. **Install state pair** at `.governance/install.yaml` (init receipt) and `.governance/packs.lock` (pack pin record) — the authoritative record of packs, directives, and paths `init` installed.
 2. **Ownership marker** — `.githooks/` dispatchers carry the line-2 marker `# governance-kit:managed pack-version=<v> generated=<date>`. The marker is a contract that the file is regeneratable, and symmetrically, safe to delete.
-3. **Heuristic fallback** — when neither manifest nor marker is present but governance artifacts are detected, `uninstall` defaults to **dry-run** and requires explicit opt-in before deleting anything.
+3. **Heuristic fallback** — when neither file pair nor marker is present but governance artifacts are detected, `uninstall` defaults to **dry-run** and requires explicit opt-in before deleting anything.
 
 Leaving intact: files the user owns (pack-seeded docs like `QUALITY.md` / `COSTS.md` in soft mode), hooks without the ownership marker (those belong to someone else), user-authored content inside `AGENTS.md` (only the marker-bounded directive block is stripped), and every uncommitted change in the working tree.
 
@@ -20,8 +20,8 @@ Leaving intact: files the user owns (pack-seeded docs like `QUALITY.md` / `COSTS
 | Repo is not a git repo | Stop. `uninstall` operates on a tracked governance surface, which requires git. |
 | Manifest present, artifacts present, markers consistent | Proceed. Manifest is the source of truth. |
 | Manifest missing, artifacts detected (`CONSTITUTION.md` + `.governance/` + marked hooks) | Force **dry-run** by default. Require explicit opt-in before executing a destructive mode. |
-| Manifest present but `version` ≠ `"1"` (legacy v0.1 shape) | Fall back to heuristic detection for fields absent in v0.1. Proceed; log every assumption in the Step 6 report. See [MANIFEST_SCHEMA.md](MANIFEST_SCHEMA.md#legacy-fallback--v01--pre-pr-26-manifests). |
-| `AGENTS.md` has the opening `<!-- governance: directives-to-follow -->` but **not** the matching closing marker | Classify as `directive-block-unbounded`. Strip from the opening marker up to the next `^## ` heading. Require an extra confirm (the block boundary is inferred, not marker-bounded). See [MANIFEST_SCHEMA.md](MANIFEST_SCHEMA.md#agentsmd-opening-marker-only-heuristic). |
+| Manifest present but `version` ≠ `"3"` (legacy v0.1 / v2 shapes) | Fall back to heuristic detection for fields absent in older shapes. Proceed; log every assumption in the Step 6 report. See [INSTALL_SCHEMA.md](INSTALL_SCHEMA.md#legacy-fallback--v01--v2-manifests). |
+| `AGENTS.md` has the opening `<!-- governance: directives-to-follow -->` but **not** the matching closing marker | Classify as `directive-block-unbounded`. Strip from the opening marker up to the next `^## ` heading. Require an extra confirm (the block boundary is inferred, not marker-bounded). See [INSTALL_SCHEMA.md](INSTALL_SCHEMA.md#agentsmd-opening-marker-only-heuristic). |
 | Manifest missing, no artifacts detected | Report "nothing to remove" and exit. Idempotent no-op. |
 | Unmarked hook at a path we would delete | Stop. Offer the same three choices `init`'s collision flow offers (wrap, skip, overwrite with backup) — but here they are *restore wrap*, *leave alone*, *delete with backup*. |
 | `core.hooksPath` points somewhere other than `.githooks/` | Do **not** unset. The user changed it themselves. Warn in the report. |
@@ -38,14 +38,15 @@ Run these steps in order. Do not skip steps unless noted.
 Before touching anything, run these in parallel:
 
 - `git rev-parse --show-toplevel` to confirm this is a git repo and find the root.
-- Read `.governance/installed-packs.yaml` if present. Its schema is documented in [MANIFEST_SCHEMA.md](MANIFEST_SCHEMA.md).
+- Read `.governance/install.yaml` if present (schema in [INSTALL_SCHEMA.md](INSTALL_SCHEMA.md)) and `.governance/packs.lock` if present (schema in [LOCK_SCHEMA.md](LOCK_SCHEMA.md)).
 - `ls -la` at the root and at `.githooks/`, `.github/workflows/`, `.governance/`.
 - Check for each artifact in the uninstall matrix (see [UNINSTALL_MATRIX.md](UNINSTALL_MATRIX.md)):
   - `CONSTITUTION.md`
   - `.governance/run.sh`, `.governance/lib.sh`, every `.governance/packs/<pack-id>/directives/<id>/`
   - `.governance/freshness.conf`
   - `.github/workflows/governance.yml`
-  - `.governance/installed-packs.yaml`
+  - `.governance/install.yaml`
+  - `.governance/packs.lock`
   - `.githooks/pre-commit`, `.githooks/commit-msg`, `.githooks/prepare-commit-msg`, `.githooks/post-commit`, `.githooks/pre-push`
   - `.githooks/*.userhook` (Path A wrap leftovers)
   - `<any>.pre-governance.bak` files (Path A overwrite backups)
@@ -97,7 +98,8 @@ Files to delete:
   .governance/packs/<pack-id>/directives/<directive-a>/ (4 files)
   .governance/packs/<owner>/<repo>/directives/<directive-b>/           (4 files)
   .github/workflows/governance.yml
-  .governance/installed-packs.yaml
+  .governance/install.yaml
+  .governance/packs.lock
   .githooks/pre-commit       (marker present)
   .githooks/commit-msg       (marker present)
 
@@ -141,7 +143,7 @@ Delete and restore in this order (deliberate — the manifest is read last so it
 5. **Path B.** If the repo uses husky or `pre-commit`, remove only the governance entries from the framework's config file (keep every other hook intact). Use the manifest's `path_b_entries` list if present; otherwise grep for entries that invoke `.governance/run.sh`.
 6. **Seeded docs.** In soft mode: preserve, report as orphaned. In hard mode: delete `QUALITY.md`, `COSTS.md`, and every path the manifest lists under `install_assets_seeded`.
 7. **Backups.** In soft mode: preserve `*.pre-governance.bak`, report them. In hard mode: delete them.
-8. **Manifest.** Delete `.governance/installed-packs.yaml`. If `.governance/` is now empty, `rmdir` it.
+8. **Manifest pair.** Delete `.governance/install.yaml` and `.governance/packs.lock`. If `.governance/` is now empty, `rmdir` it.
 
 All deletes use plain `rm` / `git rm` against tracked paths. Never `git clean`, `git reset --hard`, or stash — those can touch the user's uncommitted work.
 
@@ -197,4 +199,5 @@ Every successful `uninstall` run should leave the user with a summary that inclu
 ## References
 
 - [UNINSTALL_MATRIX.md](UNINSTALL_MATRIX.md) — canonical table of every artifact the kit can produce and the exact `uninstall` action under soft vs. hard mode.
-- [MANIFEST_SCHEMA.md](MANIFEST_SCHEMA.md) — schema of `.governance/installed-packs.yaml` that `uninstall` reads, plus the fallback heuristic when the manifest is absent.
+- [INSTALL_SCHEMA.md](INSTALL_SCHEMA.md) — schema of `.governance/install.yaml` (the init receipt) that `uninstall` reads, plus the fallback heuristic when the manifest is absent.
+- [LOCK_SCHEMA.md](LOCK_SCHEMA.md) — schema of `.governance/packs.lock` (the pack pin record) that `uninstall` reads in tandem.

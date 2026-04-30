@@ -34,10 +34,10 @@ the same commit.
 |---|---|
 | Repo is not a git repo | Stop. `reset` operates on a tracked governance surface, which requires git. |
 | Governance kit is missing (`CONSTITUTION.md` or `.governance/` absent) | Stop and tell the user to run `governance init` first — there is nothing to reset. |
-| Install manifest (`.governance/installed-packs.yaml`) is missing | Stop and tell the user. Reset depends on the manifest to know which directive came from which pack. The user's recovery path is `governance uninstall` then `governance init`. |
-| `--directive <id>` names a directive not in the manifest | Stop. List the directives that *are* in the manifest. Suggest `--pack` or `--all` if the user meant something broader. |
-| `--directive <id>` names a hand-authored directive | Stop. Hand-authored directives have no pristine source. Tell the user to use `governance directive remove <id>` to delete it, or `--all --drop-handauthored` to drop all hand-authored directives. |
-| `--pack <id>` names a pack not in the manifest | Stop. List the installed packs. |
+| Pack lockfile (`.governance/packs.lock`) is missing | Stop and tell the user. Reset depends on the lockfile to know which directive came from which pack. The user's recovery path is `governance uninstall` then `governance init`. |
+| `--directive <id>` names a directive not in the lockfile | Stop. List the directives that *are* in the lockfile. Suggest `--pack` or `--all` if the user meant something broader. |
+| `--directive <id>` names a hand-authored directive in a `source: local` pack | The directive folder *is* its own pristine source. Reset preserves it untouched (it is not pack-sourced — there is no upstream to restore from). Use `governance directive remove <id>` to delete, or `--all --drop-handauthored` to drop all repo-local directives. |
+| `--pack <id>` names a pack not in the lockfile | Stop. List the installed packs. |
 | Pinned SHA's pack content is missing from the cache | Re-fetch via `packverb fetch` using the original `ref@<sha>`. If the upstream pack is unreachable, abort — reset cannot work without the pristine source. |
 | Working tree has uncommitted changes | Refuse, unless `--force` is set. The user reviews `git status` and either commits, stashes, or re-runs with `--force`. |
 | The directive folder on disk is byte-identical to the pinned version | Skip it — there is nothing to restore. Note in the report. |
@@ -54,20 +54,22 @@ Run these steps in order. Do not skip steps unless noted.
 
 Run in parallel:
 - `git rev-parse --show-toplevel` — confirm we're inside a git repo; capture the root.
-- Read `<root>/.governance/installed-packs.yaml`. Schema in [MANIFEST_SCHEMA.md](MANIFEST_SCHEMA.md).
+- Read `<root>/.governance/packs.lock`. Schema in [LOCK_SCHEMA.md](LOCK_SCHEMA.md). Source of truth for pack provenance.
+- Read `<root>/.governance/install.yaml` for `hook_strategy` and `tests_dir`. Schema in [INSTALL_SCHEMA.md](INSTALL_SCHEMA.md).
 - Check for `<root>/CONSTITUTION.md`.
 - Check for `<root>/.governance/packs/<owner>/<repo>/directives/`.
-- Read `<root>/.governance/packs.lock` if present. Schema in [PACK_VERBS.md](PACK_VERBS.md).
 
-If the manifest is missing, stop. Reset is **manifest-driven** — the
-manifest is the ledger of what came from where, and there is no safe
+If the lockfile is missing, stop. Reset is **lockfile-driven** — the
+lockfile is the ledger of what came from where, and there is no safe
 heuristic fallback that can reconstruct pack provenance after the
 fact. Tell the user to use `governance uninstall` + `governance init`
 if they want a clean slate.
 
-If the manifest is present but `version` ≠ `"1"`, fall back per
-[MANIFEST_SCHEMA.md](MANIFEST_SCHEMA.md#legacy-fallback--v01--pre-pr-26-manifests)
-and proceed. Log every assumption in the Step 7 report.
+If the lockfile is present but `version` ≠ `"2"`, fall back per
+[LOCK_SCHEMA.md](LOCK_SCHEMA.md#forward-compatibility) (or
+[INSTALL_SCHEMA.md](INSTALL_SCHEMA.md#legacy-fallback--v01--v2-manifests) when
+the legacy v2 single-file manifest is present) and proceed. Log every
+assumption in the Step 7 report.
 
 ### Step 2 — Resolve scope
 
@@ -80,14 +82,13 @@ Build the in-scope directive set:
 
 | Scope | In-scope set |
 |---|---|
-| `--directive <id>` | Just `<id>`. Refuse if `<id>` is hand-authored or not in the manifest. |
-| `--pack <id>` | Every directive in `manifest.packs[<id>].directives[*].id`. Refuse if `<id>` is not in the manifest. |
-| `--all` | Every directive in `manifest.packs[*].directives[*].id` across every pack. |
+| `--directive <id>` | Just `<id>`. Refuse if `<id>` is not in the lockfile or belongs to a `source: local` pack. |
+| `--pack <id>` | Every directive in `lock.packs[<id>].directives`. Refuse if `<id>` is not in the lockfile or has `source: local` (no upstream to restore from). |
+| `--all` | Every directive in `lock.packs[*].directives` across every pack with `source` ∈ {`builtin`, `gh`}. |
 
-Build the **hand-authored set** by scanning
-`.governance/packs/<owner>/<repo>/directives/<id>/` for any folder whose `<id>` does
-**not** appear under any `manifest.packs[*].directives[*].id`. These
-are the directives a user added via `governance directive add`.
+Build the **hand-authored set** as the union of every directive id under packs
+with `source: local`. These are the directives a user added via
+`governance directive add` into a repo-local pack.
 
 If `--drop-handauthored` is set, the hand-authored set is added to
 the in-scope set with a `kind: drop` marker. Without `--drop-handauthored`,
@@ -102,13 +103,13 @@ hand-authored directives in scope").
 
 For each pack-sourced directive in scope:
 
-1. Look up the pack id and the directive id in the manifest.
-2. **`governance-kit/core` pack** — pristine source is the kit-bundled tree at
+1. Look up the pack id and the directive id in the lockfile.
+2. **`source: builtin`** (`governance-kit/core`) — pristine source is the kit-bundled tree at
    `${KIT_ROOT}/governance/assets/packs/core/directives/<directive-id>/`.
    `KIT_ROOT` is the governance-kit checkout that is supplying the
    skill (resolve from the symlink target, not the consumer repo).
-3. **Community pack** — read `.governance/packs.lock` to find the
-   pinned SHA + ref. Pristine source is the cache at
+3. **`source: gh`** (community pack) — read the entry's `sha` and `ref` from
+   `.governance/packs.lock`. Pristine source is the cache at
    `${GOVERNANCE_KIT_HOME:-$HOME/.governance/cache}/packs/<pack-id-slug>@<sha>/directives/<directive-id>/`
    (where `/` in pack id is encoded as `__`).
 4. If the cache entry is missing, re-fetch with
@@ -339,7 +340,8 @@ Every successful `reset` run should include:
 
 - [`../SKILL.md`](../SKILL.md) — verb dispatch.
 - [VERBS.md](VERBS.md) — per-verb reference.
-- [MANIFEST_SCHEMA.md](MANIFEST_SCHEMA.md) — install manifest reset reads.
+- [LOCK_SCHEMA.md](LOCK_SCHEMA.md) — pack lockfile (the pin record reset reads first).
+- [INSTALL_SCHEMA.md](INSTALL_SCHEMA.md) — install receipt (hook strategy + identity reset reads).
 - [PACK_VERBS.md](PACK_VERBS.md) — `pack update` is the verb to use when the user wants newer rules, not pristine ones.
 - [DIRECTIVE_AMEND_FLOW.md](DIRECTIVE_AMEND_FLOW.md) — the verb reset is the inverse of for hand-authored amendments to pack-sourced directives.
 - [UNINSTALL_FLOW.md](UNINSTALL_FLOW.md) — the verb to use when the user wants the install gone entirely, not just restored.

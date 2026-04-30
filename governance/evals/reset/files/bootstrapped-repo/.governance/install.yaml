@@ -1,0 +1,14 @@
+version: "3"
+generated_at: 2026-01-15T09:00:00Z
+owner: acme
+repo: bootstrapped-repo
+hook_strategy: githooks
+constitution: true
+ci_workflow: .github/workflows/governance.yml
+tests_dir: .governance
+agents_md_directive: true
+agents_md_created: false
+install_assets_seeded:
+  - QUALITY.md
+  - COSTS.md
+collisions: []

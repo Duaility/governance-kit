@@ -18,7 +18,7 @@ full rearchitecture context.
   - `../assets/dot-governance/`
   - `../assets/governance.yml`
   - `../assets/setup-clone.sh`
-- **Install manifest:** `.governance/installed-packs.yaml` (`version: "1"`).
+- **Install state:** `.governance/install.yaml` (`version: "3"`, init receipt) + `.governance/packs.lock` (`version: "2"`, pack pin record).
 - Pack validation enforces `min_governance_kit` against `KIT_VERSION` from [`../assets/packs/lib/packctl.py`](../assets/packs/lib/packctl.py).
 
 ## `uninstall`
@@ -33,7 +33,7 @@ full rearchitecture context.
 ## `reset`
 
 - **Aliases a user might type:** `governance reset`, `reset directives`, `restore to original`, `undo my amendments`, `put the rules back`.
-- **Precondition:** repo must have governance installed (`CONSTITUTION.md` + `.governance/` + `.governance/installed-packs.yaml`). Reset refuses to run without the install manifest — pack provenance cannot be reconstructed by heuristic.
+- **Precondition:** repo must have governance installed (`CONSTITUTION.md` + `.governance/install.yaml` + `.governance/packs.lock`). Reset refuses to run without the lockfile — pack provenance cannot be reconstructed by heuristic.
 - **Scopes (exactly one required):** `--directive <id>`, `--pack <id>`, `--all`.
 - **Flags:** `--drop-handauthored` (only with `--all`), `--dry-run`, `--force` (override the dirty-working-tree refusal).
 - **Authoritative flow:** [RESET_FLOW.md](RESET_FLOW.md) Steps 1–7.
@@ -51,8 +51,8 @@ Full flows live in [PACK_VERBS.md](PACK_VERBS.md). Summary:
 | `pack search [query]` | Search `governance/assets/catalog.community.json` and return matching entries via `packverb catalog-search`. |
 | `pack add <ref>` | Fetch a pack from a GitHub ref (`gh:owner/repo[/subpath][@rev]`), resolve to a concrete SHA, validate, show `check.sh` diffs before writing (diff-before-exec), install directive folders, and record the pin in `.governance/packs.lock`. Refuse if any directive declares `reads:`/`writes:` globs and the directive's `check.sh` references paths outside those globs. |
 | `pack update [<pack-id>]` | Resolve the ref to a newer SHA, re-run diff-before-exec, rewrite directive folders, update the lock. |
-| `pack remove <pack-id>` | Remove installed directive folders owned by the pack (from `.governance/installed-packs.yaml`), regenerate the hook dispatcher, prune the lock entry. |
-| `pack list` | Print installed packs with their pinned SHAs from `.governance/packs.lock`. |
+| `pack remove <pack-id>` | Remove installed directive folders owned by the pack (from `.governance/packs.lock`), regenerate the hook dispatcher, prune the lock entry. |
+| `pack list` | Print every installed pack from `.governance/packs.lock` (kit-bundled, community, repo-local) via `packverb lock-list --long`. |
 
 **Never** install by hand-copying into `governance/assets/packs/` — that is governance-kit's own in-tree source tree, not a consumer's repo surface. Pack installs for a consumer repo flow through `governance pack add`.
 

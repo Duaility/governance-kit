@@ -10,8 +10,9 @@ Every pack — kit-bundled, community-installed, or hand-authored in this repo �
 
 **Installed vs local.** Packs are distinguished only by their `pack.yaml`:
 
-- **Installed packs** carry a `source:` (or are recorded in `.governance/packs.lock`). The pack came from a fetched ref and `pack update` will re-pin it.
-- **Repo-local packs** have no `source:` field and no lockfile entry. Their content was hand-authored in this repo. `pack update` skips them.
+- **Installed packs** carry a `source:` field in `pack.yaml` and a lockfile entry with `source: gh`. The pack came from a fetched ref and `pack update` will re-pin it.
+- **Repo-local packs** have no `source:` field in `pack.yaml`. They appear in the lockfile with `source: local` (no ref/sha) so `reset` can still find their directive list. `pack update` skips them.
+- **`governance-kit/core`** ships in-tree with the kit and appears in the lockfile with `source: builtin`. `pack update` skips it; the kit version updates with the kit itself.
 
 The runner walks `.governance/packs/*/*/directives/*/check.sh` uniformly — it does not branch on installed-vs-local.
 
@@ -28,12 +29,21 @@ Resolve with `python packverb.py parse-ref <ref>`.
 
 ### Lockfile (`.governance/packs.lock`)
 
-YAML, `version: "1"`. One entry per installed non-core pack:
+YAML, `version: "2"`. **Every** installed pack — kit-bundled, community, repo-local — has an entry. Each entry carries a `source` discriminator (`builtin` | `gh` | `local`) that decides which other fields are present. See [LOCK_SCHEMA.md](LOCK_SCHEMA.md) for the full contract.
 
 ```yaml
-version: "1"
+version: "2"
 packs:
+  - id: governance-kit/core
+    version: "0.2"
+    source: builtin
+    directives:
+      - required-docs
+      - secrets-hygiene
+
   - id: acme/soc2
+    version: "0.3"
+    source: gh
     ref: gh:acme/soc2-pack@main
     sha: 5f3c...
     subpath: ""
@@ -42,9 +52,15 @@ packs:
     directives:
       - soc2-audit-logs
       - soc2-retention
+
+  - id: duaility/governance-kit
+    version: "0.1"
+    source: local
+    directives:
+      - pre-commit-test-gate
 ```
 
-**`governance-kit/core` is not recorded here** — it ships in-tree and its directives are owned by the install manifest (`.governance/installed-packs.yaml`). Repo-local packs (no `source:` in their `pack.yaml`) are also not recorded here — there is no upstream to pin. The lockfile is the community-pack pin record; together with the install manifest it covers every installed directive.
+`builtin` and `local` entries carry only `id` / `version` / `source` / `directives` — no `ref` / `sha` / `installed_at`, since there is no upstream to pin. `gh` entries carry the full pin set. The lockfile is the single source of truth for pack provenance; companion file [`install.yaml`](INSTALL_SCHEMA.md) carries the init receipt (hook strategy, ci_workflow, side effects) but no pack pin state.
 
 Lockfile I/O goes through `packverb lock-{read,add,remove,list}`. Never hand-edit — the canonical key order and timestamp format are set by the helper.
 
@@ -70,9 +86,9 @@ If `query` is omitted, print the full catalog. If the catalog file is missing, f
 
 ## `pack create <name>`
 
-Scaffolds an empty repo-local pack at `.governance/packs/<repo-owner>/<name>/` for hand-authored team-scoped directives. `<repo-owner>` is read from the top-level `owner:` field in `.governance/installed-packs.yaml` (set at `governance init` from the GitHub origin remote, or via `--owner` if `init` couldn't auto-detect).
+Scaffolds an empty repo-local pack at `.governance/packs/<repo-owner>/<name>/` for hand-authored team-scoped directives. `<repo-owner>` is read from the top-level `owner:` field in `.governance/install.yaml` (set at `governance init` from the GitHub origin remote, or via `--owner` if `init` couldn't auto-detect).
 
-1. **Pre-flight.** Refuse if `.governance/installed-packs.yaml` is absent (run `governance init` first), if a pack already exists at the target path, or if `<name>` is not a slug-safe lowercase token (`^[a-z0-9][a-z0-9._-]*$`).
+1. **Pre-flight.** Refuse if `.governance/install.yaml` is absent (run `governance init` first), if a pack already exists at the target path, or if `<name>` is not a slug-safe lowercase token (`^[a-z0-9][a-z0-9._-]*$`).
 2. **Resolve the target path.** Read the manifest's `owner:`. Compute the install path `.governance/packs/<owner>/<name>/`.
 3. **Scaffold.** Create the directory and write a minimal `pack.yaml`:
 
@@ -89,7 +105,7 @@ Scaffolds an empty repo-local pack at `.governance/packs/<repo-owner>/<name>/` f
 
 4. **Report.** Tell the user the pack is empty and that `governance directive add --pack <owner>/<name> <id>` is the next step.
 
-`pack create` does **not** edit `.governance/installed-packs.yaml` or any hook scripts — the pack has no directives yet, so nothing to register or wire. The first `directive add --pack <owner>/<name>` is the step that adds the pack block to the manifest and regenerates hooks.
+`pack create` does **not** edit `.governance/install.yaml` or `.governance/packs.lock` or any hook scripts — the pack has no directives yet, so nothing to register or wire. The first `directive add --pack <owner>/<name>` is the step that adds the pack entry to `packs.lock` (with `source: local`) and regenerates hooks.
 
 ## `pack add <ref>`
 
@@ -101,14 +117,13 @@ Scaffolds an empty repo-local pack at `.governance/packs/<repo-owner>/<name>/` f
 3. **Validate pack.** `packverb validate-pack <pack_dir>` — rejects on missing required fields, preset cycles, `min_governance_kit > KIT_VERSION`, bad capability fields, etc.
 4. **Capability-check every directive.** For each directive folder under `<pack_dir>/directives/`, run `packverb capability-check <directive_dir>`. Any violation aborts the install with the violating path surfaced to the user.
 5. **Diff-before-exec.** For each directive that would install:
-   - If a directive with the same id is already installed (from `.governance/installed-packs.yaml`), show `diff -ruN <installed-directive-dir> <fetched-directive-dir>/<directive-id>` so the user sees exactly what `check.sh` code is about to start running on their commits.
+   - If a directive with the same id is already installed (cross-checked against `.governance/packs.lock`), show `diff -ruN <installed-directive-dir> <fetched-directive-dir>/<directive-id>` so the user sees exactly what `check.sh` code is about to start running on their commits.
    - If the directive is new, show the directive folder tree and the first 50 lines of `check.sh`.
    - **Confirm before proceeding.** This step is the user's last chance to reject.
-6. **Install.** Reuse `install_directive_folder` from `governance/assets/packs/lib/install.sh`: copy each directive folder into `.governance/packs/<pack-id>/directives/<directive-id>/` minus the `evals/` directory, make scripts executable, lay down `install-assets/` where applicable.
-7. **Regenerate the hook dispatcher.** Reuse `generate_hooks_for_strategy` from `governance/assets/packs/lib/hooks.sh`, passing the manifest's `hook_strategy` value so husky and pre-commit.com installs land identical dispatchers (with populator wiring) rather than the validator-only shim that pre-issue-#101 husky paths produced. A pack add may introduce directives with new `hook:` declarations or new `hooks/<kind>.sh` populators — both are picked up automatically by the runtime-discovery loop in the regenerated dispatcher.
-8. **Update the lockfile.** `packverb lock-add .governance/packs.lock <pack-id> <ref> <sha> [--subpath <s>] [--min-kit <v>] --directive <id> ...` for each installed directive.
-9. **Update the install manifest.** Append the new directives to `.governance/installed-packs.yaml` under the pack id, using the existing `write_installed_manifest` contract. The manifest is the ownership ledger `uninstall` trusts.
-10. **Report.** Print the pinned SHA, the directive ids installed, and the updated hook scripts.
+6. **Install.** Reuse `install_directive_folder` from `governance/assets/packs/lib/install.sh`: copy each directive folder into `.governance/packs/<pack-id>/directives/<directive-id>/` minus the `evals/` directory, make scripts executable, lay down `install-assets/` where applicable. If any directive seeds an `install-asset/`, append the path to `install_assets_seeded` in `.governance/install.yaml`.
+7. **Regenerate the hook dispatcher.** Reuse `generate_hooks_for_strategy` from `governance/assets/packs/lib/hooks.sh`, passing `install.yaml`'s `hook_strategy` value so husky and pre-commit.com installs land identical dispatchers (with populator wiring) rather than the validator-only shim that pre-issue-#101 husky paths produced. A pack add may introduce directives with new `hook:` declarations or new `hooks/<kind>.sh` populators — both are picked up automatically by the runtime-discovery loop in the regenerated dispatcher.
+8. **Update the lockfile.** `packverb lock-add .governance/packs.lock <pack-id> --source gh --version <v> --ref <ref> --sha <sha> [--subpath <s>] [--min-kit <v>] --directive <id> ...` for each installed directive. The lockfile is the ownership ledger `uninstall` and `reset` trust for pack provenance.
+9. **Report.** Print the pinned SHA, the directive ids installed, and the updated hook scripts.
 
 Failure modes: any step 2–5 fails → abort with the fetched cache entry intact (future retries are cache-hits). Failure at step 6+ → roll back any already-copied directive folders before returning non-zero.
 
@@ -125,27 +140,24 @@ Default target: every lockfile entry. With a `<pack-id>` argument, update only t
 
 ## `pack remove <pack-id>`
 
-Works on both installed and repo-local packs.
+Works on installed (`source: gh`) and repo-local (`source: local`) packs.
 
-1. Read `.governance/installed-packs.yaml` (and `.governance/packs.lock` when the pack is installed); confirm the pack id is present.
-2. List the directives the manifest attributes to this pack. Preview to the user which directive folders will be deleted.
+1. Read `.governance/packs.lock`; confirm the pack id is present and is not `source: builtin`.
+2. List the directives the lockfile attributes to this pack. Preview to the user which directive folders will be deleted.
 3. On confirmation, for each directive:
    - `rm -rf .governance/packs/<pack-id>/directives/<directive-id>/`
    - Remove the directive's subsection from `CONSTITUTION.md` if present (ownership marker guarded — same discipline as `governance uninstall`).
 4. Remove the pack's `pack.yaml` (and the now-empty `<owner>/<name>/` directory).
 5. Regenerate the hook dispatcher so removed directives are no longer invoked.
-6. For installed packs only: `packverb lock-remove .governance/packs.lock <pack-id>`.
-7. Rewrite the installed-packs manifest without the pack block.
+6. `packverb lock-remove .governance/packs.lock <pack-id>`.
+7. If any of the pack's directives seeded files listed in `.governance/install.yaml`'s `install_assets_seeded`, prune those entries.
 
-Never remove `governance-kit/core` — it is not recorded in the lockfile and has no `pack remove` path. Removing `governance-kit/core` directives is done with `governance directive remove <id>` instead.
+Never remove `governance-kit/core` — its lockfile entry has `source: builtin` and the kit owns the source tree. Removing `governance-kit/core` directives is done with `governance directive remove <id>` instead.
 
 ## `pack list`
 
-1. Walk `.governance/packs/*/*/pack.yaml` and group by source vs local (presence of `source:` or a matching lockfile entry).
-2. For installed packs, `packverb lock-list <lockfile>` — prints `<id>\t<sha>\t<ref>`.
-3. For `governance-kit/core`, print its pack-id line from `.governance/installed-packs.yaml`.
-4. For repo-local packs, print `<id>\t(local)`.
-5. If `.governance/installed-packs.yaml` is missing, tell the user there is no governance setup and suggest `governance init`.
+1. `packverb lock-list .governance/packs.lock --long` → `<id>\t<source>\t<version>\t<sha>\t<ref>`. The single source of truth — every kind of pack appears in this listing.
+2. If `.governance/packs.lock` is missing, tell the user there is no governance setup and suggest `governance init`.
 
 ## Error discipline
 
