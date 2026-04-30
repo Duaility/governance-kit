@@ -6,7 +6,7 @@ One pack ships in-tree:
 
 | Pack | Location | Purpose | Default? |
 |---|---|---|---|
-| `governance-kit/core` | `governance/assets/packs/core/` | General-purpose directives plus the agent audit chain (`receipt-per-issue` → `commit-issue-receipt-match` → `issue-templates` → `issues-tracked` → `agent-token-accounting`) and opt-in `agent-steering-accounting`. | Always selected — cannot be deselected. |
+| `governance-kit/core` | `governance/assets/packs/core/` | General-purpose directives plus the full agent audit chain (`receipt-per-issue` → `commit-issue-receipt-match` → `issue-templates` → `issues-tracked` → `agent-token-accounting` → `agent-steering-accounting`). | Always selected — cannot be deselected. |
 
 Community packs live in their own repos and install via `governance pack add gh:<owner>/<repo>`. For authoring a **third-party pack**, see [AUTHORING_PACKS.md](AUTHORING_PACKS.md).
 
@@ -58,17 +58,17 @@ For repos where every tree-change is produced through an agent runtime (Codex, C
 | `issue-templates`          | `.github/ISSUE_TEMPLATE/` contains proposal and bug issue forms plus config. Blank issues are disabled, proposal issues require Context / Decision / Scope / Acceptance criteria / Validation / Open questions, and bug issues require the core defect-report fields. Ships the templates under `install-assets/.github/ISSUE_TEMPLATE/`. |
 | `issues-tracked`           | `QUALITY.md` exists at repo root with `Open` and `Resolved` sections. Ships `install-assets/QUALITY.md` so a newly bootstrapped repo starts green. |
 | `agent-token-accounting`   | Every non-merge, non-revert commit carries the full trailer set (`Agent`, `Issue`, `Session`, `Token-Input`, `Token-Output`, `Token-Total`, `Cost-Key`), satisfies `Total = Input + Output`, and has exactly one matching append-only row in `COSTS.md`. Ships `install-assets/COSTS.md` plus directive-owned pre-commit and prepare-commit-msg helpers. Runtime-agnostic — see [AGENT_TOKEN_ACCOUNTING.md](AGENT_TOKEN_ACCOUNTING.md) for Codex / Claude Code wiring. |
-| `agent-steering-accounting` | **Opt-in, not in any preset.** Every non-merge, non-revert commit stamps the always-on summary triple (`Steer-Count`, `Steer-Types`, `Steer-Tiers`); the numbers tally the rows newly added to append-only `STEERING.md` by the commit, and each newly-added row's `commit |` cell matches the pending subject. Independent of `agent-token-accounting` — installation is the gate, not the presence of an `Agent:` trailer. Detects human-steering events from the active session JSONL: interrupts (`tier: structural`) and semantic corrections classified by shelling out to the active runtime's headless CLI (`tier: classifier`, with regex `tier: lexical` as a silent fallback). Per-event `Steer-Key:` trailers were retired in #66 — the row → commit join uses the `commit |` column. No internal env-var gates — installation is the gate. Ships `install-assets/STEERING.md`, a Claude Code transcript reader, and pre-commit + prepare-commit-msg helpers. Privacy caveat — `user-reason` cells contain verbatim operator text. See [AGENT_STEERING_ACCOUNTING.md](AGENT_STEERING_ACCOUNTING.md). |
+| `agent-steering-accounting` | **`always_install: true` — bypasses the menu, mandatory in every install.** Every non-merge, non-revert commit stamps the always-on summary triple (`Steer-Count`, `Steer-Types`, `Steer-Tiers`); the numbers tally the rows newly added to append-only `STEERING.md` by the commit, and each newly-added row's `commit |` cell matches the pending subject. Independent of `agent-token-accounting` — installation is the gate, not the presence of an `Agent:` trailer. Detects human-steering events from the active session JSONL: interrupts (`tier: structural`) and semantic corrections classified by shelling out to the active runtime's headless CLI (`tier: classifier`, with regex `tier: lexical` as a silent fallback). Per-event `Steer-Key:` trailers were retired in #66 — the row → commit join uses the `commit |` column. No internal env-var gates — installation is the gate. Ships `install-assets/STEERING.md`, a Claude Code transcript reader, and pre-commit + prepare-commit-msg helpers. Privacy caveat — `user-reason` cells contain verbatim operator text; redact via the directive's classifier hook rather than skipping the directive. See [AGENT_STEERING_ACCOUNTING.md](AGENT_STEERING_ACCOUNTING.md). |
 
 ### `governance-kit/core` presets (full)
 
 | Preset | Directives |
 |---|---|
 | `minimal`  | `required-docs`, `secrets-hygiene`, `repo-hygiene`, `workflows-hardened`, `no-broken-internal-doc-links` |
-| `standard` | *minimal* + `commit-message-format`, `doc-freshness`, `issue-templates`, `issues-tracked`, `receipt-per-issue`, `commit-issue-receipt-match`, `agent-token-accounting` |
+| `standard` | *minimal* + `commit-message-format`, `doc-freshness`, `issue-templates`, `issues-tracked`, `receipt-per-issue`, `commit-issue-receipt-match`, `agent-token-accounting`, `agent-steering-accounting` |
 | `strict`   | *standard* + `no-orphan-todos` |
 
-`agent-steering-accounting` is intentionally absent from every preset — opt-in only because it captures human correction text verbatim.
+`agent-steering-accounting` and `repo-hygiene` are `always_install: true` — they install regardless of preset selection. The agent audit chain is mandatory in this kit's model because every commit is agent-authored: token-spend without steering coverage hides the human corrections that produced the cost.
 
 ---
 

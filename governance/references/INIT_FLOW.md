@@ -211,12 +211,14 @@ Copy `../assets/dot-governance/lib.sh` to `.governance/lib.sh` — shared helper
 
 ### Step 6 — Install the git hooks
 
-Hooks are **generated**, not copied. Use `../assets/packs/lib/install.sh` to build a hook spec from the installed directive folders, then pass that spec to `../assets/packs/lib/hooks.sh`:
+Hooks are **generated**, not copied. Use `../assets/packs/lib/install.sh` to build a hook spec from the installed directive folders, then pass that spec to `../assets/packs/lib/hooks.sh`. Always invoke `generate_hooks_for_strategy` rather than `generate_hooks` directly — the strategy-aware wrapper is the single entry point that enforces parity across host hook frameworks:
 
 ```sh
 build_hook_spec_from_installed_rules <repo-root> /tmp/governance-hook-spec.tsv
-generate_hooks <repo-root>/.githooks <pack-version-label> /tmp/governance-hook-spec.tsv
+generate_hooks_for_strategy <repo-root> <strategy> <pack-version-label> /tmp/governance-hook-spec.tsv
 ```
+
+`<strategy>` is `githooks`, `husky`, or `pre-commit` — the same value you record as `hook_strategy:` in the manifest. The wrapper picks the install dir per strategy (`.githooks/`, `.husky/`, `.governance/hooks/`) and emits identical dispatcher bodies, so directive-owned populator hooks (`directives/<id>/hooks/<kind>.sh`) are wired in every path. **Do not** hand-roll a `bash .governance/run.sh` shim into the host framework's hook file — `.governance/run.sh` is a flat `check.sh` runner that ignores `hook:` filtering and skips populators, which is exactly the gap closed by going through the generator.
 
 The generator:
 
@@ -248,11 +250,14 @@ Path choice:
 
 If the existing hook **has** the marker, overwrite silently — `governance directive *` relies on this. (The marker is a contract: "this file is regeneratable.")
 
-**Path B — existing hook framework.** If the project uses `husky` or the `pre-commit` framework, *do not* set `core.hooksPath` and do not copy into `.githooks/` — those frameworks already have their own tracked hook-config mechanism. Instead, add a hook entry to the existing config (ask the user which framework they use, or infer it from the files you found). See [NATIVE_TESTS.md](NATIVE_TESTS.md) for the husky / pre-commit.com snippets.
+**Path B — existing hook framework.** If the project uses `husky` or the `pre-commit` framework, *do not* set `core.hooksPath` and do not copy into `.githooks/` — those frameworks already have their own tracked hook-config mechanism. Generate dispatchers via the same strategy-aware entry point used in Path A — only the strategy and the resulting install dir change.
 
 In this path:
+- For husky: call `generate_hooks_for_strategy <repo-root> husky <version> <spec>`. The wrapper writes all five dispatchers into `.husky/` so directive-owned populator hooks (`directives/<id>/hooks/<kind>.sh`) are wired uniformly. Each generated file carries the line-2 ownership marker; existing unmarked hooks trigger the same collision flow as Path A.
+- For pre-commit.com: call `generate_hooks_for_strategy <repo-root> pre-commit <version> <spec>` to materialize dispatchers under `.governance/hooks/`, then add a `.pre-commit-config.yaml` hook block per stage that shells out to `bash .governance/hooks/<kind>`. See [NATIVE_TESTS.md](NATIVE_TESTS.md) for the per-framework snippets.
 - Record `hook_strategy: husky` or `hook_strategy: pre-commit` in `.governance/installed-packs.yaml` so `required-docs`' `hooks` sub-check transparently skips (it only enforces `.githooks/` scaffolding when `hook_strategy` is `githooks`).
-- Tell the user explicitly that the repo is using its existing tracked hook framework instead of `.githooks/`.
+- Record each materialized hook file under `path_b.entries` with its fingerprint so `governance uninstall` and `governance reset` can recognize the kit's output.
+- Tell the user explicitly that the repo is using its existing tracked hook framework instead of `.githooks/`, and that populator coverage (token-accounting, steering-accounting) now matches Path A.
 
 ### Step 7 — Install the CI workflow
 

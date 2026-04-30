@@ -41,6 +41,17 @@
 #       Already-existing marker-bearing hooks are overwritten silently;
 #       unmarked files are left alone (caller handles collision).
 #
+#   generate_hooks_for_strategy <repo-root> <strategy> <version> <spec>
+#       Strategy-aware wrapper around `generate_hooks` so init / pack add /
+#       reset can materialize identical dispatchers regardless of host hook
+#       framework. Picks the install dir from `<strategy>`:
+#         githooks    → <repo-root>/.githooks/
+#         husky       → <repo-root>/.husky/
+#         pre-commit  → <repo-root>/.governance/hooks/
+#       The dispatcher body is the same in every case, so directive-owned
+#       populators (`hooks/<kind>.sh`) and `hook:`-filtered `check.sh`
+#       invocations behave identically across paths.
+#
 #   hook_has_marker <hook-path>
 #       Exits 0 if line 2 starts with `# governance-kit:managed`.
 #
@@ -467,4 +478,40 @@ generate_hooks() {
             pre-push)           _emit_pre_push           "$out" "$version" ;;
         esac
     done
+}
+
+# generate_hooks_for_strategy <repo-root> <strategy> <version> <spec>
+#
+# Single entry point used by `governance init`, `governance pack add`, and
+# `governance reset` to materialize the runtime-discovery dispatchers regardless
+# of host hook framework. The dispatchers themselves are framework-agnostic
+# (pure bash); only the install location varies:
+#
+#   githooks    → <repo-root>/.githooks/<kind>     (Path A — kit-managed)
+#   husky       → <repo-root>/.husky/<kind>        (Path B — husky-managed dir)
+#   pre-commit  → not a target — pre-commit.com runs framework-managed hooks
+#                 from .pre-commit-config.yaml entries that shell out to
+#                 `bash .governance/hooks/<kind>`. Generates dispatchers there
+#                 so the framework's entries have a stable target.
+#
+# Same generator, same dispatcher body — so populator hooks
+# (`directives/<id>/hooks/<kind>.sh`) are wired everywhere `check.sh` is.
+# This closes the parity gap that previously forced husky/pre-commit.com
+# repos to hand-roll a `bash .governance/run.sh` shim that ignored
+# populators and the per-hook `hook:` filter.
+generate_hooks_for_strategy() {
+    local repo_root="$1" strategy="$2" version="$3" spec="$4"
+    local target
+
+    case "$strategy" in
+        githooks)    target="$repo_root/.githooks" ;;
+        husky)       target="$repo_root/.husky" ;;
+        pre-commit)  target="$repo_root/.governance/hooks" ;;
+        *)
+            echo "hooks.sh: unknown hook_strategy: $strategy" >&2
+            return 1
+            ;;
+    esac
+
+    generate_hooks "$target" "$version" "$spec"
 }

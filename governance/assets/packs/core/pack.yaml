@@ -12,11 +12,15 @@
 # presets that select directives by id.
 #
 # The `standard` preset bundles the agent audit chain
-# (issue → receipt → commit → cost). Each link is enforced by a
-# separate directive; breaking any link fails the next push.
-# `agent-steering-accounting` is intentionally absent from every
-# preset — opt-in only because it captures human correction text
-# verbatim into `STEERING.md`.
+# (issue → receipt → commit → cost → steering). Each link is enforced
+# by a separate directive; breaking any link fails the next push.
+# `agent-steering-accounting` is mandatory (`always_install: true`,
+# matching `repo-hygiene`): in this kit's model every commit is
+# agent-authored, so durable provenance includes every human
+# correction event alongside token-spend. STEERING.md captures
+# verbatim operator text — repos that need redaction layer that on
+# top via the directive's classifier hook rather than by skipping
+# the directive.
 
 id: governance-kit/core
 name: Core governance directives
@@ -43,6 +47,7 @@ presets:
       - receipt-per-issue
       - commit-issue-receipt-match
       - agent-token-accounting
+      - agent-steering-accounting
   strict:
     extends: standard
     directives:
