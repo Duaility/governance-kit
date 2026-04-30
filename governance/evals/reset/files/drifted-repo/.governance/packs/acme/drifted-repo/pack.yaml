@@ -1,0 +1,6 @@
+id: acme/drifted-repo
+name: Repo-local directives
+version: "0.1"
+min_governance_kit: "0.2"
+description: Hand-authored team-specific directives for the drifted-repo eval fixture.
+author: acme

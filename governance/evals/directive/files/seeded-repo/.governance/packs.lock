@@ -1,0 +1,12 @@
+version: "2"
+packs:
+  - id: governance-kit/core
+    version: "0.2"
+    source: builtin
+    directives:
+      - secrets-hygiene
+  - id: acme/seeded-repo
+    version: "0.1"
+    source: local
+    directives:
+      - no-secrets

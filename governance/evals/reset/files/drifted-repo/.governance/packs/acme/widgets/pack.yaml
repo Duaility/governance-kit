@@ -1,0 +1,7 @@
+id: acme/widgets
+name: Widgets
+version: "0.3"
+source: gh:acme/widgets-pack@main
+min_governance_kit: "0.2"
+description: Internal widget naming + style directives.
+author: acme

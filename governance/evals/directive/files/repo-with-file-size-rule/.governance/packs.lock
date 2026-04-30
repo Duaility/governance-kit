@@ -1,0 +1,7 @@
+version: "2"
+packs:
+  - id: acme/repo-with-file-size-rule
+    version: "0.1"
+    source: local
+    directives:
+      - file-size-limit

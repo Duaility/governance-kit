@@ -3,46 +3,75 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "We bootstrapped governance-kit into this repo months ago and the preset was wrong. I want a clean slate before re-running governance-bootstrap. Remove every governance artifact this repo has, including the seeded QUALITY.md and COSTS.md — we haven't put real content in them yet. Don't touch anything else.",
-      "expected_output": "The skill surveys the repo, detects a fully-installed governance surface driven by the .governance/install.yaml manifest plus .governance/packs.lock, classifies the state as fully-installed, asks the user for a mode (dry-run / soft / hard), and — given the user's 'include seeded docs' direction — proceeds in hard mode after explicit confirmation. It deletes every kit-owned artifact (constitution, .governance tree, CI workflow, managed hooks, install.yaml, packs.lock, AGENTS.md directive block, seeded docs). It unsets core.hooksPath only if it still points at .githooks. It leaves changes unstaged for the user to commit. It prints a summary naming mode, classification, source-of-truth, files deleted, and next command.",
-      "files": ["evals/files/bootstrapped-repo/"],
+      "prompt": "Reset the secrets-hygiene directive — somebody locally edited it and now it's failing weird. Put it back to whatever was pinned.",
+      "expected_output": "Following RESET_FLOW.md Steps 1–7: the skill reads `.governance/packs.lock`, confirms `secrets-hygiene` is owned by `governance-kit/core` (`source: builtin`), resolves the pristine source from the kit-bundled tree, computes the byte-diff vs the installed copy, prints the diff (diff-before-exec), asks for explicit `yes`, replaces the directive folder, restores its CONSTITUTION subsection, regenerates the hook dispatcher, smoke-tests, and commits one atomic commit with subject `chore(governance): reset secrets-hygiene to governance-kit/core@<short-sha>`. Hand-authored directives (the `acme/drifted-repo` pack's `team-policy`) are preserved by default. Working tree is unstaged otherwise.",
+      "files": ["evals/files/drifted-repo/"],
       "assertions": [
-        "The skill read .governance/install.yaml and .governance/packs.lock and reported 'Source of truth: manifest' (or equivalent)",
-        "The skill asked the user to choose a mode (dry-run / soft / hard) before executing",
-        "CONSTITUTION.md was deleted",
-        ".governance/ was deleted recursively (run.sh, lib.sh, every directives/<id>/ folder gone)",
-        ".github/workflows/governance.yml was deleted",
-        ".governance/install.yaml and .governance/packs.lock were deleted (and the .governance/ directory removed if it became empty)",
-        ".githooks/pre-commit, .githooks/commit-msg, and .githooks/prepare-commit-msg were deleted (each carried the line-2 governance-kit:managed marker)",
-        "AGENTS.md was edited in-place: the <!-- governance: rules-to-follow --> marker-bounded block is gone, but every other line of AGENTS.md is byte-identical to the fixture",
-        "QUALITY.md and COSTS.md were deleted (hard mode, as the user requested removing seeded docs)",
-        "The skill did not run git clean, git reset --hard, git stash, or any destructive git operation",
-        "The skill did not auto-commit the changes — the working tree shows the deletions as unstaged (or staged but uncommitted)",
-        "The final summary names the mode (hard), classification (fully-installed), and 'Next command: git status'"
+        "The skill read `.governance/packs.lock` and identified `secrets-hygiene` as owned by `governance-kit/core` (`source: builtin`)",
+        "The skill printed the per-directive diff between the installed `secrets-hygiene/check.sh` and the pristine source before any file was written",
+        "The skill asked for an explicit `yes` to execute (no silent acceptance of a default)",
+        "The installed `.governance/packs/governance-kit/core/directives/secrets-hygiene/` folder was overwritten with the pristine source (drifted lines removed)",
+        "`CONSTITUTION.md`'s `### secrets-hygiene` subsection was restored to match the pristine `constitution.md`",
+        "The hook dispatcher was regenerated (or explicitly noted as unchanged in the report)",
+        "Hand-authored directives (e.g. `acme/drifted-repo`'s `team-policy`) were NOT touched — listed under `Preserved:` in the report",
+        "Exactly one new commit was created with subject `chore(governance): reset secrets-hygiene to governance-kit/core@<short-sha>` (with `(#N)` issue anchor)",
+        "An Evolution Log entry dated today was appended naming the reset scope and the pinned SHA",
+        "The skill did not push — the report's `Next:` field reads `git push`"
       ]
     },
     {
       "id": 2,
-      "prompt": "This repo has no governance setup. Reset it.",
-      "expected_output": "The skill surveys the repo, finds no manifest, no managed hooks, no CONSTITUTION.md, no .governance/ — classifies as none-detected — and reports 'nothing to remove' without asking for a mode. No files are modified. Idempotency contract: running reset on a clean repo is a success, not an error.",
-      "files": ["evals/files/clean-repo/"],
+      "prompt": "Reset every directive that came from the acme/widgets pack — we want them at exactly the SHA we pinned.",
+      "expected_output": "Following RESET_FLOW.md with `--pack acme/widgets`: the skill resolves the pinned SHA from `.governance/packs.lock`, ensures the cache entry exists at `${GOVERNANCE_KIT_HOME:-~/.governance/cache}/packs/acme__widgets@<sha>/` (re-fetches if missing), restores every directive in `lock.packs[acme/widgets].directives`, regenerates hooks, commits with subject `chore(governance): reset pack acme/widgets to pinned <short-sha>`. `secrets-hygiene` (owned by `governance-kit/core`) and `team-policy` (hand-authored in `acme/drifted-repo`) are NOT touched.",
+      "files": ["evals/files/drifted-repo/"],
       "assertions": [
-        "No files were created, deleted, or modified in the fixture",
-        "The skill classified the repo as none-detected (or equivalent wording)",
-        "The skill exited without asking the user for a mode, because there is nothing to mode-select over",
-        "The skill's final message tells the user the repo has no governance-kit footprint"
+        "The skill resolved the cache directory at `${GOVERNANCE_KIT_HOME:-$HOME/.governance/cache}/packs/acme__widgets@<sha>/` (with `/` encoded as `__`) and re-fetched via `packverb fetch` if the cache was missing",
+        "Every directive in `acme/widgets`'s lockfile entry had its installed folder overwritten with the pristine source",
+        "`secrets-hygiene` (owned by `governance-kit/core`) was NOT touched",
+        "Hand-authored directives owned by `acme/drifted-repo` (`source: local`) were NOT touched",
+        "Exactly one commit was created with subject `chore(governance): reset pack acme/widgets to pinned <short-sha>`",
+        "The report names: Scope (`--pack acme/widgets`), Restored directive list with `<pack>@<sha>` source, Smoke-test result, Committed sha+subject, and `Next: git push`"
       ]
     },
     {
       "id": 3,
-      "prompt": "Reset governance. But only show me the plan — don't delete anything yet.",
-      "expected_output": "The skill runs the full survey and builds the execute plan, then honors the user's explicit dry-run request by printing the plan without executing. The working tree is byte-identical before and after. The summary is prefixed with 'would-' verbs so it is unambiguous that nothing happened.",
-      "files": ["evals/files/bootstrapped-repo/"],
+      "prompt": "Reset every directive — but show me the plan first, don't commit.",
+      "expected_output": "Following RESET_FLOW.md with `--all --dry-run`: the skill computes the plan for every pack-sourced directive, prints the per-directive diffs and the would-commit subject, but performs no writes and creates no commit. `--drop-handauthored` was NOT requested, so hand-authored directives are listed under Preserved.",
+      "files": ["evals/files/drifted-repo/"],
       "assertions": [
-        "No files were deleted or modified in the fixture",
-        "The skill explicitly chose dry-run mode (the user's request made the default obvious; no AskUserQuestion needed)",
-        "The summary lists the files that *would* be deleted, not files that were deleted",
-        "The summary's mode field reads 'dry-run'"
+        "No files were modified — every directive folder, `CONSTITUTION.md`, the lockfile, and `.governance/freshness.conf` are byte-identical to the fixture",
+        "No commit was created",
+        "The summary's mode/scope reads `--all --dry-run` and the planned-commit subject is prefixed with `would-commit:`",
+        "The summary lists every pack-sourced directive that *would* be restored (across both `governance-kit/core` and `acme/widgets`)",
+        "Hand-authored directives are listed under `Preserved:` (no `--drop-handauthored`)",
+        "Per-directive diffs were printed for the user to review"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Reset all the directives. The packs.lock file is missing because somebody deleted it.",
+      "expected_output": "Following RESET_FLOW.md's Interaction policy: with `.governance/packs.lock` missing, the skill refuses to run and tells the user reset is lockfile-driven (no safe heuristic for pack provenance). It directs the user to the recovery path: `governance uninstall` + `governance init`. No files are mutated.",
+      "files": ["evals/files/lockfile-missing/"],
+      "assertions": [
+        "No files were created, deleted, or modified",
+        "The skill explicitly refused to run because `.governance/packs.lock` is missing",
+        "The skill named the recovery path: `governance uninstall` followed by `governance init`",
+        "The skill did NOT fall back to a heuristic and did NOT make assumptions about pack provenance"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Reset everything to pinned, and drop the hand-authored directives too — we want a clean slate.",
+      "expected_output": "Following RESET_FLOW.md with `--all --drop-handauthored`: the skill restores every pack-sourced directive (`governance-kit/core` + `acme/widgets`) AND deletes every directive owned by `source: local` packs (including the `team-policy` directive in `acme/drifted-repo`). The local pack's `pack.yaml` is removed if it has no surviving directives, and its lockfile entry is removed too. The commit subject is `chore(governance): reset all directives + drop hand-authored`.",
+      "files": ["evals/files/drifted-repo/"],
+      "assertions": [
+        "Every pack-sourced directive folder under `governance-kit/core` and `acme/widgets` was restored to its pinned source",
+        "The hand-authored `team-policy` directive folder in `acme/drifted-repo` was deleted",
+        "If `team-policy` was `acme/drifted-repo`'s only directive, the pack's `pack.yaml` was deleted, the empty pack directory was removed, and the lockfile entry was `lock-remove`d",
+        "`CONSTITUTION.md` no longer has a `### team-policy` subsection",
+        "Exactly one commit was created with subject `chore(governance): reset all directives + drop hand-authored` and the issue anchor",
+        "The Evolution Log gained two entries: one for the restored directives (grouped per pack) and one for the dropped hand-authored directives",
+        "The report's `Dropped:` field lists `team-policy` and `Preserved:` is `none`"
       ]
     }
   ]

@@ -1,0 +1,5 @@
+category: Security
+recommended: true
+summary: Block credentials, tokens, and private keys in tracked files.
+surface: repo-state
+hook: pre-commit
