@@ -79,6 +79,23 @@
       ]
     },
     {
+      "id": 7,
+      "prompt": "Add a directive called cors-allowed-origins into our frontend pack — every CORS config in the codebase must read its origins from the ALLOWED_ORIGINS env var, never hardcoded.",
+      "expected_output": "Following DIRECTIVE_AMEND_FLOW.md with `--pack acme/frontend` (or the equivalent inferred routing once the user names a non-default pack): the directive is created at `.governance/packs/acme/frontend/directives/cors-allowed-origins/`, NOT at the default `.governance/packs/acme/seeded-repo/directives/cors-allowed-origins/`. Step 5b is the canonical 'add into a `source: local` pack that has no lockfile entry yet' case — `acme/frontend/pack.yaml` already exists (from a prior `pack create frontend`), so the skill skips re-scaffolding `pack.yaml` and proceeds straight to `lock-add` to create the first `acme/frontend` lockfile entry with the new directive id. The atomic triple lands in one commit alongside the lockfile mutation.",
+      "files": ["evals/files/seeded-repo/"],
+      "assertions": [
+        "The new directive folder lives at `.governance/packs/acme/frontend/directives/cors-allowed-origins/` with `directive.yaml`, `check.sh`, and `constitution.md`",
+        "No directive folder was created at `.governance/packs/acme/seeded-repo/directives/cors-allowed-origins/` (the default local pack is NOT used)",
+        "`.governance/packs/acme/frontend/pack.yaml` is byte-identical to the fixture (the existing scaffold is reused; not rewritten)",
+        "`.governance/packs.lock` gained a new entry for `acme/frontend` with `source: local`, the version from `pack.yaml`, and `directives:` containing exactly `cors-allowed-origins`",
+        "`.governance/packs.lock`'s pre-existing `acme/seeded-repo` and `governance-kit/core` entries are unchanged",
+        "`CONSTITUTION.md` gained a new Directives subsection for `cors-allowed-origins` naming `.governance/packs/acme/frontend/directives/cors-allowed-origins/check.sh` as the enforcement path",
+        "`CONSTITUTION.md`'s Evolution Log gained an entry dated today",
+        "The skill created exactly one new commit containing the directive folder, `CONSTITUTION.md`, and `.governance/packs.lock` with a Conventional Commits subject (e.g. `feat(governance): add cors-allowed-origins to acme/frontend pack`)",
+        "The summary classifies the action as adding a directive into the named `acme/frontend` pack (not the default), and reports that this was the pack's first directive (lockfile entry created, not upserted)"
+      ]
+    },
+    {
       "id": 6,
       "prompt": "Modify the secrets-hygiene directive — I want to also block AWS access keys (AKIA*).",
       "expected_output": "The skill detects via `.governance/packs.lock` that `secrets-hygiene` is owned by `governance-kit/core` (`source: builtin`) and refuses the modify per DIRECTIVE_AMEND_FLOW.md's upstream-pinned table. It does NOT edit the directive locally; it routes the user to the correct verb — for a `builtin` directive, that is to either fork the directive into a local override (and remove the original via `directive remove` to opt out) or update the kit. No files are mutated.",

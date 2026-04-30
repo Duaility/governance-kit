@@ -20,3 +20,4 @@ packs:
     source: local
     directives:
       - team-policy
+      - naming-convention

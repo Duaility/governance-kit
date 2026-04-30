@@ -206,3 +206,4 @@ Schema:
 | claude-code-b69c852e-d25-1777565095 | claude-code | b69c852e-d25d-4dd1-b4fd-21fa59110878 | #103 | claude-opus-4-7 | 20 | 20076 | 6935152 | 7582 | 27678 | 3.7827 | docs(governance): narrow directive-amend refusal + add lockfile-sync step (#103) |
 | claude-code-585e739b-832-1777566671 | claude-code | 585e739b-8325-4573-8e1d-6a177903eeef | #105 | claude-opus-4-7 | 5 | 15823 | 14820 | 24 | 15852 | 0.1069 | test(governance): rewrite evals for current verb surface (#105) |
 | claude-code-723f8267-3fd-1777566816 | claude-code | 723f8267-3fd0-45a4-86b9-8bbb91c0ca49 | #105 | claude-opus-4-7 | 198 | 327616 | 24445495 | 110330 | 438144 | 17.0296 | test(governance): rewrite evals for current verb surface (#105) |
+| claude-code-7355eafe-b1d-1777567250 | claude-code | 7355eafe-b1d7-4248-b6f9-ce574b7e9d6c | #105 | claude-opus-4-7 | 5 | 15790 | 14820 | 45 | 15840 | 0.1072 | test(governance): add first-class local-pack evals (#105) |

@@ -92,6 +92,36 @@
         "No files were modified",
         "If `.governance/packs.lock` were missing, the skill would tell the user there is no governance setup and suggest `governance init` (this assertion is informational; the fixture has a lockfile)"
       ]
+    },
+    {
+      "id": 7,
+      "prompt": "Remove the local pack acme/repo-with-installed-pack — we're consolidating those rules into governance-kit/core upstream.",
+      "expected_output": "Following PACK_VERBS.md `pack remove <pack-id>` against a `source: local` pack: the skill confirms the lockfile entry is `source: local` (not `builtin`), lists the directives the lockfile attributes to it (`team-policy`, `naming-convention`), asks for explicit confirmation, deletes both directive folders, removes both CONSTITUTION subsections, deletes `pack.yaml` and the now-empty pack directory, regenerates the hook dispatcher, and `lock-remove`s the entry. Repo-local packs are first-class — the same flow that handles `gh` packs handles `local` packs, with the only difference being there is no upstream cache to retain.",
+      "files": ["evals/files/repo-with-installed-pack/"],
+      "assertions": [
+        "The skill confirmed `acme/repo-with-installed-pack` has `source: local` in `.governance/packs.lock` (not `builtin`)",
+        "The skill listed BOTH directives (`team-policy` and `naming-convention`) attributed to the pack and asked for explicit confirmation",
+        "Both directive folders were deleted: `.governance/packs/acme/repo-with-installed-pack/directives/team-policy/` AND `.governance/packs/acme/repo-with-installed-pack/directives/naming-convention/`",
+        "Both CONSTITUTION.md subsections (`### team-policy` and `### naming-convention`) were removed",
+        "`.governance/packs/acme/repo-with-installed-pack/pack.yaml` was deleted and the now-empty `acme/repo-with-installed-pack/` directory was removed",
+        "The hook dispatcher was regenerated so the removed directives are no longer invoked",
+        "The lockfile entry for `acme/repo-with-installed-pack` was removed via `packverb lock-remove`",
+        "The pre-existing `governance-kit/core` and `acme/widgets` lockfile entries are unchanged",
+        "An attempt to `pack remove governance-kit/core` would have been refused (the `source: builtin` guard applies symmetrically)"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Create a new local pack called widgets for our team's widget directives.",
+      "expected_output": "Following PACK_VERBS.md `pack create <name>`'s pre-flight: the skill reads `owner:` from `.governance/install.yaml` (`acme`), computes the target path `.governance/packs/acme/widgets/`, sees the directory already exists (the fixture's `acme/widgets` `gh` pack lives there), and refuses with a clear error before writing anything. The skill names the collision and tells the user the existing pack is `source: gh` (community-installed via `pack add`), so picking a different name is the right path; overwriting it would silently destroy a pinned community install.",
+      "files": ["evals/files/repo-with-installed-pack/"],
+      "assertions": [
+        "No files were created, deleted, or modified — `.governance/packs/acme/widgets/` is byte-identical to the fixture",
+        "The skill explicitly refused to scaffold the pack and named the reason: `.governance/packs/acme/widgets/` already exists",
+        "The skill identified the existing `acme/widgets` pack as `source: gh` (a community install per the lockfile) and warned that overwriting would destroy a SHA-pinned install",
+        "The skill suggested the user pick a different slug (and did not propose overwriting the existing pack as a path forward)",
+        "`.governance/packs.lock` was not modified"
+      ]
     }
   ]
 }
