@@ -117,39 +117,52 @@ func TestGovernanceDirectives(t *testing.T) {
 
 ### husky
 
-If `package.json` has `husky` configured, don't write to `.git/hooks/pre-commit` directly. Instead:
+If `package.json` has `husky` configured, **do not** hand-write a one-liner like `bash .governance/run.sh` into `.husky/pre-commit`. That shim runs every directive's `check.sh` regardless of `hook:` field and never invokes directive-owned populator hooks (`hooks/<kind>.sh`), which silently breaks `agent-token-accounting` / `agent-steering-accounting` — the validators demand trailers + ledger rows that nothing populates. Instead, generate the same per-hook dispatchers used by Path A into `.husky/`:
 
 ```bash
-npx husky add .husky/pre-commit "bash .governance/run.sh"
+# from inside the bootstrapping clone
+source governance-kit/governance/assets/packs/lib/install.sh
+source governance-kit/governance/assets/packs/lib/hooks.sh
+
+build_hook_spec_from_installed_directives "$PWD" /tmp/governance-hook-spec.tsv
+generate_hooks_for_strategy "$PWD" husky "<pack-version>" /tmp/governance-hook-spec.tsv
 ```
 
-Add the `SKIP_GOVERNANCE` guard at the top of `.husky/pre-commit`:
-
-```bash
-#!/usr/bin/env bash
-. "$(dirname -- "$0")/_/husky.sh"
-
-[[ "${SKIP_GOVERNANCE:-0}" == "1" ]] && exit 0
-bash .governance/run.sh
-```
+That writes `pre-commit`, `commit-msg`, `prepare-commit-msg`, `post-commit`, and `pre-push` into `.husky/`, each carrying the `# governance-kit:managed` line-2 marker, the `SKIP_GOVERNANCE=1` escape hatch, and the runtime discovery loop that wires populators alongside `check.sh`. Re-run after `governance pack add` / `governance reset` to keep dispatchers in sync.
 
 ### pre-commit framework (pre-commit.com)
 
-Add to `.pre-commit-config.yaml`:
+The pre-commit.com framework expects per-stage entries. Generate dispatchers into `.governance/hooks/` and reference them from `.pre-commit-config.yaml`:
+
+```bash
+generate_hooks_for_strategy "$PWD" pre-commit "<pack-version>" /tmp/governance-hook-spec.tsv
+```
 
 ```yaml
 repos:
   - repo: local
     hooks:
-      - id: governance
-        name: governance
-        entry: bash .governance/run.sh
+      - id: governance-pre-commit
+        name: governance pre-commit
+        entry: bash .governance/hooks/pre-commit
         language: system
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
+      - id: governance-commit-msg
+        name: governance commit-msg
+        entry: bash .governance/hooks/commit-msg
+        language: system
+        pass_filenames: false
+        stages: [commit-msg]
+      - id: governance-prepare-commit-msg
+        name: governance prepare-commit-msg
+        entry: bash .governance/hooks/prepare-commit-msg
+        language: system
+        pass_filenames: false
+        stages: [prepare-commit-msg]
 ```
 
-Users can skip with `SKIP=governance git commit ...` (the framework's native skip mechanism).
+Users can skip with `SKIP=governance-pre-commit git commit ...` (the framework's native skip mechanism). The kit's own `SKIP_GOVERNANCE=1` env-var still works because it's honored inside the dispatcher.
 
 ### lefthook
 

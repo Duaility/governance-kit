@@ -287,6 +287,81 @@ pre_push_text="$(cat "$target_hooks/pre-push")"
 assert_contains "pre-push slurps refs from stdin into a tempfile" 'cat > "$REFS_FILE"' "$pre_push_text"
 assert_contains "pre-push replays refs to each check.sh" '< "$REFS_FILE"' "$pre_push_text"
 
+# ---- generate_hooks_for_strategy: per-strategy install dir ----------------
+
+printf '── generate_hooks_for_strategy: per-strategy install dir ───\n'
+
+# Each strategy materializes the SAME dispatcher body — so populator wiring
+# (`hooks/<kind>.sh` discovery + `hook:` filter on check.sh) is uniform across
+# install paths. That parity is the whole point of the strategy wrapper:
+# a husky or pre-commit.com repo cannot silently drop populators and pretend
+# the validator-only chain is sufficient.
+strategy_repo="$WORK/strategy-repo"
+mkdir -p "$strategy_repo"
+
+# githooks → .githooks/
+generate_hooks_for_strategy "$strategy_repo" githooks "v-strat" "$spec"
+for kind in pre-commit commit-msg prepare-commit-msg post-commit pre-push; do
+    assert_file_exists "githooks strategy emits $kind"      "$strategy_repo/.githooks/$kind"
+    assert_executable  "githooks strategy $kind executable" "$strategy_repo/.githooks/$kind"
+done
+
+# husky → .husky/ (the install dir husky itself manages via core.hooksPath)
+generate_hooks_for_strategy "$strategy_repo" husky "v-strat" "$spec"
+for kind in pre-commit commit-msg prepare-commit-msg post-commit pre-push; do
+    assert_file_exists "husky strategy emits $kind"      "$strategy_repo/.husky/$kind"
+    assert_executable  "husky strategy $kind executable" "$strategy_repo/.husky/$kind"
+    line2_husky="$(sed -n '2p' "$strategy_repo/.husky/$kind")"
+    assert_contains "husky $kind carries marker" '# governance-kit:managed' "$line2_husky"
+done
+
+# Populator wiring is identical in husky as in githooks — this is the
+# regression issue #101 was opened for: husky used to land only check.sh
+# wiring, never the directive-owned hooks/<kind>.sh populator. Assert the
+# generated dispatcher invokes the helper-discovery loop.
+husky_pre_commit="$(cat "$strategy_repo/.husky/pre-commit")"
+assert_contains "husky pre-commit invokes populator helper loop" \
+    'directive_dirs_for_hook pre-commit helper' "$husky_pre_commit"
+husky_prepare="$(cat "$strategy_repo/.husky/prepare-commit-msg")"
+assert_contains "husky prepare-commit-msg invokes populator helper loop" \
+    'directive_dirs_for_hook prepare-commit-msg helper' "$husky_prepare"
+
+# pre-commit → .governance/hooks/ (framework entries shell out to these)
+generate_hooks_for_strategy "$strategy_repo" pre-commit "v-strat" "$spec"
+for kind in pre-commit commit-msg prepare-commit-msg post-commit pre-push; do
+    assert_file_exists "pre-commit strategy emits $kind under .governance/hooks/" \
+        "$strategy_repo/.governance/hooks/$kind"
+done
+
+# Unknown strategy is rejected loudly.
+if generate_hooks_for_strategy "$strategy_repo" no-such-thing "v" "$spec" 2>/dev/null; then
+    FAIL=$((FAIL + 1)); printf '  not ok - unknown strategy should fail\n'
+else
+    PASS=$((PASS + 1)); printf '  ok - unknown strategy is rejected\n'
+fi
+
+# Re-running the same strategy regenerates silently (marker-bearing overwrite).
+generate_hooks_for_strategy "$strategy_repo" husky "v-regen" "$spec"
+line2_regen="$(sed -n '2p' "$strategy_repo/.husky/pre-commit")"
+assert_contains "husky regen bumps pack-version" "pack-version=v-regen" "$line2_regen"
+
+# An unmarked pre-existing husky hook is preserved (collision detector wins).
+husky_collide_repo="$WORK/strategy-collide"
+mkdir -p "$husky_collide_repo/.husky"
+cat > "$husky_collide_repo/.husky/pre-commit" <<'EOF'
+#!/usr/bin/env bash
+echo "user-husky-hook"
+EOF
+chmod +x "$husky_collide_repo/.husky/pre-commit"
+if ! generate_hooks_for_strategy "$husky_collide_repo" husky "v" "$spec" 2>/dev/null; then
+    PASS=$((PASS + 1)); printf '  ok - husky strategy refuses to clobber unmarked hook\n'
+else
+    FAIL=$((FAIL + 1)); printf '  not ok - husky strategy should refuse unmarked clobber\n'
+fi
+preserved_husky="$(cat "$husky_collide_repo/.husky/pre-commit")"
+assert_contains "husky user content preserved on collision" \
+    'user-husky-hook' "$preserved_husky"
+
 # ---- summary --------------------------------------------------------------
 
 printf '\n────────────────────────────────────────\n'

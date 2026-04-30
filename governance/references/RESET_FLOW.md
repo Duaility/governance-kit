@@ -210,11 +210,14 @@ identical to the pinned version.
 
 After all directive-level changes:
 
-4. **Regenerate the hook dispatcher.** Reuse the hook-generation
-   path from `governance/assets/packs/lib/hooks.sh`. A reset can
-   change which hooks are needed (e.g., a directive's `hook:` field
-   may differ between the installed-and-amended version and the
-   pinned version).
+4. **Regenerate the hook dispatcher.** Reuse `generate_hooks_for_strategy`
+   from `governance/assets/packs/lib/hooks.sh`, passing the manifest's
+   `hook_strategy` so the regenerated dispatchers land in the right
+   directory for the host framework (`.githooks/`, `.husky/`, or
+   `.governance/hooks/`). A reset can change which hooks are needed
+   (e.g., a directive's `hook:` field may differ between the
+   installed-and-amended version and the pinned version, or a new
+   `hooks/<kind>.sh` populator may have appeared upstream).
 5. **Append an Evolution Log entry.** Use today's date from the
    session environment and the format the file already uses. Default
    shape per restored or dropped directive (group restores into one
