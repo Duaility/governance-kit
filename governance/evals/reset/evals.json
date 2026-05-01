@@ -36,7 +36,7 @@
     {
       "id": 3,
       "prompt": "Reset every directive — but show me the plan first, don't commit.",
-      "expected_output": "Following RESET_FLOW.md with `--all --dry-run`: the skill computes the plan for every pack-sourced directive, prints the per-directive diffs and the would-commit subject, but performs no writes and creates no commit. `--drop-handauthored` was NOT requested, so hand-authored directives are listed under Preserved.",
+      "expected_output": "Following RESET_FLOW.md with `--all --dry-run`: the skill computes the plan for every pack-sourced directive, prints the per-directive diffs (or a `fetch required` note when a `gh`-source pin is not cached locally) and the would-commit subject, but performs no writes and creates no commit. `--drop-handauthored` was NOT requested, so hand-authored directives are listed under Preserved.",
       "files": ["files/drifted-repo/"],
       "assertions": [
         "No files were modified — every directive folder, `CONSTITUTION.md`, the lockfile, and `.governance/freshness.conf` are byte-identical to the fixture",
@@ -44,7 +44,7 @@
         "The summary's mode/scope reads `--all --dry-run` and the planned-commit subject is prefixed with `would-commit:`",
         "The summary lists every pack-sourced directive that *would* be restored (across both `governance-kit/core` and `acme/widgets`)",
         "Hand-authored directives are listed under `Preserved:` (no `--drop-handauthored`)",
-        "Per-directive diffs were printed for the user to review"
+        "Per-directive diffs were printed where the pristine source is available offline (i.e., for `governance-kit/core` builtin directives); for `gh`-source directives whose pinned SHA isn't in the local cache at `${GOVERNANCE_KIT_HOME:-$HOME/.governance/cache}/packs/<slug>@<sha>/`, the plan explicitly notes that fetch is required rather than depending on network access during dry-run"
       ]
     },
     {
