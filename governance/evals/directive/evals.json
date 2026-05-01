@@ -5,7 +5,7 @@
       "id": 1,
       "prompt": "We had an incident yesterday (INC-4117) — someone committed a private key file (*.pem) and we had to rotate half our credentials. Add a governance directive that blocks committing *.pem, *.key, and *.p12 files. Wire it into the constitution properly.",
       "expected_output": "Following DIRECTIVE_AMEND_FLOW.md Steps 1–7: the atomic triple lands in one commit — (a) a new `.governance/packs/<owner>/<repo>/directives/<id>/` directive folder with `directive.yaml`, `check.sh`, and `constitution.md` blocking the listed extensions, (b) a new Directives subsection in `CONSTITUTION.md` citing INC-4117, (c) an Evolution Log entry dated today. Step 5b updates `.governance/packs.lock` (the local pack entry's `directives:` list gains the new id; if the local pack has no entry yet, `pack.yaml` is scaffolded and a `source: local` entry is created). The skill drafts, smoke-tests against the seeded repo, and commits in one pass without asking for approval of the draft. The summary reports the directive name, action type, intent map, smoke-test result, the commit sha+subject, and `Next: git push`.",
-      "files": ["evals/files/seeded-repo/"],
+      "files": ["files/seeded-repo/"],
       "assertions": [
         "A new directive folder exists under `.governance/packs/<owner>/<repo>/directives/` with `directive.yaml`, `check.sh`, and `constitution.md`",
         "The directive `check.sh` blocks at least these extensions: `.pem`, `.key`, `.p12`",
@@ -25,7 +25,7 @@
       "id": 2,
       "prompt": "We want to raise our file-size-limit from 500 lines to 800 lines — the old limit is triggering too many false positives in the data-pipeline package. Modify the directive.",
       "expected_output": "Following DIRECTIVE_AMEND_FLOW.md, the existing `file-size-limit` directive's threshold is updated to 800 (in `check.sh` or via the directive's documented env-var convention). The constitution's directive subsection is updated to reflect 800. A new Evolution Log entry records the change with the data-pipeline false-positive reason. No new directive folder is created. Per Step 5b, modify is a no-op for `.governance/packs.lock` (id unchanged).",
-      "files": ["evals/files/repo-with-file-size-rule/"],
+      "files": ["files/repo-with-file-size-rule/"],
       "assertions": [
         "The existing `file-size-limit` directive folder was edited (not duplicated)",
         "The new limit value (800) appears in `check.sh` or its documented env-var default",
@@ -41,7 +41,7 @@
       "id": 3,
       "prompt": "Remove the no-console-log directive — we're keeping structured logs via pino and the rule is noisy. Do it properly.",
       "expected_output": "Following DIRECTIVE_AMEND_FLOW.md: the directive folder is removed, the Directives subsection is removed from CONSTITUTION.md, and an Evolution Log entry records the removal with the structured-logging reason. Step 5b updates `.governance/packs.lock` — the directive id is dropped from the owning local pack's `directives:` list (and if it was the last directive, the lock entry and `pack.yaml` are removed). The skill warns if any other docs or code reference the removed directive by name.",
-      "files": ["evals/files/repo-with-console-log-rule/"],
+      "files": ["files/repo-with-console-log-rule/"],
       "assertions": [
         "`.governance/packs/<owner>/<repo>/directives/no-console-log/` no longer exists",
         "The Directives section of `CONSTITUTION.md` no longer describes `no-console-log`",
@@ -56,7 +56,7 @@
       "id": 4,
       "prompt": "Can you run a governance health check and tell me if any of these rules look stale?",
       "expected_output": "The skill recognizes that this is a health-check / review request, not a targeted amendment (per DIRECTIVE_AMEND_FLOW.md Interaction policy). It does not edit files, does not stage changes, and answers directly.",
-      "files": ["evals/files/seeded-repo/"],
+      "files": ["files/seeded-repo/"],
       "assertions": [
         "No files under `.governance/packs/<owner>/<repo>/directives/` or `CONSTITUTION.md` were modified",
         "`.governance/packs.lock` was not modified",
@@ -68,7 +68,7 @@
       "id": 5,
       "prompt": "Add a directive called plan-captured. The goal is that every substantive change ships with an updated plan in plans/*.md so reviewers can see the intent, not just the diff.",
       "expected_output": "The skill treats this as a change-set obligation (per DIRECTIVE_AMEND_FLOW.md Step 2's intent map), not a repo-state existence check. It creates a directive whose `check.sh` inspects the staged diff locally and the branch diff in CI so a substantive change without a companion `plans/*.md` update fails mechanically. The constitution entry says the directive blocks substantive changes landing without an updated plan, and the summary explicitly names the bad merge, policy surface, and enforcement surface. Step 5b adds the directive id to the local pack's `.governance/packs.lock` entry.",
-      "files": ["evals/files/seeded-repo/"],
+      "files": ["files/seeded-repo/"],
       "assertions": [
         "The summary explicitly classifies the directive as a change-set obligation (or equivalent wording)",
         "The new directive's `check.sh` inspects changed files (e.g. via `git diff --cached`, `git diff origin/main...HEAD`, or branch-diff fallback) rather than only checking whether `plans/*.md` exists",
@@ -82,7 +82,7 @@
       "id": 7,
       "prompt": "Add a directive called cors-allowed-origins into our frontend pack — every CORS config in the codebase must read its origins from the ALLOWED_ORIGINS env var, never hardcoded.",
       "expected_output": "Following DIRECTIVE_AMEND_FLOW.md with `--pack acme/frontend` (or the equivalent inferred routing once the user names a non-default pack): the directive is created at `.governance/packs/acme/frontend/directives/cors-allowed-origins/`, NOT at the default `.governance/packs/acme/seeded-repo/directives/cors-allowed-origins/`. Step 5b is the canonical 'add into a `source: local` pack that has no lockfile entry yet' case — `acme/frontend/pack.yaml` already exists (from a prior `pack create frontend`), so the skill skips re-scaffolding `pack.yaml` and proceeds straight to `lock-add` to create the first `acme/frontend` lockfile entry with the new directive id. The atomic triple lands in one commit alongside the lockfile mutation.",
-      "files": ["evals/files/seeded-repo/"],
+      "files": ["files/seeded-repo/"],
       "assertions": [
         "The new directive folder lives at `.governance/packs/acme/frontend/directives/cors-allowed-origins/` with `directive.yaml`, `check.sh`, and `constitution.md`",
         "No directive folder was created at `.governance/packs/acme/seeded-repo/directives/cors-allowed-origins/` (the default local pack is NOT used)",
@@ -99,7 +99,7 @@
       "id": 6,
       "prompt": "Modify the secrets-hygiene directive — I want to also block AWS access keys (AKIA*).",
       "expected_output": "The skill detects via `.governance/packs.lock` that `secrets-hygiene` is owned by `governance-kit/core` (`source: builtin`) and refuses the modify per DIRECTIVE_AMEND_FLOW.md's upstream-pinned table. It does NOT edit the directive locally; it routes the user to the correct verb — for a `builtin` directive, that is to either fork the directive into a local override (and remove the original via `directive remove` to opt out) or update the kit. No files are mutated.",
-      "files": ["evals/files/seeded-repo/"],
+      "files": ["files/seeded-repo/"],
       "assertions": [
         "No files were modified — the directive folder, `CONSTITUTION.md`, and `.governance/packs.lock` are byte-identical to the fixture",
         "The skill explicitly stated that `secrets-hygiene` is owned by an upstream pack (lockfile `source: builtin`) and cannot be modified locally",

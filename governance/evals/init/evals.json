@@ -5,7 +5,7 @@
       "id": 1,
       "prompt": "We're starting a new Python + TypeScript monorepo and I want to lock in some non-negotiables before the team grows. Run governance init for this repo and pick a sensible default set of rules — I'll tell you what to drop.",
       "expected_output": "Following INIT_FLOW.md Steps 1–8: a `.governance/` directory with a runner and per-pack directive folders under `.governance/packs/<owner>/<name>/directives/`, tracked hooks installed via `.githooks/` (or an explicitly preserved existing hook framework when one exists), a CONSTITUTION.md seeded from the template, a GitHub Actions workflow at `.github/workflows/governance.yml`, the install state pair (`.governance/install.yaml` v3 + `.governance/packs.lock` v2), an AGENTS.md directive block bounded by the paired markers, and a short report listing pack(s), preset, hook strategy, directives installed, directives skipped, hook collisions, and assumptions. The skill should have surfaced a preset choice before acting — it should not have silently chosen the directive set.",
-      "files": ["evals/files/empty-polyglot-repo/"],
+      "files": ["files/empty-polyglot-repo/"],
       "assertions": [
         "The skill detected both Python and TypeScript/JS before proposing directives (visible in its summary or in which directives it enabled)",
         "The skill surfaced a preset choice (minimal/standard/strict/custom) or clearly stated the assumed preset before installing directives",
@@ -27,7 +27,7 @@
       "id": 2,
       "prompt": "Run governance init here — but this repo already has a .governance/ directory from a previous run. Don't clobber anything I've customized.",
       "expected_output": "The skill detects the existing governance setup at Step 1, classifies the situation per INIT_FLOW.md's Interaction policy, and either continues in augment mode (filling missing pieces only) or stops to ask. It does not silently overwrite `lib.sh`, the runner, the install pair, or any existing directive folders.",
-      "files": ["evals/files/already-bootstrapped-repo/"],
+      "files": ["files/already-bootstrapped-repo/"],
       "assertions": [
         "The skill did NOT overwrite the pre-existing `.governance/run.sh`",
         "The skill did NOT overwrite the pre-existing directive folders under `.governance/packs/<owner>/<name>/directives/`",
@@ -40,7 +40,7 @@
       "id": 3,
       "prompt": "Run governance init for this repo. It's a Go service — keep the rule set tight, no stylistic stuff, and make sure security rules are included.",
       "expected_output": "The Security category directives from `governance-kit/core` (e.g. `secrets-hygiene`, `workflows-hardened`) are enabled. Go-relevant directives are chosen over Python/JS-specific ones. Stylistic directives are NOT enabled. The skill's summary explains which categories were included and which were deliberately dropped.",
-      "files": ["evals/files/go-service-repo/"],
+      "files": ["files/go-service-repo/"],
       "assertions": [
         "A directive folder for a secrets / key-material check exists under `.governance/packs/governance-kit/core/directives/` (e.g. `secrets-hygiene/check.sh`)",
         "A workflow-hardening directive exists under `.governance/packs/governance-kit/core/directives/` or was explicitly skipped with a reason",
@@ -54,7 +54,7 @@
       "id": 4,
       "prompt": "This repo already has governance. Can you review whether the constitution is missing anything obvious? Do not rewrite or reinstall anything.",
       "expected_output": "The skill does not run `init`. It recognizes that the request is for review rather than installation, leaves files untouched, and either answers directly or points the user to `governance directive *` for targeted changes (per INIT_FLOW.md Interaction policy).",
-      "files": ["evals/files/already-bootstrapped-repo/"],
+      "files": ["files/already-bootstrapped-repo/"],
       "assertions": [
         "No governance files were rewritten",
         "The skill explicitly recognized this as a review/explanation request rather than an installation request",
@@ -67,7 +67,7 @@
       "id": 5,
       "prompt": "Run governance init here and include a custom rule that says every substantive change must update a plan under plans/*.md so the reason for the change is preserved.",
       "expected_output": "The skill identifies this custom directive as a change-set obligation (per INIT_FLOW.md Step 3's policy-surface table) and implements it accordingly instead of falling back to a repo-level existence check. The directive is added to the repo's auto-created hand-authored pack at `.governance/packs/<owner>/<repo>/directives/<id>/`. The resulting constitution and directive folder describe the blocked bad merge in per-change terms, and the summary makes the chosen enforcement surface explicit.",
-      "files": ["evals/files/empty-polyglot-repo/"],
+      "files": ["files/empty-polyglot-repo/"],
       "assertions": [
         "The summary explicitly classifies the custom directive as a change-set obligation (or equivalent wording)",
         "The custom directive's `check.sh` inspects the staged diff or branch diff (e.g. `git diff --cached`, `git diff origin/main...HEAD`) rather than only checking whether `plans/*.md` exists",
