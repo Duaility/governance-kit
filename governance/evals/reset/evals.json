@@ -5,7 +5,7 @@
       "id": 1,
       "prompt": "Reset the secrets-hygiene directive — somebody locally edited it and now it's failing weird. Put it back to whatever was pinned.",
       "expected_output": "Following RESET_FLOW.md Steps 1–7: the skill reads `.governance/packs.lock`, confirms `secrets-hygiene` is owned by `governance-kit/core` (`source: builtin`), resolves the pristine source from the kit-bundled tree, computes the byte-diff vs the installed copy, prints the diff (diff-before-exec), asks for explicit `yes`, replaces the directive folder, restores its CONSTITUTION subsection, regenerates the hook dispatcher, smoke-tests, and commits one atomic commit with subject `chore(governance): reset secrets-hygiene to governance-kit/core@<short-sha>`. Hand-authored directives (the `acme/drifted-repo` pack's `team-policy`) are preserved by default. Working tree is unstaged otherwise.",
-      "files": ["evals/files/drifted-repo/"],
+      "files": ["files/drifted-repo/"],
       "assertions": [
         "The skill read `.governance/packs.lock` and identified `secrets-hygiene` as owned by `governance-kit/core` (`source: builtin`)",
         "The skill printed the per-directive diff between the installed `secrets-hygiene/check.sh` and the pristine source before any file was written",
@@ -23,7 +23,7 @@
       "id": 2,
       "prompt": "Reset every directive that came from the acme/widgets pack — we want them at exactly the SHA we pinned.",
       "expected_output": "Following RESET_FLOW.md with `--pack acme/widgets`: the skill resolves the pinned SHA from `.governance/packs.lock`, ensures the cache entry exists at `${GOVERNANCE_KIT_HOME:-~/.governance/cache}/packs/acme__widgets@<sha>/` (re-fetches if missing), restores every directive in `lock.packs[acme/widgets].directives`, regenerates hooks, commits with subject `chore(governance): reset pack acme/widgets to pinned <short-sha>`. `secrets-hygiene` (owned by `governance-kit/core`) and `team-policy` (hand-authored in `acme/drifted-repo`) are NOT touched.",
-      "files": ["evals/files/drifted-repo/"],
+      "files": ["files/drifted-repo/"],
       "assertions": [
         "The skill resolved the cache directory at `${GOVERNANCE_KIT_HOME:-$HOME/.governance/cache}/packs/acme__widgets@<sha>/` (with `/` encoded as `__`) and re-fetched via `packverb fetch` if the cache was missing",
         "Every directive in `acme/widgets`'s lockfile entry had its installed folder overwritten with the pristine source",
@@ -37,7 +37,7 @@
       "id": 3,
       "prompt": "Reset every directive — but show me the plan first, don't commit.",
       "expected_output": "Following RESET_FLOW.md with `--all --dry-run`: the skill computes the plan for every pack-sourced directive, prints the per-directive diffs and the would-commit subject, but performs no writes and creates no commit. `--drop-handauthored` was NOT requested, so hand-authored directives are listed under Preserved.",
-      "files": ["evals/files/drifted-repo/"],
+      "files": ["files/drifted-repo/"],
       "assertions": [
         "No files were modified — every directive folder, `CONSTITUTION.md`, the lockfile, and `.governance/freshness.conf` are byte-identical to the fixture",
         "No commit was created",
@@ -51,7 +51,7 @@
       "id": 4,
       "prompt": "Reset all the directives. The packs.lock file is missing because somebody deleted it.",
       "expected_output": "Following RESET_FLOW.md's Interaction policy: with `.governance/packs.lock` missing, the skill refuses to run and tells the user reset is lockfile-driven (no safe heuristic for pack provenance). It directs the user to the recovery path: `governance uninstall` + `governance init`. No files are mutated.",
-      "files": ["evals/files/lockfile-missing/"],
+      "files": ["files/lockfile-missing/"],
       "assertions": [
         "No files were created, deleted, or modified",
         "The skill explicitly refused to run because `.governance/packs.lock` is missing",
@@ -63,7 +63,7 @@
       "id": 5,
       "prompt": "Reset everything to pinned, and drop the hand-authored directives too — we want a clean slate.",
       "expected_output": "Following RESET_FLOW.md with `--all --drop-handauthored`: the skill restores every pack-sourced directive (`governance-kit/core` + `acme/widgets`) AND deletes every directive owned by `source: local` packs (including the `team-policy` directive in `acme/drifted-repo`). The local pack's `pack.yaml` is removed if it has no surviving directives, and its lockfile entry is removed too. The commit subject is `chore(governance): reset all directives + drop hand-authored`.",
-      "files": ["evals/files/drifted-repo/"],
+      "files": ["files/drifted-repo/"],
       "assertions": [
         "Every pack-sourced directive folder under `governance-kit/core` and `acme/widgets` was restored to its pinned source",
         "The hand-authored `team-policy` directive folder in `acme/drifted-repo` was deleted",

@@ -5,7 +5,7 @@
       "id": 1,
       "prompt": "We installed governance-kit into this repo months ago and the preset was wrong. I want a clean slate before re-running governance init. Run governance uninstall — remove every governance artifact this repo has, including the seeded QUALITY.md and COSTS.md (we haven't put real content in them yet). Don't touch anything else.",
       "expected_output": "Following UNINSTALL_FLOW.md Steps 1–6: the skill surveys the repo, reads the install state pair (`.governance/install.yaml` v3 + `.governance/packs.lock` v2), classifies the state as `fully-installed`, asks the user for a mode (dry-run / soft / hard) via AskUserQuestion, and — given the user's 'include seeded docs' direction — proceeds in `hard` mode after explicit confirmation. It deletes every kit-owned artifact (constitution, .governance tree, CI workflow, managed hooks, install.yaml, packs.lock, AGENTS.md directive block, seeded docs). It unsets `core.hooksPath` only if it still points at `.githooks`. It leaves changes unstaged. The summary names mode, classification, source-of-truth, files deleted, files preserved, AGENTS.md outcome, git config outcome, assumptions, and `Next command: git status`.",
-      "files": ["evals/files/bootstrapped-repo/"],
+      "files": ["files/bootstrapped-repo/"],
       "assertions": [
         "The skill read `.governance/install.yaml` AND `.governance/packs.lock` and reported `Source of truth: manifest` (or equivalent)",
         "The skill asked the user to choose a mode (dry-run / soft / hard) before executing",
@@ -25,7 +25,8 @@
       "id": 2,
       "prompt": "This repo has no governance setup. Run governance uninstall.",
       "expected_output": "Following UNINSTALL_FLOW.md Step 2's `none-detected` classification: the skill surveys the repo, finds no manifest, no managed hooks, no `CONSTITUTION.md`, no `.governance/` — classifies as `none-detected` — and reports 'nothing to remove' without asking for a mode. No files are modified. Idempotency contract: running uninstall on a clean repo is a success, not an error.",
-      "files": ["evals/files/clean-repo/"],
+      "files": ["files/clean-repo/"],
+      "fixture_empty_by_design": true,
       "assertions": [
         "No files were created, deleted, or modified in the fixture",
         "The skill classified the repo as `none-detected` (or equivalent wording)",
@@ -37,7 +38,7 @@
       "id": 3,
       "prompt": "Run governance uninstall. But only show me the plan — don't delete anything yet.",
       "expected_output": "Following UNINSTALL_FLOW.md Step 3: the skill runs the full survey and builds the execute plan, then honors the user's explicit dry-run request by printing the plan without executing. The working tree is byte-identical before and after. The summary is prefixed with 'would-' verbs so it is unambiguous that nothing happened.",
-      "files": ["evals/files/bootstrapped-repo/"],
+      "files": ["files/bootstrapped-repo/"],
       "assertions": [
         "No files were deleted or modified in the fixture",
         "The skill explicitly chose `dry-run` mode (the user's request made the default obvious; no AskUserQuestion needed)",
@@ -50,7 +51,7 @@
       "id": 4,
       "prompt": "I want to remove governance from this repo but soft-mode only — keep my QUALITY.md and COSTS.md, those are real docs now.",
       "expected_output": "Following UNINSTALL_FLOW.md Step 5: the skill executes in `soft` mode after confirmation. Pack-seeded docs (`QUALITY.md`, `COSTS.md`) are preserved and reported as orphaned. Every other kit-owned artifact is deleted. The summary makes the soft-vs-hard distinction explicit so the user understands which files were intentionally kept.",
-      "files": ["evals/files/bootstrapped-repo/"],
+      "files": ["files/bootstrapped-repo/"],
       "assertions": [
         "`QUALITY.md` and `COSTS.md` still exist after uninstall (preserved per soft-mode contract)",
         "`CONSTITUTION.md`, `.governance/`, `.github/workflows/governance.yml`, and the marked `.githooks/*` files were deleted",
