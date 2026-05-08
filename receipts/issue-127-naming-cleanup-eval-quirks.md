@@ -70,11 +70,6 @@ Closes [#127](https://github.com/Duaility/governance-kit/issues/127).
 
 ## Out of scope
 
-- `repo-hygiene/check.sh:116` references an undefined `has_file_waiver`
-  function — every iteration of the file-size-limit loop emits a
-  `command not found` line to stderr. The directive still exits 0
-  because the missing function never triggers a violation, but the
-  noise is real. Worth a separate fix.
 - The eval grader's "skipping a row is a flow violation" rule is
   documented in UPDATE_FLOW.md, but not yet enforced by an automated
   check. The eval cases catch it via assertions; a stricter grader
