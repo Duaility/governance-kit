@@ -296,7 +296,11 @@ def cmd_capability_check(args: argparse.Namespace) -> int:
 
 
 def cmd_lock_read(args: argparse.Namespace) -> int:
-    print(json.dumps(load_lockfile(Path(args.lockfile))))
+    # YAML autoloads RFC 3339 timestamps as `datetime` objects; coerce them
+    # to ISO strings so the JSON dump is consumable by shell tooling that
+    # parses the output (notably `reconcile.sh`, which feeds it to python3
+    # to walk the packs[] list).
+    print(json.dumps(load_lockfile(Path(args.lockfile)), default=str))
     return 0
 
 
