@@ -120,6 +120,7 @@ write_installed_manifest() {
     #   write_installed_manifest <target_repo> \
     #       --owner <github-owner> \
     #       --repo <github-repo-name> \
+    #       [--kit-version <semver>] \
     #       [--hook-strategy githooks|husky|pre-commit] \
     #       [--ci-workflow <path>] \
     #       [--tests-dir <path>] \
@@ -131,6 +132,11 @@ write_installed_manifest() {
     #       [--collision <path>:<resolution>[:<extra>]]  (repeatable)
     #       [--path-b-framework husky|pre-commit] \
     #       [--path-b-entry <file>:<fingerprint>]        (repeatable)
+    #
+    # `--kit-version` is the `KIT_VERSION` (governance/assets/packs/lib/packctl.py)
+    # of the kit doing the install or `kit update`. Optional within v3 — if
+    # absent the field is omitted from the emitted YAML, which `kit update`
+    # later reads as a pre-tracking install.
     #
     # `owner` and `repo` are the GitHub-shaped identity of the bootstrapping
     # repo, lowercased. They define the default repo-local pack at
@@ -152,13 +158,14 @@ write_installed_manifest() {
     local agents_md_directive="false" agents_md_created="false"
     local path_b_framework=""
     local setup_clone_script=""
-    local owner="" repo=""
+    local owner="" repo="" kit_version=""
     local -a install_assets=() collisions=() path_b_entries=()
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --owner)             owner="$2";             shift 2 ;;
             --repo)              repo="$2";              shift 2 ;;
+            --kit-version)       kit_version="$2";       shift 2 ;;
             --hook-strategy)     hook_strategy="$2";     shift 2 ;;
             --ci-workflow)       ci_workflow="$2";       shift 2 ;;
             --tests-dir)         tests_dir="$2";         shift 2 ;;
@@ -191,6 +198,9 @@ write_installed_manifest() {
         printf 'generated_at: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         printf 'owner: %s\n' "$owner"
         printf 'repo: %s\n' "$repo"
+        if [[ -n "$kit_version" ]]; then
+            printf 'kit_version: "%s"\n' "$kit_version"
+        fi
         printf 'hook_strategy: %s\n' "$hook_strategy"
         printf 'constitution: %s\n' "$constitution_flag"
         printf 'ci_workflow: %s\n' "$ci_workflow"

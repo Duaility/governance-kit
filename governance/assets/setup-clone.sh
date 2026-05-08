@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# governance-kit:managed
 # One-time per-clone setup for governance-kit hooks.
 #
 # Points git at the tracked .githooks/ directory. Safe to re-run — git

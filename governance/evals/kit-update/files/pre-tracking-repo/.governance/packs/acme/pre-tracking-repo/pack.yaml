@@ -1,0 +1,6 @@
+id: acme/pre-tracking-repo
+name: pre-tracking-repo
+version: "0.1"
+min_governance_kit: "0.2"
+description: Repo-local pack for the pre-tracking-repo kit-update eval fixture.
+author: acme

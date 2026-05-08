@@ -1,0 +1,75 @@
+{
+  "skill_name": "governance",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I just upgraded governance-kit on my machine. Pull whatever's new from the kit into this repo.",
+      "expected_output": "Following UPDATE_FLOW.md Steps 1–8: the skill reads `.governance/install.yaml`, sees `kit_version: \"0.1\"`, queries the kit on PATH for `KIT_VERSION` (`packctl.py kit-version`), determines a forward update is needed, builds the file inventory (`run.sh`, `lib.sh`, `setup-clone.sh`, `governance.yml`), shows per-file diffs (diff-before-exec), asks for explicit `yes`, applies the diffs, regenerates the hook dispatcher via `generate_hooks_for_strategy`, rewrites `install.yaml` with `kit_version: \"<new>\"`, smoke-tests, and commits one atomic commit with subject `chore(governance): kit update 0.1 → <new>`. Pack updates are NOT chained because `--with-packs` was not requested; the report mentions chaining as a hint.",
+      "files": ["files/stale-repo/"],
+      "assertions": [
+        "The skill read `.governance/install.yaml` and identified `kit_version: \"0.1\"` as the recorded pin",
+        "The skill queried the kit on PATH for `KIT_VERSION` (e.g. via `packctl.py kit-version`) and confirmed it is newer than 0.1",
+        "The skill printed a per-file diff for each kit-runtime file BEFORE writing — same diff-before-exec discipline as `pack add` and `reset`",
+        "The skill asked for an explicit `yes` to execute (no silent acceptance)",
+        "The hook dispatcher was regenerated via `generate_hooks_for_strategy` (or explicitly noted as unchanged in the report)",
+        "`.governance/install.yaml` was rewritten with the new `kit_version` value",
+        "Exactly one new commit was created with subject matching `chore(governance): kit update 0.1 → <new>` (with `(#N)` issue anchor)",
+        "Pack updates were NOT chained because `--with-packs` was not requested; the report says so explicitly",
+        "The skill did not push — the report's `Next:` field reads `git push`"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Run governance kit update — I want to make sure we're synced.",
+      "expected_output": "Following UPDATE_FLOW.md Step 2: the skill reads `kit_version: \"0.2\"` from `install.yaml`, finds it equal to the kit on PATH's `KIT_VERSION`, short-circuits the kit-runtime block, and reports `kit: up-to-date`. Without `--with-packs`, the verb exits without writing anything. No diffs are computed, no commit is created.",
+      "files": ["files/up-to-date-repo/"],
+      "assertions": [
+        "The skill reported `kit: up-to-date` (or equivalent — the version delta was zero)",
+        "No files were modified — every runtime file, the manifest, hook dispatchers, and lockfile are byte-identical to the fixture",
+        "No commit was created",
+        "The skill did NOT walk the file inventory or print per-file diffs (the version short-circuit precedes Step 3)",
+        "The report mentions that `--with-packs` was not requested (so pack-update chaining did not run)"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Update the kit in this repo.",
+      "expected_output": "Following UPDATE_FLOW.md's Interaction policy: with `.governance/install.yaml` missing, the skill refuses to run and tells the user `kit update` is manifest-driven (the manifest is the version pin this verb writes through). It directs the user to the recovery path: `governance uninstall` + `governance init`. No files are mutated.",
+      "files": ["files/no-manifest-repo/"],
+      "assertions": [
+        "No files were created, deleted, or modified",
+        "The skill explicitly refused to run because `.governance/install.yaml` is missing",
+        "The skill named the recovery path: `governance uninstall` followed by `governance init`",
+        "The skill did NOT fall back to a heuristic that would invent a `kit_version`"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Pull the new kit version into this repo.",
+      "expected_output": "Following UPDATE_FLOW.md Step 2's no-downgrade rule: the skill reads `kit_version: \"9.9\"` from `install.yaml`, queries `KIT_VERSION` from the kit on PATH (`\"0.2\"`), sees the manifest is newer than the kit, and STOPS. It tells the user the repo was last touched by a newer kit and that running an older `kit update` against it would silently downgrade. Recovery: upgrade the kit on PATH (e.g. `uvx --reinstall git+https://github.com/duaility/governance-kit`) and re-run.",
+      "files": ["files/future-kit-repo/"],
+      "assertions": [
+        "No files were created, deleted, or modified",
+        "The skill refused to run because the recorded `kit_version` (\"9.9\") is newer than the kit on PATH (\"0.2\")",
+        "The skill explicitly named the no-downgrade rule as the reason",
+        "The skill named the recovery path: upgrade the kit on PATH, then re-run `kit update`",
+        "The skill did NOT auto-downgrade and did NOT prompt for `--allow-downgrade` (that flag does not exist in this verb)"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Sync the kit-runtime files in this repo to the latest version.",
+      "expected_output": "Following UPDATE_FLOW.md Step 2's pre-tracking-install case: the skill reads `.governance/install.yaml`, sees `kit_version` is absent, treats this as a pre-tracking install, and offers to record the current `KIT_VERSION` from the kit on PATH. It proceeds through the normal flow (Steps 3–8). Because the runtime stubs lack the line-2 ownership marker, every file surfaces as `Skipped (unmanaged)` in Step 4 and the user is asked per-file whether to `keep` / `apply anyway` / `overwrite-with-backup`. After the user's choices, the manifest is rewritten with the new `kit_version`.",
+      "files": ["files/pre-tracking-repo/"],
+      "assertions": [
+        "The skill detected that `kit_version` is absent from `install.yaml` and named it a pre-tracking install",
+        "The skill offered to record the current `KIT_VERSION` (queried from the kit on PATH) as part of the run",
+        "Each runtime file (`run.sh`, `lib.sh`) was surfaced as `Skipped (unmanaged)` because the line-2 `governance-kit:managed` marker is absent",
+        "For each unmanaged file, the skill asked per-file `keep` / `apply anyway` / `overwrite-with-backup` — no silent overwrite",
+        "If the user accepts any change, `.governance/install.yaml` was rewritten with `kit_version: \"<new>\"`",
+        "If the user declines all changes, the skill still offered to write `kit_version` alone so future runs aren't perpetually treated as pre-tracking",
+        "Exactly one commit was created (or zero if the user declined every prompt and there was nothing to record), with subject `chore(governance): kit update <prev> → <new>` where `<prev>` is rendered as `unknown` for absence"
+      ]
+    }
+  ]
+}

@@ -215,3 +215,5 @@ Schema:
 | claude-code-a64b45e3-777-1778228030 | claude-code | a64b45e3-777b-40c3-9916-e50fa435987d | #118 | claude-opus-4-7 | 260 | 294380 | 79200556 | 221924 | 516564 | 46.9896 | feat(governance): lockfile-driven pack reconstruction; retire dogfood mirror (#1 |
 | claude-code-a64b45e3-777-1778228248 | claude-code | a64b45e3-777b-40c3-9916-e50fa435987d | #119 | claude-opus-4-7 | 18 | 16870 | 7532801 | 9451 | 26339 | 4.1082 | feat(governance): scaffold fork-not-patch amendments via replaces field (#119) |
 | claude-code-000609b1-5ff-1778230499 | claude-code | 000609b1-5ff1-490a-a737-962f7183861a | #120 | claude-opus-4-7 | 5 | 14801 | 14820 | 24 | 14830 | 0.1005 | test(governance): update evals for post-#117 gh-only model (#120) |
+| claude-code-09fd6c1e-2fa-1778235519 | claude-code | 09fd6c1e-2faa-4866-b424-7ab41d2d2e59 | #113 | claude-opus-4-7 | 5 | 18604 | 14820 | 174 | 18783 | 0.1281 | feat(governance): add kit update verb (#113) |
+| claude-code-7a9336d7-058-1778235597 | claude-code | 7a9336d7-0581-4fb3-a5e3-d7b6b9386112 | #113 | claude-opus-4-7 | 382 | 558426 | 44395715 | 217056 | 775864 | 31.1163 | feat(governance): add kit update verb (#113) |

@@ -1,0 +1,5 @@
+category: Quality
+recommended: false
+summary: Stub directive for kit-update eval fixtures.
+surface: repo-state
+hook: none

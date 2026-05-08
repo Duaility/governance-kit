@@ -13,6 +13,7 @@ version: "3"
 generated_at: 2026-04-29T16:45:34Z
 owner: acme                      # GitHub owner of the bootstrapping repo (lowercased)
 repo: widgets                    # GitHub repo name of the bootstrapping repo (lowercased)
+kit_version: "0.2"               # KIT_VERSION that did the install or last `kit update` (optional within v3 — absent on pre-tracking installs)
 hook_strategy: githooks          # or: husky | pre-commit
 constitution: true               # CONSTITUTION.md was written at repo root
 ci_workflow: .github/workflows/governance.yml
@@ -46,6 +47,7 @@ path_b:
 Notes on the emitted shape:
 
 - `version` is a **quoted string** (`"3"`), not a bare integer. YAML treats both identically, but fixture byte-diffs depend on the exact form the emitter writes.
+- `kit_version` is the `KIT_VERSION` constant ([packctl.py](../assets/packs/lib/packctl.py)) of the kit that did the install or last `kit update`. It is the version pin `governance kit update` writes through. The field is **optional within v3** — repos bootstrapped before this field existed simply omit it; `kit update` treats absence as "pre-tracking install" and offers to record the current `KIT_VERSION` on the next run. Quoted-string form (`"0.2"`).
 - `collisions[*]` uses a flat `extra` field, not named `backup_path` / `userhook_path` sub-fields. Interpret `extra` based on `resolution`: `wrap` ⇒ userhook sibling path; `overwrite` ⇒ `.pre-governance.bak` backup path; `skip` ⇒ no extra.
 - Keys appear in the emitter's fixed order (metadata → flags → `install_assets_seeded` → `collisions` → optional `path_b`). Do not rely on order when parsing, but **do** preserve it when regenerating fixtures — byte-diffs matter for the eval harness.
 - The `packs:` block from v2 is gone. Pack pin state — id, version, source, ref, sha, directives — lives in `.governance/packs.lock`. See [LOCK_SCHEMA.md](LOCK_SCHEMA.md).
@@ -55,6 +57,7 @@ Notes on the emitted shape:
 | Field | Purpose in uninstall |
 |---|---|
 | `owner` / `repo` | The repo's GitHub identity. Used to resolve the default repo-local pack at `.governance/packs/<owner>/<repo>/` for cleanup ordering and to prompt the user before deleting hand-authored packs. |
+| `kit_version` | Read-only for uninstall — surfaced in the report so the user knows which kit version touched the repo last. Not used to gate behavior. |
 | `constitution` | Whether to remove `CONSTITUTION.md`. |
 | `ci_workflow` | Path of the workflow file to delete. |
 | `tests_dir` | Parent directory whose `run.sh`, `lib.sh`, and empty-after-cleanup shell are removed. |
@@ -78,6 +81,20 @@ The list of installed pack/directive folders comes from [`packs.lock`](LOCK_SCHE
 | `tests_dir` | Where to place `run.sh` / `lib.sh` if a restore puts them back. |
 
 Everything else reset needs (which packs exist, which directives belong to each, where to copy from) it gets from `packs.lock`.
+
+## Fields `kit update` relies on
+
+`kit update` is the only verb that writes through this file beyond init. It reads:
+
+| Field | Purpose in kit update |
+|---|---|
+| `kit_version` | The version pin. Compared against the `KIT_VERSION` of the kit on PATH to determine whether the repo is up-to-date, behind (forward update), or ahead (refused — no silent downgrades). Absence means pre-tracking install; the verb offers to record the current `KIT_VERSION` and proceeds. |
+| `hook_strategy` | Selects the dispatcher generator (`.githooks/`, `.husky/`, or `.governance/hooks/`) when regenerating hooks. |
+| `tests_dir` | Where `run.sh` / `lib.sh` live, for the per-file diff-and-copy. |
+| `setup_clone_script` | Path A only — the destination path for the `setup-clone.sh` re-sync. Omitted under Path B (the verb skips that file pair). |
+| `ci_workflow` | The destination path for the `governance.yml` re-sync. |
+
+After a successful run, `kit update` rewrites the manifest with the new `kit_version` and unchanged everything else. See [UPDATE_FLOW.md](UPDATE_FLOW.md).
 
 ## Legacy fallback — v0.1 / v2 manifests
 

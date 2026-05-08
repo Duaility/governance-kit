@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# governance-kit:managed
 # One-time per-clone setup for governance-kit hooks.
 #
 # Points git at the tracked .githooks/ directory. Safe to re-run — git
@@ -19,3 +20,11 @@ git config core.hooksPath .githooks
 
 current="$(git config --get core.hooksPath)"
 echo "setup-clone: core.hooksPath=$current"
+
+# Materialize directive folders for every `source: gh` entry in packs.lock.
+# Those trees are gitignored (reconstructable artifacts), so without this
+# step `.governance/run.sh` would only see committed `source: local` packs.
+# Re-run after pulling lockfile changes.
+if [[ -f .governance/packs.lock ]]; then
+    bash governance/assets/packs/lib/reconcile.sh "$ROOT"
+fi

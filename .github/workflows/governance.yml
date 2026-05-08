@@ -1,3 +1,4 @@
+# governance-kit:managed
 name: Governance
 
 on:
@@ -17,6 +18,16 @@ jobs:
         with:
           # Full history so git-grep-based directives can inspect all tracked files.
           fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+
+      - name: Reconcile gh-source packs from packs.lock
+        # Materialize directive folders for every `source: gh` entry into
+        # .governance/packs/<owner>/<name>/. Those trees are gitignored
+        # (reconstructable artifacts), so without this step the runner
+        # below would only see committed `source: local` packs.
+        run: bash governance/assets/packs/lib/reconcile.sh "$PWD"
 
       - name: Run bash governance directives
         run: bash .governance/run.sh

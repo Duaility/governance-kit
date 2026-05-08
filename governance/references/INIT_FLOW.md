@@ -158,8 +158,11 @@ After all directives are installed, write the install state pair:
 
 ```sh
 # 1) write the install receipt — init choices + side-effect ledger
+kit_version="$(uv run --quiet --isolated --with PyYAML python \
+    governance/assets/packs/lib/packctl.py kit-version)"
 write_installed_manifest "$repo_root" \
     --owner "$repo_owner" --repo "$repo_name" \
+    --kit-version "$kit_version" \
     --hook-strategy githooks \
     --ci-workflow .github/workflows/governance.yml \
     --tests-dir .governance \
@@ -184,7 +187,7 @@ packverb lock-add "$repo_root/.governance/packs.lock" governance-kit/core \
     --directive agent-token-accounting     # ... one --directive per installed core directive
 ```
 
-`--owner` and `--repo` are required — they carry the `<owner>/<name>` identity surveyed in Step 1 and define the default repo-local pack at `.governance/packs/<owner>/<repo>/`. `--install-asset` is repeatable (once per seeded file — `install_directive_assets` copied it). `--collision` is `path:resolution[:extra]` where `resolution` ∈ `wrap | skip | overwrite-with-backup` and `extra` is the userhook or `.bak` path. `--path-b-framework` + `--path-b-entry <file>:<fingerprint>` replace `--hook-strategy githooks` when `init` took Path B. Omit `--no-constitution` unless the user explicitly asked to skip the constitution (nonstandard).
+`--owner` and `--repo` are required — they carry the `<owner>/<name>` identity surveyed in Step 1 and define the default repo-local pack at `.governance/packs/<owner>/<repo>/`. `--kit-version` records the `KIT_VERSION` of the kit doing the install so `governance kit update` can detect the version delta on later runs ([UPDATE_FLOW.md](UPDATE_FLOW.md)). `--install-asset` is repeatable (once per seeded file — `install_directive_assets` copied it). `--collision` is `path:resolution[:extra]` where `resolution` ∈ `wrap | skip | overwrite-with-backup` and `extra` is the userhook or `.bak` path. `--path-b-framework` + `--path-b-entry <file>:<fingerprint>` replace `--hook-strategy githooks` when `init` took Path B. Omit `--no-constitution` unless the user explicitly asked to skip the constitution (nonstandard).
 
 The install pair is `install.yaml` v3 + `packs.lock` v2; installed directive folders are still user-owned copies and the pair is not an auto-upgrade contract. `governance uninstall` treats both files as the authoritative record of what the kit owns. See [INSTALL_SCHEMA.md](INSTALL_SCHEMA.md) and [LOCK_SCHEMA.md](LOCK_SCHEMA.md).
 
