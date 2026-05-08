@@ -37,7 +37,8 @@ copies. This verb closes the loop:
 |---|---|
 | Repo is not a git repo | Stop. The verb operates on a tracked governance surface. |
 | Governance kit is missing (`CONSTITUTION.md` or `.governance/` absent) | Stop and tell the user to run `governance init` first. |
-| `install.yaml` is missing | Stop and route the user to `governance uninstall` + `governance init` (the manifest is the ownership ledger this verb writes through). |
+| `install.yaml` is missing **but** runtime files carry versioned `kit-version=` markers | Reconstruct the version pin by scanning runtime markers (take the min `kit-version=`); proceed. The verb rewrites `install.yaml` from the reconstructed version on success — the manifest is a cache, not the source of truth. Surface this in `Assumptions:`. |
+| `install.yaml` is missing **and** no runtime file carries a versioned marker | Stop and route the user to `governance uninstall` + `governance init` — there is no recoverable version pin. |
 | `install.yaml.kit_version` is absent | Treat the install as pre-tracking; offer to record the current `KIT_VERSION` and proceed (this is the upgrade path for repos bootstrapped before the field existed). |
 | `install.yaml.kit_version` ≥ kit's `KIT_VERSION` | No-op for the kit-runtime; if `--with-packs`, fall through to pack update. Report `kit: up-to-date`. |
 | Working tree has uncommitted changes | Refuse, unless `--force` is set. The user reviews `git status`, then commits / stashes / re-runs with `--force`. |
@@ -64,9 +65,33 @@ Run in parallel:
       governance/assets/packs/lib/packctl.py kit-version
   ```
 
-If `install.yaml` is missing, stop. Tell the user: this verb writes through
-the manifest; without it, `kit update` cannot record what version it just
-installed. Recovery: `governance uninstall` + `governance init`.
+If `install.yaml` is missing, attempt **manifest reconstruction from
+markers** before giving up:
+
+```sh
+source governance/assets/packs/lib/install.sh
+versions=()
+for f in "$root"/.governance/run.sh \
+         "$root"/.governance/lib.sh \
+         "$root"/.github/workflows/governance.yml \
+         "$root"/scripts/setup-clone.sh \
+         "$root"/.githooks/pre-commit; do
+    v=$(read_marker_kit_version "$f" 2>/dev/null) || continue
+    [[ -n "$v" ]] && versions+=("$v")
+done
+```
+
+Take the minimum (semver-aware) of `versions[]` as the reconstructed
+`installed_kit_version`. The marker is the per-file version pin; taking
+the min reflects that an update only lands when *every* managed file
+catches up. If any versioned marker is found, proceed — the manifest
+will be rewritten on success and a `Assumptions:` line records the
+reconstruction.
+
+If `install.yaml` is missing **and** no runtime file carries a
+versioned `kit-version=` marker, stop. The user has no recoverable
+version pin (truly pre-marker install or all managed files were
+hand-stripped). Recovery: `governance uninstall` + `governance init`.
 
 ### Step 2 — Resolve the version delta
 
@@ -91,32 +116,46 @@ with the install destination, derived from `install.yaml`:
 
 | Source (in kit) | Destination (in repo) | Marker |
 |---|---|---|
-| `assets/dot-governance/run.sh` | `<tests_dir>/run.sh` | `governance-kit:managed` in first 3 lines (if present) |
-| `assets/dot-governance/lib.sh` | `<tests_dir>/lib.sh` | `governance-kit:managed` in first 3 lines (if present) |
-| `assets/setup-clone.sh` | `<setup_clone_script>` (Path A only — field absent under Path B) | `governance-kit:managed` in first 3 lines (if present) |
-| `assets/governance.yml` | `<ci_workflow>` | `governance-kit:managed` in first 3 lines (if present) |
+| `assets/dot-governance/run.sh` | `<tests_dir>/run.sh` | `governance-kit:managed kit-version=<v>` in first 3 lines |
+| `assets/dot-governance/lib.sh` | `<tests_dir>/lib.sh` | `governance-kit:managed kit-version=<v>` in first 3 lines |
+| `assets/setup-clone.sh` | `<setup_clone_script>` (Path A only — field absent under Path B) | `governance-kit:managed kit-version=<v>` in first 3 lines |
+| `assets/governance.yml` | `<ci_workflow>` | `governance-kit:managed kit-version=<v>` in first 3 lines |
 | `assets/freshness.conf` | `<tests_dir>/freshness.conf` (only if the file already exists — `kit update` does not seed it) | None — user-tunable config; skip on diff |
 
-**Marker location.** The ownership marker is a `# governance-kit:managed`
+**Marker shape.** The ownership marker is a `# governance-kit:managed`
 comment within the file's leading comment block: line 2 for shebang
 scripts (right after `#!/usr/bin/env bash`), line 1 for YAML and other
-files without a shebang. Detect with
-`head -3 <file> | grep -q '# governance-kit:managed'`. Hooks use a richer
-form (`# governance-kit:managed pack-version=<v> generated=<YYYY-MM-DD>`)
-because they're regenerated per-version; runtime templates use the bare
-form because the version pin lives in `install.yaml.kit_version`.
+files without a shebang. The full form carries the version pin:
 
-**Pre-marker installs.** Repos bootstrapped before the marker was added
-to the runtime templates surface every file as `Skipped (unmanaged)` in
-the Step 7 report. The verb does not auto-stamp them — that would silently
-overwrite hand-edited copies. The user opts back in by accepting
-`overwrite-with-backup` once; subsequent updates flow through normally.
+```
+# governance-kit:managed kit-version=<v> generated=<YYYY-MM-DD>
+```
+
+Hook dispatchers carry the same form (kit-owned regenerable files all
+share one marker shape). The `kit-version=<v>` token is the per-file
+version pin — `kit update` reads it to compute drift; the manifest's
+`kit_version` field is a cache that mirrors the markers. `generated=`
+is informational and tracks the most recent stamp; do not treat it as
+load-bearing.
+
+**Pre-marker installs.** Three sub-cases, distinguished by what the
+marker scan finds in each managed file:
+
+| Marker on dest | Treatment |
+|---|---|
+| Present and versioned (`kit-version=<v>`) | Compare `<v>` to new `KIT_VERSION`; equal → skip, older → re-stamp + diff. |
+| Present but bare (`# governance-kit:managed` with no `kit-version=`) | Treat as version-unknown but kit-owned. Apply forward in this run; the new stamp brings it under per-file pin tracking. |
+| Absent | Treat as user-owned. Surface as `Skipped (unmanaged)` and offer the per-file `keep` / `apply anyway` / `overwrite-with-backup` choice. |
 
 For each pair, compute:
-- **Diff status:** byte-equal (`skip`), byte-different + marker present
-  (`apply`), byte-different + marker absent (`unmanaged`), destination
-  missing (`add`).
-- **Diff text:** `diff -u <dest> <src>` for the user-visible plan.
+- **Diff status:** byte-equal (`skip`), byte-different + versioned marker
+  (`apply`), byte-different + bare marker (`apply` — re-stamp brings it
+  under tracking), byte-different + marker absent (`unmanaged`),
+  destination missing (`add`).
+- **Diff text:** `diff -u <dest> <src-stamped>` for the user-visible
+  plan, where `<src-stamped>` is the source template after
+  `stamp_managed_marker` has applied the new `kit-version=` and today's
+  date. This avoids spurious diff noise from the marker line.
 
 ### Step 4 — Confirm
 
@@ -169,7 +208,14 @@ Step 4, in order:
 1. If `overwrite-with-backup`, rename `<dest>` to `<dest>.pre-update.bak`.
 2. `cp <kit>/<src> <dest>`. Preserve mode (`chmod +x` for `run.sh`,
    `setup-clone.sh`).
-3. Stamp the line-2 marker if not already present in the source template.
+3. Stamp the marker with the new kit version:
+   ```sh
+   stamp_managed_marker "<dest>" "<KIT_VERSION>"
+   ```
+   This rewrites the bare `# governance-kit:managed` line in the source
+   template to the versioned form `# governance-kit:managed
+   kit-version=<v> generated=<YYYY-MM-DD>` in place. `stamp_managed_marker`
+   is idempotent and lives in `governance/assets/packs/lib/install.sh`.
 
 For each pair in `Add` (destination missing): `cp <kit>/<src> <dest>`.
 
@@ -287,11 +333,19 @@ Every successful `kit update` run should include:
   smarter", the other is "the rules content got tighter". Conflating
   them lands a bigger diff under one PR than reviewers can sensibly
   audit. `--with-packs` is the explicit opt-in for the combined flow.
-- **Manifest-driven.** `install.yaml.kit_version` is the version pin.
-  The verb refuses to run without `install.yaml`. There is no safe
-  heuristic for "what kit version did this install" after the fact.
+- **Marker is the version pin; manifest is a cache.** Every kit-owned
+  file (runtime templates and hook dispatchers alike) carries a
+  `# governance-kit:managed kit-version=<v> generated=<date>` marker.
+  The `kit-version=` token is the per-file pin `kit update` reads;
+  `install.yaml.kit_version` mirrors it. If the manifest is missing,
+  the verb reconstructs the pin by scanning markers (taking the min
+  `kit-version=`) and rewrites the manifest on success. Only a repo
+  with neither manifest nor versioned markers is unrecoverable.
 - **Diff-before-exec.** Step 4 prints the per-file diff before any file
   is touched. Same discipline that protects `pack add` and `reset`.
+  The diff is computed against the source template *after* the new
+  `kit-version=` and today's date have been stamped, so the marker line
+  itself is not spurious noise.
 - **Marker is the contract.** Line-2 `governance-kit:managed` is the
   ownership marker. Files without it are user-owned and surface as
   `Skipped (unmanaged)` — never silently overwritten. This is the

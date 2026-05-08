@@ -34,11 +34,12 @@
     {
       "id": 3,
       "prompt": "Update the kit in this repo.",
-      "expected_output": "Following UPDATE_FLOW.md's Interaction policy: with `.governance/install.yaml` missing, the skill refuses to run and tells the user `kit update` is manifest-driven (the manifest is the version pin this verb writes through). It directs the user to the recovery path: `governance uninstall` + `governance init`. No files are mutated.",
+      "expected_output": "Following UPDATE_FLOW.md's Interaction policy and Step 1's marker-reconstruction fallback: with `.governance/install.yaml` missing, the skill first tries to reconstruct the version pin by scanning kit-owned files (`.governance/run.sh`, `.governance/lib.sh`, hook dispatchers) for the `kit-version=<v>` marker token. The fixture's runtime stubs carry only the bare `# governance-kit:managed` marker (no `kit-version=` field), so reconstruction yields nothing. The skill then refuses with the recovery path `governance uninstall` + `governance init` — without either the manifest or a versioned marker, there is no recoverable pin.",
       "files": ["files/no-manifest-repo/"],
       "assertions": [
         "No files were created, deleted, or modified",
-        "The skill explicitly refused to run because `.governance/install.yaml` is missing",
+        "The skill explicitly tried marker reconstruction (scanning `kit-version=` in runtime files) before refusing — not an immediate refusal on missing manifest",
+        "The skill explained that reconstruction failed because the runtime files carry only the bare marker (no `kit-version=` token)",
         "The skill named the recovery path: `governance uninstall` followed by `governance init`",
         "The skill did NOT fall back to a heuristic that would invent a `kit_version`"
       ]
@@ -69,6 +70,23 @@
         "If the user accepts any change, `.governance/install.yaml` was rewritten with `kit_version: \"<new>\"`",
         "If the user declines all changes, the skill still offered to write `kit_version` alone so future runs aren't perpetually treated as pre-tracking",
         "Exactly one commit was created (or zero if the user declined every prompt and there was nothing to record), with subject `chore(governance): kit update <prev> → <new>` where `<prev>` is rendered as `unknown` for absence"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Update the kit in this repo.",
+      "expected_output": "Following UPDATE_FLOW.md Step 1's marker-reconstruction fallback: with `.governance/install.yaml` missing, the skill scans kit-owned files (`.governance/run.sh`, `.governance/lib.sh`) for the `kit-version=<v>` marker token, finds `kit-version=0.1` in both, and reconstructs the version pin as `\"0.1\"` (the min). The skill proceeds through Steps 3–8 as a forward update from `0.1` to the kit's `KIT_VERSION` (`0.2`), shows per-file diffs (diff-before-exec), asks for explicit `yes`, applies the diffs and re-stamps each file's marker with the new `kit-version=`, regenerates the hook dispatcher, writes a fresh `install.yaml` with `kit_version: \"<new>\"` (and the rest of the v3 fields populated from defaults + current state), smoke-tests, and commits one atomic commit with subject `chore(governance): kit update 0.1 → <new>`. The report's `Assumptions:` line records that the manifest was reconstructed from per-file markers.",
+      "files": ["files/reconstructable-repo/"],
+      "assertions": [
+        "The skill noticed `.governance/install.yaml` was missing AND attempted marker reconstruction before any user prompt",
+        "The skill scanned at least `.governance/run.sh` and `.governance/lib.sh` for the `kit-version=` token (and stated which files contributed to the reconstruction)",
+        "The skill reported `kit-version=0.1` was extracted from the markers and used as the recorded pin (taking the min when multiple files were scanned)",
+        "The skill proceeded through the normal forward-update flow (per-file diff, explicit `yes`, apply, regenerate hooks, smoke-test) — same discipline as eval case 1",
+        "Each rewritten runtime file was re-stamped with the new `kit-version=<new>` marker (verified by reading line 2 / line 1 after the run)",
+        "A fresh `.governance/install.yaml` was written with `kit_version: \"<new>\"` and the remaining v3 fields populated (owner, repo, hook_strategy, etc.)",
+        "Exactly one new commit was created with subject matching `chore(governance): kit update 0.1 → <new>` (with `(#N)` issue anchor)",
+        "The report's `Assumptions:` line names the manifest reconstruction explicitly — the user is told the manifest was rebuilt from markers, not found on disk",
+        "The skill did NOT route the user to `governance uninstall` + `governance init` — that path is reserved for the no-recoverable-pin case (eval 3)"
       ]
     }
   ]

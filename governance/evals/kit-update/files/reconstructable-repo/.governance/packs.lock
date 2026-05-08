@@ -1,0 +1,7 @@
+version: "2"
+packs:
+  - id: acme/reconstructable-repo
+    version: "0.1"
+    source: local
+    directives:
+      - sample-rule

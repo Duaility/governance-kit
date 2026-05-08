@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# governance-kit:managed
+# governance-kit:managed kit-version=0.2 generated=2026-05-08
 # One-time per-clone setup for governance-kit hooks.
 #
 # Points git at the tracked .githooks/ directory. Safe to re-run — git

@@ -85,7 +85,7 @@ fi
 marked="$WORK/marked"
 cat > "$marked" <<'EOF'
 #!/usr/bin/env bash
-# governance-kit:managed pack-version=test generated=2026-04-29
+# governance-kit:managed kit-version=test generated=2026-04-29
 echo marked
 EOF
 if hook_has_marker "$marked"; then
@@ -105,7 +105,7 @@ wrong_line="$WORK/wrong-line"
 cat > "$wrong_line" <<'EOF'
 #!/usr/bin/env bash
 # some other comment
-# governance-kit:managed pack-version=test generated=2026-04-29
+# governance-kit:managed kit-version=test generated=2026-04-29
 EOF
 if ! hook_has_marker "$wrong_line"; then
     PASS=$((PASS + 1)); printf '  ok - marker only counts when on line 2\n'
@@ -126,7 +126,7 @@ EOF
 chmod +x "$hook_dir/pre-commit"
 cat > "$hook_dir/pre-push" <<'EOF'
 #!/usr/bin/env bash
-# governance-kit:managed pack-version=test generated=2026-04-29
+# governance-kit:managed kit-version=test generated=2026-04-29
 echo ours
 EOF
 chmod +x "$hook_dir/pre-push"
@@ -189,7 +189,7 @@ for kind in pre-commit commit-msg prepare-commit-msg post-commit pre-push; do
     assert_executable  "$kind dispatcher is executable" "$target_hooks/$kind"
     line2="$(sed -n '2p' "$target_hooks/$kind")"
     assert_contains "$kind line-2 marker" '# governance-kit:managed' "$line2"
-    assert_contains "$kind marker carries pack-version" 'pack-version=test-version' "$line2"
+    assert_contains "$kind marker carries kit-version" 'kit-version=test-version' "$line2"
     # bash -n parse check
     if bash -n "$target_hooks/$kind"; then
         PASS=$((PASS + 1)); printf '  ok - %s parses with bash -n\n' "$kind"
@@ -242,7 +242,7 @@ generate_hooks "$clean_target" "v1" "$spec"
 # Now overwrite — should succeed silently because we wrote them last.
 generate_hooks "$clean_target" "v2" "$spec"
 line2_v2="$(sed -n '2p' "$clean_target/pre-commit")"
-assert_contains "regeneration updates the pack-version" "pack-version=v2" "$line2_v2"
+assert_contains "regeneration updates the kit-version" "kit-version=v2" "$line2_v2"
 
 unmarked_target="$WORK/unmarked-target"
 mkdir -p "$unmarked_target"
@@ -343,7 +343,7 @@ fi
 # Re-running the same strategy regenerates silently (marker-bearing overwrite).
 generate_hooks_for_strategy "$strategy_repo" husky "v-regen" "$spec"
 line2_regen="$(sed -n '2p' "$strategy_repo/.husky/pre-commit")"
-assert_contains "husky regen bumps pack-version" "pack-version=v-regen" "$line2_regen"
+assert_contains "husky regen bumps kit-version" "kit-version=v-regen" "$line2_regen"
 
 # An unmarked pre-existing husky hook is preserved (collision detector wins).
 husky_collide_repo="$WORK/strategy-collide"

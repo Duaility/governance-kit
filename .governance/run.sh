@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# governance-kit:managed
+# governance-kit:managed kit-version=0.2 generated=2026-05-08
 # Governance test runner. Discovers every directive under ./packs/<owner>/<name>/.
 # Directives are folder-shaped — each directive is `directives/<id>/check.sh`.
 # Anything the directive needs (lib/, hooks/, runtimes/) lives in the same folder.
