@@ -289,6 +289,7 @@ assert_contains "empty install_assets_seeded list" 'install_assets_seeded: []' "
 assert_contains "empty collisions list" 'collisions: []' "$manifest_text"
 assert_not_contains "no path_b block when not requested" 'path_b:' "$manifest_text"
 assert_not_contains "no setup_clone_script when not requested" 'setup_clone_script:' "$manifest_text"
+assert_not_contains "no kit_version when not requested" 'kit_version:' "$manifest_text"
 
 # ---- write_installed_manifest: every optional flag ------------------------
 
@@ -297,6 +298,7 @@ target5="$WORK/target5"
 mkdir -p "$target5"
 write_installed_manifest "$target5" \
     --owner acme --repo widgets \
+    --kit-version 0.2 \
     --hook-strategy husky \
     --ci-workflow .github/workflows/custom.yml \
     --tests-dir custom-governance \
@@ -314,6 +316,7 @@ write_installed_manifest "$target5" \
 manifest5="$target5/.governance/install.yaml"
 manifest5_text="$(cat "$manifest5")"
 
+assert_contains "honors --kit-version" 'kit_version: "0.2"' "$manifest5_text"
 assert_contains "honors --hook-strategy" 'hook_strategy: husky' "$manifest5_text"
 assert_contains "honors --ci-workflow" 'ci_workflow: .github/workflows/custom.yml' "$manifest5_text"
 assert_contains "honors --tests-dir" 'tests_dir: custom-governance' "$manifest5_text"

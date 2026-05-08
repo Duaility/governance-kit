@@ -1,0 +1,7 @@
+version: "2"
+packs:
+  - id: acme/up-to-date-repo
+    version: "0.1"
+    source: local
+    directives:
+      - sample-rule

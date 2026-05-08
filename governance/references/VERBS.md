@@ -30,6 +30,17 @@ full rearchitecture context.
 - **Source-of-truth ladder:** install manifest → `governance-kit:managed` line-2 marker → heuristic fallback (forces dry-run).
 - **Directive:** never delete a file without ownership evidence.
 
+## `kit update`
+
+- **Aliases a user might type:** `governance kit update`, `update governance-kit`, `pull the new kit version`, `sync run.sh from the kit`, `the kit was published — update this repo`.
+- **Precondition:** repo must have governance installed (`.governance/install.yaml` present). Refuses without the manifest — that is the version pin this verb writes through.
+- **Flags:** `--with-packs` (also chain `pack update` for every `source: gh` entry), `--dry-run`, `--force` (override the dirty-working-tree refusal).
+- **Authoritative flow:** [UPDATE_FLOW.md](UPDATE_FLOW.md) Steps 1–8.
+- **Disjoint from `pack update`.** Updates the kit-runtime files (`run.sh`, `lib.sh`, `setup-clone.sh`, `governance.yml`, hook dispatchers) and the `kit_version` pin in `install.yaml`. For directive-content updates use `pack update`. Use both with `kit update --with-packs`.
+- **No silent downgrades.** A manifest stamp newer than the kit on PATH stops the verb.
+- **Diff-before-exec.** Per-file diff is shown before any file is written; files lacking the line-2 `governance-kit:managed` marker surface as `Skipped (unmanaged)` and the user picks `keep` / `apply anyway` / `overwrite-with-backup`.
+- **One atomic commit.** Conventional-commit subject `chore(governance): kit update <old> → <new>` (or `... (+packs)` under `--with-packs`).
+
 ## `reset`
 
 - **Aliases a user might type:** `governance reset`, `reset directives`, `restore to original`, `undo my amendments`, `put the rules back`.

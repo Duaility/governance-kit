@@ -1,0 +1,6 @@
+id: acme/future-kit-repo
+name: future-kit-repo
+version: "0.1"
+min_governance_kit: "0.2"
+description: Repo-local pack for the future-kit-repo kit-update eval fixture.
+author: acme
