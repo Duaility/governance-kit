@@ -13,7 +13,7 @@
         "`.governance/packs/<owner>/<name>/directives/` contains at least one directive folder per enabled category, each with a `directive.yaml` and `check.sh`",
         "`.governance/lib.sh` exists and defines `directive_start`, `violation`, `directive_end`, `has_waiver`",
         "`.governance/install.yaml` exists with `version: \"3\"`, the surveyed `owner:` and `repo:` fields, and a `hook_strategy:` value",
-        "`.governance/packs.lock` exists with `version: \"2\"` and an entry for `governance-kit/core` (`source: builtin`) listing every installed core directive id",
+        "`.governance/packs.lock` exists with `version: \"2\"` and an entry for `governance-kit/core` (`source: gh`, ref `gh:duaility/governance-kit/packs/core@<v>`, real 40-char SHA pin, subpath `packs/core`) listing every installed core directive id",
         "`.githooks/pre-commit` exists, is executable, carries the line-2 `governance-kit:managed` ownership marker, and honors `SKIP_GOVERNANCE=1` (when the repo uses the default `.githooks/` hook strategy)",
         "`.githooks/commit-msg` exists and rejects messages that don't match Conventional Commits when the relevant directive was enabled under the default hook strategy",
         "`CONSTITUTION.md` exists at the repo root with at least Compliance, Principles, Directives, and Evolution Log sections",

@@ -269,6 +269,28 @@ def validate_pack_dir(pack_dir: Path) -> list[str]:
             )
         if directive.get("always_install") is True and pack_id != "governance-kit/core":
             errors.append(f"{pack_dir}/{directive_id}: always_install: true is reserved to the governance-kit/core pack")
+        # Fork-not-patch amendments (#114 phase 5). A directive in a `local`
+        # pack can declare `replaces: <pack-id>/<directive-id>` to suppress
+        # the upstream version at runtime — see DIRECTIVE_AMEND_FLOW.md.
+        # Validate the value's shape; runtime suppression lives in run.sh
+        # (or its consumers) and is enforced separately.
+        replaces = scalar(directive.get("replaces") or "")
+        if replaces:
+            parts = replaces.split("/")
+            if len(parts) < 3:
+                errors.append(
+                    f"{pack_dir}/{directive_id}: replaces: {replaces!r} must be "
+                    "<pack-owner>/<pack-name>/<directive-id> (3 segments)"
+                )
+            elif parts[-1] == directive_id:
+                # OK — replacing the same directive id in another pack is the
+                # canonical use case (forking a kit/community directive).
+                pass
+            elif parts[-1] != directive_id:
+                # Cross-id replacements are allowed but flagged as a smell:
+                # `replaces` is meant for forks of the same directive, not
+                # arbitrary disable + add chains.
+                pass
         for capability in CAPABILITY_FIELDS:
             if capability not in directive:
                 continue

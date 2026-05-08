@@ -15,16 +15,20 @@
 set -u
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-PACKS_ROOT="$ROOT/governance/assets/packs"
-# Pack-search root. `governance/assets/packs/` hosts the in-tree
-# `core` pack plus the shared lib. Community packs live in their own
-# repos and are pulled in via `governance pack add gh:<owner>/<repo>`.
+# Pack source-of-truth root. governance-kit/core lives at $ROOT/packs/core
+# post-#117 (phase 2 of #114); the kit's lib/ helpers stay under
+# governance/assets/packs/lib/ since they're shipped with the skill.
+PACKS_ROOT="$ROOT/packs"
+KIT_LIB_ROOT="$ROOT/governance/assets/packs"
+# Pack-search root. `packs/` hosts the in-tree `core` pack (post-#117).
+# Community packs live in their own repos and are pulled in via
+# `governance pack add gh:<owner>/<repo>`.
 PACK_ROOTS=(
     "$PACKS_ROOT"
 )
-LOADER="$PACKS_ROOT/lib/packs.sh"
-HOOKS_LIB="$PACKS_ROOT/lib/hooks.sh"
-INSTALL_LIB="$PACKS_ROOT/lib/install.sh"
+LOADER="$KIT_LIB_ROOT/lib/packs.sh"
+HOOKS_LIB="$KIT_LIB_ROOT/lib/hooks.sh"
+INSTALL_LIB="$KIT_LIB_ROOT/lib/install.sh"
 
 list_packs_all() {
     local root
@@ -324,12 +328,18 @@ EOF
 
     # Pack pin state lives in packs.lock, not install.yaml — record the core
     # pack and every installed directive so the schema is realistic.
+    # Post-#117 (phase 2 of #114): governance-kit/core is recorded with
+    # source: gh pinned at the kit's monorepo subpath.
     core_version="$(pack_field "$core_pack" version)"
+    fixture_sha="abcdef0123456789abcdef0123456789abcdef01"
     lock_args=(
         lock-add "$fresh_tmp/.governance/packs.lock"
         governance-kit/core
-        --source builtin
+        --source gh
         --version "$core_version"
+        --ref "gh:duaility/governance-kit/packs/core@v$core_version"
+        --sha "$fixture_sha"
+        --subpath "packs/core"
     )
     i=0
     while (( i < ${#installed_pairs[@]} )); do

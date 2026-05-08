@@ -50,13 +50,13 @@
     {
       "id": 4,
       "prompt": "Update all installed packs.",
-      "expected_output": "Following PACK_VERBS.md `pack update [<pack-id>]` with no argument: the skill reads the lockfile, re-fetches each `source: gh` entry using its original `ref` string, compares the new resolved SHA to the locked SHA, skips entries whose SHA hasn't drifted, and for drifted entries runs validation + capability-check + diff-before-exec before overwriting the directive folders. `governance-kit/core` (`source: builtin`) and any `source: local` packs are silently skipped. The lockfile is upserted with the new SHAs.",
+      "expected_output": "Following PACK_VERBS.md `pack update [<pack-id>]` with no argument: the skill reads the lockfile, re-fetches each `source: gh` entry using its original `ref` string, compares the new resolved SHA to the locked SHA, skips entries whose SHA hasn't drifted, and for drifted entries runs validation + capability-check + diff-before-exec before overwriting the directive folders. Post-#117 `governance-kit/core` is itself `source: gh` and is updated by the same flow as community packs (no special-case skip). Only `source: local` packs are silently skipped (no upstream to re-pin). The lockfile is upserted with the new SHAs.",
       "files": ["files/repo-with-installed-pack/"],
       "assertions": [
-        "The skill re-fetched the `acme/widgets` pack using its original ref string (which carries the floating `@main`)",
+        "The skill re-fetched every `source: gh` pack — including `governance-kit/core` — using its original ref string",
         "If the resolved SHA matched the locked SHA, the skill skipped the entry and reported it as already up-to-date",
         "For SHA-drifted entries, the skill ran validation + capability-check + diff-before-exec against the already-installed directive folders before overwriting",
-        "The skill silently skipped `governance-kit/core` (`source: builtin`) — its update path is the kit itself, not `pack update`",
+        "The skill processed `governance-kit/core` through the same `pack update` flow as `acme/widgets` (no `source: builtin` special-case skip — that source type was retired in #117)",
         "The skill silently skipped any `source: local` pack — there is no upstream to re-pin",
         "On confirmation of a SHA drift, the directive folders were overwritten and the lockfile entry was upserted with the new `sha:` and `installed_at:`",
         "The hook dispatcher was regenerated"
@@ -65,10 +65,10 @@
     {
       "id": 5,
       "prompt": "Remove the acme/widgets pack from this repo.",
-      "expected_output": "Following PACK_VERBS.md `pack remove <pack-id>`: the skill reads the lockfile, confirms `acme/widgets` is present and is NOT `source: builtin` (refuses on `governance-kit/core`), lists the directives the lockfile attributes to the pack, asks for confirmation, deletes each directive folder, removes their CONSTITUTION.md subsections, removes the pack's `pack.yaml` + the now-empty pack directory, regenerates the hook dispatcher, removes the lockfile entry, and prunes any seeded `install_assets_seeded` paths from `.governance/install.yaml`.",
+      "expected_output": "Following PACK_VERBS.md `pack remove <pack-id>`: the skill reads the lockfile, confirms `acme/widgets` is present and is NOT `governance-kit/core` (the kit's own pack is refused on identity, not on a `source:` discriminator — both are `source: gh` post-#117), lists the directives the lockfile attributes to the pack, asks for confirmation, deletes each directive folder, removes their CONSTITUTION.md subsections, removes the pack's `pack.yaml` + the now-empty pack directory, regenerates the hook dispatcher, removes the lockfile entry, and prunes any seeded `install_assets_seeded` paths from `.governance/install.yaml`.",
       "files": ["files/repo-with-installed-pack/"],
       "assertions": [
-        "The skill read `.governance/packs.lock` and confirmed `acme/widgets` is `source: gh` (not `builtin`)",
+        "The skill read `.governance/packs.lock` and confirmed `acme/widgets` is present and is not the kit's own `governance-kit/core` pack",
         "The skill listed the directives attributed to `acme/widgets` and asked for explicit confirmation",
         "Each directive folder under `.governance/packs/acme/widgets/directives/` was deleted",
         "Each directive's CONSTITUTION.md subsection was removed (ownership-marker guarded — same discipline as `governance uninstall`)",
@@ -76,17 +76,17 @@
         "The hook dispatcher was regenerated so removed directives are no longer invoked",
         "The lockfile entry for `acme/widgets` was removed via `packverb lock-remove`",
         "Any `install_assets_seeded` entries the pack had originally seeded were pruned from `.governance/install.yaml`",
-        "Attempting to `pack remove governance-kit/core` would have been refused (this assertion is implied by the `source: builtin` check)"
+        "Attempting to `pack remove governance-kit/core` would have been refused — `pack remove` declines to remove the kit's own pack regardless of source (per PACK_VERBS.md's guard, post-#117 the guard is identity-based since `governance-kit/core` is `source: gh` like every other pack)"
       ]
     },
     {
       "id": 6,
       "prompt": "List all installed packs.",
-      "expected_output": "Following PACK_VERBS.md `pack list`: the skill calls `packverb lock-list .governance/packs.lock --long` and renders every pack — `governance-kit/core` (`builtin`), community packs (`gh`), and repo-local packs (`local`) — in a single table with columns for id, source, version, sha (when applicable), and ref (when applicable). No mutations.",
+      "expected_output": "Following PACK_VERBS.md `pack list`: the skill calls `packverb lock-list .governance/packs.lock --long` and renders every pack — `governance-kit/core` (`gh`, post-#117), community packs (`gh`), and repo-local packs (`local`) — in a single table with columns for id, source, version, sha (when applicable), and ref (when applicable). No mutations.",
       "files": ["files/repo-with-installed-pack/"],
       "assertions": [
         "The skill called `packverb lock-list` (or equivalent) on `.governance/packs.lock`",
-        "The output includes `governance-kit/core` with `source: builtin` and no `sha` column value (or an explicit `—`)",
+        "The output includes `governance-kit/core` with `source: gh`, the pinned 40-char `sha:`, and a ref like `gh:duaility/governance-kit/packs/core@<v>`",
         "The output includes `acme/widgets` with `source: gh`, the pinned 40-char `sha:`, and the original `ref:` string",
         "The output includes `acme/repo-with-installed-pack` (or whichever repo-local pack the fixture has) with `source: local` and no `sha`/`ref`",
         "No files were modified",
@@ -96,10 +96,10 @@
     {
       "id": 7,
       "prompt": "Remove the local pack acme/repo-with-installed-pack — we're consolidating those rules into governance-kit/core upstream.",
-      "expected_output": "Following PACK_VERBS.md `pack remove <pack-id>` against a `source: local` pack: the skill confirms the lockfile entry is `source: local` (not `builtin`), lists the directives the lockfile attributes to it (`team-policy`, `naming-convention`), asks for explicit confirmation, deletes both directive folders, removes both CONSTITUTION subsections, deletes `pack.yaml` and the now-empty pack directory, regenerates the hook dispatcher, and `lock-remove`s the entry. Repo-local packs are first-class — the same flow that handles `gh` packs handles `local` packs, with the only difference being there is no upstream cache to retain.",
+      "expected_output": "Following PACK_VERBS.md `pack remove <pack-id>` against a `source: local` pack: the skill confirms the lockfile entry is `source: local`, lists the directives the lockfile attributes to it (`team-policy`, `naming-convention`), asks for explicit confirmation, deletes both directive folders, removes both CONSTITUTION subsections, deletes `pack.yaml` and the now-empty pack directory, regenerates the hook dispatcher, and `lock-remove`s the entry. Repo-local packs are first-class — the same flow that handles `gh` packs handles `local` packs, with the only difference being there is no upstream cache to retain.",
       "files": ["files/repo-with-installed-pack/"],
       "assertions": [
-        "The skill confirmed `acme/repo-with-installed-pack` has `source: local` in `.governance/packs.lock` (not `builtin`)",
+        "The skill confirmed `acme/repo-with-installed-pack` has `source: local` in `.governance/packs.lock`",
         "The skill listed BOTH directives (`team-policy` and `naming-convention`) attributed to the pack and asked for explicit confirmation",
         "Both directive folders were deleted: `.governance/packs/acme/repo-with-installed-pack/directives/team-policy/` AND `.governance/packs/acme/repo-with-installed-pack/directives/naming-convention/`",
         "Both CONSTITUTION.md subsections (`### team-policy` and `### naming-convention`) were removed",
@@ -107,7 +107,7 @@
         "The hook dispatcher was regenerated so the removed directives are no longer invoked",
         "The lockfile entry for `acme/repo-with-installed-pack` was removed via `packverb lock-remove`",
         "The pre-existing `governance-kit/core` and `acme/widgets` lockfile entries are unchanged",
-        "An attempt to `pack remove governance-kit/core` would have been refused (the `source: builtin` guard applies symmetrically)"
+        "An attempt to `pack remove governance-kit/core` would have been refused — the kit's own pack is identity-guarded, regardless of source"
       ]
     },
     {

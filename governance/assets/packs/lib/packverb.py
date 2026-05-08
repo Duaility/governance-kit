@@ -24,15 +24,18 @@ from typing import Any
 import yaml
 
 from packctl import load_yaml, pack_manifest, scalar, validate_pack_dir
+from working_tree import resolve_from_working_tree
 
 LOCK_VERSION = "2"
 
 # Pack source discriminator. Recorded on every lockfile entry so downstream
 # consumers (reset, pack update) can branch without re-reading pack.yaml.
-#   builtin — governance-kit/core, ships in-tree with the kit. No upstream pin.
-#   gh      — community pack fetched from GitHub. Carries ref/sha/installed_at.
+#   gh      — pack fetched from GitHub. Carries ref/sha/installed_at. Used
+#             for both community packs and the kit's own core pack
+#             (gh:duaility/governance-kit/packs/core), since #117 (phase 2
+#             of #114) dropped the bundled-in-skill `builtin` source type.
 #   local   — repo-local hand-authored pack (no `source:` in pack.yaml).
-PACK_SOURCES = {"builtin", "gh", "local"}
+PACK_SOURCES = {"gh", "local"}
 
 # Scoped pack id pattern: `<author>/<slug>` — both segments start with an
 # alphanumeric and allow `.`, `_`, `-` after that. Kept in sync with
@@ -82,14 +85,34 @@ def _slugify_pack_id(pack_id: str) -> str:
     return pack_id.replace("/", "__")
 
 
+def _read_pack_id(pack_sub: Path) -> str | None:
+    """Lift the `id:` scalar out of a pack.yaml. Used by the working-tree
+    resolver, which lives in its own module to keep `packverb.py` slim."""
+    return scalar(pack_manifest(pack_sub).get("id"))
+
+
 def fetch_ref(ref: str, cache_dir: Path | None = None) -> dict[str, str]:
     """Clone `ref` into the shared cache, resolving HEAD to a concrete SHA.
 
     Idempotent: repeat calls with the same resolved SHA hit the cache.
+
+    When cwd is inside a git repo whose `origin` matches `ref`'s owner/repo,
+    the working tree is used in place of a network clone — see
+    `working_tree.resolve_from_working_tree` for the rationale (dogfood /
+    inner-loop dev).
     """
     parsed = parse_ref(ref)
     root = cache_dir if cache_dir else cache_root()
     root.mkdir(parents=True, exist_ok=True)
+
+    working_tree = resolve_from_working_tree(
+        parsed, root,
+        slugify=_slugify_pack_id,
+        pack_id_re=PACK_ID_RE,
+        read_pack_id=_read_pack_id,
+    )
+    if working_tree is not None:
+        return working_tree
 
     rev = parsed["rev"]
     is_sha = bool(re.fullmatch(r"[0-9a-f]{40}", rev))
@@ -273,7 +296,11 @@ def cmd_capability_check(args: argparse.Namespace) -> int:
 
 
 def cmd_lock_read(args: argparse.Namespace) -> int:
-    print(json.dumps(load_lockfile(Path(args.lockfile))))
+    # YAML autoloads RFC 3339 timestamps as `datetime` objects; coerce them
+    # to ISO strings so the JSON dump is consumable by shell tooling that
+    # parses the output (notably `reconcile.sh`, which feeds it to python3
+    # to walk the packs[] list).
+    print(json.dumps(load_lockfile(Path(args.lockfile)), default=str))
     return 0
 
 
@@ -289,9 +316,9 @@ def cmd_lock_add(args: argparse.Namespace) -> int:
     if args.source == "gh" and not (args.ref and args.sha):
         print("lock-add: --source gh requires --ref and --sha", file=sys.stderr)
         return 1
-    if args.source in {"builtin", "local"} and (args.ref or args.sha):
+    if args.source == "local" and (args.ref or args.sha):
         print(
-            f"lock-add: --source {args.source} does not accept --ref/--sha "
+            "lock-add: --source local does not accept --ref/--sha "
             "(no upstream pin)",
             file=sys.stderr,
         )
@@ -331,7 +358,7 @@ def cmd_lock_remove(args: argparse.Namespace) -> int:
 def cmd_lock_list(args: argparse.Namespace) -> int:
     data = load_lockfile(Path(args.lockfile))
     for pack in data["packs"]:
-        # builtin/local packs have no ref/sha — print empty fields rather than
+        # local packs have no ref/sha — print empty fields rather than
         # the literal string "None" so downstream `cut -f` users see blanks.
         sha = pack.get("sha") or ""
         ref = pack.get("ref") or ""

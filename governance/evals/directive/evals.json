@@ -98,13 +98,13 @@
     {
       "id": 6,
       "prompt": "Modify the secrets-hygiene directive — I want to also block AWS access keys (AKIA*).",
-      "expected_output": "The skill detects via `.governance/packs.lock` that `secrets-hygiene` is owned by `governance-kit/core` (`source: builtin`) and refuses the modify per DIRECTIVE_AMEND_FLOW.md's upstream-pinned table. It does NOT edit the directive locally; it routes the user to the correct verb — for a `builtin` directive, that is to either fork the directive into a local override (and remove the original via `directive remove` to opt out) or update the kit. No files are mutated.",
+      "expected_output": "The skill detects via `.governance/packs.lock` that `secrets-hygiene` is owned by `governance-kit/core` (`source: gh` post-#117 — every fetched pack uses gh, including the kit's own core) and routes the user through the fork-not-patch path per DIRECTIVE_AMEND_FLOW.md's upstream-pinned row (#119): copy the directive folder into a `source: local` pack and stamp `replaces: governance-kit/core/secrets-hygiene` on the forked `directive.yaml`. It does NOT edit the upstream directive in place — that tree is reconstructable from the lockfile (#118) and any in-place edit is clobbered by the next reconcile. No files in the upstream pack tree are mutated.",
       "files": ["files/seeded-repo/"],
       "assertions": [
-        "No files were modified — the directive folder, `CONSTITUTION.md`, and `.governance/packs.lock` are byte-identical to the fixture",
-        "The skill explicitly stated that `secrets-hygiene` is owned by an upstream pack (lockfile `source: builtin`) and cannot be modified locally",
-        "The skill pointed the user at the correct path: opting out via `directive remove` (allowed for `builtin`) or updating the kit, NOT silently editing the installed directive",
-        "The skill did not stage or commit any change"
+        "The upstream directive folder (`.governance/packs/governance-kit/core/directives/secrets-hygiene/`), `CONSTITUTION.md`, and the existing `governance-kit/core` lockfile entry are byte-identical to the fixture",
+        "The skill explicitly stated that `secrets-hygiene` is owned by an upstream `source: gh` pack and pointed at fork-not-patch (`replaces:`) rather than in-place editing",
+        "If a fork was created, it lives in a `source: local` pack (e.g. `acme/seeded-repo`) with a `replaces: governance-kit/core/secrets-hygiene` field on its `directive.yaml`",
+        "The skill did not stage or commit changes to the upstream pack's tree"
       ]
     }
   ]

@@ -1,7 +1,6 @@
 id: governance-kit/core
 name: Governance-kit core
 version: "0.2"
-source: builtin
 min_governance_kit: "0.2"
 description: Baseline directives shipped with governance-kit. Kit-managed; do not edit installed copies.
 author: governance-kit

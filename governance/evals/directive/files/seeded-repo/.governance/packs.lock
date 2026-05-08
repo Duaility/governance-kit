@@ -2,7 +2,12 @@ version: "2"
 packs:
   - id: governance-kit/core
     version: "0.2"
-    source: builtin
+    source: gh
+    ref: gh:duaility/governance-kit/packs/core@v0.2
+    sha: b33ec7a05be6c157a63b5f1a22d0102a1bf5a50c
+    subpath: packs/core
+    min_governance_kit: ""
+    installed_at: 2026-05-08T13:00:00Z
     directives:
       - secrets-hygiene
   - id: acme/seeded-repo

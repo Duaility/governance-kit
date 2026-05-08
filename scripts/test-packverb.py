@@ -78,7 +78,7 @@ def test_catalog_search_ref_includes_source_path() -> None:
 def test_packverb_validate_pack_public_command() -> None:
     result = run_packverb(
         "validate-pack",
-        str(ROOT / "governance" / "assets" / "packs" / "core"),
+        str(ROOT / "packs" / "core"),
     )
     assert result.returncode == 0, result.stderr
 
@@ -348,39 +348,41 @@ def test_lockfile_round_trip_via_cli() -> None:
         assert run_packverb("lock-remove", str(lockfile), "acme/foo").returncode != 0
 
 
-def test_lock_add_builtin_and_local_record_minimal_entry() -> None:
-    """builtin (governance-kit/core, in-tree) and local (repo-local pack) sources
-    have no upstream pin → no ref/sha/installed_at fields are emitted."""
-    cases = [
-        ("builtin", "governance-kit/core", "0.2", ["required-docs"]),
-        ("local", "duaility/governance-kit", "0.1", ["pre-commit-test-gate"]),
-    ]
-    for source, pack_id, version, directives in cases:
-        with tempfile.TemporaryDirectory() as tmp:
-            lockfile = Path(tmp) / "packs.lock"
-            args = ["lock-add", str(lockfile), pack_id,
-                    "--source", source, "--version", version]
-            for d in directives:
-                args += ["--directive", d]
-            result = run_packverb(*args)
-            assert result.returncode == 0, result.stderr
-            entry = json.loads(result.stdout)
-            assert entry["source"] == source
-            assert entry["version"] == version
-            assert entry["directives"] == sorted(directives)
-            for absent in ("ref", "sha", "installed_at"):
-                assert absent not in entry, f"{source}: {absent} should be absent"
+def test_lock_add_local_records_minimal_entry() -> None:
+    """local source has no upstream pin → no ref/sha/installed_at emitted."""
+    with tempfile.TemporaryDirectory() as tmp:
+        lockfile = Path(tmp) / "packs.lock"
+        result = run_packverb("lock-add", str(lockfile), "duaility/governance-kit",
+                              "--source", "local", "--version", "0.1",
+                              "--directive", "pre-commit-test-gate")
+        assert result.returncode == 0, result.stderr
+        entry = json.loads(result.stdout)
+        assert entry["source"] == "local" and entry["version"] == "0.1"
+        assert entry["directives"] == ["pre-commit-test-gate"]
+        for absent in ("ref", "sha", "installed_at"):
+            assert absent not in entry, f"local: {absent} should be absent"
+
+
+def test_lock_add_rejects_retired_builtin_source() -> None:
+    """Phase 2 of #114 (#117) retired the `builtin` source type."""
+    with tempfile.TemporaryDirectory() as tmp:
+        lockfile = Path(tmp) / "packs.lock"
+        r = run_packverb("lock-add", str(lockfile), "governance-kit/core",
+                         "--source", "builtin", "--version", "0.2",
+                         "--directive", "required-docs")
+        assert r.returncode != 0
+        assert "invalid choice" in r.stderr or "unknown source" in r.stderr
 
 
 def test_lock_add_validates_source_ref_sha_combinations() -> None:
-    """gh source requires ref+sha; builtin/local must not carry them."""
+    """gh source requires ref+sha; local must not carry them."""
     with tempfile.TemporaryDirectory() as tmp:
         lockfile = Path(tmp) / "packs.lock"
         r = run_packverb("lock-add", str(lockfile), "acme/foo",
                          "--source", "gh", "--version", "0.1", "--directive", "x")
         assert r.returncode != 0 and "requires --ref and --sha" in r.stderr
-        r = run_packverb("lock-add", str(lockfile), "governance-kit/core",
-                         "--source", "builtin", "--version", "0.2",
+        r = run_packverb("lock-add", str(lockfile), "duaility/governance-kit",
+                         "--source", "local", "--version", "0.1",
                          "--ref", "gh:x@main", "--sha", _GH_SHA, "--directive", "y")
         assert r.returncode != 0 and "does not accept --ref/--sha" in r.stderr
 
@@ -403,13 +405,13 @@ def test_lock_list_long_format_emits_source_and_version() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         lockfile = Path(tmp) / "packs.lock"
         _lock_add_gh(lockfile, "acme/foo", "0.3", "alpha")
-        run_packverb("lock-add", str(lockfile), "governance-kit/core",
-                     "--source", "builtin", "--version", "0.2",
-                     "--directive", "required-docs")
+        run_packverb("lock-add", str(lockfile), "duaility/governance-kit",
+                     "--source", "local", "--version", "0.1",
+                     "--directive", "pre-commit-test-gate")
         listing = run_packverb("lock-list", str(lockfile), "--long")
         rows = [line.split("\t") for line in listing.stdout.splitlines() if line.strip()]
         assert rows[0] == ["acme/foo", "gh", "0.3", _GH_SHA, "gh:acme/foo@main"]
-        assert rows[1] == ["governance-kit/core", "builtin", "0.2", "", ""]
+        assert rows[1] == ["duaility/governance-kit", "local", "0.1", "", ""]
 
 
 def test_lockfile_packs_sorted_by_id_on_write() -> None:
