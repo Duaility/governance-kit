@@ -24,6 +24,7 @@ from typing import Any
 import yaml
 
 from packctl import load_yaml, pack_manifest, scalar, validate_pack_dir
+from working_tree import resolve_from_working_tree
 
 LOCK_VERSION = "2"
 
@@ -82,14 +83,34 @@ def _slugify_pack_id(pack_id: str) -> str:
     return pack_id.replace("/", "__")
 
 
+def _read_pack_id(pack_sub: Path) -> str | None:
+    """Lift the `id:` scalar out of a pack.yaml. Used by the working-tree
+    resolver, which lives in its own module to keep `packverb.py` slim."""
+    return scalar(pack_manifest(pack_sub).get("id"))
+
+
 def fetch_ref(ref: str, cache_dir: Path | None = None) -> dict[str, str]:
     """Clone `ref` into the shared cache, resolving HEAD to a concrete SHA.
 
     Idempotent: repeat calls with the same resolved SHA hit the cache.
+
+    When cwd is inside a git repo whose `origin` matches `ref`'s owner/repo,
+    the working tree is used in place of a network clone — see
+    `working_tree.resolve_from_working_tree` for the rationale (dogfood /
+    inner-loop dev).
     """
     parsed = parse_ref(ref)
     root = cache_dir if cache_dir else cache_root()
     root.mkdir(parents=True, exist_ok=True)
+
+    working_tree = resolve_from_working_tree(
+        parsed, root,
+        slugify=_slugify_pack_id,
+        pack_id_re=PACK_ID_RE,
+        read_pack_id=_read_pack_id,
+    )
+    if working_tree is not None:
+        return working_tree
 
     rev = parsed["rev"]
     is_sha = bool(re.fullmatch(r"[0-9a-f]{40}", rev))

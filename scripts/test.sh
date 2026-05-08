@@ -7,6 +7,8 @@
 # Layers:
 #   1. test-packctl.py        — packctl.py library + CLI (preset, validation)
 #   2. test-packverb.py       — packverb.py (refs, capability glob, lockfile, catalog)
+#   2a.test-working-tree.py   — working_tree.py (origin match + working-tree
+#                               fetch short-circuit used by packverb.fetch_ref)
 #   3. test-install-sh.sh     — install.sh helpers (copy_tree_without_evals,
 #                               install_directive_folder, install_directive_assets,
 #                               write_installed_manifest flag matrix)
@@ -59,6 +61,10 @@ run_layer "packctl: validate_pack_dir matrix (Python)" \
 run_layer "packverb (Python)" \
     uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-packverb.py" \
     || failed_layers+=("test-packverb.py")
+
+run_layer "working-tree resolver (Python)" \
+    uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-working-tree.py" \
+    || failed_layers+=("test-working-tree.py")
 
 run_layer "install.sh helpers (bash)" \
     bash "$ROOT/scripts/test-install-sh.sh" \
