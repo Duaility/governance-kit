@@ -20,6 +20,8 @@
 #     - require_git inside a non-repo emits ⊘ skip and exits 0
 #     - tracked_files respects .gitignore
 #     - has_waiver matches `governance: allow-<id>` on the given line
+#     - has_file_waiver matches `governance: allow-<id> <sub-check>` in
+#       the first 10 lines, scoped to both directive id and sub-check
 
 set -eu
 
@@ -347,6 +349,94 @@ set +e
     set +u
     source "$LIB_SH"
     if has_waiver "$waiver_file" 2 "different-rule"; then exit 99; else exit 0; fi
+)
+exit_code=$?
+set -e
+assert_eq "waiver is scoped to the named directive id" 0 "$exit_code"
+
+# ---- lib.sh: has_file_waiver ----------------------------------------------
+
+printf '── lib.sh: has_file_waiver ─────────────────────────────\n'
+
+# File without any waiver token → no waiver.
+fwaiver_no="$WORK/fwaiver_no.ts"
+{ for i in $(seq 1 5); do printf 'export const k%d = %d;\n' "$i" "$i"; done; } > "$fwaiver_no"
+set +e
+(
+    set +u
+    source "$LIB_SH"
+    if has_file_waiver "$fwaiver_no" "repo-hygiene" "file-size-limit"; then exit 99; else exit 0; fi
+)
+exit_code=$?
+set -e
+assert_eq "no token in file → exit non-zero (no waiver)" 0 "$exit_code"
+
+# Token in line 1 → waiver applies.
+fwaiver_yes="$WORK/fwaiver_yes.ts"
+{
+    printf '// governance: allow-repo-hygiene file-size-limit TICKET-9 entrypoint\n'
+    for i in $(seq 1 5); do printf 'export const k%d = %d;\n' "$i" "$i"; done
+} > "$fwaiver_yes"
+set +e
+(
+    set +u
+    source "$LIB_SH"
+    if has_file_waiver "$fwaiver_yes" "repo-hygiene" "file-size-limit"; then exit 0; else exit 1; fi
+)
+exit_code=$?
+set -e
+assert_eq "head-of-file waiver → exit 0" 0 "$exit_code"
+
+# Token in line 10 → still within the 10-line head window.
+fwaiver_l10="$WORK/fwaiver_l10.ts"
+{
+    for i in $(seq 1 9); do printf 'export const k%d = %d;\n' "$i" "$i"; done
+    printf '// governance: allow-repo-hygiene file-size-limit TICKET-10\n'
+    for i in $(seq 11 15); do printf 'export const k%d = %d;\n' "$i" "$i"; done
+} > "$fwaiver_l10"
+set +e
+(
+    set +u
+    source "$LIB_SH"
+    if has_file_waiver "$fwaiver_l10" "repo-hygiene" "file-size-limit"; then exit 0; else exit 1; fi
+)
+exit_code=$?
+set -e
+assert_eq "waiver on line 10 → exit 0 (within 10-line window)" 0 "$exit_code"
+
+# Token past line 10 → no waiver.
+fwaiver_l11="$WORK/fwaiver_l11.ts"
+{
+    for i in $(seq 1 10); do printf 'export const k%d = %d;\n' "$i" "$i"; done
+    printf '// governance: allow-repo-hygiene file-size-limit TICKET-11\n'
+} > "$fwaiver_l11"
+set +e
+(
+    set +u
+    source "$LIB_SH"
+    if has_file_waiver "$fwaiver_l11" "repo-hygiene" "file-size-limit"; then exit 99; else exit 0; fi
+)
+exit_code=$?
+set -e
+assert_eq "waiver beyond line 10 → no waiver" 0 "$exit_code"
+
+# Sub-check name must match — `file-size-limit` token must not waive a different sub-check.
+set +e
+(
+    set +u
+    source "$LIB_SH"
+    if has_file_waiver "$fwaiver_yes" "repo-hygiene" "debug-statements"; then exit 99; else exit 0; fi
+)
+exit_code=$?
+set -e
+assert_eq "waiver is scoped to the named sub-check" 0 "$exit_code"
+
+# Directive id must match — `repo-hygiene` token must not waive `secrets-hygiene`.
+set +e
+(
+    set +u
+    source "$LIB_SH"
+    if has_file_waiver "$fwaiver_yes" "secrets-hygiene" "file-size-limit"; then exit 99; else exit 0; fi
 )
 exit_code=$?
 set -e

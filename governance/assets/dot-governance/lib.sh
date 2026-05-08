@@ -86,3 +86,15 @@ has_waiver() {
     local file="$1" line_no="$2" directive="$3"
     sed -n "${line_no}p" "$file" | grep -q "governance: allow-${directive}"
 }
+
+# File-level waiver — for sub-checks where the violation is the file itself
+# (not a specific line), scan the first 10 lines for a head-of-file token.
+# A sub-check name is required so multiple file-level sub-checks can share
+# the same `allow-<directive>` prefix without colliding.
+# Example: `// governance: allow-repo-hygiene file-size-limit TICKET-123`
+has_file_waiver() {
+    local file="$1" directive="$2" subcheck="$3"
+    [[ -f "$file" ]] || return 1
+    head -n 10 "$file" 2>/dev/null \
+        | grep -q "governance: allow-${directive} ${subcheck}"
+}
