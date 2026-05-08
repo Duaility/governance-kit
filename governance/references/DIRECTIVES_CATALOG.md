@@ -8,7 +8,7 @@ One pack ships in-tree:
 |---|---|---|---|
 | `governance-kit/core` | `governance/assets/packs/core/` | General-purpose directives plus the full agent audit chain (`receipt-per-issue` → `commit-issue-receipt-match` → `issue-templates` → `issues-tracked` → `agent-token-accounting` → `agent-steering-accounting`). | Always selected — cannot be deselected. |
 
-Community packs live in their own repos and install via `governance pack add gh:<owner>/<repo>`. For authoring a **third-party pack**, see [AUTHORING_PACKS.md](AUTHORING_PACKS.md).
+Community packs live in their own repos and install via `governance pack add gh:<owner>/<repo>`. For authoring a **third-party pack**, see [PACK_AUTHORING.md](PACK_AUTHORING.md).
 
 ---
 
@@ -105,7 +105,7 @@ Waivers are visible in `git blame` and searchable by design. Only use them for d
 3. Run `bash scripts/test-packs.sh` — it validates every directive folder, installs `governance-kit/governance-kit/core.standard` into a fresh repo and runs it, runs every eval, and smoke-tests hook generation.
 4. Document the directive in this file under the pack's category table.
 
-For directives that belong in a new pack, see [AUTHORING_PACKS.md](AUTHORING_PACKS.md).
+For directives that belong in a new pack, see [PACK_AUTHORING.md](PACK_AUTHORING.md).
 
 ### Directive template
 

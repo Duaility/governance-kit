@@ -4,7 +4,7 @@
 
 Entry point for humans and agents working in this repo. Skim top-to-bottom, then jump to the doc you need.
 
-<!-- governance: rules-to-follow -->
+<!-- governance: directives-to-follow -->
 ## Rules to follow
 
 If you are an agent — or a human — working in this repo, **read [CONSTITUTION.md](CONSTITUTION.md) and follow it**. It defines the principles, guidelines, and directives that every change in this repo must satisfy.
@@ -13,7 +13,7 @@ If you are an agent — or a human — working in this repo, **read [CONSTITUTIO
 - The principles and guidelines cannot be mechanically checked — you are expected to read them and apply judgment. A change that defies a principle without explanation will block the PR.
 
 See the **Compliance** section of [CONSTITUTION.md](CONSTITUTION.md) for the full directive, including how to document approved deviations.
-<!-- /governance: rules-to-follow -->
+<!-- /governance: directives-to-follow -->
 
 ## What this repo is
 
@@ -48,9 +48,9 @@ governance-kit/
 │   ├── SKILL.md
 │   ├── assets/                  # Templates copied into target repos.
 │   │   ├── CONSTITUTION.template.md
-│   │   ├── AGENTS.directive.md
+│   │   ├── AGENTS.snippet.md
 │   │   ├── governance.yml
-│   │   ├── setup-clone.sh
+│   │   ├── enable-governance.sh
 │   │   ├── tests-bash/          # Universal bash runner shipped into every target repo.
 │   │   ├── amend/               # Templates for `directive *` (directive.template.sh, directive-section.template.md).
 │   │   ├── catalog.community.json   # Advisory index of known community packs (read by `governance pack search`).
@@ -67,7 +67,7 @@ governance-kit/
 │   ├── references/              # INIT_FLOW.md, UNINSTALL_FLOW.md, RESET_FLOW.md,
 │   │                            #   DIRECTIVE_AMEND_FLOW.md,
 │   │                            #   VERBS.md, DIRECTIVE_VERBS.md, PACK_VERBS.md,
-│   │                            #   DIRECTIVES_CATALOG.md, AUTHORING_PACKS.md, NATIVE_TESTS.md,
+│   │                            #   DIRECTIVES_CATALOG.md, PACK_AUTHORING.md, NATIVE_TESTS.md,
 │   │                            #   DIRECTIVE_AUTHORING.md, UNINSTALL_MATRIX.md,
 │   │                            #   INSTALL_SCHEMA.md, LOCK_SCHEMA.md, AGENT_TOKEN_ACCOUNTING.md.
 │   └── evals/                   # Behavioral fixtures for the verbs.
@@ -123,7 +123,7 @@ snippet, metadata, and eval all live together under `directives/<directive-id>/`
    add its id to the relevant preset block in the pack's `pack.yaml`.
 3. Document it in [governance/references/DIRECTIVES_CATALOG.md](governance/references/DIRECTIVES_CATALOG.md).
 4. For authoring an entirely new pack, see
-   [governance/references/AUTHORING_PACKS.md](governance/references/AUTHORING_PACKS.md).
+   [governance/references/PACK_AUTHORING.md](governance/references/PACK_AUTHORING.md).
 
 ### Commit messages
 
@@ -145,6 +145,6 @@ Edits to source files flow to both runtimes live.
 - [governance/references/PHILOSOPHY.md](governance/references/PHILOSOPHY.md) — the stance behind GDD: rules over prompts, receipts over plans, ledgers over transcripts.
 - [CONSTITUTION.md](CONSTITUTION.md) — the live directive set and amendment process.
 - [governance/references/DIRECTIVES_CATALOG.md](governance/references/DIRECTIVES_CATALOG.md) — every ready-made directive and its check.
-- [governance/references/AUTHORING_PACKS.md](governance/references/AUTHORING_PACKS.md) — writing a third-party pack.
+- [governance/references/PACK_AUTHORING.md](governance/references/PACK_AUTHORING.md) — writing a third-party pack.
 - [governance/references/NATIVE_TESTS.md](governance/references/NATIVE_TESTS.md) — porting bash directives to pytest / jest / go test, husky / pre-commit.com snippets.
 - [README.md](README.md) — the public-facing overview.

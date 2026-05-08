@@ -10,7 +10,7 @@ pull it into this repo?". It is **disjoint** from `pack update`:
 | Verb | Updates |
 |---|---|
 | `pack update` | Directive folders + `packs.lock` SHA pins (rules content). |
-| `kit update` | The runtime artifacts `init` originally seeded (`run.sh`, `lib.sh`, `setup-clone.sh`, `governance.yml`, hook dispatchers) and the `kit_version` recorded in `install.yaml`. |
+| `kit update` | The runtime artifacts `init` originally seeded (`run.sh`, `lib.sh`, `enable-governance.sh`, `governance.yml`, hook dispatchers) and the `kit_version` recorded in `install.yaml`. |
 
 A single user-facing run can chain both with `--with-packs`. The default
 behavior is kit-runtime only — pack updates are reviewed separately because
@@ -19,7 +19,7 @@ their diffs land directive code that runs on commits.
 ## Why a separate verb
 
 `init` is one-shot: it copies `dot-governance/run.sh`, `lib.sh`, the
-`setup-clone.sh` template, and `governance.yml` into the target repo and
+`enable-governance.sh` template, and `governance.yml` into the target repo and
 never tracks them again. If a later kit version ships a smarter runner or a
 fixed dispatcher generator, the consumer's repo silently keeps the old
 copies. This verb closes the loop:
@@ -74,7 +74,7 @@ versions=()
 for f in "$root"/.governance/run.sh \
          "$root"/.governance/lib.sh \
          "$root"/.github/workflows/governance.yml \
-         "$root"/scripts/setup-clone.sh \
+         "$root"/scripts/enable-governance.sh \
          "$root"/.githooks/pre-commit; do
     v=$(read_marker_kit_version "$f" 2>/dev/null) || continue
     [[ -n "$v" ]] && versions+=("$v")
@@ -118,7 +118,7 @@ with the install destination, derived from `install.yaml`:
 |---|---|---|
 | `assets/dot-governance/run.sh` | `<tests_dir>/run.sh` | `governance-kit:managed kit-version=<v>` in first 3 lines |
 | `assets/dot-governance/lib.sh` | `<tests_dir>/lib.sh` | `governance-kit:managed kit-version=<v>` in first 3 lines |
-| `assets/setup-clone.sh` | `<setup_clone_script>` (Path A only — field absent under Path B) | `governance-kit:managed kit-version=<v>` in first 3 lines |
+| `assets/enable-governance.sh` | `<enable_governance_script>` (Path A only — field absent under Path B) | `governance-kit:managed kit-version=<v>` in first 3 lines |
 | `assets/governance.yml` | `<ci_workflow>` | `governance-kit:managed kit-version=<v>` in first 3 lines |
 | `assets/freshness.conf` | `<tests_dir>/freshness.conf` (only if the file already exists — `kit update` does not seed it) | None — user-tunable config; skip on diff |
 
@@ -176,7 +176,7 @@ Skip (already up-to-date):
   .github/workflows/governance.yml
 
 Skip (unmanaged — hand-edited or pre-marker):
-  scripts/setup-clone.sh             diff: 8 +/-0  (line-2 marker absent)
+  scripts/enable-governance.sh       diff: 8 +/-0  (line-2 marker absent)
 
 Add (missing — will create):
   (none)
@@ -207,7 +207,7 @@ Step 4, in order:
 
 1. If `overwrite-with-backup`, rename `<dest>` to `<dest>.pre-update.bak`.
 2. `cp <kit>/<src> <dest>`. Preserve mode (`chmod +x` for `run.sh`,
-   `setup-clone.sh`).
+   `enable-governance.sh`).
 3. Stamp the marker with the new kit version:
    ```sh
    stamp_managed_marker "<dest>" "<KIT_VERSION>"
@@ -299,30 +299,45 @@ If `--dry-run` was set, skip Step 7 entirely. The report says what
 
 ### Step 8 — Report
 
-Print:
-- `From → To:` `<old-kit-version> → <new-kit-version>`
-- `Updated:` files rewritten, with byte-counts
-- `Skipped:` byte-equal files
-- `Skipped (unmanaged):` files with non-empty diff but no marker — and
-  whether the user chose `keep` / `apply anyway` / `overwrite-with-backup`
-- `Hook dispatcher:` `regenerated` | `unchanged`
-- `Smoke test:` `pass` | `fail (exit <code>): <first failing directive>`
-- `Packs:` `up-to-date` | `<N> updated` | `not checked (use --with-packs)`
-- `Committed:` `<short-sha> <conventional-commit subject>` (or
-  `would-commit:` under `--dry-run`)
-- `Assumptions:` any, or `none`
-- `Next:` `git push` to open the PR-review cycle
+Every successful run — including no-ops and refusals — must emit the full
+report block below. Every field is required; render `none` (or the
+documented sentinel) when a row has nothing to say. Skipping a row is a
+flow violation, not a stylistic choice — the eval grader treats a missing
+`Packs:` or `Hook dispatcher:` line as a failed run even when the
+underlying behavior was correct.
+
+```
+From → To:        <old-kit-version> → <new-kit-version>
+Updated:          <file list with byte-counts, or `none`>
+Skipped:          <byte-equal files, or `none`>
+Skipped (unmanaged): <files without the line-2 marker + per-file user
+                  choice (keep / apply-anyway / overwrite-with-backup),
+                  or `none`>
+Hook dispatcher:  regenerated | unchanged
+Smoke test:       pass | fail (exit <code>): <first failing directive>
+Packs:            up-to-date | <N> updated | not checked (use --with-packs)
+Committed:        <short-sha> <conventional-commit subject>
+                  (or `would-commit:` under `--dry-run`, or `none` for a
+                  no-op / refusal)
+Assumptions:      <any, or `none`>
+Next:             git push
+```
+
+For the documented short-circuit branches:
+
+- **Up-to-date no-op** — every row is `none` except `From → To:` (which
+  reads `<v> → <v> (up-to-date)`), `Smoke test:` (`pass`), `Packs:` (the
+  `--with-packs`-aware sentinel), `Committed:` (`none`), and `Next:`
+  (`none` — the user has nothing to push).
+- **Refusal** (`no recoverable pin`, `no-downgrade`, dirty tree without
+  `--force`) — emit `From → To:` with the detected delta, set every
+  action row to `none`, and put the refusal reason and recovery path
+  under `Assumptions:`.
 
 ## Required final output
 
-Every successful `kit update` run should include:
-
-- `From → To:` version delta
-- `Updated:` file list
-- `Smoke test:` result
-- `Committed:` short-sha + subject (or `would-commit:` under `--dry-run`)
-- `Assumptions:` any, or `none`
-- `Next:` `git push`
+Same 10-field block as Step 8 above. There is no shorter "summary"
+variant — the verb either emits the full block or it has not finished.
 
 ---
 

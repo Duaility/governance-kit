@@ -19,7 +19,7 @@ Tracking issue: [Duaility/governance-kit#31](https://github.com/Duaility/governa
 ```
 governance init                                       # bootstrap a repo
 governance kit update [--with-packs] [--dry-run] [--force]
-                                                      # re-sync runtime files (run.sh, lib.sh, setup-clone.sh,
+                                                      # re-sync runtime files (run.sh, lib.sh, enable-governance.sh,
                                                       # governance.yml, hook dispatchers) when a new kit
                                                       # version is on PATH; --with-packs also re-pins gh packs
 governance pack search [query]                        # search community catalog
@@ -87,7 +87,7 @@ Key invariants:
 
 ## `governance kit update`
 
-Re-syncs the kit-runtime files installed at `init` (`run.sh`, `lib.sh`, `setup-clone.sh`, `governance.yml`, hook dispatchers) when a newer kit is on PATH. Stamps the new version into `install.yaml.kit_version`. Disjoint from `pack update`: this verb updates the *framework* code, not the rules content.
+Re-syncs the kit-runtime files installed at `init` (`run.sh`, `lib.sh`, `enable-governance.sh`, `governance.yml`, hook dispatchers) when a newer kit is on PATH. Stamps the new version into `install.yaml.kit_version`. Disjoint from `pack update`: this verb updates the *framework* code, not the rules content.
 
 **Authoritative flow:** [references/UPDATE_FLOW.md](references/UPDATE_FLOW.md) Steps 1–8.
 
@@ -161,5 +161,5 @@ Hand-authored directive flows for adding, modifying, or removing directives. Eve
 - [references/PACK_VERBS.md](references/PACK_VERBS.md) — authoritative flows for `pack *`.
 - [references/VERBS.md](references/VERBS.md) — per-verb reference, aliases, assets.
 - [references/DIRECTIVES_CATALOG.md](references/DIRECTIVES_CATALOG.md) — ready-made directives and the authoring template.
-- [references/AUTHORING_PACKS.md](references/AUTHORING_PACKS.md) — pack + directive schemas, capability declarations, and scoped pack ids.
+- [references/PACK_AUTHORING.md](references/PACK_AUTHORING.md) — pack + directive schemas, capability declarations, and scoped pack ids.
 - [assets/catalog.community.json](assets/catalog.community.json) — community pack catalog (target of `governance pack search`).

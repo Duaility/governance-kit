@@ -213,7 +213,7 @@ The chain — **issue → receipt → commit → cost** — turned into mechanic
 
 ## Community packs
 
-Community packs live in their own repos and install via `governance pack add gh:<owner>/<repo>`. Authoring your own: [governance/references/AUTHORING_PACKS.md](governance/references/AUTHORING_PACKS.md). Discovery via `governance pack search` reads the advisory catalog at [`governance/assets/catalog.community.json`](governance/assets/catalog.community.json) — currently empty; PRs welcome.
+Community packs live in their own repos and install via `governance pack add gh:<owner>/<repo>`. Authoring your own: [governance/references/PACK_AUTHORING.md](governance/references/PACK_AUTHORING.md). Discovery via `governance pack search` reads the advisory catalog at [`governance/assets/catalog.community.json`](governance/assets/catalog.community.json) — currently empty; PRs welcome.
 
 ## Why not just pre-commit / husky / lefthook?
 
@@ -224,7 +224,7 @@ Those tools run hooks. governance-kit runs hooks **and** carries the rationale, 
 See [AGENTS.md](AGENTS.md) for repo layout, how to add directives to the `governance-kit/core` pack, and the dogfooding setup. One-time-per-clone:
 
 ```sh
-./scripts/setup-clone.sh   # sets core.hooksPath=.githooks
+./scripts/enable-governance.sh   # sets core.hooksPath=.githooks
 ```
 
 Worktrees inherit this config — no per-worktree action needed.

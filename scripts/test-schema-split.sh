@@ -71,7 +71,7 @@ printf '── install.yaml: writer emits v3 with no packs[] block ──\n'
 write_installed_manifest "$target" \
     --owner acme --repo widgets \
     --hook-strategy githooks \
-    --agents-md-directive \
+    --agents-md-snippet \
     --install-asset QUALITY.md
 
 install_yaml="$target/.governance/install.yaml"

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -199,6 +200,13 @@ def validate_pack_dir(pack_dir: Path) -> list[str]:
     # the slug half — the author namespace lives only in the pack id and the
     # installed-target layout. Reject unscoped ids; they would install to a
     # one-segment path and silently keep the old pre-v2 namespace alive.
+    #
+    # The fetch cache (see packverb.fetch_ref) lays packs out at
+    # `<author>__<slug>@<sha>/` (no subpath) or `<author>__<slug>@<sha>/<subpath>/`,
+    # so `validate-pack` invoked directly against a cache root must accept
+    # the slugified `__`-form too. Without this branch the validator
+    # would reject every freshly fetched pack by dirname before any of
+    # the fields-and-files checks run.
     if pack_id:
         if "/" not in pack_id:
             errors.append(
@@ -206,10 +214,17 @@ def validate_pack_dir(pack_dir: Path) -> list[str]:
                 f"(e.g. 'acme/{pack_dir.name}')"
             )
         else:
-            expected = pack_id.split("/", 1)[-1]
-            if expected != pack_dir.name:
+            slug = pack_id.split("/", 1)[-1]
+            slugified = pack_id.replace("/", "__")
+            cache_pattern = re.compile(rf"^{re.escape(slugified)}(@[0-9a-f]{{40}})?$")
+            if (
+                pack_dir.name != slug
+                and pack_dir.name != slugified
+                and not cache_pattern.match(pack_dir.name)
+            ):
                 errors.append(
-                    f"{pack_dir}: pack id {pack_id!r} does not match directory name {pack_dir.name!r}"
+                    f"{pack_dir}: pack id {pack_id!r} does not match directory name {pack_dir.name!r} "
+                    f"(expected {slug!r}, {slugified!r}, or '{slugified}@<sha>')"
                 )
 
     min_kit = scalar(manifest.get("min_governance_kit"))

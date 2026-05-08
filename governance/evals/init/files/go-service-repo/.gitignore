@@ -1,0 +1,6 @@
+.env
+.env.*
+!.env.example
+*.exe
+go-service-repo
+.DS_Store

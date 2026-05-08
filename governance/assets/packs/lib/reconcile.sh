@@ -20,7 +20,7 @@
 # verbs and before suite runs in fresh clones / post-`pack update` states.
 # Not auto-invoked from `run.sh` to keep the runner shell-only and
 # packverb-free for consumers that don't have the kit installed locally
-# (those are validated in CI, where the kit is installed by setup-clone.sh
+# (those are validated in CI, where the kit is installed by enable-governance.sh
 # and the agent calls reconcile explicitly).
 #
 # Usage:

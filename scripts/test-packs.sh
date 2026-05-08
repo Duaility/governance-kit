@@ -324,7 +324,7 @@ EOF
     write_installed_manifest "$fresh_tmp" \
         --owner acme --repo widgets \
         --hook-strategy githooks \
-        --agents-md-directive
+        --agents-md-snippet
 
     # Pack pin state lives in packs.lock, not install.yaml — record the core
     # pack and every installed directive so the schema is realistic.

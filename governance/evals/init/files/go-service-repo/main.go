@@ -1,7 +1,7 @@
 package main
 
-import "fmt"
+import "log"
 
 func main() {
-	fmt.Println("hello from fixture go service")
+	log.Println("hello from fixture go service")
 }

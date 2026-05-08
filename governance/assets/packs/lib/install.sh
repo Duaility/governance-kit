@@ -188,10 +188,10 @@ write_installed_manifest() {
     #       [--ci-workflow <path>] \
     #       [--tests-dir <path>] \
     #       [--no-constitution] \
-    #       [--agents-md-directive] \
+    #       [--agents-md-snippet] \
     #       [--agents-md-created] \
     #       [--install-asset <path>]     (repeatable)
-    #       [--setup-clone-script <path>] \
+    #       [--enable-governance-script <path>] \
     #       [--collision <path>:<resolution>[:<extra>]]  (repeatable)
     #       [--path-b-framework husky|pre-commit] \
     #       [--path-b-entry <file>:<fingerprint>]        (repeatable)
@@ -218,9 +218,9 @@ write_installed_manifest() {
     local ci_workflow=".github/workflows/governance.yml"
     local tests_dir=".governance"
     local constitution_flag="true"
-    local agents_md_directive="false" agents_md_created="false"
+    local agents_md_snippet="false" agents_md_created="false"
     local path_b_framework=""
-    local setup_clone_script=""
+    local enable_governance_script=""
     local owner="" repo="" kit_version=""
     local -a install_assets=() collisions=() path_b_entries=()
 
@@ -233,10 +233,10 @@ write_installed_manifest() {
             --ci-workflow)       ci_workflow="$2";       shift 2 ;;
             --tests-dir)         tests_dir="$2";         shift 2 ;;
             --no-constitution)   constitution_flag="false";  shift ;;
-            --agents-md-directive) agents_md_directive="true"; shift ;;
+            --agents-md-snippet) agents_md_snippet="true"; shift ;;
             --agents-md-created)   agents_md_created="true";   shift ;;
             --install-asset)     install_assets+=("$2"); shift 2 ;;
-            --setup-clone-script) setup_clone_script="$2"; shift 2 ;;
+            --enable-governance-script) enable_governance_script="$2"; shift 2 ;;
             --collision)         collisions+=("$2");     shift 2 ;;
             --path-b-framework)  path_b_framework="$2";  shift 2 ;;
             --path-b-entry)      path_b_entries+=("$2"); shift 2 ;;
@@ -268,10 +268,10 @@ write_installed_manifest() {
         printf 'constitution: %s\n' "$constitution_flag"
         printf 'ci_workflow: %s\n' "$ci_workflow"
         printf 'tests_dir: %s\n' "$tests_dir"
-        printf 'agents_md_directive: %s\n' "$agents_md_directive"
+        printf 'agents_md_snippet: %s\n' "$agents_md_snippet"
         printf 'agents_md_created: %s\n' "$agents_md_created"
-        if [[ -n "$setup_clone_script" ]]; then
-            printf 'setup_clone_script: %s\n' "$setup_clone_script"
+        if [[ -n "$enable_governance_script" ]]; then
+            printf 'enable_governance_script: %s\n' "$enable_governance_script"
         fi
 
         if (( ${#install_assets[@]} > 0 )); then
