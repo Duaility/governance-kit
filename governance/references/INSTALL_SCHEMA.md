@@ -18,9 +18,9 @@ hook_strategy: githooks          # or: husky | pre-commit
 constitution: true               # CONSTITUTION.md was written at repo root
 ci_workflow: .github/workflows/governance.yml
 tests_dir: .governance
-agents_md_directive: true        # true when the marker-bounded block was inserted
+agents_md_snippet: true          # true when the marker-bounded block was inserted
 agents_md_created: false         # true only when bootstrap Step 4b Case 2 ran (stub)
-setup_clone_script: scripts/setup-clone.sh  # Path A only; omitted under Path B
+enable_governance_script: scripts/enable-governance.sh  # Path A only; omitted under Path B
 install_assets_seeded:           # files seeded by directives' install-assets/
   - QUALITY.md
   - COSTS.md
@@ -63,9 +63,9 @@ Notes on the emitted shape:
 | `tests_dir` | Parent directory whose `run.sh`, `lib.sh`, and empty-after-cleanup shell are removed. |
 | `install_assets_seeded` | The paths soft mode preserves and hard mode deletes. |
 | `agents_md_created` | In hard mode, only delete `AGENTS.md` entirely if this is `true`. |
-| `agents_md_directive` | Whether to attempt the marker-bounded-block strip. If `false`, skip the AGENTS.md step. |
+| `agents_md_snippet` | Whether to attempt the marker-bounded-block strip. If `false`, skip the AGENTS.md step. |
 | `hook_strategy` | Selects the uninstall branch (`.githooks/*` vs. `path_b.entries` editing). |
-| `setup_clone_script` | Path A only — path of the one-time per-clone setup script to delete (bootstrap Step 6 Path A step 5). Omitted under Path B. |
+| `enable_governance_script` | Path A only — path of the one-time per-clone enable script to delete (bootstrap Step 6 Path A step 5). Omitted under Path B. |
 | `path_b.framework` / `path_b.entries` | Which framework config to edit instead of `.githooks/`, and which entries to remove. |
 | `collisions[*]` | Which hooks came from Path A wrap/overwrite resolution; drives *restore wrap* and *delete with backup* offers. |
 
@@ -91,7 +91,7 @@ Everything else reset needs (which packs exist, which directives belong to each,
 | `kit_version` | The cached version pin. Compared against the `KIT_VERSION` of the kit on PATH to determine whether the repo is up-to-date, behind (forward update), or ahead (refused — no silent downgrades). Absence means pre-tracking install; the verb scans per-file markers to reconstruct the pin, falling back to "pre-tracking install" only if no versioned marker is found. |
 | `hook_strategy` | Selects the dispatcher generator (`.githooks/`, `.husky/`, or `.governance/hooks/`) when regenerating hooks. |
 | `tests_dir` | Where `run.sh` / `lib.sh` live, for the per-file diff-and-copy. |
-| `setup_clone_script` | Path A only — the destination path for the `setup-clone.sh` re-sync. Omitted under Path B (the verb skips that file pair). |
+| `enable_governance_script` | Path A only — the destination path for the `enable-governance.sh` re-sync. Omitted under Path B (the verb skips that file pair). |
 | `ci_workflow` | The destination path for the `governance.yml` re-sync. |
 
 After a successful run, `kit update` rewrites the manifest with the new `kit_version` and unchanged everything else. See [UPDATE_FLOW.md](UPDATE_FLOW.md).
@@ -127,7 +127,7 @@ A repo where `install.yaml` was never written, or was deleted manually, is a **l
 
 ### AGENTS.md opening-marker-only heuristic
 
-The v1 directive template (`governance/assets/AGENTS.directive.md`) ships with **both** `<!-- governance: directives-to-follow -->` and `<!-- /governance: directives-to-follow -->` markers, so `uninstall` can strip the block by paired markers. Earlier bootstrap runs inserted only the opening marker.
+The v1 snippet template (`governance/assets/AGENTS.snippet.md`) ships with **both** `<!-- governance: directives-to-follow -->` and `<!-- /governance: directives-to-follow -->` markers, so `uninstall` can strip the block by paired markers. Earlier bootstrap runs inserted only the opening marker.
 
 When an AGENTS.md file contains the opening marker but **not** the closing one:
 

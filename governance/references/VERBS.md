@@ -12,12 +12,12 @@ full rearchitecture context.
 - **Authoritative flow:** [INIT_FLOW.md](INIT_FLOW.md) Steps 1–8.
 - **Assets used:**
   - `../assets/CONSTITUTION.template.md`
-  - `../assets/AGENTS.directive.md`
+  - `../assets/AGENTS.snippet.md`
   - `../assets/packs/` (kit-bundled pack tree — today: `governance-kit/core` plus the shared `lib/`)
   - `../assets/catalog.community.json` (advisory community pack catalog — read by `pack search`)
   - `../assets/dot-governance/`
   - `../assets/governance.yml`
-  - `../assets/setup-clone.sh`
+  - `../assets/enable-governance.sh`
 - **Install state:** `.governance/install.yaml` (`version: "3"`, init receipt) + `.governance/packs.lock` (`version: "2"`, pack pin record).
 - Pack validation enforces `min_governance_kit` against `KIT_VERSION` from [`../assets/packs/lib/packctl.py`](../assets/packs/lib/packctl.py).
 
@@ -36,7 +36,7 @@ full rearchitecture context.
 - **Precondition:** repo must have governance installed (`.governance/` and at least one kit-owned file present). Reads the version pin from `install.yaml.kit_version`; if the manifest is missing or the field is absent, scans per-file `kit-version=` markers and takes the min. Refuses only when neither manifest nor any versioned marker is found — that means there is no recoverable version pin.
 - **Flags:** `--with-packs` (also chain `pack update` for every `source: gh` entry), `--dry-run`, `--force` (override the dirty-working-tree refusal).
 - **Authoritative flow:** [UPDATE_FLOW.md](UPDATE_FLOW.md) Steps 1–8.
-- **Disjoint from `pack update`.** Updates the kit-runtime files (`run.sh`, `lib.sh`, `setup-clone.sh`, `governance.yml`, hook dispatchers) and the `kit_version` pin in `install.yaml`. For directive-content updates use `pack update`. Use both with `kit update --with-packs`.
+- **Disjoint from `pack update`.** Updates the kit-runtime files (`run.sh`, `lib.sh`, `enable-governance.sh`, `governance.yml`, hook dispatchers) and the `kit_version` pin in `install.yaml`. For directive-content updates use `pack update`. Use both with `kit update --with-packs`.
 - **No silent downgrades.** A manifest stamp newer than the kit on PATH stops the verb.
 - **Diff-before-exec.** Per-file diff is shown before any file is written; files lacking the line-2 `governance-kit:managed` marker surface as `Skipped (unmanaged)` and the user picks `keep` / `apply anyway` / `overwrite-with-backup`.
 - **One atomic commit.** Conventional-commit subject `chore(governance): kit update <old> → <new>` (or `... (+packs)` under `--with-packs`).

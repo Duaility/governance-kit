@@ -121,7 +121,7 @@ Use `standard` as the recommended preset. If the user does not answer and you mu
 
 Split into multiple `AskUserQuestion` calls — the tool caps at four questions per call. Follow the same pattern today's flow does: first call for Foundation / Security / SystemOfRecord / CommitHygiene; second call for Quality / AgentDiscipline / any additional categories. Category menus with only a single directive are fine — do not pad with filler.
 
-If the user picks "Other" and describes a new directive, generate a new directive folder under `.governance/packs/<owner>/<repo>/directives/<id>/` with `directive.yaml`, `check.sh`, and `constitution.md`, following the template in [DIRECTIVES_CATALOG.md](DIRECTIVES_CATALOG.md), and add a matching Directives subsection to `CONSTITUTION.md`. The directive joins the target repo directly; it is not retrofitted into a pack (that is a pack-authoring activity, covered in [AUTHORING_PACKS.md](AUTHORING_PACKS.md)).
+If the user picks "Other" and describes a new directive, generate a new directive folder under `.governance/packs/<owner>/<repo>/directives/<id>/` with `directive.yaml`, `check.sh`, and `constitution.md`, following the template in [DIRECTIVES_CATALOG.md](DIRECTIVES_CATALOG.md), and add a matching Directives subsection to `CONSTITUTION.md`. The directive joins the target repo directly; it is not retrofitted into a pack (that is a pack-authoring activity, covered in [PACK_AUTHORING.md](PACK_AUTHORING.md)).
 
 **Always installed — bypass the menu.** Walk every selected pack's `always_install: true` directives and queue them for install regardless of user picks. This flag is **reserved to the `governance-kit/core` pack**; third-party packs declaring it are rejected at install.
 
@@ -166,7 +166,7 @@ write_installed_manifest "$repo_root" \
     --hook-strategy githooks \
     --ci-workflow .github/workflows/governance.yml \
     --tests-dir .governance \
-    --agents-md-directive \                # add --agents-md-created if Step 4b Case 2 fired
+    --agents-md-snippet \                  # add --agents-md-created if Step 4b Case 2 fired
     --install-asset QUALITY.md \           # repeat per seeded install-asset
     --install-asset COSTS.md \
     --collision .githooks/pre-commit:wrap:.githooks/pre-commit.userhook   # only if Step 6 hit collisions
@@ -204,7 +204,7 @@ Do not invent principles the user did not pick. It is better to ship a short con
 
 ### Step 4b — Inject the Compliance directive into AGENTS.md
 
-The constitution's **Compliance** section is the directive; the AGENTS.md directive is the routing pointer that tells agents to *read* the directive. Without it, agents may never reach the constitution. Inject `../assets/AGENTS.directive.md` into the target repo's `AGENTS.md`.
+The constitution's **Compliance** section is the directive; the AGENTS.md snippet is the routing pointer that tells agents to *read* the directive. Without it, agents may never reach the constitution. Inject `../assets/AGENTS.snippet.md` into the target repo's `AGENTS.md`.
 
 The snippet is bounded by a pair of HTML marker comments — opening `<!-- governance: directives-to-follow -->` on its first line and closing `<!-- /governance: directives-to-follow -->` on its last. Both markers ship together in the template and **both** must be preserved on insert. Idempotency: grep for the opening marker before inserting; if it is already present, skip silently. Do not insert the opening without the closing or vice versa — `governance uninstall` relies on the pair to locate the exact block to strip.
 
@@ -266,7 +266,7 @@ Path choice:
 2. `chmod +x` every generated hook.
 3. Record `hook_strategy: githooks` in `.governance/install.yaml` so `required-docs`' `hooks` sub-check enforces the `.githooks/` scaffolding.
 4. Run `git config core.hooksPath .githooks` in the bootstrapping clone.
-5. Copy `../assets/setup-clone.sh` to `<repo-root>/scripts/setup-clone.sh` (create `scripts/` if missing), `chmod +x` it, and `stamp_managed_marker "$repo_root/scripts/setup-clone.sh" "$kit_version"`. This is the one-command onboarding for every other contributor: they run `./scripts/setup-clone.sh` once per fresh clone and `core.hooksPath` is set. Worktrees inherit `.git/config` from their parent, so the script does not need to run per worktree. In the final report, tell the user to point new contributors at this script (mentioning it in `README.md` or `AGENTS.md` is a good place). Until a contributor runs it, `required-docs` nags on every commit with the exact command.
+5. Copy `../assets/enable-governance.sh` to `<repo-root>/scripts/enable-governance.sh` (create `scripts/` if missing), `chmod +x` it, and `stamp_managed_marker "$repo_root/scripts/enable-governance.sh" "$kit_version"`. This is the one-command onboarding for every other contributor: they run `./scripts/enable-governance.sh` once per fresh clone and `core.hooksPath` is set. Worktrees inherit `.git/config` from their parent, so the script does not need to run per worktree. In the final report, tell the user to point new contributors at this script (mentioning it in `README.md` or `AGENTS.md` is a good place). Until a contributor runs it, `required-docs` nags on every commit with the exact command.
 6. **Do not** create files under `.git/hooks/`. If `.git/hooks/pre-commit` (or `commit-msg`) already exists from a previous bootstrap or another tool, ask the user before deleting — it could be a husky or pre-commit.com hook (see Path B).
 
 **Pre-existing hook collision (unmarked).** If the survey in Step 1 found a target hook that exists and lacks the ownership marker, STOP before writing. Show the user the existing hook and offer three options:
@@ -302,7 +302,7 @@ Print a concise summary:
 - How to run locally: `bash .governance/run.sh`.
 - How to skip the hook: `SKIP_GOVERNANCE=1 git commit ...` or `git commit --no-verify`.
 - Assumptions made. If none, say `Assumptions: none`.
-- Reminder: **constitution amendments must land with their test.** Point to [DIRECTIVES_CATALOG.md](DIRECTIVES_CATALOG.md) and (if multiple packs were selected) [AUTHORING_PACKS.md](AUTHORING_PACKS.md) for the templates.
+- Reminder: **constitution amendments must land with their test.** Point to [DIRECTIVES_CATALOG.md](DIRECTIVES_CATALOG.md) and (if multiple packs were selected) [PACK_AUTHORING.md](PACK_AUTHORING.md) for the templates.
 
 Do **not** commit the new files. Leave that to the user — the first commit of their governance system should be intentional, and the pre-commit hook is now active.
 
@@ -339,6 +339,6 @@ Every successful `init` run should leave the user with a summary that includes:
 ## References
 
 - [DIRECTIVES_CATALOG.md](DIRECTIVES_CATALOG.md) — full list of ready-made directives with descriptions, and the template for adding new ones. Notes pack membership per directive.
-- [AUTHORING_PACKS.md](AUTHORING_PACKS.md) — how to write a third-party pack.
+- [PACK_AUTHORING.md](PACK_AUTHORING.md) — how to write a third-party pack.
 - [NATIVE_TESTS.md](NATIVE_TESTS.md) — how to port bash directives to pytest / jest / go test, and husky / pre-commit-framework snippets.
 - [AGENT_TOKEN_ACCOUNTING.md](AGENT_TOKEN_ACCOUNTING.md) — wiring instructions for the `agent-token-accounting` directive shipped by the `governance-kit/core` pack.

@@ -24,7 +24,7 @@
 # the skill prompts the user (wrap / merge / overwrite).
 #
 # The `kit-version=` field is the same value runtime templates (run.sh,
-# lib.sh, setup-clone.sh, governance.yml) carry — making the marker the
+# lib.sh, enable-governance.sh, governance.yml) carry — making the marker the
 # per-file version pin that `governance kit update` reads to detect
 # drift, with `install.yaml.kit_version` acting as a cache.
 #

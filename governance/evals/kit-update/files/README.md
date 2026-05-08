@@ -2,7 +2,7 @@
 
 Each subdirectory is a seed repo state for one eval case. Before running an eval, copy the fixture into a fresh temp directory, run `git init && git add -A && git commit -m "seed"` inside it, and point the skill at that directory.
 
-`kit update` re-syncs the kit-runtime files installed at `governance init` (`run.sh`, `lib.sh`, `setup-clone.sh`, `governance.yml`, hook dispatchers) when a newer kit is on PATH. It is **disjoint** from `pack update` — see [UPDATE_FLOW.md](../../../references/UPDATE_FLOW.md). The fixtures here exercise the verb's branching points: forward update, no-op short-circuit, no-downgrade refusal, missing-manifest cases (both reconstructable and not), and the pre-tracking-install opt-in.
+`kit update` re-syncs the kit-runtime files installed at `governance init` (`run.sh`, `lib.sh`, `enable-governance.sh`, `governance.yml`, hook dispatchers) when a newer kit is on PATH. It is **disjoint** from `pack update` — see [UPDATE_FLOW.md](../../../references/UPDATE_FLOW.md). The fixtures here exercise the verb's branching points: forward update, no-op short-circuit, no-downgrade refusal, missing-manifest cases (both reconstructable and not), and the pre-tracking-install opt-in.
 
 The kit's `KIT_VERSION` constant is `"0.2"` ([packctl.py](../../../assets/packs/lib/packctl.py)) at the time these fixtures were authored — fixtures stamped `kit_version: "0.1"` are deliberately stale, `"0.2"` is current, `"9.9"` is a future version newer than any kit we'd run against.
 
