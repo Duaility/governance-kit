@@ -29,7 +29,7 @@ Legend:
 
 | Path | Installed by | Ownership evidence | Soft | Hard |
 |---|---|---|---|---|
-| `.githooks/pre-commit` | Step 6 (`generate_hooks`) | line-2 marker `# governance-kit:managed pack-version=…` | delete if marker present; else **collision** (Step 4 of reset) | same |
+| `.githooks/pre-commit` | Step 6 (`generate_hooks`) | line-2 marker `# governance-kit:managed kit-version=…` | delete if marker present; else **collision** (Step 4 of reset) | same |
 | `.githooks/commit-msg` | Step 6 | line-2 marker | delete if marker present; else **collision** | same |
 | `.githooks/prepare-commit-msg` | Step 6 | line-2 marker | delete if marker present; else **collision** | same |
 | `.githooks/post-commit` | Step 6 | line-2 marker | delete if marker present; else **collision** | same |

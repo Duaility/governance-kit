@@ -33,6 +33,69 @@ directive_supports_hook_strategy() {
     [[ -z "$required" || "$required" == "$hook_strategy" ]]
 }
 
+stamp_managed_marker() {
+    # Rewrites the `# governance-kit:managed` marker line in <dest> to the
+    # versioned form:
+    #
+    #   # governance-kit:managed kit-version=<v> generated=<YYYY-MM-DD>
+    #
+    # Used by `init`, `kit update`, and any future writer that copies a
+    # kit-runtime template into a target repo. The marker line lives in the
+    # file's leading comment block (line 1 for YAML, line 2 for shebang
+    # scripts); this helper finds whichever of the first 3 lines carries the
+    # bare-or-versioned marker and rewrites it in place.
+    #
+    # Idempotent — re-stamping a file already on the target version produces
+    # the same bytes (modulo `generated=<date>`, which tracks the most recent
+    # stamp time and is informational, not load-bearing).
+    #
+    # The marker is the per-file version pin: `governance kit update` reads
+    # `kit-version=<v>` from each managed file to detect drift, treating
+    # `install.yaml.kit_version` as a cache. A target repo whose manifest is
+    # missing can still be updated as long as runtime markers are present.
+    local dest="$1" kit_version="$2"
+    if [[ ! -f "$dest" ]]; then
+        echo "stamp_managed_marker: $dest does not exist" >&2
+        return 1
+    fi
+    local date marker line_no
+    date=$(date +%Y-%m-%d)
+    marker="# governance-kit:managed kit-version=${kit_version} generated=${date}"
+    line_no=$(awk '/^# governance-kit:managed/ { print NR; exit }' "$dest")
+    if [[ -z "$line_no" ]]; then
+        echo "stamp_managed_marker: $dest does not carry the managed marker" >&2
+        return 1
+    fi
+    if (( line_no > 3 )); then
+        echo "stamp_managed_marker: marker on $dest is past line 3 (line $line_no)" >&2
+        return 1
+    fi
+    local tmp
+    tmp=$(mktemp)
+    awk -v ln="$line_no" -v m="$marker" 'NR==ln { print m; next } { print }' "$dest" > "$tmp"
+    cat "$tmp" > "$dest"
+    rm -f "$tmp"
+}
+
+read_marker_kit_version() {
+    # Reads `kit-version=<v>` from the marker line in <file> (scanning the
+    # first 3 lines for the marker). Prints the version on stdout and exits
+    # 0; prints nothing and exits 1 if the marker is absent, and prints
+    # nothing and exits 0 if the marker is present but unversioned (the
+    # bare `# governance-kit:managed` form pre-dating the kit-version
+    # field — caller treats that as "version unknown").
+    local file="$1"
+    [[ -f "$file" ]] || return 1
+    local line
+    line=$(awk '/^# governance-kit:managed/ { print; exit }' "$file" \
+            | head -c 4096)
+    [[ -n "$line" ]] || return 1
+    if [[ "$line" =~ kit-version=([^[:space:]]+) ]]; then
+        printf '%s\n' "${BASH_REMATCH[1]}"
+    fi
+    return 0
+}
+
 copy_tree_without_evals() {
     local src="$1" dest="$2"
     rm -rf "$dest"

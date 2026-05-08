@@ -47,7 +47,7 @@ path_b:
 Notes on the emitted shape:
 
 - `version` is a **quoted string** (`"3"`), not a bare integer. YAML treats both identically, but fixture byte-diffs depend on the exact form the emitter writes.
-- `kit_version` is the `KIT_VERSION` constant ([packctl.py](../assets/packs/lib/packctl.py)) of the kit that did the install or last `kit update`. It is the version pin `governance kit update` writes through. The field is **optional within v3** — repos bootstrapped before this field existed simply omit it; `kit update` treats absence as "pre-tracking install" and offers to record the current `KIT_VERSION` on the next run. Quoted-string form (`"0.2"`).
+- `kit_version` is the `KIT_VERSION` constant ([packctl.py](../assets/packs/lib/packctl.py)) of the kit that did the install or last `kit update`. It mirrors the per-file `kit-version=<v>` marker each kit-owned file carries (runtime templates and hook dispatchers alike). The markers are the source of truth; this field is a cache so common `kit update` paths can read one file instead of scanning every managed file. If the manifest is missing or the field is absent, `kit update` reconstructs it by scanning markers (taking the min `kit-version=`) and rewrites the field on success. The field is **optional within v3** — repos bootstrapped before it existed simply omit it; `kit update` treats absence as "pre-tracking install" and offers to record the current `KIT_VERSION` on the next run. Quoted-string form (`"0.2"`).
 - `collisions[*]` uses a flat `extra` field, not named `backup_path` / `userhook_path` sub-fields. Interpret `extra` based on `resolution`: `wrap` ⇒ userhook sibling path; `overwrite` ⇒ `.pre-governance.bak` backup path; `skip` ⇒ no extra.
 - Keys appear in the emitter's fixed order (metadata → flags → `install_assets_seeded` → `collisions` → optional `path_b`). Do not rely on order when parsing, but **do** preserve it when regenerating fixtures — byte-diffs matter for the eval harness.
 - The `packs:` block from v2 is gone. Pack pin state — id, version, source, ref, sha, directives — lives in `.governance/packs.lock`. See [LOCK_SCHEMA.md](LOCK_SCHEMA.md).
@@ -88,7 +88,7 @@ Everything else reset needs (which packs exist, which directives belong to each,
 
 | Field | Purpose in kit update |
 |---|---|
-| `kit_version` | The version pin. Compared against the `KIT_VERSION` of the kit on PATH to determine whether the repo is up-to-date, behind (forward update), or ahead (refused — no silent downgrades). Absence means pre-tracking install; the verb offers to record the current `KIT_VERSION` and proceeds. |
+| `kit_version` | The cached version pin. Compared against the `KIT_VERSION` of the kit on PATH to determine whether the repo is up-to-date, behind (forward update), or ahead (refused — no silent downgrades). Absence means pre-tracking install; the verb scans per-file markers to reconstruct the pin, falling back to "pre-tracking install" only if no versioned marker is found. |
 | `hook_strategy` | Selects the dispatcher generator (`.githooks/`, `.husky/`, or `.governance/hooks/`) when regenerating hooks. |
 | `tests_dir` | Where `run.sh` / `lib.sh` live, for the per-file diff-and-copy. |
 | `setup_clone_script` | Path A only — the destination path for the `setup-clone.sh` re-sync. Omitted under Path B (the verb skips that file pair). |
@@ -114,7 +114,7 @@ When `uninstall` reads a manifest whose top-level `version` field is not `"3"`:
 
 ## When the manifest is missing entirely
 
-A repo where `install.yaml` was never written, or was deleted manually, is a **legitimate uninstall target** — we just have less evidence to work from. **Not** a legitimate `reset` target — pack provenance cannot be reconstructed without the manifest pair, so `reset` refuses and routes the user to `uninstall` + `init`. The fallback order for `uninstall`:
+A repo where `install.yaml` was never written, or was deleted manually, is a **legitimate uninstall target** and a **conditionally-legitimate `kit update` target**. Pack provenance cannot be reconstructed without the manifest pair, so `reset` still refuses and routes the user to `uninstall` + `init`; `kit update` can reconstruct its single field of interest (`kit_version`) from per-file markers and proceeds when any kit-owned file carries a versioned `kit-version=` marker. The fallback order for `uninstall`:
 
 1. **Heuristic detection.** Look for the artifacts in the uninstall matrix by exact path. For each one found, require independent ownership evidence before deleting:
    - Hooks: line-2 `governance-kit:managed` marker.

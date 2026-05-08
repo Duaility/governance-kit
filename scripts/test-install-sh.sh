@@ -363,6 +363,103 @@ else
     printf '  ok - unknown flag returns non-zero\n'
 fi
 
+# ---- stamp_managed_marker / read_marker_kit_version -----------------------
+
+printf '── stamp_managed_marker / read_marker_kit_version ──────\n'
+
+# Shebang script: marker on line 2.
+script="$WORK/stamp-script.sh"
+cat > "$script" <<'EOF'
+#!/usr/bin/env bash
+# governance-kit:managed
+echo hi
+EOF
+stamp_managed_marker "$script" "9.9"
+line2="$(sed -n '2p' "$script")"
+assert_contains "shebang script: marker line 2 carries kit-version=" \
+    "kit-version=9.9" "$line2"
+assert_contains "shebang script: marker line 2 carries generated=" \
+    "generated=" "$line2"
+got="$(read_marker_kit_version "$script")"
+assert_eq "shebang script: read_marker_kit_version round-trips" "9.9" "$got"
+
+# Re-stamp is idempotent (kit-version updates in place).
+stamp_managed_marker "$script" "10.1"
+got2="$(read_marker_kit_version "$script")"
+assert_eq "re-stamp updates kit-version in place" "10.1" "$got2"
+
+# YAML file: marker on line 1 (no shebang).
+yamlfile="$WORK/stamp.yml"
+cat > "$yamlfile" <<'EOF'
+# governance-kit:managed
+name: test
+EOF
+stamp_managed_marker "$yamlfile" "0.5"
+line1="$(sed -n '1p' "$yamlfile")"
+assert_contains "YAML file: marker line 1 carries kit-version=" \
+    "kit-version=0.5" "$line1"
+got="$(read_marker_kit_version "$yamlfile")"
+assert_eq "YAML file: read_marker_kit_version round-trips" "0.5" "$got"
+
+# Bare marker (pre-versioning installs): read returns empty + exit 0.
+bare="$WORK/bare.sh"
+cat > "$bare" <<'EOF'
+#!/usr/bin/env bash
+# governance-kit:managed
+echo bare
+EOF
+got_bare="$(read_marker_kit_version "$bare")"
+assert_eq "bare marker: read_marker_kit_version returns empty" "" "$got_bare"
+
+# No marker at all: read exits non-zero.
+nomarker="$WORK/no-marker.sh"
+cat > "$nomarker" <<'EOF'
+#!/usr/bin/env bash
+echo plain
+EOF
+if read_marker_kit_version "$nomarker" >/dev/null 2>&1; then
+    PASS=$((PASS + 1))
+    printf '  ok - unmarked file: read returns 0 (caller checks empty stdout)\n'
+else
+    PASS=$((PASS + 1))
+    printf '  ok - unmarked file: read exits non-zero\n'
+fi
+
+# stamp on file without marker errors.
+if stamp_managed_marker "$nomarker" "0.5" 2>/dev/null; then
+    FAIL=$((FAIL + 1))
+    printf '  not ok - stamp on unmarked file should fail\n'
+else
+    PASS=$((PASS + 1))
+    printf '  ok - stamp on unmarked file returns non-zero\n'
+fi
+
+# stamp on missing file errors.
+if stamp_managed_marker "$WORK/no-such-file" "0.5" 2>/dev/null; then
+    FAIL=$((FAIL + 1))
+    printf '  not ok - stamp on missing file should fail\n'
+else
+    PASS=$((PASS + 1))
+    printf '  ok - stamp on missing file returns non-zero\n'
+fi
+
+# Marker past line 3 → unmarked / stamp refuses.
+deep="$WORK/deep-marker.sh"
+cat > "$deep" <<'EOF'
+#!/usr/bin/env bash
+# line two
+# line three
+# governance-kit:managed
+echo deep
+EOF
+if stamp_managed_marker "$deep" "0.5" 2>/dev/null; then
+    FAIL=$((FAIL + 1))
+    printf '  not ok - stamp should refuse marker past line 3\n'
+else
+    PASS=$((PASS + 1))
+    printf '  ok - stamp refuses marker past line 3\n'
+fi
+
 # ---- summary --------------------------------------------------------------
 
 printf '\n────────────────────────────────────────\n'

@@ -224,6 +224,16 @@ Copy `../assets/dot-governance/run.sh` to `.governance/run.sh` and mark it execu
 
 Copy `../assets/dot-governance/lib.sh` to `.governance/lib.sh` — shared helpers (pass/fail/skip output, `tracked_files` helper that respects `.gitignore`).
 
+After copying, stamp each runtime template with the per-file version pin:
+
+```sh
+source ../assets/packs/lib/install.sh
+stamp_managed_marker "$repo_root/.governance/run.sh" "$kit_version"
+stamp_managed_marker "$repo_root/.governance/lib.sh" "$kit_version"
+```
+
+`stamp_managed_marker` rewrites the bare `# governance-kit:managed` line in the template into the versioned form `# governance-kit:managed kit-version=<v> generated=<YYYY-MM-DD>`. The marker is the per-file version pin `governance kit update` reads to detect drift; `install.yaml.kit_version` mirrors it.
+
 `init` only installs the bash runner. Governance is a meta-layer that sits on top of the project's code — coupling the directive suite to the project's own test runner (pytest / jest / go test) inverts the dependency. Bash works in any repo, in any CI, without install steps. Users who want governance failures to surface alongside their normal test report can add native test wrappers post-init by following [NATIVE_TESTS.md](NATIVE_TESTS.md) — that is an opt-in enhancement, not part of bootstrap.
 
 ### Step 6 — Install the git hooks
@@ -244,9 +254,9 @@ The generator:
 3. Stamps each dispatcher with a **line-2 ownership marker**:
    ```sh
    #!/usr/bin/env bash
-   # governance-kit:managed pack-version=<v> generated=<YYYY-MM-DD>
+   # governance-kit:managed kit-version=<v> generated=<YYYY-MM-DD>
    ```
-   The `pack-version` marker is an ownership/regeneration marker, not an upgrade promise; installed pack/directive details live in `.governance/packs.lock`.
+   The marker shape is identical to the one runtime templates carry. `kit-version=<v>` is the per-file version pin `governance kit update` reads to detect drift; installed pack/directive details live in `.governance/packs.lock`.
 
 Path choice:
 
@@ -256,7 +266,7 @@ Path choice:
 2. `chmod +x` every generated hook.
 3. Record `hook_strategy: githooks` in `.governance/install.yaml` so `required-docs`' `hooks` sub-check enforces the `.githooks/` scaffolding.
 4. Run `git config core.hooksPath .githooks` in the bootstrapping clone.
-5. Copy `../assets/setup-clone.sh` to `<repo-root>/scripts/setup-clone.sh` (create `scripts/` if missing) and `chmod +x` it. This is the one-command onboarding for every other contributor: they run `./scripts/setup-clone.sh` once per fresh clone and `core.hooksPath` is set. Worktrees inherit `.git/config` from their parent, so the script does not need to run per worktree. In the final report, tell the user to point new contributors at this script (mentioning it in `README.md` or `AGENTS.md` is a good place). Until a contributor runs it, `required-docs` nags on every commit with the exact command.
+5. Copy `../assets/setup-clone.sh` to `<repo-root>/scripts/setup-clone.sh` (create `scripts/` if missing), `chmod +x` it, and `stamp_managed_marker "$repo_root/scripts/setup-clone.sh" "$kit_version"`. This is the one-command onboarding for every other contributor: they run `./scripts/setup-clone.sh` once per fresh clone and `core.hooksPath` is set. Worktrees inherit `.git/config` from their parent, so the script does not need to run per worktree. In the final report, tell the user to point new contributors at this script (mentioning it in `README.md` or `AGENTS.md` is a good place). Until a contributor runs it, `required-docs` nags on every commit with the exact command.
 6. **Do not** create files under `.git/hooks/`. If `.git/hooks/pre-commit` (or `commit-msg`) already exists from a previous bootstrap or another tool, ask the user before deleting — it could be a husky or pre-commit.com hook (see Path B).
 
 **Pre-existing hook collision (unmarked).** If the survey in Step 1 found a target hook that exists and lacks the ownership marker, STOP before writing. Show the user the existing hook and offer three options:
@@ -278,7 +288,7 @@ In this path:
 
 ### Step 7 — Install the CI workflow
 
-Copy `../assets/governance.yml` to `.github/workflows/governance.yml`. The workflow runs `bash .governance/run.sh` on `push` to `main` and on every `pull_request`, and it never skips — CI is the backstop the pre-commit hook can be bypassed around. If the user later opts into native tests via [NATIVE_TESTS.md](NATIVE_TESTS.md), they extend the workflow at that point.
+Copy `../assets/governance.yml` to `.github/workflows/governance.yml` and stamp it: `stamp_managed_marker "$repo_root/.github/workflows/governance.yml" "$kit_version"`. The workflow runs `bash .governance/run.sh` on `push` to `main` and on every `pull_request`, and it never skips — CI is the backstop the pre-commit hook can be bypassed around. If the user later opts into native tests via [NATIVE_TESTS.md](NATIVE_TESTS.md), they extend the workflow at that point.
 
 ### Step 8 — Report to the user
 
@@ -320,7 +330,7 @@ Every successful `init` run should leave the user with a summary that includes:
 - **Escape hatches are a feature, not a bug.** `SKIP_GOVERNANCE=1` exists because governance that blocks emergency hotfixes will get ripped out. CI enforces the directive even when the hook is skipped, which is the right layering.
 - **Bash-only at bootstrap; native is post-init.** Governance is a meta-layer over the project's code, so the directive suite must not depend on the project's own toolchain. `init` only installs the bash runner. Native test wrappers (pytest / jest / go test) are an opt-in users add later via [NATIVE_TESTS.md](NATIVE_TESTS.md) — never asked at bootstrap.
 - **Respect the repo's existing hook framework.** `.githooks/` is the default only when no tracked hook framework already exists. Do not force repos off husky or `pre-commit`.
-- **Hook ownership is explicit.** Every generated hook carries the `governance-kit:managed` marker on line 2. An unmarked hook at a target path is somebody else's file — prompt before touching it.
+- **Hook ownership is explicit.** Every generated hook carries a `governance-kit:managed kit-version=<v>` marker on line 2 — the same shape runtime templates use. An unmarked hook at a target path is somebody else's file — prompt before touching it.
 - **Match the enforcement surface to the real intent.** If a directive is meant to govern each substantive change, do not implement it as a repo-exists or file-count check.
 - **Reject weak proxies when they create false confidence.** A directive that says "every change must do X" but only checks "the repo contains one X somewhere" is a bad bootstrap output, not a partial success.
 - **State material assumptions explicitly.** If you had to infer the preset or hook strategy, surface that in the summary.

@@ -18,10 +18,15 @@
 #      anything about that directive.
 #
 # Every generated hook carries an ownership marker on line 2:
-#   # governance-kit:managed pack-version=<v> generated=<YYYY-MM-DD>
+#   # governance-kit:managed kit-version=<v> generated=<YYYY-MM-DD>
 # so a second bootstrap run can recognize its own output and overwrite
 # silently. Unmarked pre-existing hooks trip the collision detector and
 # the skill prompts the user (wrap / merge / overwrite).
+#
+# The `kit-version=` field is the same value runtime templates (run.sh,
+# lib.sh, setup-clone.sh, governance.yml) carry — making the marker the
+# per-file version pin that `governance kit update` reads to detect
+# drift, with `install.yaml.kit_version` acting as a cache.
 #
 # The contract with callers:
 #   generate_hooks <target-hooks-dir> <pack-version> <directive-spec-file>
@@ -90,7 +95,7 @@ _write_marker() {
     local version="$1"
     local date
     date=$(date +%Y-%m-%d)
-    printf '#!/usr/bin/env bash\n%s pack-version=%s generated=%s\n' \
+    printf '#!/usr/bin/env bash\n%s kit-version=%s generated=%s\n' \
         "$MARKER_PREFIX" "$version" "$date"
 }
 

@@ -1,0 +1,6 @@
+id: acme/reconstructable-repo
+name: reconstructable-repo
+version: "0.1"
+min_governance_kit: "0.1"
+description: Repo-local pack for the reconstructable-repo kit-update eval fixture.
+author: acme
