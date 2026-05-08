@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Directive: Each tracked receipts/*.md file satisfies four shape rules:
-#   1. Filename includes an `issue-<N>` token, and no two receipts share the
-#      same issue number.
+#   1. Filename matches `issue-<N>-<slug>.md` where <slug> is one or more
+#      kebab-case tokens (lowercase letters, digits, hyphens), and no two
+#      receipts share the same issue number.
 #   2. Body contains four required Markdown sections — `## Checklist`,
 #      `## What changed`, `## Out of scope`, `## Verification`.
 #   3. The `## Checklist` mirrors the GitHub issue's checklist; each
@@ -79,7 +80,7 @@ seen_nums=()
 seen_files=()
 for f in "${receipt_files[@]}"; do
     base="${f##*/}"
-    if [[ "$base" =~ issue-([0-9]+) ]]; then
+    if [[ "$base" =~ ^issue-([0-9]+)-[a-z0-9]+(-[a-z0-9]+)*\.md$ ]]; then
         num="${BASH_REMATCH[1]}"
         dup_of=""
         for i in "${!seen_nums[@]}"; do
@@ -95,7 +96,7 @@ for f in "${receipt_files[@]}"; do
             seen_files+=("$f")
         fi
     else
-        violation "$f — receipt filename must include an 'issue-<N>' token (e.g. receipts/issue-63-replace-plans.md)"
+        violation "$f — receipt filename must match 'issue-<N>-<slug>.md' with a kebab-case slug (lowercase letters, digits, hyphens) — e.g. receipts/issue-63-replace-plans.md"
     fi
 
     has_all_sections=1

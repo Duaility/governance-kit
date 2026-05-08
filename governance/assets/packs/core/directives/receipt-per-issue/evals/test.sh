@@ -108,8 +108,83 @@ stage_all
 commit_quiet "docs: untokened receipt"
 EVAL_LABEL="$EVAL_ID no-token" expect_fail "$CHECK"
 
-# fail — duplicate issue numbers across two receipts
+# fail — filename has issue number but no slug
 rm receipts/rogue.md
+cat > receipts/issue-9.md <<'EOF'
+# No slug
+
+## Checklist
+
+- [x] Stuff
+
+## What changed
+
+Stuff.
+
+## Out of scope
+
+None.
+
+## Verification
+
+ok
+EOF
+stage_all
+commit_quiet "docs: receipt without slug"
+EVAL_LABEL="$EVAL_ID no-slug" expect_fail "$CHECK"
+
+# fail — slug contains uppercase (not kebab-case)
+rm receipts/issue-9.md
+cat > receipts/issue-10-Foo.md <<'EOF'
+# Uppercase slug
+
+## Checklist
+
+- [x] Stuff
+
+## What changed
+
+Stuff.
+
+## Out of scope
+
+None.
+
+## Verification
+
+ok
+EOF
+stage_all
+commit_quiet "docs: receipt with uppercase slug"
+EVAL_LABEL="$EVAL_ID uppercase-slug" expect_fail "$CHECK"
+
+# fail — slug uses underscore separator (not kebab-case)
+rm receipts/issue-10-Foo.md
+cat > receipts/issue-11-foo_bar.md <<'EOF'
+# Underscore slug
+
+## Checklist
+
+- [x] Stuff
+
+## What changed
+
+Stuff.
+
+## Out of scope
+
+None.
+
+## Verification
+
+ok
+EOF
+stage_all
+commit_quiet "docs: receipt with underscore in slug"
+EVAL_LABEL="$EVAL_ID underscore-slug" expect_fail "$CHECK"
+
+# fail — duplicate issue numbers across two receipts
+rm receipts/issue-11-foo_bar.md
 cat > receipts/issue-1-first.md <<'EOF'
 # First
 

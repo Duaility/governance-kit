@@ -208,3 +208,4 @@ Schema:
 | claude-code-723f8267-3fd-1777566816 | claude-code | 723f8267-3fd0-45a4-86b9-8bbb91c0ca49 | #105 | claude-opus-4-7 | 198 | 327616 | 24445495 | 110330 | 438144 | 17.0296 | test(governance): rewrite evals for current verb surface (#105) |
 | claude-code-7355eafe-b1d-1777567250 | claude-code | 7355eafe-b1d7-4248-b6f9-ce574b7e9d6c | #105 | claude-opus-4-7 | 5 | 15790 | 14820 | 45 | 15840 | 0.1072 | test(governance): add first-class local-pack evals (#105) |
 | claude-code-6787bbce-116-1777624296 | claude-code | 6787bbce-1161-4e95-9331-35bcd688db7c | #107 | claude-opus-4-7 | 5 | 15886 | 14820 | 45 | 15936 | 0.1078 | fix(governance): rewrite eval-report.sh for verb-folder layout (#107) |
+| claude-code-53aad805-2c4-1778219678 | claude-code | 53aad805-2c45-4bca-9adb-24ef75bbda0c | #112 | claude-opus-4-7 | 5 | 14757 | 14820 | 66 | 14828 | 0.1013 | feat(governance): receipt-per-issue must require kebab-case slug (#112) |
