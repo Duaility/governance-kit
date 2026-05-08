@@ -84,7 +84,7 @@ Build the in-scope directive set:
 |---|---|
 | `--directive <id>` | Just `<id>`. Refuse if `<id>` is not in the lockfile or belongs to a `source: local` pack. |
 | `--pack <id>` | Every directive in `lock.packs[<id>].directives`. Refuse if `<id>` is not in the lockfile or has `source: local` (no upstream to restore from). |
-| `--all` | Every directive in `lock.packs[*].directives` across every pack with `source` ∈ {`builtin`, `gh`}. |
+| `--all` | Every directive in `lock.packs[*].directives` across every pack with `source: gh`. |
 
 Build the **hand-authored set** as the union of every directive id under packs
 with `source: local`. These are the directives a user added via
@@ -104,17 +104,17 @@ hand-authored directives in scope").
 For each pack-sourced directive in scope:
 
 1. Look up the pack id and the directive id in the lockfile.
-2. **`source: builtin`** (`governance-kit/core`) — pristine source is the kit-bundled tree at
-   `${KIT_ROOT}/governance/assets/packs/core/directives/<directive-id>/`.
-   `KIT_ROOT` is the governance-kit checkout that is supplying the
-   skill (resolve from the symlink target, not the consumer repo).
-3. **`source: gh`** (community pack) — read the entry's `sha` and `ref` from
+2. **`source: gh`** — read the entry's `sha`, `ref`, and `subpath` from
    `.governance/packs.lock`. Pristine source is the cache at
-   `${GOVERNANCE_KIT_HOME:-$HOME/.governance/cache}/packs/<pack-id-slug>@<sha>/directives/<directive-id>/`
-   (where `/` in pack id is encoded as `__`).
-4. If the cache entry is missing, re-fetch with
-   `packverb fetch <ref>@<sha>` to repopulate. If the fetch fails,
-   abort the entire reset — partial reset is not a supported state.
+   `${GOVERNANCE_KIT_HOME:-$HOME/.governance/cache}/packs/<pack-id-slug>@<sha>/<subpath>/directives/<directive-id>/`
+   (where `/` in pack id is encoded as `__`). This applies to both community
+   packs and `governance-kit/core` (post-#117 the kit's core pack is fetched
+   from `gh:duaility/governance-kit/packs/core@<rev>` like any other pack).
+3. If the cache entry is missing, re-fetch with
+   `packverb fetch <ref>@<sha>` to repopulate. The working-tree resolver
+   (#115) short-circuits this when the URL points at the consumer's own
+   monorepo (dogfood case). If the fetch fails, abort the entire reset —
+   partial reset is not a supported state.
 
 For hand-authored directives in the `--drop-handauthored` set, there
 is no pristine source — they are deletions, not restorations. Mark

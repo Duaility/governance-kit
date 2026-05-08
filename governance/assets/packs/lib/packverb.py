@@ -30,10 +30,12 @@ LOCK_VERSION = "2"
 
 # Pack source discriminator. Recorded on every lockfile entry so downstream
 # consumers (reset, pack update) can branch without re-reading pack.yaml.
-#   builtin — governance-kit/core, ships in-tree with the kit. No upstream pin.
-#   gh      — community pack fetched from GitHub. Carries ref/sha/installed_at.
+#   gh      — pack fetched from GitHub. Carries ref/sha/installed_at. Used
+#             for both community packs and the kit's own core pack
+#             (gh:duaility/governance-kit/packs/core), since #117 (phase 2
+#             of #114) dropped the bundled-in-skill `builtin` source type.
 #   local   — repo-local hand-authored pack (no `source:` in pack.yaml).
-PACK_SOURCES = {"builtin", "gh", "local"}
+PACK_SOURCES = {"gh", "local"}
 
 # Scoped pack id pattern: `<author>/<slug>` — both segments start with an
 # alphanumeric and allow `.`, `_`, `-` after that. Kept in sync with
@@ -310,9 +312,9 @@ def cmd_lock_add(args: argparse.Namespace) -> int:
     if args.source == "gh" and not (args.ref and args.sha):
         print("lock-add: --source gh requires --ref and --sha", file=sys.stderr)
         return 1
-    if args.source in {"builtin", "local"} and (args.ref or args.sha):
+    if args.source == "local" and (args.ref or args.sha):
         print(
-            f"lock-add: --source {args.source} does not accept --ref/--sha "
+            "lock-add: --source local does not accept --ref/--sha "
             "(no upstream pin)",
             file=sys.stderr,
         )
@@ -352,7 +354,7 @@ def cmd_lock_remove(args: argparse.Namespace) -> int:
 def cmd_lock_list(args: argparse.Namespace) -> int:
     data = load_lockfile(Path(args.lockfile))
     for pack in data["packs"]:
-        # builtin/local packs have no ref/sha — print empty fields rather than
+        # local packs have no ref/sha — print empty fields rather than
         # the literal string "None" so downstream `cut -f` users see blanks.
         sha = pack.get("sha") or ""
         ref = pack.get("ref") or ""

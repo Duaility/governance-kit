@@ -12,7 +12,7 @@ Every pack — kit-bundled, community-installed, or hand-authored in this repo �
 
 - **Installed packs** carry a `source:` field in `pack.yaml` and a lockfile entry with `source: gh`. The pack came from a fetched ref and `pack update` will re-pin it.
 - **Repo-local packs** have no `source:` field in `pack.yaml`. They appear in the lockfile with `source: local` (no ref/sha) so `reset` can still find their directive list. `pack update` skips them.
-- **`governance-kit/core`** ships in-tree with the kit and appears in the lockfile with `source: builtin`. `pack update` skips it; the kit version updates with the kit itself.
+- **`governance-kit/core`** is fetched the same way community packs are — from `gh:duaility/governance-kit/packs/core@<rev>`. Its lockfile entry has `source: gh`. `pack update` re-pins it like any other community pack. (The retired `builtin` source type — phase 2 of #114, #117 — is no longer accepted by `lock-add`.)
 
 The runner walks `.governance/packs/*/*/directives/*/check.sh` uniformly — it does not branch on installed-vs-local.
 
@@ -29,14 +29,17 @@ Resolve with `python packverb.py parse-ref <ref>`.
 
 ### Lockfile (`.governance/packs.lock`)
 
-YAML, `version: "2"`. **Every** installed pack — kit-bundled, community, repo-local — has an entry. Each entry carries a `source` discriminator (`builtin` | `gh` | `local`) that decides which other fields are present. See [LOCK_SCHEMA.md](LOCK_SCHEMA.md) for the full contract.
+YAML, `version: "2"`. **Every** installed pack — community, kit-core, repo-local — has an entry. Each entry carries a `source` discriminator (`gh` | `local`) that decides which other fields are present. See [LOCK_SCHEMA.md](LOCK_SCHEMA.md) for the full contract.
 
 ```yaml
 version: "2"
 packs:
   - id: governance-kit/core
     version: "0.2"
-    source: builtin
+    source: gh
+    ref: gh:duaility/governance-kit/packs/core@v0.2
+    sha: b33ec7a05be6c157a63b5f1a22d0102a1bf5a50c
+    subpath: packs/core
     directives:
       - required-docs
       - secrets-hygiene
@@ -60,7 +63,7 @@ packs:
       - pre-commit-test-gate
 ```
 
-`builtin` and `local` entries carry only `id` / `version` / `source` / `directives` — no `ref` / `sha` / `installed_at`, since there is no upstream to pin. `gh` entries carry the full pin set. The lockfile is the single source of truth for pack provenance; companion file [`install.yaml`](INSTALL_SCHEMA.md) carries the init receipt (hook strategy, ci_workflow, side effects) but no pack pin state.
+`local` entries carry only `id` / `version` / `source` / `directives` — no `ref` / `sha` / `installed_at`, since there is no upstream to pin. `gh` entries carry the full pin set, including the kit's own `governance-kit/core`. The lockfile is the single source of truth for pack provenance; companion file [`install.yaml`](INSTALL_SCHEMA.md) carries the init receipt (hook strategy, ci_workflow, side effects) but no pack pin state.
 
 Lockfile I/O goes through `packverb lock-{read,add,remove,list}`. Never hand-edit — the canonical key order and timestamp format are set by the helper.
 
@@ -142,7 +145,7 @@ Default target: every lockfile entry. With a `<pack-id>` argument, update only t
 
 Works on installed (`source: gh`) and repo-local (`source: local`) packs.
 
-1. Read `.governance/packs.lock`; confirm the pack id is present and is not `source: builtin`.
+1. Read `.governance/packs.lock`; confirm the pack id is present.
 2. List the directives the lockfile attributes to this pack. Preview to the user which directive folders will be deleted.
 3. On confirmation, for each directive:
    - `rm -rf .governance/packs/<pack-id>/directives/<directive-id>/`
@@ -152,7 +155,7 @@ Works on installed (`source: gh`) and repo-local (`source: local`) packs.
 6. `packverb lock-remove .governance/packs.lock <pack-id>`.
 7. If any of the pack's directives seeded files listed in `.governance/install.yaml`'s `install_assets_seeded`, prune those entries.
 
-Never remove `governance-kit/core` — its lockfile entry has `source: builtin` and the kit owns the source tree. Removing `governance-kit/core` directives is done with `governance directive remove <id>` instead.
+Never remove `governance-kit/core` wholesale — even though its lockfile entry is now `source: gh` like any other pack (post-#117), the kit pack is the bedrock of every governance-kit setup. Removing individual `governance-kit/core` directives is done with `governance directive remove <id>` instead.
 
 ## `pack list`
 

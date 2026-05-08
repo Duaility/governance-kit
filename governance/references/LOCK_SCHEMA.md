@@ -11,7 +11,12 @@ version: "2"
 packs:
   - id: governance-kit/core
     version: "0.2"
-    source: builtin
+    source: gh
+    ref: gh:duaility/governance-kit/packs/core@v0.2
+    sha: b33ec7a05be6c157a63b5f1a22d0102a1bf5a50c
+    subpath: packs/core
+    min_governance_kit: ""
+    installed_at: 2026-05-08T13:00:00Z
     directives:
       - required-docs
       - secrets-hygiene
@@ -41,9 +46,10 @@ Every entry carries a `source` field. It controls which other fields are present
 
 | `source` | Meaning | Required fields | Forbidden fields |
 |---|---|---|---|
-| `builtin` | `governance-kit/core`, ships in-tree with the kit. No upstream pin. | `id`, `version`, `directives` | `ref`, `sha`, `installed_at`, `subpath`, `min_governance_kit` |
-| `gh` | Community pack fetched from `github.com/<owner>/<repo>` via `pack add`. | `id`, `version`, `source`, `ref`, `sha`, `directives`, `installed_at` | — |
+| `gh` | Pack fetched from `github.com/<owner>/<repo>` via `pack add`. Used for both community packs **and** the kit's own `governance-kit/core` (post-#117, phase 2 of #114 — see `gh:duaility/governance-kit/packs/core`). | `id`, `version`, `source`, `ref`, `sha`, `directives`, `installed_at` | — |
 | `local` | Repo-local hand-authored pack (no `source:` in `pack.yaml`). | `id`, `version`, `directives` | `ref`, `sha`, `installed_at`, `subpath`, `min_governance_kit` |
+
+The `builtin` source type was retired in #117. `governance-kit/core` is now fetched the same way community packs are, so `pack update` works uniformly across the entire pack set.
 
 `min_governance_kit` and `subpath` are optional even on `gh` entries — empty strings are emitted when the source pack does not declare one.
 
@@ -53,12 +59,12 @@ Every entry carries a `source` field. It controls which other fields are present
 |---|---|---|
 | `id` | string | `<owner>/<name>`, lowercased. Matches the directory at `.governance/packs/<owner>/<name>/`. |
 | `version` | string | Self-declared by the pack's `pack.yaml`. **Not** authoritative for trust — the SHA is. Recorded so a reviewer can read `core@0.2 (sha 5f3c…)` without resolving the SHA. |
-| `source` | string | One of `builtin`, `gh`, `local`. See above. |
+| `source` | string | One of `gh`, `local`. See above. (`builtin` was retired in #117.) |
 | `ref` | string | (`gh` only) The user's pin ref — e.g., `gh:acme/soc2-pack@main`. Resolved to a SHA at install time. |
 | `sha` | 40-char hex | (`gh` only) The resolved commit SHA. The trust unit — `pack update` re-pins this. |
 | `subpath` | string | (`gh` only) Subpath inside the repo where `pack.yaml` lives. Empty for monorepo-root packs. |
 | `min_governance_kit` | string | (`gh` only) Minimum kit version the pack declares. Used by `pack update` to refuse pins that exceed the running kit. |
-| `installed_at` | RFC 3339 | (`gh` only) When `lock-add` recorded this entry. Empty/absent for `builtin`/`local`. |
+| `installed_at` | RFC 3339 | (`gh` only) When `lock-add` recorded this entry. Empty/absent for `local`. |
 | `directives` | list[string] | Sorted list of directive ids the pack contributes. Used by `reset --pack` and `pack remove`. |
 
 Pack rows are written **sorted by `id`**, regardless of insert order. This keeps PR diffs minimal when a new pack lands ahead of existing ones.
@@ -70,7 +76,7 @@ The lockfile is exclusively written via `governance/assets/packs/lib/packverb.py
 ```sh
 # add or replace an entry
 packverb lock-add <lockfile> <pack_id> \
-    --source {builtin|gh|local} \
+    --source {gh|local} \
     --version <v> \
     [--ref <r>]            # gh only
     [--sha <sha40>]        # gh only
@@ -92,7 +98,8 @@ packverb lock-list <lockfile> --long   # id\tsource\tversion\tsha\tref
 Validation in `lock-add`:
 
 - `--source gh` requires `--ref` and `--sha`.
-- `--source builtin` and `--source local` reject `--ref`/`--sha` (no upstream pin).
+- `--source local` rejects `--ref`/`--sha` (no upstream pin).
+- `--source builtin` is rejected as a retired choice (#117).
 - Pack rows are sorted by id on every write.
 
 ## Forward compatibility

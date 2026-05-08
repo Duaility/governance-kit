@@ -19,7 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PACK_LIB = ROOT / "governance" / "assets" / "packs" / "lib"
 PACKCTL_PATH = PACK_LIB / "packctl.py"
-CORE_PACK = ROOT / "governance" / "assets" / "packs" / "core"
+CORE_PACK = ROOT / "packs" / "core"
 
 
 def load_packctl():

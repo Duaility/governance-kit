@@ -5,9 +5,10 @@
 # Asserts the cross-file invariants no single-component test can prove on its own:
 #   - install.yaml v3 carries init choices but NO packs[] block (the block moved
 #     to packs.lock).
-#   - packs.lock v2 records every source — builtin (governance-kit/core), gh
-#     (community), local (repo-local) — alongside each pack's version + directive
-#     list.
+#   - packs.lock v2 records every source — gh (used for both the kit's own
+#     governance-kit/core and community packs) and local (repo-local
+#     hand-authored) — alongside each pack's version + directive list. The
+#     builtin source type was retired in #117 (phase 2 of #114).
 #   - lock-list --long prints the right columns for each source.
 #   - lock-remove takes a pack out without disturbing the others.
 #
@@ -82,15 +83,19 @@ assert_grep "install.yaml carries install_assets_seeded" '^install_assets_seeded
 assert_no_grep "install.yaml has no packs: block (moved to packs.lock)" '^packs:' "$install_yaml"
 assert_grep "install.yaml has empty collisions: []" '^collisions: \[\]$' "$install_yaml"
 
-printf '\n── packs.lock: writer records builtin + gh + local sources ──\n'
+printf '\n── packs.lock: writer records gh + local sources ──\n'
 
 lock="$target/.governance/packs.lock"
 
-# 1) builtin (governance-kit/core)
-pv lock-add "$lock" governance-kit/core --source builtin --version 0.2 \
+# 1) gh — kit's own core pack (post-#117, governance-kit/core is fetched
+#    via the kit's monorepo subpath, not a special builtin source).
+CORE_SHA="abcdef0123456789abcdef0123456789abcdef01"
+pv lock-add "$lock" governance-kit/core --source gh --version 0.2 \
+    --ref "gh:duaility/governance-kit/packs/core@v0.2" --sha "$CORE_SHA" \
+    --subpath "packs/core" \
     --directive required-docs --directive secrets-hygiene >/dev/null
 
-# 2) gh (community pack with full pin)
+# 2) gh — community pack (separate origin)
 SHA="0123456789abcdef0123456789abcdef01234567"
 pv lock-add "$lock" acme/soc2 --source gh --version 0.3 \
     --ref "gh:acme/soc2@main" --sha "$SHA" --min-kit "0.2" \
@@ -109,20 +114,26 @@ assert_grep "lockfile carries acme/soc2" "id: acme/soc2" "$lock"
 assert_grep "lockfile carries acme/widgets" "id: acme/widgets" "$lock"
 
 # Source-specific fields.
-assert_grep "gh entry carries ref" "ref: gh:acme/soc2@main" "$lock"
-assert_grep "gh entry carries sha" "sha: $SHA" "$lock"
-assert_grep "gh entry carries installed_at" "installed_at: " "$lock"
+assert_grep "core gh entry carries ref" "ref: gh:duaility/governance-kit/packs/core@v0.2" "$lock"
+assert_grep "core gh entry carries sha" "sha: $CORE_SHA" "$lock"
+assert_grep "core gh entry carries subpath" "subpath: packs/core" "$lock"
+assert_grep "community gh entry carries ref" "ref: gh:acme/soc2@main" "$lock"
+assert_grep "community gh entry carries sha" "sha: $SHA" "$lock"
+assert_grep "community gh entry carries installed_at" "installed_at: " "$lock"
 
-# builtin/local must NOT have ref/sha/installed_at (no upstream pin).
-core_block="$(awk '/^- id: governance-kit\/core$/,/^- id: |^[a-z]/' "$lock" | sed -n '/^- id: governance-kit\/core/,/^- id: /p' | sed '$d')"
-[[ -n "$core_block" ]] || core_block="$(awk '/^- id: governance-kit\/core$/{flag=1} flag{print} /^- id: [a-z0-9]/{if (NR>1 && flag) exit}' "$lock")"
-
-local_block="$(awk '/^- id: acme\/widgets$/{flag=1} flag{print}' "$lock")"
-
-assert "builtin entry has no ref" bash -c "! echo \"\$0\" | grep -q '^  ref:'" "$core_block"
-assert "builtin entry has no sha" bash -c "! echo \"\$0\" | grep -q '^  sha:'" "$core_block"
+# local must NOT have ref/sha/installed_at (no upstream pin). Bound the
+# extracted block at the next `- id:` marker so neighboring gh entries
+# don't leak fields into the assertion.
+local_block="$(awk '/^- id: acme\/widgets$/{flag=1; print; next} flag && /^- id: /{exit} flag{print}' "$lock")"
 assert "local entry has no ref" bash -c "! echo \"\$0\" | grep -q '^  ref:'" "$local_block"
 assert "local entry has no sha" bash -c "! echo \"\$0\" | grep -q '^  sha:'" "$local_block"
+
+# Phase 2 of #114 (#117) retired builtin — lock-add must reject it.
+if pv lock-add "$lock" some/pack --source builtin --version 0.1 --directive x 2>/dev/null; then
+    FAIL=$((FAIL + 1)); printf '  not ok - lock-add must reject retired builtin source\n'
+else
+    PASS=$((PASS + 1)); printf '  ok - lock-add rejects retired builtin source\n'
+fi
 
 printf '\n── lock-list --long: emits id\\tsource\\tversion\\tsha\\tref ──\n'
 
@@ -131,12 +142,12 @@ listing="$(pv lock-list "$lock" --long)"
 # Sorted by id: acme/soc2, acme/widgets, governance-kit/core
 expected_soc2=$'acme/soc2\tgh\t0.3\t'"$SHA"$'\tgh:acme/soc2@main'
 expected_widgets=$'acme/widgets\tlocal\t0.1\t\t'
-expected_core=$'governance-kit/core\tbuiltin\t0.2\t\t'
+expected_core=$'governance-kit/core\tgh\t0.2\t'"$CORE_SHA"$'\tgh:duaility/governance-kit/packs/core@v0.2'
 
 if echo "$listing" | grep -qF "$expected_soc2"; then
-    PASS=$((PASS + 1)); printf '  ok - long listing carries gh row with ref+sha\n'
+    PASS=$((PASS + 1)); printf '  ok - long listing carries community gh row with ref+sha\n'
 else
-    FAIL=$((FAIL + 1)); printf '  not ok - long listing missing gh row\n'
+    FAIL=$((FAIL + 1)); printf '  not ok - long listing missing community gh row\n'
     printf '    listing was:\n%s\n' "$listing"
 fi
 if echo "$listing" | grep -qF "$expected_widgets"; then
@@ -145,9 +156,9 @@ else
     FAIL=$((FAIL + 1)); printf '  not ok - long listing missing local row\n'
 fi
 if echo "$listing" | grep -qF "$expected_core"; then
-    PASS=$((PASS + 1)); printf '  ok - long listing carries builtin row with empty sha/ref\n'
+    PASS=$((PASS + 1)); printf '  ok - long listing carries kit-core gh row with ref+sha\n'
 else
-    FAIL=$((FAIL + 1)); printf '  not ok - long listing missing builtin row\n'
+    FAIL=$((FAIL + 1)); printf '  not ok - long listing missing kit-core gh row\n'
 fi
 
 printf '\n── lock-remove: removes one entry, leaves the others intact ──\n'

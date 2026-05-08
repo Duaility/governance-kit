@@ -12,7 +12,7 @@ The 8-step recipe `governance init` runs. Dispatched from
 
 Directives are grouped into **packs** — self-contained directories that bundle directives, their constitution snippets, and hook declarations. One pack ships in-tree today:
 
-- **`governance-kit/core`** at `governance/assets/packs/core/` — the baseline directives plus the agent audit chain (`receipt-per-issue` → `commit-issue-receipt-match` → `issue-templates` → `issues-tracked` → `agent-token-accounting`) and the opt-in `agent-steering-accounting`.
+- **`governance-kit/core`** at `packs/core/` (source-of-truth in this monorepo; consumers fetch via `gh:duaility/governance-kit/packs/core@<rev>`) — the baseline directives plus the agent audit chain (`receipt-per-issue` → `commit-issue-receipt-match` → `issue-templates` → `issues-tracked` → `agent-token-accounting`) and the opt-in `agent-steering-accounting`.
 
 Governance evolves: new directives get added to `CONSTITUTION.md` *and* to `.governance/` together. The constitution without the tests is just a wishlist.
 
@@ -168,9 +168,17 @@ write_installed_manifest "$repo_root" \
     --install-asset COSTS.md \
     --collision .githooks/pre-commit:wrap:.githooks/pre-commit.userhook   # only if Step 6 hit collisions
 
-# 2) record governance-kit/core in the lockfile (source: builtin)
+# 2) record governance-kit/core in the lockfile (source: gh — fetched via
+#    the kit's own monorepo subpath, just like any community pack).
+#    Resolve the kit version's HEAD SHA at install time and record it as
+#    the pin. The working-tree resolver (#115) short-circuits to the
+#    installed kit's working tree when running from inside it.
+core_sha="$(packverb fetch gh:duaility/governance-kit/packs/core@v$core_pack_version | python3 -c 'import json,sys;print(json.load(sys.stdin)["sha"])')"
 packverb lock-add "$repo_root/.governance/packs.lock" governance-kit/core \
-    --source builtin --version "$core_pack_version" \
+    --source gh --version "$core_pack_version" \
+    --ref "gh:duaility/governance-kit/packs/core@v$core_pack_version" \
+    --sha "$core_sha" \
+    --subpath packs/core \
     --directive required-docs \
     --directive secrets-hygiene \
     --directive agent-token-accounting     # ... one --directive per installed core directive
