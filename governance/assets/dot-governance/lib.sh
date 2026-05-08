@@ -86,3 +86,18 @@ has_waiver() {
     local file="$1" line_no="$2" directive="$3"
     sed -n "${line_no}p" "$file" | grep -q "governance: allow-${directive}"
 }
+
+# File-level waiver. For directives that operate on whole files (e.g. the
+# file-size-limit sub-check in repo-hygiene), a per-line marker doesn't fit.
+# This helper scans the first 10 lines for
+# `governance: allow-<directive> [<sub-check>] <reason>`.
+# Sub-check is optional; when provided, both tokens must appear together.
+# Example head-of-file marker:
+#   // governance: allow-repo-hygiene file-size-limit refactor tracked in #123
+has_file_waiver() {
+    local file="$1" directive="$2" subcheck="${3:-}"
+    [[ -f "$file" ]] || return 1
+    local pattern="governance: allow-${directive}"
+    [[ -n "$subcheck" ]] && pattern="${pattern} ${subcheck}"
+    head -n 10 "$file" 2>/dev/null | grep -q "$pattern"
+}

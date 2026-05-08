@@ -44,4 +44,22 @@ GOVERNANCE_MAX_FILE_SIZE_MB=0 EVAL_LABEL="$EVAL_ID large file" expect_fail "$CHE
 git rm --quiet bloat.bin
 git commit --quiet --no-verify -m "chore: drop bloat"
 
+# file-size-limit — a long source file fails with no waiver, passes with a
+# head-of-file waiver token.
+{ for i in $(seq 1 30); do echo "// line $i"; done; } > big.ts
+git add big.ts
+git commit --quiet --no-verify -m "chore: big file"
+GOVERNANCE_FILE_SIZE_LIMIT=10 EVAL_LABEL="$EVAL_ID file-size-limit no waiver" expect_fail "$CHECK"
+
+# Add a head-of-file waiver and re-run — should pass.
+{
+    echo "// governance: allow-repo-hygiene file-size-limit refactor in #999"
+    for i in $(seq 1 30); do echo "// line $i"; done
+} > big.ts
+git add big.ts
+git commit --quiet --no-verify -m "chore: waive big.ts"
+GOVERNANCE_FILE_SIZE_LIMIT=10 EVAL_LABEL="$EVAL_ID file-size-limit with waiver" expect_pass "$CHECK"
+git rm --quiet big.ts
+git commit --quiet --no-verify -m "chore: drop big.ts"
+
 eval_done

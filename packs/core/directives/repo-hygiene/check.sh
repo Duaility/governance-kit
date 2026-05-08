@@ -7,7 +7,9 @@
 # To carve out a sub-check for your repo, use `governance directive modify` to
 # amend this script (or `governance directive remove` to drop the directive
 # entirely). Threshold tunables — GOVERNANCE_MAX_FILE_SIZE_MB and
-# GOVERNANCE_FILE_SIZE_LIMIT — remain available below.
+# GOVERNANCE_FILE_SIZE_LIMIT — remain available below. Per-file escape hatch
+# for file-size-limit: place `governance: allow-repo-hygiene file-size-limit
+# <reason>` in the first 10 lines of the file.
 set -u
 source "$(dirname "$0")/../../../../../lib.sh"
 directive_start "repo-hygiene"
@@ -113,6 +115,7 @@ _excludes=(
 while IFS= read -r file; do
     [[ -z "$file" ]] && continue
     [[ ! -f "$file" ]] && continue
+    has_file_waiver "$file" "repo-hygiene" "file-size-limit" && continue
     lines=$(wc -l < "$file" | tr -d ' ')
     if [[ "$lines" -gt "$_LIMIT" ]]; then
         violation "$file — $lines lines (limit: $_LIMIT)"
