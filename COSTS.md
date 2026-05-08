@@ -219,3 +219,4 @@ Schema:
 | claude-code-7a9336d7-058-1778235597 | claude-code | 7a9336d7-0581-4fb3-a5e3-d7b6b9386112 | #113 | claude-opus-4-7 | 382 | 558426 | 44395715 | 217056 | 775864 | 31.1163 | feat(governance): add kit update verb (#113) |
 | claude-code-e87b8153-3c0-1778248035 | claude-code | e87b8153-3c0b-4782-aae2-8725e19cda11 | #122 | claude-opus-4-7 | 5 | 16898 | 14820 | 87 | 16990 | 0.1152 | feat(governance): unify managed-file marker format with kit-version pin (#122) |
 | claude-code-14eef1ed-be9-1778248146 | claude-code | 14eef1ed-be9f-4241-90e3-b62ba482b9dc | #122 | claude-opus-4-7 | 256 | 449402 | 25765706 | 128572 | 578230 | 18.9072 | feat(governance): unify managed-file marker format with kit-version pin (#122) |
+| claude-code-fa8338dd-23e-1778256181 | claude-code | fa8338dd-23e5-4c9e-879e-905c9d766f0d | #124 | claude-opus-4-7 | 5 | 15392 | 14820 | 45 | 15442 | 0.1048 | feat(governance): add file-level waiver to repo-hygiene file-size-limit (#124) |

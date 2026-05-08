@@ -113,6 +113,7 @@ _excludes=(
 while IFS= read -r file; do
     [[ -z "$file" ]] && continue
     [[ ! -f "$file" ]] && continue
+    has_file_waiver "$file" "repo-hygiene" "file-size-limit" && continue
     lines=$(wc -l < "$file" | tr -d ' ')
     if [[ "$lines" -gt "$_LIMIT" ]]; then
         violation "$file — $lines lines (limit: $_LIMIT)"
