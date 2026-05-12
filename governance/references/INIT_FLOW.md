@@ -290,21 +290,66 @@ In this path:
 
 Copy `../assets/governance.yml` to `.github/workflows/governance.yml` and stamp it: `stamp_managed_marker "$repo_root/.github/workflows/governance.yml" "$kit_version"`. The workflow runs `bash .governance/run.sh` on `push` to `main` and on every `pull_request`, and it never skips — CI is the backstop the pre-commit hook can be bypassed around. If the user later opts into native tests via [NATIVE_TESTS.md](NATIVE_TESTS.md), they extend the workflow at that point.
 
-### Step 8 — Report to the user
+### Step 8 — Validate the working tree and resolve findings
+
+Goal: make the install commit pass every installed directive on the first try, with **no `SKIP_GOVERNANCE` and no bootstrap-only waivers**. This is the step that makes "no audit gap at bootstrap" possible.
+
+1. **Stage the install output.** `git add` everything Steps 4–7 wrote: `CONSTITUTION.md`, `AGENTS.md` (if seeded/edited), `.governance/`, `.githooks/` (or the Path-B equivalent), `.github/workflows/governance.yml`, `scripts/enable-governance.sh`, and any install-assets (`COSTS.md`, `STEERING.md`, `QUALITY.md`, …).
+
+2. **Seed the bootstrap receipt.** If `commit-issue-receipt-match` is installed, create `receipts/issue-<N>-bootstrap-governance.md` from [`../assets/receipt.bootstrap.template.md`](../assets/receipt.bootstrap.template.md), substituting the bootstrap issue number `<N>` and the actual install choices. Stage it. (`<N>` is the GitHub issue the operator filed to track the adoption — surface that anchor up front in the survey if it isn't already known.)
+
+3. **Dry-run all validators against the staged tree.** Run `bash .governance/run.sh`. Mode-B walkers (`agent-token-accounting`, `agent-steering-accounting`, `commit-issue-receipt-match`) are no-ops here (no new commit yet) — they fire when Step 9's commit lands. Every other directive sees the staged tree via `git ls-files`, so file-shape findings surface now.
+
+4. **Resolve each finding, prefering inline fix over bypass.** For each failing directive, take the most surgical fix:
+
+   | Directive | Resolve via |
+   |---|---|
+   | `repo-hygiene` (merge markers, build artefacts, large files) | Remove the offending file if safe; otherwise add `governance: allow-repo-hygiene file-size-limit <ticket-or-reason>` to the file's head. Re-stage. |
+   | `secrets-hygiene` (tracked `.env`, AWS key pattern, etc.) | **Rotate first, then remove.** Add the file to `.gitignore`. The line-level waiver `governance: allow-secrets-hygiene <ticket>` is only for legacy already-leaked credentials that are queued for rotation. |
+   | `workflows-hardened` (tag-pinned actions, missing `permissions:`) | SHA-pin every action and add an explicit `permissions:` block; re-stage the workflow file. |
+   | `required-docs` (missing `LICENSE`, `SECURITY.md`, etc.) | Stub the missing file with a one-line placeholder the operator will flesh out. If they explicitly opted out of `required-docs`, this won't fire. |
+   | `issue-templates` (missing `.github/ISSUE_TEMPLATE/*.md`) | Generate the templates the directive expects; the directive's `install-assets/` carries the canonical shape. |
+   | `no-broken-internal-doc-links` | Fix the broken link; do not waive. |
+   | `commit-message-format`, `commit-issue-receipt-match`, `receipt-per-issue` | The bootstrap receipt + Step 9's commit subject together satisfy these. |
+
+   If a finding can't be inline-fixed (rotating a credential, removing a load-bearing legacy artefact), **pause init and surface it to the operator** — do not paper over it with a broader waiver.
+
+5. **Re-run `bash .governance/run.sh` until it exits green.** Then proceed to Step 9. The pre-commit hook will see the same tree and pass on the first try.
+
+### Step 9 — Make the install commit and report to the user
+
+Run a normal `git commit` — no `SKIP_GOVERNANCE`, no `--no-verify`, no waiver in the body:
+
+```sh
+git commit -m "feat(governance): bootstrap governance-driven development (#<N>)"
+```
+
+What happens on this commit:
+
+- **`hooks/pre-commit.sh` populators** fire normally. `agent-token-accounting` reads the active session transcript via `runtimes/<runtime>.sh`, appends the matching row to `COSTS.md`, writes the handoff env file. `agent-steering-accounting` does the same for `STEERING.md`.
+- **`hooks/prepare-commit-msg.sh` stampers** consume the handoff and stamp the eight token trailers + the three steering trailers onto the install commit's message.
+- **`commit-msg` validators** all pass — the tree is clean (Step 8), the trailers are stamped (populators ran), and the receipt is in place (Step 8.2).
+
+The install commit lands with **real token trailers and a real `COSTS.md` row** — the directives are satisfied with data, not with exemptions.
+
+**Runtime-not-detected fallback.** If `init` was invoked from a shell with no `CLAUDECODE` / `CODEX_THREAD_ID` (etc.), the token-accounting populator can't read a transcript and stamps nothing. Add `governance: allow-agent-token-accounting unsupported-runtime: bootstrapped from non-agent shell` to the commit body before running `git commit`. The validator then bypasses the trailer requirement for this commit only — and `git log --grep='allow-agent-token-accounting'` keeps the gap visible forever. The steering side needs no equivalent (its populator always stamps a zero-default triple via `prepare-commit-msg.sh`).
 
 Print a concise summary:
+
 - Packs selected.
 - Preset chosen and whether it was explicit or assumed.
 - Hook strategy chosen (`.githooks/`, husky, or `pre-commit`).
 - Directives installed (with file paths, grouped by pack if multiple packs were selected).
 - Directives deliberately skipped (with reasons) when that matters.
 - Any pre-existing hook collisions encountered and how they were resolved.
+- **Findings resolved in Step 8** — every inline fix and every per-file/per-line waiver added, with the reason recorded against it.
+- **Findings escalated** — anything Step 8 could not inline-fix and surfaced to the operator (with the action they need to take).
+- **Detected runtime** at commit time: `claude-code`, `codex`, or `none`. If `none`, mention the body waiver that was applied.
+- **Install commit SHA** that just landed.
 - How to run locally: `bash .governance/run.sh`.
-- How to skip the hook: `SKIP_GOVERNANCE=1 git commit ...` or `git commit --no-verify`.
+- How to skip in an emergency: `SKIP_GOVERNANCE=1 git commit ...` or `git commit --no-verify`. (Not for the install commit — that's what Step 8 is for. Emergencies only.)
 - Assumptions made. If none, say `Assumptions: none`.
 - Reminder: **constitution amendments must land with their test.** Point to [DIRECTIVES_CATALOG.md](DIRECTIVES_CATALOG.md) and (if multiple packs were selected) [PACK_AUTHORING.md](PACK_AUTHORING.md) for the templates.
-
-Do **not** commit the new files. Leave that to the user — the first commit of their governance system should be intentional, and the pre-commit hook is now active.
 
 ## Required final output
 
@@ -316,6 +361,10 @@ Every successful `init` run should leave the user with a summary that includes:
 - `Directives installed:` file-backed list or grouped summary.
 - `Directives skipped:` only when the omission is meaningful.
 - `Hook collisions:` the resolution chosen for each pre-existing unmarked hook, or `none`.
+- `Findings resolved:` every inline fix or waiver added in Step 8, with reason.
+- `Findings escalated:` anything Step 8 could not inline-fix, with the action the operator needs to take, or `none`.
+- `Detected runtime:` `claude-code` / `codex` / `none`. If `none` and audit-chain directives were installed, mention the unsupported-runtime waiver applied to the install commit.
+- `Install commit:` SHA of the commit Step 9 just landed.
 - `Assumptions:` any material assumptions, or `none`.
 - `Next command:` `bash .governance/run.sh`
 
@@ -328,6 +377,8 @@ Every successful `init` run should leave the user with a summary that includes:
 - **`governance-kit/core` is non-optional.** Users can select additional packs but cannot deselect `governance-kit/core`. The `always_install: true` flag is reserved to `governance-kit/core` — third-party packs cannot force-install directives.
 - **Preset semantics are union, not fallback.** If a pack lacks the selected preset, it contributes nothing for that preset.
 - **Escape hatches are a feature, not a bug.** `SKIP_GOVERNANCE=1` exists because governance that blocks emergency hotfixes will get ripped out. CI enforces the directive even when the hook is skipped, which is the right layering.
+- **The install commit passes validators on the first try.** Step 8 dry-runs every directive against the staged tree and inline-fixes findings (or escalates them); Step 9 commits through normal hooks. `SKIP_GOVERNANCE` is not a bootstrap tool — using it on the install commit skips the populators too, which leaves the audit chain unsatisfiable for that commit forever. Inline-fix is the contract; bypass is the emergency exit.
+- **No bootstrap exemption in directive `check.sh` files.** If a directive needs an install-commit accommodation, that's a flow gap in Step 8 — fix the flow, not the directive. The one body-level waiver this PR keeps (`allow-agent-token-accounting unsupported-runtime: <reason>`) is for subsequent commits with no `runtimes/<name>.sh` adapter, not a bootstrap workaround.
 - **Bash-only at bootstrap; native is post-init.** Governance is a meta-layer over the project's code, so the directive suite must not depend on the project's own toolchain. `init` only installs the bash runner. Native test wrappers (pytest / jest / go test) are an opt-in users add later via [NATIVE_TESTS.md](NATIVE_TESTS.md) — never asked at bootstrap.
 - **Respect the repo's existing hook framework.** `.githooks/` is the default only when no tracked hook framework already exists. Do not force repos off husky or `pre-commit`.
 - **Hook ownership is explicit.** Every generated hook carries a `governance-kit:managed kit-version=<v>` marker on line 2 — the same shape runtime templates use. An unmarked hook at a target path is somebody else's file — prompt before touching it.
