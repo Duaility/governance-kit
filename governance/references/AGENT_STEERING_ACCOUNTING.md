@@ -299,7 +299,12 @@ no-ops for this directive (no transcript discovered, no rows appended).
   run, no rows appended). CI re-enforces row/trailer cross-checks.
 - `git commit --no-verify` — same effect: skips the local hooks entirely.
 
-There is no per-tier env-var gate inside the directive. The directive's
+No bootstrap waiver lives in `check.sh`. `prepare-commit-msg.sh` always
+stamps the summary triple (with zero defaults when no runtime is
+detected), so a normal `git commit` from `governance init`'s Step 9
+satisfies the directive without any per-commit accommodation. There is
+no "unsupported-runtime" fallback waiver on the steering side either —
+the zero-default triple covers that case naturally. The directive's
 install step is the only gate.
 
 ## Out of scope (deferred follow-ups)

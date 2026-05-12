@@ -292,10 +292,27 @@ two cache fields if the runtime doesn't expose them; emit the literal
 `unknown` for `model` if the transcript doesn't surface one.
 `runtimes/codex.sh` is a ~60-line template.
 
-Until you do that, `AGENT_NAME=<name> AGENT_SESSION_ID=... AGENT_CUM_INPUT=...
-AGENT_CUM_OUTPUT=... git commit` (the `manual` path) works as an escape
-hatch. `AGENT_CUM_CACHE_CREATE`, `AGENT_CUM_CACHE_READ`, and `AGENT_MODEL`
-are optional — cache fields default to `0`, model defaults to `unknown`.
+Until you do that, two opt-in fallbacks let the commit land:
+
+- **Manual env vars** — `AGENT_NAME=<name> AGENT_SESSION_ID=... AGENT_CUM_INPUT=...
+  AGENT_CUM_OUTPUT=... git commit`. Writes a real `COSTS.md` row from
+  the values you supply. `AGENT_CUM_CACHE_CREATE`, `AGENT_CUM_CACHE_READ`,
+  and `AGENT_MODEL` are optional — cache fields default to `0`, model
+  defaults to `unknown`. Use when you actually know the numbers (e.g.
+  the runtime exposes them in a non-standard place).
+- **Unsupported-runtime waiver** — add
+  `governance: allow-agent-token-accounting unsupported-runtime: <reason>`
+  to the commit body, with a non-empty reason. `check.sh` then bypasses
+  the trailer + ledger requirement for that commit. **No `COSTS.md` row
+  is written.** Audit trail: `git log --grep='allow-agent-token-accounting unsupported-runtime'`
+  lists every waivered commit. Use when you don't have the numbers and
+  authoring a `runtimes/<name>.sh` adapter is not yet possible —
+  preferred over the manual env-var path's silent default to zero, since
+  the body waiver makes the gap explicit.
+
+The waiver is a stopgap. The right long-term fix is the `runtimes/<name>.sh`
+adapter — until then, every waivered commit is invisible to ledger-based
+cost analysis.
 
 ## What gets enforced where
 
@@ -310,7 +327,7 @@ All paths below are rooted at the installed directive folder
 | `lib/trailers.py` | Parses commit trailers and cross-checks them against a ledger row — `Token-Input == input + cache_create`, `Token-Output == output`, `Token-Total == Token-Input + Token-Output`, and `Token-Total == row.new_work` (so the trailer headline and the ledger headline can't drift). |
 | `hooks/pre-commit.sh` | Bash glue: runtime detection, issue parsing from parent argv, cost-key generation, handoff env-file write. Shells out to `lib/ledger.py` for `sum-by-session` (per-commit delta) and `append-row` (ledger write + `git add`) — **all before** git snapshots the tree. Wired into `.githooks/pre-commit` by the generator. |
 | `hooks/prepare-commit-msg.sh` | Sources the handoff env file (resolved via `git rev-parse --git-path governance-pending.env` so worktrees work) and stamps all eight trailers. Idempotent on amends (skips if an `Agent:` trailer is already present). Silent no-op if no handoff file exists (human commit, or `--no-verify`). Does not touch `COSTS.md`. |
-| `check.sh` (commit-msg + CI) | Walks `base..HEAD`. Calls `lib/ledger.py validate` for repo-wide shape checks; for each commit with an `Agent:` trailer calls `lib/trailers.py validate` to require the full trailer set, check `Total = Input + Output`, require exactly one matching `Cost-Key` row in `COSTS.md`, and verify the row's numbers agree with the trailers. Runs independently of `COSTS.md` presence so the ledger stays clean even after branch commits are squashed away. |
+| `check.sh` (commit-msg + CI) | Walks `base..HEAD`. Calls `lib/ledger.py validate` for repo-wide shape checks; for each commit with an `Agent:` trailer calls `lib/trailers.py validate` to require the full trailer set, check `Total = Input + Output`, require exactly one matching `Cost-Key` row in `COSTS.md`, and verify the row's numbers agree with the trailers. Recognises one body-level waiver: `governance: allow-agent-token-accounting unsupported-runtime: <reason>` (any commit, non-empty reason required), which bypasses the trailer + ledger requirement for that commit. No bootstrap accommodation lives in `check.sh` — `governance init`'s Step 8 dry-run + inline-fix path makes the install commit pass on the first try. Runs independently of `COSTS.md` presence so the ledger stays clean even after branch commits are squashed away. |
 
 ## What it doesn't try to do
 

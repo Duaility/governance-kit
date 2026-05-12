@@ -223,3 +223,4 @@ Schema:
 | claude-code-79b7e189-76a-1778260817 | claude-code | 79b7e189-76ab-4a4b-9e76-517a34366d86 | #127 | claude-opus-4-7 | 5 | 17787 | 14820 | 129 | 17921 | 0.1218 | chore(governance): kit naming cleanup + eval-quirk fixes (#127) |
 | claude-code-e233cb76-d8c-1778260944 | claude-code | e233cb76-d8c1-46c3-8cd8-e53eca5523aa | #127 | claude-opus-4-7 | 21000 | 452196 | 24984152 | 235373 | 708569 | 21.3076 | chore(governance): kit naming cleanup + eval-quirk fixes (#127) |
 | claude-code-9e17687f-4c5-1778261210 | claude-code | 9e17687f-4c59-4df0-8964-ec6e28f84462 | #127 | claude-opus-4-7 | 5 | 13759 | 14820 | 24 | 13788 | 0.0940 | chore(governance): drop stale has_file_waiver note from receipt (#127) |
+| claude-code-b6c1412e-164-1778582447 | claude-code | b6c1412e-164b-4d3d-8b96-fb1a70b0dbb7 | #129 | claude-opus-4-7 | 330 | 738318 | 35147321 | 231880 | 970528 | 27.9868 | feat(governance): bootstrap + unsupported-runtime waivers for audit chain (#129) |
