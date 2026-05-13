@@ -89,4 +89,53 @@ directive under test.
 EOF
 EVAL_LABEL="$EVAL_ID agents missing constitution link" expect_fail "$CHECK"
 
+# pass — same broken agents fixture, but with a per-sub-check waiver in
+# CONSTITUTION.md exempting the `agents` sub-check.
+cat > CONSTITUTION.md <<'EOF'
+# Constitution
+
+<!-- governance: allow-required-docs agents fixture has intentional missing CONSTITUTION.md link -->
+
+## Principles
+
+Placeholder principle.
+
+## Guidelines
+
+Placeholder guideline.
+
+## Directives
+
+Placeholder directive.
+
+## Evolution Log
+
+Placeholder entry.
+EOF
+EVAL_LABEL="$EVAL_ID agents-subcheck waived" expect_pass "$CHECK"
+
+# fail — waiver token without a reason does not waive
+cat > CONSTITUTION.md <<'EOF'
+# Constitution
+
+<!-- governance: allow-required-docs agents -->
+
+## Principles
+
+Placeholder principle.
+
+## Guidelines
+
+Placeholder guideline.
+
+## Directives
+
+Placeholder directive.
+
+## Evolution Log
+
+Placeholder entry.
+EOF
+EVAL_LABEL="$EVAL_ID agents-waiver-no-reason" expect_fail "$CHECK"
+
 eval_done

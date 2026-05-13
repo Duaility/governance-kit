@@ -30,4 +30,14 @@ printf '# Unmarked\n' > docs/fresh.md
 stage_all
 EVAL_LABEL="$EVAL_ID missing-marker" expect_fail "$CHECK"
 
+# pass — stale doc with a waiver passes
+printf '<!-- last-verified: 2020-01-01 -->\n<!-- governance: allow-doc-freshness pending rewrite in #99 -->\n# Stale\n' > docs/fresh.md
+stage_all
+EVAL_LABEL="$EVAL_ID waiver" expect_pass "$CHECK"
+
+# fail — waiver token without a reason does not waive
+printf '<!-- last-verified: 2020-01-01 -->\n<!-- governance: allow-doc-freshness -->\n# Stale\n' > docs/fresh.md
+stage_all
+EVAL_LABEL="$EVAL_ID waiver-without-reason" expect_fail "$CHECK"
+
 eval_done

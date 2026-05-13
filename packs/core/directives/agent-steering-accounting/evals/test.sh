@@ -208,4 +208,65 @@ reset_ledger
 write_msg_human_bare /tmp/msg-bare "chore: bare commit"
 EVAL_LABEL="$EVAL_ID bare-commit-no-triple" expect_fail "$CHECK" /tmp/msg-bare
 
+# ──────────────────────────────────────────────────────────────
+# Case 12 — pass: per-commit waiver bypasses the trailer + ledger
+# cross-checks. Used for ledger-repair commits (e.g. restoring epoch
+# monotonicity after a squash-merge interleaved rows from two sessions
+# in the wrong order — see issue #131).
+# ──────────────────────────────────────────────────────────────
+reset_ledger
+{
+    printf 'fix(ledger): repair epoch ordering\n\n'
+    printf 'Body line.\n\n'
+    printf 'governance: allow-agent-steering-accounting reorder-repair after squash-merge inversion\n'
+} > /tmp/msg-waiver
+EVAL_LABEL="$EVAL_ID waiver-bypasses-cross-checks" expect_pass "$CHECK" /tmp/msg-waiver
+
+# ──────────────────────────────────────────────────────────────
+# Case 13 — fail: waiver token with no reason. A bare token does not
+# waive — every existing kit waiver requires a non-empty reason for the
+# audit trail.
+# ──────────────────────────────────────────────────────────────
+{
+    printf 'fix(ledger): bare waiver\n\n'
+    printf 'Body line.\n\n'
+    printf 'governance: allow-agent-steering-accounting\n'
+} > /tmp/msg-waiver-bare
+EVAL_LABEL="$EVAL_ID waiver-without-reason-fails" expect_fail "$CHECK" /tmp/msg-waiver-bare
+
+# ──────────────────────────────────────────────────────────────
+# Case 14 — pass: Mode B on `main` validates HEAD's trailers when no base
+# ref is available. Squash-merge produces a fresh commit on main whose
+# trailers must be checked — without the HEAD fallback the squash slips
+# past the trailer contract because the local commit-msg hook only runs
+# pre-squash on the feature branch.
+# ──────────────────────────────────────────────────────────────
+reset_ledger
+KEY_OK="steer-${SS}-1800000900-1"
+append_row "$KEY_OK" "interrupt" "" "feat: post-squash on main"
+git add STEERING.md
+{
+    printf 'feat: post-squash on main\n\n'
+    printf 'Body.\n\n'
+    agent_block
+    printf 'Steer-Count: 1\n'
+    printf 'Steer-Types: interrupt=1\n'
+    printf 'Steer-Tiers: structural=1\n'
+} > /tmp/msg-mode-b-pass
+git commit --quiet --no-verify -F /tmp/msg-mode-b-pass
+EVAL_LABEL="$EVAL_ID mode-b-on-main-valid" expect_pass "$CHECK"
+
+# ──────────────────────────────────────────────────────────────
+# Case 15 — fail: Mode B on `main` with a missing summary triple on HEAD.
+# Demonstrates that the HEAD fallback actively enforces — a malformed
+# squash-merge commit does NOT slip through.
+# ──────────────────────────────────────────────────────────────
+reset_ledger
+{
+    printf 'chore: bad squash-merge commit\n\n'
+    printf 'Body without summary trailers.\n'
+} > /tmp/msg-mode-b-fail
+git commit --allow-empty --quiet --no-verify -F /tmp/msg-mode-b-fail
+EVAL_LABEL="$EVAL_ID mode-b-on-main-missing-triple" expect_fail "$CHECK"
+
 eval_done

@@ -363,4 +363,28 @@ stage_all
 commit_quiet "docs: star bullet variant"
 EVAL_LABEL="$EVAL_ID star-bullet" expect_fail "$CHECK"
 
+# pass — waiver in the first 10 lines exempts a malformed receipt
+rm -f receipts/*.md
+cat > receipts/issue-99-waivered.md <<'EOF'
+<!-- governance: allow-receipt-per-issue stub receipt while issue is in triage -->
+# Receipt: waivered
+
+(no sections yet)
+EOF
+stage_all
+commit_quiet "docs: add waivered receipt"
+EVAL_LABEL="$EVAL_ID waiver" expect_pass "$CHECK"
+
+# fail — waiver token without a reason does not waive
+rm -f receipts/*.md
+cat > receipts/issue-99-bare-waiver.md <<'EOF'
+<!-- governance: allow-receipt-per-issue -->
+# Receipt: bare
+
+(no sections yet)
+EOF
+stage_all
+commit_quiet "docs: bare waiver"
+EVAL_LABEL="$EVAL_ID waiver-without-reason" expect_fail "$CHECK"
+
 eval_done

@@ -23,5 +23,13 @@ EVAL_LABEL="$EVAL_ID no-issue" expect_fail "$CHECK" "$msg"
 printf 'bogus: change the thing (#1)\n' > "$msg"
 EVAL_LABEL="$EVAL_ID bad-type" expect_fail "$CHECK" "$msg"
 
+# Waiver — bad subject becomes acceptable when the body carries the waiver.
+printf 'bogus: change the thing\n\ngovernance: allow-commit-message-format one-off vendored squash from upstream\n' > "$msg"
+EVAL_LABEL="$EVAL_ID waiver" expect_pass "$CHECK" "$msg"
+
+# Waiver without a reason — bare token does not waive.
+printf 'bogus: change the thing\n\ngovernance: allow-commit-message-format\n' > "$msg"
+EVAL_LABEL="$EVAL_ID waiver-without-reason" expect_fail "$CHECK" "$msg"
+
 rm -f "$msg"
 eval_done

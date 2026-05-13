@@ -44,4 +44,28 @@ stage_all
 commit_quiet "chore: drop quality file"
 EVAL_LABEL="$EVAL_ID missing" expect_fail "$CHECK"
 
+# pass — same missing-QUALITY.md state, but with a waiver in CONSTITUTION.md
+cat > CONSTITUTION.md <<'EOF'
+# Constitution
+
+<!-- governance: allow-issues-tracked this repo tracks bugs in Linear, not QUALITY.md -->
+
+## Principles
+EOF
+stage_all
+commit_quiet "docs: waive issues-tracked"
+EVAL_LABEL="$EVAL_ID waived" expect_pass "$CHECK"
+
+# fail — bare waiver token (no reason) does not waive
+cat > CONSTITUTION.md <<'EOF'
+# Constitution
+
+<!-- governance: allow-issues-tracked -->
+
+## Principles
+EOF
+stage_all
+commit_quiet "docs: bare waiver"
+EVAL_LABEL="$EVAL_ID waiver-without-reason" expect_fail "$CHECK"
+
 eval_done

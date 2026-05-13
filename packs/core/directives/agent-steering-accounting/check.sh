@@ -126,6 +126,14 @@ validate_commit_message() {
     done < <(printf '%s' "$msg" | python3 "$LIB/trailers.py" "${args[@]}" || true)
 }
 
+# Returns 0 if the commit body carries a valid waiver line.
+# `governance: allow-agent-steering-accounting <reason>` — reason required.
+msg_has_waiver() {
+    local msg="$1"
+    printf '%s\n' "$msg" \
+        | grep -qE '^[[:space:]]*(<!--)?[[:space:]]*governance:[[:space:]]*allow-agent-steering-accounting[[:space:]]+.+'
+}
+
 # ──────────────────────────────────────────────────────────────
 # Mode A — commit-msg hook
 # ──────────────────────────────────────────────────────────────
@@ -137,6 +145,9 @@ if [[ $# -gt 0 ]]; then
     fi
     pending_subject=$(grep -vE '^[[:space:]]*($|#)' "$msg_file" | head -n1)
     if [[ "$pending_subject" == Revert\ \"* ]]; then
+        directive_end
+    fi
+    if msg_has_waiver "$(cat "$msg_file")"; then
         directive_end
     fi
     validate_commit_message "pending commit" "A" "" "$pending_subject" <"$msg_file"
@@ -172,6 +183,24 @@ is_exempt_commit() {
 }
 
 if [[ -z "$base" ]]; then
+    # No new work on this branch relative to the default — but on `main`
+    # itself, HEAD is the freshly-landed (often squash-merge) commit whose
+    # trailers are the durable record. A squash-merge bypasses the local
+    # commit-msg hook (it runs on GitHub's server), so without this
+    # single-commit fallback its summary triple goes unchecked. Validate
+    # HEAD on its own so the trailer contract still applies post-merge.
+    # `--verify` is what distinguishes "HEAD resolves to a commit" from
+    # the empty-repo case (where `git rev-parse HEAD` prints the literal
+    # string "HEAD" on stdout and exits 128).
+    if git rev-parse --verify HEAD >/dev/null 2>&1; then
+        head_sha=$(git rev-parse HEAD)
+        if ! is_exempt_commit "$head_sha"; then
+            msg=$(git log -1 --format=%B "$head_sha")
+            if ! msg_has_waiver "$msg"; then
+                validate_commit_message "$head_sha" "B" "$head_sha" "" <<<"$msg"
+            fi
+        fi
+    fi
     directive_end
 fi
 
@@ -181,6 +210,9 @@ while IFS= read -r sha; do
         continue
     fi
     msg=$(git log -1 --format=%B "$sha")
+    if msg_has_waiver "$msg"; then
+        continue
+    fi
     validate_commit_message "$sha" "B" "$sha" "" <<<"$msg"
 done < <(git log "$base..HEAD" --format='%H')
 
