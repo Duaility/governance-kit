@@ -13,7 +13,7 @@ version: "3"
 generated_at: 2026-04-29T16:45:34Z
 owner: acme                      # GitHub owner of the bootstrapping repo (lowercased)
 repo: widgets                    # GitHub repo name of the bootstrapping repo (lowercased)
-kit_version: "0.2"               # KIT_VERSION that did the install or last `kit update` (optional within v3 — absent on pre-tracking installs)
+kit_version: "0.3"               # KIT_VERSION that did the install or last `kit update` (optional within v3 — absent on pre-tracking installs)
 hook_strategy: githooks          # or: husky | pre-commit
 constitution: true               # CONSTITUTION.md was written at repo root
 ci_workflow: .github/workflows/governance.yml

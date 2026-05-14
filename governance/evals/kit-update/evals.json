@@ -21,7 +21,7 @@
     {
       "id": 2,
       "prompt": "Run governance kit update — I want to make sure we're synced.",
-      "expected_output": "Following UPDATE_FLOW.md Step 2: the skill reads `kit_version: \"0.2\"` from `install.yaml`, finds it equal to the kit on PATH's `KIT_VERSION`, short-circuits the kit-runtime block, and reports `kit: up-to-date`. Without `--with-packs`, the verb exits without writing anything. No diffs are computed, no commit is created.",
+      "expected_output": "Following UPDATE_FLOW.md Step 2: the skill reads `kit_version: \"0.3\"` from `install.yaml`, finds it equal to the kit on PATH's `KIT_VERSION`, short-circuits the kit-runtime block, and reports `kit: up-to-date`. Without `--with-packs`, the verb exits without writing anything. No diffs are computed, no commit is created.",
       "files": ["files/up-to-date-repo/"],
       "assertions": [
         "The skill reported `kit: up-to-date` (or equivalent — the version delta was zero)",
@@ -47,11 +47,11 @@
     {
       "id": 4,
       "prompt": "Pull the new kit version into this repo.",
-      "expected_output": "Following UPDATE_FLOW.md Step 2's no-downgrade rule: the skill reads `kit_version: \"9.9\"` from `install.yaml`, queries `KIT_VERSION` from the kit on PATH (`\"0.2\"`), sees the manifest is newer than the kit, and STOPS. It tells the user the repo was last touched by a newer kit and that running an older `kit update` against it would silently downgrade. Recovery: upgrade the kit on PATH (e.g. `uvx --reinstall git+https://github.com/duaility/governance-kit`) and re-run.",
+      "expected_output": "Following UPDATE_FLOW.md Step 2's no-downgrade rule: the skill reads `kit_version: \"9.9\"` from `install.yaml`, queries `KIT_VERSION` from the kit on PATH (`\"0.3\"`), sees the manifest is newer than the kit, and STOPS. It tells the user the repo was last touched by a newer kit and that running an older `kit update` against it would silently downgrade. Recovery: upgrade the kit on PATH (e.g. `uvx --reinstall git+https://github.com/duaility/governance-kit`) and re-run.",
       "files": ["files/future-kit-repo/"],
       "assertions": [
         "No files were created, deleted, or modified",
-        "The skill refused to run because the recorded `kit_version` (\"9.9\") is newer than the kit on PATH (\"0.2\")",
+        "The skill refused to run because the recorded `kit_version` (\"9.9\") is newer than the kit on PATH (\"0.3\")",
         "The skill explicitly named the no-downgrade rule as the reason",
         "The skill named the recovery path: upgrade the kit on PATH, then re-run `kit update`",
         "The skill did NOT auto-downgrade and did NOT prompt for `--allow-downgrade` (that flag does not exist in this verb)"
@@ -75,7 +75,7 @@
     {
       "id": 6,
       "prompt": "Update the kit in this repo.",
-      "expected_output": "Following UPDATE_FLOW.md Step 1's marker-reconstruction fallback: with `.governance/install.yaml` missing, the skill scans kit-owned files (`.governance/run.sh`, `.governance/lib.sh`) for the `kit-version=<v>` marker token, finds `kit-version=0.1` in both, and reconstructs the version pin as `\"0.1\"` (the min). The skill proceeds through Steps 3–8 as a forward update from `0.1` to the kit's `KIT_VERSION` (`0.2`), shows per-file diffs (diff-before-exec), asks for explicit `yes`, applies the diffs and re-stamps each file's marker with the new `kit-version=`, regenerates the hook dispatcher, writes a fresh `install.yaml` with `kit_version: \"<new>\"` (and the rest of the v3 fields populated from defaults + current state), smoke-tests, and commits one atomic commit with subject `chore(governance): kit update 0.1 → <new>`. The report's `Assumptions:` line records that the manifest was reconstructed from per-file markers.",
+      "expected_output": "Following UPDATE_FLOW.md Step 1's marker-reconstruction fallback: with `.governance/install.yaml` missing, the skill scans kit-owned files (`.governance/run.sh`, `.governance/lib.sh`) for the `kit-version=<v>` marker token, finds `kit-version=0.1` in both, and reconstructs the version pin as `\"0.1\"` (the min). The skill proceeds through Steps 3–8 as a forward update from `0.1` to the kit's `KIT_VERSION` (`0.3`), shows per-file diffs (diff-before-exec), asks for explicit `yes`, applies the diffs and re-stamps each file's marker with the new `kit-version=`, regenerates the hook dispatcher, writes a fresh `install.yaml` with `kit_version: \"<new>\"` (and the rest of the v3 fields populated from defaults + current state), smoke-tests, and commits one atomic commit with subject `chore(governance): kit update 0.1 → <new>`. The report's `Assumptions:` line records that the manifest was reconstructed from per-file markers.",
       "files": ["files/reconstructable-repo/"],
       "assertions": [
         "The skill noticed `.governance/install.yaml` was missing AND attempted marker reconstruction before any user prompt",

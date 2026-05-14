@@ -1,6 +1,6 @@
 id: duaility/governance-kit
 name: governance-kit dogfood
 version: "0.1"
-min_governance_kit: "0.2"
+min_governance_kit: "0.3"
 description: Repo-local dogfood directives for the governance-kit project itself.
 author: duaility
