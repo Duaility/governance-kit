@@ -23,4 +23,13 @@ stage_all
 commit_quiet "docs: add notes with broken link"
 EVAL_LABEL="$EVAL_ID broken" expect_fail "$CHECK"
 
+# pass — same broken link plus a line-level waiver
+cat > NOTES.md <<'EOF'
+# Notes
+
+See [the missing doc](docs/missing.md). <!-- governance: allow-no-broken-internal-doc-links placeholder for upcoming docs/missing.md -->
+EOF
+stage_all
+EVAL_LABEL="$EVAL_ID waiver" expect_pass "$CHECK"
+
 eval_done
