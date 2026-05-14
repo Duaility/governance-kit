@@ -29,7 +29,7 @@ CAPABILITY_FIELDS = ("reads", "writes")
 # refuses packs whose minimum is newer than this constant. The comparison uses a
 # lexicographic SemVer-ish tuple (split on `.`, numeric segments compared as
 # ints, non-numeric segments as strings) — see `_version_tuple`.
-KIT_VERSION = "0.2"
+KIT_VERSION = "0.3"
 
 
 def _version_tuple(value: str) -> tuple[Any, ...]:
