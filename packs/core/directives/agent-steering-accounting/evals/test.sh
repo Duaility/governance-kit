@@ -269,4 +269,61 @@ reset_ledger
 git commit --allow-empty --quiet --no-verify -F /tmp/msg-mode-b-fail
 EVAL_LABEL="$EVAL_ID mode-b-on-main-missing-triple" expect_fail "$CHECK"
 
+# ──────────────────────────────────────────────────────────────
+# Case 16 — pass: squash-merge body with two stacked trailer triples.
+# GitHub squash-merge concatenates each sub-commit's body into the
+# resulting commit message, so the summary triple appears N times. The
+# parser must sum across occurrences so the trailer total agrees with the
+# cumulative STEERING.md diff. Issue #136.
+# ──────────────────────────────────────────────────────────────
+reset_ledger
+KEY_S1="steer-${SS}-1800001000-1"
+KEY_S2="steer-${SS}-1800001100-1"
+append_row "$KEY_S1" "interrupt" "" "feat: squashed pair"
+append_row "$KEY_S2" "correction" "" "feat: squashed pair"
+git add STEERING.md
+{
+    printf 'feat: squashed pair\n\n'
+    printf 'Body line.\n\n'
+    agent_block
+    # Sub-commit 1 trailer block — added KEY_S1.
+    printf 'Steer-Count: 1\n'
+    printf 'Steer-Types: interrupt=1\n'
+    printf 'Steer-Tiers: structural=1\n\n'
+    # Sub-commit 2 trailer block — added KEY_S2.
+    printf 'Steer-Count: 1\n'
+    printf 'Steer-Types: correction=1\n'
+    printf 'Steer-Tiers: structural=1\n'
+} > /tmp/msg-squash-aggregate
+git commit --quiet --no-verify -F /tmp/msg-squash-aggregate
+EVAL_LABEL="$EVAL_ID squash-merge-sums-stacked-triples" expect_pass "$CHECK"
+
+# ──────────────────────────────────────────────────────────────
+# Case 17 — pass: squashed body where the trailing sub-commit's triple
+# is the all-zero default. Under the old last-wins parse this would
+# incorrectly drop to `Steer-Count: 0` and disagree with the row added
+# by the earlier sub-commit. Mirrors run 25950635716's failure shape.
+# ──────────────────────────────────────────────────────────────
+reset_ledger
+KEY_S3="steer-${SS}-1800001200-1"
+KEY_S4="steer-${SS}-1800001300-1"
+append_row "$KEY_S3" "interrupt" "" "feat: squashed with trailing zero"
+append_row "$KEY_S4" "interrupt" "" "feat: squashed with trailing zero"
+git add STEERING.md
+{
+    printf 'feat: squashed with trailing zero\n\n'
+    printf 'Body line.\n\n'
+    agent_block
+    # First sub-commit added two rows.
+    printf 'Steer-Count: 2\n'
+    printf 'Steer-Types: interrupt=2\n'
+    printf 'Steer-Tiers: structural=2\n\n'
+    # Trailing sub-commit was a no-op for STEERING.md.
+    printf 'Steer-Count: 0\n'
+    printf 'Steer-Types: none\n'
+    printf 'Steer-Tiers: none\n'
+} > /tmp/msg-squash-trailing-zero
+git commit --quiet --no-verify -F /tmp/msg-squash-trailing-zero
+EVAL_LABEL="$EVAL_ID squash-merge-trailing-zero-block" expect_pass "$CHECK"
+
 eval_done
