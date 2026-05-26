@@ -24,7 +24,7 @@
 
 id: governance-kit/core
 name: Core governance directives
-version: "0.3"
+version: "0.3.1"
 min_governance_kit: "0.3"
 description: Baseline directives shipped with governance-kit, including the agent audit chain.
 author: governance-kit
