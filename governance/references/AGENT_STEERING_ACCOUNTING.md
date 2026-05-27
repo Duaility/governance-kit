@@ -231,7 +231,10 @@ git commit -m "feat: x (#13)"
 pre-commit ──► .governance/packs/<owner>/<repo>/directives/agent-steering-accounting/hooks/pre-commit.sh
       │          1. Detect runtime (CLAUDECODE=1 → claude-code; future: codex).
       │          2. Resolve session id + transcript via runtimes/<runtime>.sh.
-      │          3. Walk parent argv to recover the (#N) issue anchor + subject.
+      │          3. Walk parent argv to recover the (#N) issue anchor + subject
+      │             (/proc/$PPID/cmdline on Linux, sysctl(KERN_PROCARGS2) via
+      │             lib/argv.py on macOS — `ps -o args=` mangles UTF-8 under
+      │             LC_ALL=C, see issue #140).
       │          4. python3 lib/extract.py <transcript> --cache <path>
       │             — emits TSV: ts, type, tier, user-reason.
       │             Tier-2 always runs; classifier vs lexical depends on

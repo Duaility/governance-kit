@@ -176,7 +176,8 @@ git commit -m "feat: x (#13)"
       ▼
 pre-commit ──► .governance/packs/<owner>/<repo>/directives/agent-token-accounting/hooks/pre-commit.sh
       │          1. Detect runtime from env (CLAUDECODE / CODEX_THREAD_ID / AGENT_NAME)
-      │          2. Read parent argv (/proc/$PPID/cmdline or `ps`) to recover
+      │          2. Read parent argv (/proc/$PPID/cmdline on Linux,
+      │             sysctl(KERN_PROCARGS2) via lib/argv.py on macOS) to recover
       │             the -m subject and parse the (#N) issue anchor
       │          3. Dispatch to runtimes/<runtime>.sh (sibling of the helper)
       │             — returns `<session_id> <cum_input> <cum_cache_create>

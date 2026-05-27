@@ -15,6 +15,38 @@ command -v python3 >/dev/null 2>&1 || {
 fixture_init
 install_directive "$PACK_DIR" "$EVAL_ID"
 
+# ──────────────────────────────────────────────────────────────
+# Case 0 — sanity: lib/argv.py round-trips UTF-8 commit subjects.
+# Pre-#140 the hook scraped argv via `ps -o args=`, which on macOS
+# cat-v-escapes bytes >= 0x80 under LC_ALL=C (the locale git hooks
+# usually run with). UTF-8 multi-byte sequences in the commit
+# subject got rewritten to `M-bM^@M^T` etc. and the row's `commit`
+# cell then disagreed with the pending subject the directive's
+# strict subject-match check reads from git.
+# ──────────────────────────────────────────────────────────────
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    eval_assertions=$(( eval_assertions + 1 ))
+    ARGV_HELPER=".governance/packs/governance-kit/core/directives/$EVAL_ID/lib/argv.py"
+    /bin/sh -c 'while :; do sleep 1; done' steering-argv-probe \
+        $'feat: em-dash \xe2\x80\x94 arrow \xe2\x86\x92 (#1)' &
+    PROBE_PID=$!
+    # Give the kernel a moment to publish the child's argv.
+    sleep 0.3
+    if probe_out="$(LC_ALL=C python3 "$ARGV_HELPER" "$PROBE_PID" 2>/dev/null)" \
+        && printf '%s' "$probe_out" | grep -q $'\xe2\x80\x94' \
+        && printf '%s' "$probe_out" | grep -q $'\xe2\x86\x92'; then
+        printf '    ✓ %s — argv.py preserves UTF-8 argv on macOS (#140)\n' "$EVAL_ID"
+    else
+        printf '    ✗ %s — argv.py mangled UTF-8 — issue #140 regression\n' "$EVAL_ID"
+        eval_failures=$(( eval_failures + 1 ))
+    fi
+    kill "$PROBE_PID" 2>/dev/null
+    wait "$PROBE_PID" 2>/dev/null
+else
+    printf '    ⊘ %s — argv.py macOS round-trip skipped (uname=%s)\n' \
+        "$EVAL_ID" "$(uname -s)"
+fi
+
 # Seed the ledger with the install-assets header so the file shape is real.
 cp "$PACK_DIR/directives/$EVAL_ID/install-assets/STEERING.md" STEERING.md
 
