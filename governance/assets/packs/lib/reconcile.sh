@@ -47,6 +47,13 @@ fi
 KIT_LIB="$(cd "$(dirname "$0")" && pwd)"
 PACKVERB="$KIT_LIB/packverb.py"
 
+# install_directive_folder is the canonical consumed-tree materializer shared
+# with `governance pack add`; reusing it keeps a reconciled tree byte-identical
+# to a freshly-installed one (directives only, evals/ and install-assets/
+# stripped) instead of a raw subtree copy that would carry author-side files.
+# shellcheck disable=SC1091
+source "$KIT_LIB/install.sh"
+
 pv() {
     uv run --quiet --isolated --with PyYAML python "$PACKVERB" "$@"
 }
@@ -95,36 +102,23 @@ while IFS=$'\t' read -r pack_id ref sha subpath directives_csv; do
     fi
 
     target="$REPO_ROOT/.governance/packs/$pack_id"
-    mkdir -p "$(dirname "$target")"
 
-    # Rebuild atomically — clear and copy the whole subtree, then prune
-    # `directives/<id>/` entries that aren't in the lockfile's list. Anything
-    # the user hand-modified in the expanded copy is intentionally lost;
-    # modify amendments belong in a local pack with `replaces:` (phase 5 of
-    # #114), not in-place edits to a fetched pack's tree.
+    # Rebuild atomically. Materialize each locked directive through the SAME
+    # installer path `governance pack add` uses (install_directive_folder →
+    # copy_tree_without_evals), so a reconciled tree is byte-identical to a
+    # freshly-installed one: directives only, with author-side evals/ and
+    # install-assets/ stripped. A pack may ship more directives than the lock
+    # selects, so only the locked set is materialized. Any hand edit to the
+    # expanded copy is intentionally lost — amendments belong in a local pack
+    # with `replaces:`, not in-place edits to a fetched tree.
     rm -rf "$target"
-    mkdir -p "$target"
-    cp -R "$pack_dir/." "$target/"
-
-    if [[ -n "$directives_csv" && -d "$target/directives" ]]; then
-        # Build a "keep" set; remove every directives/<id>/ that isn't in it.
+    if [[ -n "$directives_csv" ]]; then
         IFS=',' read -ra keep <<< "$directives_csv"
-        keep_lookup=" ${keep[*]} "
-        for d in "$target"/directives/*/; do
-            [[ -d "$d" ]] || continue
-            id="$(basename "$d")"
-            case "$keep_lookup" in
-                *" $id "*) ;;
-                *) rm -rf "$d" ;;
-            esac
+        for directive_id in "${keep[@]}"; do
+            [[ -z "$directive_id" ]] && continue
+            install_directive_folder "$pack_dir" "$directive_id" "$REPO_ROOT"
         done
     fi
-
-    chmod +x "$target"/directives/*/check.sh 2>/dev/null || true
-    for kind_dir in "$target"/directives/*/hooks "$target"/directives/*/runtimes; do
-        [[ -d "$kind_dir" ]] || continue
-        chmod +x "$kind_dir"/*.sh 2>/dev/null || true
-    done
 
     reconciled=$((reconciled + 1))
 done <<< "$gh_rows"
