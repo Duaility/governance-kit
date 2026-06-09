@@ -21,10 +21,18 @@
 # verbatim operator text — repos that need redaction layer that on
 # top via the directive's classifier hook rather than by skipping
 # the directive.
+#
+# `doc-integrity` is also mandatory (`always_install: true`): the audit
+# chain's own artifacts (receipts, the COSTS.md / STEERING.md ledgers,
+# the resolved-issues log, the constitution's evolution log) are only
+# trustworthy as a record if they are append-only, so the integrity
+# engine that freezes their history ships on by default. It reads
+# `.governance/integrity.conf` (seeded with all standard rules enabled)
+# and is a no-op for any document not present.
 
 id: governance-kit/core
 name: Core governance directives
-version: "0.3.3"
+version: "0.3.4"
 min_governance_kit: "0.3"
 description: Baseline directives shipped with governance-kit, including the agent audit chain.
 author: governance-kit
@@ -46,6 +54,7 @@ presets:
       - issues-tracked
       - receipt-per-issue
       - commit-issue-receipt-match
+      - doc-integrity
       - agent-token-accounting
       - agent-steering-accounting
   strict:

@@ -227,3 +227,4 @@ Schema:
 | claude-code-4d8ce9b4-564-1778747997 | claude-code | 4d8ce9b4-564e-4118-b6e1-d429881795f2 | #134 | claude-opus-4-7 | 5 | 15024 | 14870 | 24 | 15053 | 0.1020 | chore(governance): bump kit version 0.2 M-bM^FM^R 0.3 (#134) |
 | claude-code-8df464fe-08f-1778748078 | claude-code | 8df464fe-08f6-47fe-a85d-9d9e2045f4a9 | #134 | claude-opus-4-7 | 440 | 1097406 | 8307684 | 244915 | 1342761 | 17.1377 | chore(governance): bump kit version 0.2 M-bM^FM^R 0.3 (#134) |
 | claude-code-8df464fe-08f-1778748184 | claude-code | 8df464fe-08f6-47fe-a85d-9d9e2045f4a9 | #134 | claude-opus-4-7 | 11 | 20854 | 1332341 | 11633 | 32498 | 1.0874 | chore(governance): bump kit version 0.2 M-bM^FM^R 0.3 (#134) |
+| claude-code-2b7f7947-fb6-1780996349 | claude-code | 2b7f7947-fb6b-4a5b-92e9-716361ef2b96 | #143 | claude-opus-4-8 | 7276 | 21102 | 32008 | 2048 | 30426 | 0.2355 | feat(governance): enforce document integrity for system-of-record docs (#143)Add |
