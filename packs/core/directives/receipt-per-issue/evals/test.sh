@@ -15,8 +15,11 @@ EVAL_LABEL="$EVAL_ID no-receipts" expect_pass "$CHECK"
 
 mkdir -p receipts
 
-# pass — two receipts, distinct issue numbers, all four sections present,
-#        every checked item crosswalks to evidence
+# pass — two committed receipts, distinct issue numbers, all four
+#        always-checked sections present, every checked item crosswalks to
+#        evidence. They carry no `## Decisions` section: committed (already
+#        on HEAD, not in the change set) receipts are grandfathered, so the
+#        forward-looking Decisions rule does not apply to them.
 cat > receipts/issue-1-alpha.md <<'EOF'
 # Receipt: alpha
 
@@ -386,5 +389,120 @@ EOF
 stage_all
 commit_quiet "docs: bare waiver"
 EVAL_LABEL="$EVAL_ID waiver-without-reason" expect_fail "$CHECK"
+
+# ── Change-set scoping of the `## Decisions` section ──
+# The section is required only on receipts ADDED in the change set. In this
+# fixture there is no base branch (HEAD == main), so the change set is the set
+# of STAGED additions — a receipt staged but not yet committed. The cases
+# below stage without committing to exercise that scope.
+
+# fail — a newly added (staged) receipt missing `## Decisions`
+rm -f receipts/*.md
+cat > receipts/issue-30-new-no-decisions.md <<'EOF'
+# New receipt, no decisions
+
+## Checklist
+
+- [x] thing
+
+## What changed
+
+thing happened.
+
+## Out of scope
+
+None.
+
+## Verification
+
+ok
+EOF
+stage_all
+EVAL_LABEL="$EVAL_ID added-missing-decisions" expect_fail "$CHECK"
+
+# pass — a newly added (staged) receipt that includes a `## Decisions` section
+rm -f receipts/*.md
+cat > receipts/issue-31-new-with-decisions.md <<'EOF'
+# New receipt with decisions
+
+## Checklist
+
+- [x] thing
+
+## What changed
+
+thing happened.
+
+## Out of scope
+
+None.
+
+## Verification
+
+ok
+
+## Decisions
+
+The spec left the module boundary unspecified, so this was scoped to the
+loader only to keep the blast radius small.
+EOF
+stage_all
+EVAL_LABEL="$EVAL_ID added-with-decisions" expect_pass "$CHECK"
+
+# pass — "None" is an acceptable `## Decisions` body (presence-only, no crosswalk)
+rm -f receipts/*.md
+cat > receipts/issue-32-new-decisions-none.md <<'EOF'
+# New receipt, decisions None
+
+## Checklist
+
+- [x] thing
+
+## What changed
+
+thing happened.
+
+## Out of scope
+
+None.
+
+## Verification
+
+ok
+
+## Decisions
+
+None.
+EOF
+stage_all
+EVAL_LABEL="$EVAL_ID added-decisions-none" expect_pass "$CHECK"
+
+# pass — a pre-existing (committed) receipt without `## Decisions` is
+#        grandfathered: it is on HEAD, not in the change set, so the
+#        forward-looking Decisions rule does not apply. (The four
+#        always-checked sections still must be present, and they are.)
+rm -f receipts/*.md
+cat > receipts/issue-33-grandfathered.md <<'EOF'
+# Grandfathered receipt
+
+## Checklist
+
+- [x] thing
+
+## What changed
+
+thing happened.
+
+## Out of scope
+
+None.
+
+## Verification
+
+ok
+EOF
+stage_all
+commit_quiet "docs: grandfathered receipt without decisions"
+EVAL_LABEL="$EVAL_ID grandfathered-no-decisions" expect_pass "$CHECK"
 
 eval_done
