@@ -9,8 +9,8 @@ packs:
 - id: governance-kit/core
   version: 0.4.0
   source: gh
-  ref: gh:duaility/governance-kit/packs/core@core/v0.4.0
-  sha: e9d339cf0ffbc2ff627e5db61ef49fe09943b712
+  ref: gh:duaility/governance-kit/packs/core@main
+  sha: fd38a10012088c278a5ff614f8921bd6b35440d7
   subpath: packs/core
   min_governance_kit: '0.3'
   installed_at: 2026-06-09 00:00:00+00:00

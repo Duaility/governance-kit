@@ -175,8 +175,7 @@ write_installed_manifest "$repo_root" \
 # 2) record governance-kit/core in the lockfile (source: gh — fetched via
 #    the kit's own monorepo subpath, just like any community pack).
 #    Resolve the kit version's HEAD SHA at install time and record it as
-#    the pin. The working-tree resolver (#115) short-circuits to the
-#    installed kit's working tree when running from inside it.
+#    the pin (a real network fetch of the ref, like any other pack).
 core_sha="$(packverb fetch gh:duaility/governance-kit/packs/core@v$core_pack_version | python3 -c 'import json,sys;print(json.load(sys.stdin)["sha"])')"
 packverb lock-add "$repo_root/.governance/packs.lock" governance-kit/core \
     --source gh --version "$core_pack_version" \

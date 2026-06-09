@@ -5,10 +5,8 @@
 # ensures `.governance/packs/<id>/` matches the locked SHA's content:
 #
 #   1. Call `packverb fetch <ref>@<sha>` to populate (or hit) the cache at
-#      `${GOVERNANCE_KIT_HOME:-$HOME/.governance/cache}/packs/<id-slug>@<sha>/`.
-#      The working-tree resolver (#115) short-circuits this to read from
-#      the consumer's own monorepo when the URL points at it — that's the
-#      dogfood / inner-loop dev case.
+#      `${GOVERNANCE_KIT_HOME:-$HOME/.governance/cache}/packs/<id-slug>@<sha>/`
+#      via a network clone of the ref.
 #   2. Copy the cached subpath into `.governance/packs/<id>/`. Existing
 #      files are clobbered; that's the point — reconcile is the *rebuild*
 #      step, not a merge.
@@ -93,7 +91,12 @@ for pack in data.get("packs", []):
 while IFS=$'\t' read -r pack_id ref sha subpath directives_csv; do
     [[ -z "$pack_id" ]] && continue
 
-    fetch_json="$(pv fetch "${ref}@${sha}")"
+    # Pin to the locked SHA for a deterministic rebuild. The lock `ref` already
+    # carries a human-readable `@<rev>` (e.g. `@main`); strip it before
+    # appending `@<sha>` so we fetch the exact commit, not a malformed
+    # `@<rev>@<sha>`.
+    base_ref="${ref%@*}"
+    fetch_json="$(pv fetch "${base_ref}@${sha}")"
     pack_dir="$(printf '%s' "$fetch_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["pack_dir"])')"
 
     if [[ ! -d "$pack_dir" ]]; then
