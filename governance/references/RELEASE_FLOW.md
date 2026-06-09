@@ -50,7 +50,10 @@ bash scripts/release.sh <kit|core> <X.Y.Z> [--dry-run] [--push]
    section (the curated historical entries already cover pre-tag changes).
 6. **Commit + tag.** `chore(release): <axis> v<old> → v<new>`, made through the
    hook path so accounting trailers attach, then an annotated tag
-   `kit/vX.Y.Z` / `core/vX.Y.Z`.
+   `kit/vX.Y.Z` / `core/vX.Y.Z`. A release commit is mechanical — it has no
+   feature issue and touches no receipt — so `release.sh` writes in-body
+   `governance: allow-commit-message-format` and `allow-commit-issue-receipt-match`
+   waivers; the accounting directives still apply and are stamped normally.
 7. **Publish.** `--push` pushes the branch and tag; otherwise the script prints
    the two `git push` commands. Pushing the tag triggers
    [`release.yml`](../../.github/workflows/release.yml), which lifts the matching

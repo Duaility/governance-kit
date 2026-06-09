@@ -1,6 +1,6 @@
 # issue-146 — versioning + release foundation
 
-Addresses [#146](https://github.com/Duaility/governance-kit/issues/146) — **Phases 0–3** (landed across stacked PRs against this issue). Phase 4 (cut the first real tags) remains open and is tracked as the unchecked item below; it is post-merge.
+Addresses [#146](https://github.com/Duaility/governance-kit/issues/146) — **Phases 0–4** (Phases 0–3 across stacked PRs; Phase 4 as a direct-to-main release).
 
 ## Checklist
 
@@ -14,7 +14,7 @@ Addresses [#146](https://github.com/Duaility/governance-kit/issues/146) — **Ph
 - [x] version-consistency directive
 - [x] kit-version-consistency dogfood directive
 - [x] release-only bumps + reproducible markers
-- [ ] cut first kit/core tags (Phase 4)
+- [x] cut first kit/core tags
 
 ## What changed
 
@@ -28,11 +28,11 @@ Addresses [#146](https://github.com/Duaility/governance-kit/issues/146) — **Ph
 - **version-consistency directive.** New shipped core directive (`packs/core/directives/version-consistency/`, `standard` preset, `surface: repo-state`, `hook: pre-commit`) asserting that every managed-file `kit-version=` marker equals `.governance/install.yaml`'s `kit_version`; the managed set is derived from the manifest so it never trips over generator code or fixtures, and it is a no-op without the manifest. Constitution subsection + evolution-log entry + four eval cases (consistent / drift / no-manifest / no-kit_version) land with it; added to `DIRECTIVES_CATALOG.md`.
 - **kit-version-consistency dogfood directive.** New repo-local directive (`.governance/packs/duaility/governance-kit/directives/kit-version-consistency/`, registered in `packs.lock`) guarding the kit-authoring sources that only exist in this repo: `kit.yaml` version == `SKILL.md` frontmatter version, and core's `min_governance_kit` ≤ the kit version (the axis invariant). Runs in this repo's own suite.
 - **release-only bumps + reproducible markers.** Dropped the `generated=<wall-clock-date>` field from the `# governance-kit:managed kit-version=<v>` marker format — both writers (`stamp_managed_marker` in `install.sh`, `_write_marker` in `hooks.sh`) now emit dateless markers, so re-stamping the same version is a byte-identical no-op. Re-stamped the 9 live managed files in this repo, updated the `test-install-sh.sh` assertion (now asserts the exact dateless line + `assert_not_contains generated=`), and refreshed the format references in `UPDATE_FLOW.md`, `INIT_FLOW.md`, `PACK_AUTHORING.md`, `UNINSTALL_FLOW.md`, and the kit-update eval README. Documented the release-only-bump rule in `AGENTS.md` and tag-based pinning (prefer `@<name>/vX.Y.Z` over `@main`) in `PACK_VERBS.md`.
+- **cut first kit/core tags.** Hardened `release.sh` for first real use against the self-governed repo (a `chore(release)` commit has no issue anchor and touches no receipt, so it now writes in-body `allow-commit-message-format` + `allow-commit-issue-receipt-match` waivers; documented in `RELEASE_FLOW.md`), and fixed the CHANGELOG insertion point to sit below `[Unreleased]`. Then cut the first prefixed releases directly on `main`: **core 0.3.4 → 0.4.0** (MINOR — gained the `version-consistency` directive) and **kit 0.3 → 0.3.5**, each a `chore(release)` commit + annotated tag (`core/v0.4.0`, `kit/v0.3.5`). Pushing the tags triggers `release.yml` → GitHub Releases.
 
 ## Out of scope
 
-- Phase 4 (cutting the first real `kit/v0.3.0` + `core/v0.3.4` tags) — post-merge, tracked as the unchecked item in #146; it runs `scripts/release.sh`, which re-stamps every marker to the new dateless format as part of the `kit/v0.4.0` cut.
-- Consuming the shipped `version-consistency` directive into this repo's own lock (would need a core pack release + `pack update`); deferred to the pack-release flow. The dogfood's version story is already self-enforced in CI by the local `kit-version-consistency` directive.
+- Consuming the shipped `version-consistency` directive into this repo's own lock (would need `governance pack update` against the new `core/v0.4.0` tag); the dogfood's version story is already self-enforced in CI by the local `kit-version-consistency` directive.
 - Renumbering historical versions; the pre-tag 0.3.4 PATCH-for-a-feature mislabel stays, with correct semver applied forward.
 
 ## Decisions

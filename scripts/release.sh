@@ -142,11 +142,18 @@ prepend_changelog() {   # insert SECTION above the first existing "## [" entry, 
         { printf '# Changelog\n\nAll notable changes to governance-kit. Kit and core-pack releases are\ntagged `kit/vX.Y.Z` / `core/vX.Y.Z`; see governance/references/VERSIONING.md.\n\n'; printf '%s' "$SECTION"; } > "$cl"
         return
     fi
-    awk -v section="$SECTION" '
-        !done && /^## \[/ { printf "%s", section; done=1 }
-        { print }
-        END { if (!done) { printf "\n%s", section } }
-    ' "$cl" > "$tmp"
+    # Insert the new release section after the [Unreleased] block — before the
+    # first *versioned* entry or the `---` separator that precedes the
+    # historical section — so [Unreleased] stays on top, newest release next.
+    # Find the insertion line (a single value, awk-safe), then splice with
+    # head/tail — awk -v can't carry a multi-line section string.
+    local at
+    at="$(awk '(/^## \[/ && $0 !~ /\[Unreleased\]/) || /^---[[:space:]]*$/ { print NR; exit }' "$cl")"
+    if [[ -n "$at" ]]; then
+        { head -n "$((at - 1))" "$cl"; printf '%s' "$SECTION"; tail -n "+$at" "$cl"; } > "$tmp"
+    else
+        { cat "$cl"; printf '\n%s' "$SECTION"; } > "$tmp"
+    fi
     cat "$tmp" > "$cl"; rm -f "$tmp"
 }
 
@@ -178,7 +185,15 @@ fi
 prepend_changelog
 
 git add -A
-git commit -m "chore(release): ${AXIS} v${CURRENT} → v${VERSION}"
+# A `chore(release)` commit is a mechanical version bump: it has no feature
+# issue to anchor (so it can't satisfy commit-message-format's `(#N)` suffix)
+# and touches no receipt (so commit-issue-receipt-match has nothing to match).
+# Both are waived in-body; the accounting directives still apply and are stamped
+# by the runtime populator like any other agent commit.
+git commit \
+    -m "chore(release): ${AXIS} v${CURRENT} → v${VERSION}" \
+    -m "governance: allow-commit-message-format release commits are mechanical version bumps, not tied to a feature issue" \
+    -m "governance: allow-commit-issue-receipt-match release commits carry no receipt"
 git tag -a "$TAG" -m "${AXIS} release ${VERSION}"
 note "committed + tagged $TAG"
 
