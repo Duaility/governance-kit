@@ -58,7 +58,7 @@ These compose into a chain — **issue → receipt → commit → cost** — and
 ## Quickstart
 
 ```sh
-# Install the skill into your agent (see Install for scope options)
+# Install the skill into your agent (see Lifecycle for scope options)
 npx skills add Duaility/governance-kit
 
 # In a fresh repo, launch your agent and ask it to bootstrap
@@ -83,14 +83,15 @@ The agent reads the id + rationale and self-corrects on the next attempt.
 ### Verbs
 
 ```
-governance init                                       # bootstrap a repo
-governance uninstall [--dry-run|--soft|--hard]        # tear-down
-governance pack {search,add,update,remove,list}       # community pack lifecycle
-governance directive {add,modify,remove}              # atomic directive amendments
+governance init                                        # bootstrap a repo
+governance kit update [--with-packs|--dry-run|--force] # re-sync runtime files to a new kit version
+governance pack {list,search,add,update,remove,create} # pack lifecycle (community + repo-local)
+governance directive {add,modify,remove} [--pack …]    # atomic directive amendments
+governance reset {--directive <id>|--pack <id>|--all}  # restore drifted directives to the pinned version
+governance uninstall [--dry-run|--soft|--hard]         # tear-down
 ```
 
-> [!IMPORTANT]
-> Don't hand-edit `CONSTITUTION.md` or files under `.governance/`. The `directive *` verbs keep the check, the rationale, and the history in lockstep — hand-edits will drift the constitution out of sync with the tests.
+Full install / update / uninstall usage for both layers is in [Lifecycle](#lifecycle) below.
 
 ### Anatomy of a directive
 
@@ -155,14 +156,26 @@ Ships with `governance init`:
 
 Full catalog: [governance/references/DIRECTIVES_CATALOG.md](governance/references/DIRECTIVES_CATALOG.md).
 
-## Install
+## Lifecycle
 
-The recommended path is [`npx skills`](https://github.com/vercel-labs/skills), the open install CLI for [Agent Skills](https://agentskills.io):
+governance-kit has **two layers**, versioned independently on separate axes (the Helm `Chart.version` vs `appVersion` model — see [VERSIONING.md](governance/references/VERSIONING.md)):
+
+- **The kit** — the framework: the `governance` skill, the runtime (`run.sh`, `lib.sh`), the hook generators, and the schemas. Released under `kit/vX.Y.Z`.
+- **Packs** — the directive *content*: `governance-kit/core` ships with the kit; community packs live in their own repos. Released under `<pack>/vX.Y.Z` (e.g. `core/v0.4.0`).
+
+`.governance/packs.lock` is the source of truth for **which** packs and versions a repo runs. The directive code itself is **vendored into `.governance/packs/<owner>/<name>/` and committed** — so the checks that enforce your repo are reviewable in your own diffs, and a pack bump shows the real `check.sh` change, not just a SHA. (The lock pins a SHA for integrity; committing the tree adds in-diff auditability — the `go mod vendor` / committed-Helm-`charts/` choice, justified because governance is a trust tool.)
+
+### The kit
+
+**Install** — add the skill to your agent(s) with [`npx skills`](https://github.com/vercel-labs/skills), then bootstrap a repo:
 
 ```sh
 npx skills add Duaility/governance-kit -g              # all agents, user-wide
 npx skills add Duaility/governance-kit -a claude-code  # one agent only
-npx skills add Duaility/governance-kit                 # project-scoped, committed to repo
+npx skills add Duaility/governance-kit                 # project-scoped, committed to the repo
+
+# then, inside the target repo, ask your agent:
+> governance init                                      # writes CONSTITUTION.md, .governance/, a pre-commit hook, the core pack
 ```
 
 <details>
@@ -177,9 +190,50 @@ ln -s "$(pwd)/governance" ~/.claude/skills/governance   # Claude Code
 ln -s "$(pwd)/governance" ~/.codex/skills/governance    # Codex
 ```
 
-Edits in the clone flow to both runtimes live — handy when contributing to governance-kit itself.
+Edits in the clone flow to every linked runtime live — handy when contributing to governance-kit itself.
 
 </details>
+
+**Update** — two independent things can move; update each on its own:
+
+```sh
+npx skills add Duaility/governance-kit                 # refresh the skill on your machine to the latest kit release
+governance kit update [--with-packs] [--dry-run] [--force]
+                                                       # inside a repo: re-sync the runtime files init seeded
+                                                       # (run.sh, lib.sh, governance.yml, enable-governance.sh,
+                                                       # hook dispatchers) to the kit version now on PATH
+```
+
+`kit update` is **disjoint** from `pack update`: it touches the framework runtime, never directive content. It diffs each kit-owned file and prompts per-file before writing; managed files carry a `# governance-kit:managed kit-version=<v>` marker that flags them as safe to regenerate. `--with-packs` chains a `pack update` afterward.
+
+**Uninstall** — reverse everything `init` did:
+
+```sh
+governance uninstall --dry-run                         # preview (the default when state is ambiguous)
+governance uninstall --soft                            # remove kit-owned files; keep pack-seeded docs (QUALITY.md, COSTS.md, …)
+governance uninstall --hard                            # remove everything kit-owned
+```
+
+`uninstall` only deletes what it recognizes as kit-owned — manifest entries plus `# governance-kit:managed` markers — and never touches your content, unmarked hooks, or uncommitted changes. To remove the **skill** itself from your machine, delete the symlink your installer created (`npx skills` manages `~/.claude/skills/…`, `~/.codex/skills/…`, etc.).
+
+### Packs
+
+```sh
+governance pack list                                   # what's installed, with versions
+governance pack search [query]                         # browse the community catalog
+governance pack add gh:acme/soc2-pack@v1.2.0           # install a community pack — pin a tag, not a branch
+governance pack update [<pack-id>]                     # re-pin SHA + re-vendor the directive code; diffs before executing
+governance pack remove <pack-id>                       # uninstall a pack (community or repo-local)
+governance pack create <name>                          # scaffold a repo-local pack at .governance/packs/<you>/<name>/
+```
+
+- **Core pack.** `governance-kit/core` installs with `governance init` at your chosen preset (`minimal` / `standard` / `strict`) and updates like any other pack: `governance pack update governance-kit/core`.
+- **Pin tags, not branches.** `@main` silently tracks the moving tip on every update; `@core/v0.4.0` is an immutable, reviewable pin. See [VERSIONING.md](governance/references/VERSIONING.md#tag-scheme).
+- **`add` / `update` vendor the directive code** into `.governance/packs/<owner>/<name>/` and commit it — directives only (author-side `evals/` and `install-assets/` are stripped). `update` shows the diff before it runs, because that diff is check code that will run on your commits.
+- **Community packs** live in their own repos and install via `governance pack add gh:<owner>/<repo>`. Authoring your own: [PACK_AUTHORING.md](governance/references/PACK_AUTHORING.md). Discovery reads the advisory catalog at [catalog.community.json](governance/assets/catalog.community.json) — currently empty; PRs welcome.
+
+> [!IMPORTANT]
+> Don't hand-edit `CONSTITUTION.md` or files under `.governance/`. The `directive {add,modify,remove}` and `reset` verbs keep the check, the rationale, and the evolution log in lockstep — hand-edits drift the constitution out of sync with the tests.
 
 ## What's in core
 
@@ -211,10 +265,6 @@ The chain — **issue → receipt → commit → cost** — turned into mechanic
 | `doc-integrity` | **`always_install: true` — mandatory in every install.** Makes system-of-record documents append-only (config: `.governance/integrity.conf`, seeded with all rules enabled): receipts immutable once on the trunk, `COSTS.md`/`STEERING.md` ledgers append-only, and frozen sections (`QUALITY.md` Resolved, the Evolution Log) keep their baseline lines verbatim. Branch-authored content stays editable until it merges. | standard |
 | `agent-token-accounting` | Every commit carries token + cost trailers and a matching `COSTS.md` row keyed by `Cost-Key`. | standard |
 | `agent-steering-accounting` | Every commit stamps `Steer-Count` / `Steer-Types` / `Steer-Tiers` and appends rows to append-only `STEERING.md`. **`always_install: true` — mandatory in every install.** Records human correction text verbatim — redact via the directive's classifier hook rather than skipping it. | standard |
-
-## Community packs
-
-Community packs live in their own repos and install via `governance pack add gh:<owner>/<repo>`. Authoring your own: [governance/references/PACK_AUTHORING.md](governance/references/PACK_AUTHORING.md). Discovery via `governance pack search` reads the advisory catalog at [`governance/assets/catalog.community.json`](governance/assets/catalog.community.json) — currently empty; PRs welcome.
 
 ## Why not just pre-commit / husky / lefthook?
 
