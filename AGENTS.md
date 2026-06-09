@@ -147,4 +147,5 @@ Edits to source files flow to both runtimes live.
 - [governance/references/DIRECTIVES_CATALOG.md](governance/references/DIRECTIVES_CATALOG.md) — every ready-made directive and its check.
 - [governance/references/PACK_AUTHORING.md](governance/references/PACK_AUTHORING.md) — writing a third-party pack.
 - [governance/references/NATIVE_TESTS.md](governance/references/NATIVE_TESTS.md) — porting bash directives to pytest / jest / go test, husky / pre-commit.com snippets.
+- [governance/references/VERSIONING.md](governance/references/VERSIONING.md) — the two version axes (kit vs pack), the semver policy, the tag scheme, and the release procedure.
 - [README.md](README.md) — the public-facing overview.

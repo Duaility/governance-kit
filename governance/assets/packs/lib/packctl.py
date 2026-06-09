@@ -24,12 +24,29 @@ PACK_FIELDS = ("id", "name", "version", "min_governance_kit", "description", "au
 DIRECTIVE_FIELDS = ("category", "recommended", "summary", "surface", "hook")
 CAPABILITY_FIELDS = ("reads", "writes")
 
-# Governance-kit version advertised to pack manifests. Packs declare
-# `min_governance_kit` to express the minimum kit version they need; validation
-# refuses packs whose minimum is newer than this constant. The comparison uses a
+# Governance-kit version — the kit (framework) axis. The single source of truth
+# is governance/assets/kit.yaml; this module reads it so packs, the release
+# script, and the version-consistency directive all agree on one value. Packs
+# declare `min_governance_kit` to express the minimum kit they need; validation
+# refuses packs whose minimum is newer than KIT_VERSION. The comparison uses a
 # lexicographic SemVer-ish tuple (split on `.`, numeric segments compared as
-# ints, non-numeric segments as strings) — see `_version_tuple`.
-KIT_VERSION = "0.3"
+# ints, non-numeric segments as strings) — see `_version_tuple`. See
+# governance/references/VERSIONING.md for the full policy.
+_KIT_YAML = Path(__file__).resolve().parents[2] / "kit.yaml"
+
+
+def _load_kit_version() -> str:
+    try:
+        data = yaml.safe_load(_KIT_YAML.read_text()) or {}
+    except (OSError, yaml.YAMLError) as exc:  # pragma: no cover - kit is malformed
+        raise RuntimeError(f"cannot read kit version from {_KIT_YAML}: {exc}") from exc
+    version = data.get("version")
+    if not version:
+        raise RuntimeError(f"{_KIT_YAML} is missing a top-level 'version' field")
+    return str(version)
+
+
+KIT_VERSION = _load_kit_version()
 
 
 def _version_tuple(value: str) -> tuple[Any, ...]:

@@ -1,0 +1,47 @@
+name: Release
+
+# Cut a GitHub Release when a prefixed release tag is pushed. Tags are created
+# by scripts/release.sh (the only sanctioned version-line writer). The release
+# notes are the matching section lifted verbatim from CHANGELOG.md.
+#
+# This workflow is kit-repo-only — it is NOT a template shipped to target repos,
+# so it carries no `governance-kit:managed` marker. All actions are SHA-pinned
+# per the workflows-hardened directive; release creation uses the preinstalled
+# `gh` CLI to avoid a third-party action.
+
+on:
+  push:
+    tags:
+      - 'kit/v*'
+      - 'core/v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Create GitHub Release from CHANGELOG section
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          notes="$(awk -v key="## [${TAG}]" '
+              index($0, key) == 1 { f = 1; next }
+              f && (/^## \[/ || /^# /) { exit }
+              f { print }
+          ' CHANGELOG.md)"
+          if [[ -z "${notes//[$' \t\n']/}" ]]; then
+              notes="Release ${TAG}. See CHANGELOG.md."
+          fi
+          gh release create "$TAG" \
+              --title "$TAG" \
+              --notes "$notes" \
+              --verify-tag
