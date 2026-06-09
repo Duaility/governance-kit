@@ -44,6 +44,7 @@ Before touching anything, run these in parallel:
   - `CONSTITUTION.md`
   - `.governance/run.sh`, `.governance/lib.sh`, every `.governance/packs/<pack-id>/directives/<id>/`
   - `.governance/freshness.conf`
+  - `.governance/integrity.conf`
   - `.github/workflows/governance.yml`
   - `.governance/install.yaml`
   - `.governance/packs.lock`

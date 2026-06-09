@@ -53,7 +53,7 @@ If you're trusting agents to ship code, you need to see exactly what they were t
 - **Token cost** (`COSTS.md`). Every agent-authored commit carries token + cost trailers (`Token-Input`, `Token-Output`, `Cost-USD`, …) and a matching row in the ledger. Survives squash-merges via a stable `Cost-Key`. Every change has a price tag.
 - **Human steering** (`STEERING.md`). Every commit carries summary trailers (`Steer-Count`, `Steer-Types`, `Steer-Tiers`) tallying the rows it added to the ledger — one row per detected human-steering event (interrupt or redirect). See at a glance which commits ran on autopilot and which needed your hand on the wheel.
 
-These compose into a chain — **issue → receipt → commit → cost** — and breaking any link fails the next push. Directive provenance, the chain, and token cost all ship in the [`governance-kit/core`](#whats-in-core) pack and land in the `standard` preset. Steering accounting (`agent-steering-accounting`) ships in the same pack but is opt-in only (it records human correction text verbatim — privacy tradeoff).
+These compose into a chain — **issue → receipt → commit → cost** — and breaking any link fails the next push. Directive provenance, the chain, and token cost all ship in the [`governance-kit/core`](#whats-in-core) pack and land in the `standard` preset. Steering accounting (`agent-steering-accounting`) ships in the same pack and is `always_install: true` — mandatory in every install (it records human correction text verbatim — redact via the directive's classifier hook rather than skipping it).
 
 ## Quickstart
 
@@ -208,8 +208,9 @@ The chain — **issue → receipt → commit → cost** — turned into mechanic
 | `issues-tracked` | `QUALITY.md` exists at repo root with `## Open` and `## Resolved` sections. | standard |
 | `receipt-per-issue` | Every `receipts/*.md` has a unique `issue-<N>` filename token, the four required sections, and each `- [x]` checklist item crosswalks into `## What changed` or `## Verification`. | standard |
 | `commit-issue-receipt-match` | Every non-merge commit's issue anchor (`(#N)` or `Issue: #N`) matches an `issue-<N>` token on a touched receipt. | standard |
+| `doc-integrity` | **`always_install: true` — mandatory in every install.** Makes system-of-record documents append-only (config: `.governance/integrity.conf`, seeded with all rules enabled): receipts immutable once on the trunk, `COSTS.md`/`STEERING.md` ledgers append-only, and frozen sections (`QUALITY.md` Resolved, the Evolution Log) keep their baseline lines verbatim. Branch-authored content stays editable until it merges. | standard |
 | `agent-token-accounting` | Every commit carries token + cost trailers and a matching `COSTS.md` row keyed by `Cost-Key`. | standard |
-| `agent-steering-accounting` | Every commit stamps `Steer-Count` / `Steer-Types` / `Steer-Tiers` and appends rows to `STEERING.md`. **Opt-in — not in any preset**, because it records human correction text verbatim. | — |
+| `agent-steering-accounting` | Every commit stamps `Steer-Count` / `Steer-Types` / `Steer-Tiers` and appends rows to append-only `STEERING.md`. **`always_install: true` — mandatory in every install.** Records human correction text verbatim — redact via the directive's classifier hook rather than skipping it. | standard |
 
 ## Community packs
 

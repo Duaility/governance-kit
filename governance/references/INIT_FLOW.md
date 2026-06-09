@@ -153,6 +153,7 @@ For each directive in the final install list, use `../assets/packs/lib/install.s
 - `install_directive_folder <pack-dir> <directive> <repo-root>` copies `<pack-dir>/directives/<directive>/` into `.governance/packs/<pack-id>/directives/<directive>/`, excluding `evals/`, and marks `check.sh` plus directive-owned hooks/runtimes executable.
 - `install_directive_assets <pack-dir> <directive> <repo-root>` copies optional `install-assets/` files into the target repo without overwriting existing files in augment mode. This is how directives such as `issues-tracked` seed `QUALITY.md` and `agent-token-accounting` seeds `COSTS.md`.
 - If the user selects `doc-freshness`, also copy `../assets/freshness.conf` to `.governance/freshness.conf` (the seed file is commented — every path is opt-in by uncommenting).
+- `doc-integrity` is `always_install: true`, so it is always in the install list — copy `../assets/integrity.conf` to `.governance/integrity.conf`. Unlike `freshness.conf`, this seed ships with all standard rules **enabled** (each is a no-op until its document exists), so document integrity is on by default; the user opts a document out by deleting or commenting its line.
 
 After all directives are installed, write the install state pair:
 
