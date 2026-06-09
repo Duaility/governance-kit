@@ -6,13 +6,13 @@ packs:
   directives:
   - pre-commit-test-gate
 - id: governance-kit/core
-  version: '0.2'
+  version: '0.3.2'
   source: gh
-  ref: gh:duaility/governance-kit/packs/core@v0.2
-  sha: b33ec7a05be6c157a63b5f1a22d0102a1bf5a50c
+  ref: gh:duaility/governance-kit/packs/core@main
+  sha: ff76a2827e8653f4998817d7b654f4735c2cdfa5
   subpath: packs/core
-  min_governance_kit: ''
-  installed_at: 2026-05-08T13:00:00Z
+  min_governance_kit: '0.3'
+  installed_at: 2026-06-09T00:00:00Z
   directives:
   - agent-steering-accounting
   - agent-token-accounting
