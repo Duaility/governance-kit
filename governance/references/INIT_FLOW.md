@@ -233,7 +233,7 @@ stamp_managed_marker "$repo_root/.governance/run.sh" "$kit_version"
 stamp_managed_marker "$repo_root/.governance/lib.sh" "$kit_version"
 ```
 
-`stamp_managed_marker` rewrites the bare `# governance-kit:managed` line in the template into the versioned form `# governance-kit:managed kit-version=<v> generated=<YYYY-MM-DD>`. The marker is the per-file version pin `governance kit update` reads to detect drift; `install.yaml.kit_version` mirrors it.
+`stamp_managed_marker` rewrites the bare `# governance-kit:managed` line in the template into the versioned form `# governance-kit:managed kit-version=<v>`. The marker is the per-file version pin `governance kit update` reads to detect drift; `install.yaml.kit_version` mirrors it. It carries no wall-clock date, so re-stamping the same version is a byte-identical no-op.
 
 `init` only installs the bash runner. Governance is a meta-layer that sits on top of the project's code — coupling the directive suite to the project's own test runner (pytest / jest / go test) inverts the dependency. Bash works in any repo, in any CI, without install steps. Users who want governance failures to surface alongside their normal test report can add native test wrappers post-init by following [NATIVE_TESTS.md](NATIVE_TESTS.md) — that is an opt-in enhancement, not part of bootstrap.
 
@@ -255,7 +255,7 @@ The generator:
 3. Stamps each dispatcher with a **line-2 ownership marker**:
    ```sh
    #!/usr/bin/env bash
-   # governance-kit:managed kit-version=<v> generated=<YYYY-MM-DD>
+   # governance-kit:managed kit-version=<v>
    ```
    The marker shape is identical to the one runtime templates carry. `kit-version=<v>` is the per-file version pin `governance kit update` reads to detect drift; installed pack/directive details live in `.governance/packs.lock`.
 

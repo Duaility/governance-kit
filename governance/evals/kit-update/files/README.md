@@ -6,7 +6,7 @@ Each subdirectory is a seed repo state for one eval case. Before running an eval
 
 The kit's `KIT_VERSION` constant is `"0.3"` ([packctl.py](../../../assets/packs/lib/packctl.py)) at the time these fixtures were authored — fixtures stamped `kit_version: "0.1"` are deliberately stale, `"0.3"` is current, `"9.9"` is a future version newer than any kit we'd run against.
 
-The marker shape is `# governance-kit:managed kit-version=<v> generated=<date>`. The marker is the per-file version pin; `install.yaml.kit_version` is a cache. When the manifest is missing, `kit update` reconstructs the pin from runtime markers (taking the min `kit-version=`); only if no versioned marker is found does the verb refuse.
+The marker shape is `# governance-kit:managed kit-version=<v>`. The marker is the per-file version pin; `install.yaml.kit_version` is a cache. When the manifest is missing, `kit update` reconstructs the pin from runtime markers (taking the min `kit-version=`); only if no versioned marker is found does the verb refuse.
 
 | Fixture | `kit_version` | Markers | What it exercises |
 |---|---|---|---|

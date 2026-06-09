@@ -15,7 +15,7 @@ KITV="$(sed -nE 's/^version:[[:space:]]*"?([^"#[:space:]]+)"?.*/\1/p' "$ROOT/gov
 fixture_init
 install_directive "$PACK_DIR" "$EVAL_ID"
 
-write_marked() { printf '# governance-kit:managed kit-version=%s generated=2026-01-01\nplaceholder\n' "$2" > "$1"; }
+write_marked() { printf '# governance-kit:managed kit-version=%s\nplaceholder\n' "$2" > "$1"; }
 
 mkdir -p .governance .github/workflows scripts .githooks
 cat > .governance/install.yaml <<EOF

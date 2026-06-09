@@ -125,6 +125,10 @@ snippet, metadata, and eval all live together under `directives/<directive-id>/`
 4. For authoring an entirely new pack, see
    [governance/references/PACK_AUTHORING.md](governance/references/PACK_AUTHORING.md).
 
+### Versioning & releases
+
+Version lines are written **only** by [`scripts/release.sh`](scripts/release.sh), in `chore(release)` commits — feature and fix PRs never touch `governance/assets/kit.yaml`, `packs/core/pack.yaml`'s `version`, `SKILL.md` frontmatter, `.governance/install.yaml`'s `kit_version`, or any `kit-version=` marker. The kit (framework) and the core pack version on **independent** semver axes. Full policy, the tag scheme (`kit/vX.Y.Z`, `core/vX.Y.Z`), and the release procedure: [governance/references/VERSIONING.md](governance/references/VERSIONING.md) and [governance/references/RELEASE_FLOW.md](governance/references/RELEASE_FLOW.md).
+
 ### Commit messages
 
 Conventional Commits are enforced. Prefixes: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `build`, `ci`, `revert`, `style`. A `commit-msg` hook validates the pending subject line.

@@ -230,3 +230,4 @@ Schema:
 | claude-code-2b7f7947-fb6-1780996349 | claude-code | 2b7f7947-fb6b-4a5b-92e9-716361ef2b96 | #143 | claude-opus-4-8 | 7276 | 21102 | 32008 | 2048 | 30426 | 0.2355 | feat(governance): enforce document integrity for system-of-record docs (#143)Add |
 | claude-code-fb133d5f-80b-1781002378 | claude-code | fb133d5f-80b1-42a4-90f7-3e77ceb11f9a | #146 | claude-opus-4-8 | 2872 | 12505 | 16004 | 260 | 15637 | 0.1070 | feat(governance): versioning + release foundation (#146) |
 | claude-code-8367a9c5-0d6-1781008460 | claude-code | 8367a9c5-0d65-430a-939d-6a041cbbacd1 | #146 | claude-opus-4-8 | 2872 | 9021 | 16004 | 43 | 11936 | 0.0798 | feat(governance): version-consistency directive (#146) |
+| claude-code-e5be56d9-598-1781010612 | claude-code | e5be56d9-5982-40ea-aacd-912b10fc2e84 | #146 | claude-opus-4-8 | 34794 | 1989433 | 87141164 | 641633 | 2665860 | 72.2193 | refactor(governance): reproducible markers + release-only bumps (#146) |

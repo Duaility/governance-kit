@@ -129,15 +129,15 @@ scripts (right after `#!/usr/bin/env bash`), line 1 for YAML and other
 files without a shebang. The full form carries the version pin:
 
 ```
-# governance-kit:managed kit-version=<v> generated=<YYYY-MM-DD>
+# governance-kit:managed kit-version=<v>
 ```
 
 Hook dispatchers carry the same form (kit-owned regenerable files all
 share one marker shape). The `kit-version=<v>` token is the per-file
 version pin — `kit update` reads it to compute drift; the manifest's
-`kit_version` field is a cache that mirrors the markers. `generated=`
-is informational and tracks the most recent stamp; do not treat it as
-load-bearing.
+`kit_version` field is a cache that mirrors the markers. The marker
+carries no wall-clock date, so re-stamping the same kit version is a
+byte-identical no-op.
 
 **Pre-marker installs.** Three sub-cases, distinguished by what the
 marker scan finds in each managed file:
@@ -215,8 +215,9 @@ Step 4, in order:
    ```
    This rewrites the bare `# governance-kit:managed` line in the source
    template to the versioned form `# governance-kit:managed
-   kit-version=<v> generated=<YYYY-MM-DD>` in place. `stamp_managed_marker`
-   is idempotent and lives in `governance/assets/packs/lib/install.sh`.
+   kit-version=<v>` in place. `stamp_managed_marker` is idempotent and
+   reproducible (no wall-clock date), and lives in
+   `governance/assets/packs/lib/install.sh`.
 
 For each pair in `Add` (destination missing): `cp <kit>/<src> <dest>`.
 
@@ -351,7 +352,7 @@ variant — the verb either emits the full block or it has not finished.
   audit. `--with-packs` is the explicit opt-in for the combined flow.
 - **Marker is the version pin; manifest is a cache.** Every kit-owned
   file (runtime templates and hook dispatchers alike) carries a
-  `# governance-kit:managed kit-version=<v> generated=<date>` marker.
+  `# governance-kit:managed kit-version=<v>` marker.
   The `kit-version=` token is the per-file pin `kit update` reads;
   `install.yaml.kit_version` mirrors it. If the manifest is missing,
   the verb reconstructs the pin by scanning markers (taking the min
