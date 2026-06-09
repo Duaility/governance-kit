@@ -147,12 +147,14 @@ prepend_changelog() {   # insert SECTION above the first existing "## [" entry, 
     # historical section — so [Unreleased] stays on top, newest release next.
     # Find the insertion line (a single value, awk-safe), then splice with
     # head/tail — awk -v can't carry a multi-line section string.
+    # `$(...)` strips SECTION's trailing newlines, so emit a blank line after it
+    # to keep sections separated.
     local at
     at="$(awk '(/^## \[/ && $0 !~ /\[Unreleased\]/) || /^---[[:space:]]*$/ { print NR; exit }' "$cl")"
     if [[ -n "$at" ]]; then
-        { head -n "$((at - 1))" "$cl"; printf '%s' "$SECTION"; tail -n "+$at" "$cl"; } > "$tmp"
+        { head -n "$((at - 1))" "$cl"; printf '%s\n\n' "$SECTION"; tail -n "+$at" "$cl"; } > "$tmp"
     else
-        { cat "$cl"; printf '\n%s' "$SECTION"; } > "$tmp"
+        { cat "$cl"; printf '\n%s\n' "$SECTION"; } > "$tmp"
     fi
     cat "$tmp" > "$cl"; rm -f "$tmp"
 }

@@ -23,9 +23,13 @@ tag-based release flow and are summarised at milestone granularity.
 
 ## [kit/v0.3.5] - 2026-06-09
 
-- Initial tagged release on the kit axis. Pre-tag history is in the curated entries below.## [core/v0.4.0] - 2026-06-09
+- Initial tagged release on the kit axis. Pre-tag history is in the curated entries below.
 
-- Initial tagged release on the core axis. Pre-tag history is in the curated entries below.---
+## [core/v0.4.0] - 2026-06-09
+
+- Initial tagged release on the core axis. Pre-tag history is in the curated entries below.
+
+---
 
 # Historical (pre-tag)
 
