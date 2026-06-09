@@ -111,10 +111,9 @@ For each pack-sourced directive in scope:
    packs and `governance-kit/core` (post-#117 the kit's core pack is fetched
    from `gh:duaility/governance-kit/packs/core@<rev>` like any other pack).
 3. If the cache entry is missing, re-fetch with
-   `packverb fetch <ref>@<sha>` to repopulate. The working-tree resolver
-   (#115) short-circuits this when the URL points at the consumer's own
-   monorepo (dogfood case). If the fetch fails, abort the entire reset —
-   partial reset is not a supported state.
+   `packverb fetch <ref>@<sha>` to repopulate (a network clone of the ref).
+   If the fetch fails, abort the entire reset — partial reset is not a
+   supported state.
 
 For hand-authored directives in the `--drop-handauthored` set, there
 is no pristine source — they are deletions, not restorations. Mark
