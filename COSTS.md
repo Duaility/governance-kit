@@ -245,3 +245,4 @@ Schema:
 | claude-code-e5be56d9-598-1781021766 | claude-code | e5be56d9-5982-40ea-aacd-912b10fc2e84 | #160 | claude-opus-4-8 | 6 | 6951 | 692892 | 9894 | 16851 | 0.6373 | docs: cover kit + pack lifecycle and core ideas in README (#160) |
 | claude-code-e5be56d9-598-1781021898 | claude-code | e5be56d9-5982-40ea-aacd-912b10fc2e84 | #160 | claude-opus-4-8 | 149 | 15791 | 2375796 | 13613 | 29553 | 1.6277 | docs: cover kit + pack lifecycle and core ideas in README (#160) |
 | claude-code-e5be56d9-598-1781022094 | claude-code | e5be56d9-5982-40ea-aacd-912b10fc2e84 | #160 | claude-opus-4-8 | 411 | 31870 | 2955636 | 28378 | 60659 | 2.3885 | docs: cover kit + pack lifecycle and core ideas in README (#160) |
+| claude-code-e5be56d9-598-1781022610 | claude-code | e5be56d9-5982-40ea-aacd-912b10fc2e84 | #162 | claude-opus-4-8 | 844 | 43056 | 9261036 | 40301 | 84201 | 5.9114 | refactor(governance): drop reconcile from the kit's own CI and clone setup (#162 |

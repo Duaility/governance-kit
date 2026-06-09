@@ -21,10 +21,6 @@ git config core.hooksPath .githooks
 current="$(git config --get core.hooksPath)"
 echo "enable-governance: core.hooksPath=$current"
 
-# Materialize directive folders for every `source: gh` entry in packs.lock.
-# Those trees are gitignored (reconstructable artifacts), so without this
-# step `.governance/run.sh` would only see committed `source: local` packs.
-# Re-run after pulling lockfile changes.
-if [[ -f .governance/packs.lock ]]; then
-    bash governance/assets/packs/lib/reconcile.sh "$ROOT"
-fi
+# No reconcile step: directive trees are committed (vendored) under
+# .governance/packs/, so a fresh clone already has them. Re-vendor with
+# `governance pack update` after editing a pack's source.
