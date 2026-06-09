@@ -18,7 +18,7 @@
 #      anything about that directive.
 #
 # Every generated hook carries an ownership marker on line 2:
-#   # governance-kit:managed kit-version=<v> generated=<YYYY-MM-DD>
+#   # governance-kit:managed kit-version=<v>
 # so a second bootstrap run can recognize its own output and overwrite
 # silently. Unmarked pre-existing hooks trip the collision detector and
 # the skill prompts the user (wrap / merge / overwrite).
@@ -91,12 +91,11 @@ collision_check() {
 
 _write_marker() {
     # Writes shebang + marker directly to stdout so no command-substitution
-    # strips the trailing newline.
+    # strips the trailing newline. The marker carries no wall-clock date, so
+    # regenerating a dispatcher on the same kit version is a byte-identical no-op.
     local version="$1"
-    local date
-    date=$(date +%Y-%m-%d)
-    printf '#!/usr/bin/env bash\n%s kit-version=%s generated=%s\n' \
-        "$MARKER_PREFIX" "$version" "$date"
+    printf '#!/usr/bin/env bash\n%s kit-version=%s\n' \
+        "$MARKER_PREFIX" "$version"
 }
 
 # _check_ids_for_hook <spec-file> <hook-kind>

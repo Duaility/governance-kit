@@ -8,7 +8,7 @@ The 6-step recipe `governance uninstall` runs. Dispatched from
 Three source-of-truth layers drive what `uninstall` deletes, in priority order:
 
 1. **Install state pair** at `.governance/install.yaml` (init receipt) and `.governance/packs.lock` (pack pin record) — the authoritative record of packs, directives, and paths `init` installed.
-2. **Ownership marker** — `.githooks/` dispatchers carry the line-2 marker `# governance-kit:managed kit-version=<v> generated=<date>` — the same shape runtime templates (`run.sh`, `lib.sh`, `governance.yml`, `enable-governance.sh`) carry. The marker is a contract that the file is regeneratable, and symmetrically, safe to delete.
+2. **Ownership marker** — `.githooks/` dispatchers carry the line-2 marker `# governance-kit:managed kit-version=<v>` — the same shape runtime templates (`run.sh`, `lib.sh`, `governance.yml`, `enable-governance.sh`) carry. The marker is a contract that the file is regeneratable, and symmetrically, safe to delete.
 3. **Heuristic fallback** — when neither file pair nor marker is present but governance artifacts are detected, `uninstall` defaults to **dry-run** and requires explicit opt-in before deleting anything.
 
 Leaving intact: files the user owns (pack-seeded docs like `QUALITY.md` / `COSTS.md` in soft mode), hooks without the ownership marker (those belong to someone else), user-authored content inside `AGENTS.md` (only the marker-bounded directive block is stripped), and every uncommitted change in the working tree.

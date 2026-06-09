@@ -49,6 +49,7 @@ presets:
     extends: minimal
     directives:
       - commit-message-format
+      - version-consistency
       - doc-freshness
       - issue-templates
       - issues-tracked
