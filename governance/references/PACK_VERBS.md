@@ -24,6 +24,7 @@ The runner walks `.governance/packs/*/*/directives/*/check.sh` uniformly — it 
 
 - `subpath` points at the directory containing `pack.yaml` (for monorepos).
 - `rev` can be a branch, tag, or 40-char SHA. `@main` at add-time is resolved to a concrete SHA and pinned in the lockfile.
+- **Prefer a release tag over a floating branch.** A branch like `@main` resolves to whatever the tip is at add-time and silently tracks latest on every `pack update`. Packs cut with the release tooling publish prefixed tags (`@<name>/vX.Y.Z`, e.g. `gh:duaility/governance-kit/packs/core@core/v0.3.4`) — a readable, immutable pin that lets a repo choose and hold a specific version. See [VERSIONING.md](VERSIONING.md#tag-scheme). Pin a tag (or a SHA) for any repo that wants a deliberate version rather than the moving tip.
 
 Resolve with `python packverb.py parse-ref <ref>`.
 

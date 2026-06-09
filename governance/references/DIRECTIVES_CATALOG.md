@@ -22,6 +22,7 @@ The three consolidated directives (`required-docs`, `repo-hygiene`, `secrets-hyg
 | Directive | What it checks |
 |---|---|
 | `required-docs` | Rolled-up presence check for repo-root docs and local-hook scaffolding. Sub-checks (all enabled): `constitution` (`CONSTITUTION.md` ≥ 10 lines); `agents` (`AGENTS.md` at repo root, 30–250 lines, ≥ 3 internal links, **and a link to `CONSTITUTION.md`** so the file is a map to the bedrock durable docs rather than a standalone manual); `readme` (`README.md`/`.rst` with heading + ≥ 30 words); `license` (`LICENSE`/variants at repo root, non-empty); `security` (`SECURITY.md` with contact); `architecture` (`ARCHITECTURE.md` ≥ 20 lines); `ci-workflow` (≥ 1 non-governance workflow); `env-example` (every key in local `.env` is declared in `.env.example`); `hooks` (`.githooks/pre-commit` tracked + executable, `core.hooksPath=.githooks`; no-ops on non-`githooks` strategies). To carve out a sub-check for your repo, use `governance directive modify` (or `governance directive remove`). |
+| `version-consistency` | The kit version agrees across the install: every managed-file `# governance-kit:managed kit-version=<v>` marker equals `.governance/install.yaml`'s `kit_version`. Managed set derived from the manifest (`tests_dir`'s `run.sh`/`lib.sh`, `ci_workflow`, `enable_governance_script`, `.githooks/*`). No-op when the manifest or its `kit_version` is absent. Repair path: `governance kit update`. |
 
 ### Security
 | Directive | What it checks |
@@ -66,7 +67,7 @@ For repos where every tree-change is produced through an agent runtime (Codex, C
 | Preset | Directives |
 |---|---|
 | `minimal`  | `required-docs`, `secrets-hygiene`, `repo-hygiene`, `workflows-hardened`, `no-broken-internal-doc-links` |
-| `standard` | *minimal* + `commit-message-format`, `doc-freshness`, `issue-templates`, `issues-tracked`, `receipt-per-issue`, `commit-issue-receipt-match`, `doc-integrity`, `agent-token-accounting`, `agent-steering-accounting` |
+| `standard` | *minimal* + `commit-message-format`, `version-consistency`, `doc-freshness`, `issue-templates`, `issues-tracked`, `receipt-per-issue`, `commit-issue-receipt-match`, `doc-integrity`, `agent-token-accounting`, `agent-steering-accounting` |
 | `strict`   | *standard* + `no-orphan-todos` |
 
 `agent-steering-accounting`, `repo-hygiene`, and `doc-integrity` are `always_install: true` — they install regardless of preset selection. The agent audit chain is mandatory in this kit's model because every commit is agent-authored: token-spend without steering coverage hides the human corrections that produced the cost, and `doc-integrity` keeps the chain's own artifacts (receipts, ledgers, logs) append-only so the record can't be quietly rewritten. `doc-integrity` reads `.governance/integrity.conf`, which is seeded with all standard rules enabled and is a no-op for any document not present.

@@ -229,3 +229,4 @@ Schema:
 | claude-code-8df464fe-08f-1778748184 | claude-code | 8df464fe-08f6-47fe-a85d-9d9e2045f4a9 | #134 | claude-opus-4-7 | 11 | 20854 | 1332341 | 11633 | 32498 | 1.0874 | chore(governance): bump kit version 0.2 M-bM^FM^R 0.3 (#134) |
 | claude-code-2b7f7947-fb6-1780996349 | claude-code | 2b7f7947-fb6b-4a5b-92e9-716361ef2b96 | #143 | claude-opus-4-8 | 7276 | 21102 | 32008 | 2048 | 30426 | 0.2355 | feat(governance): enforce document integrity for system-of-record docs (#143)Add |
 | claude-code-fb133d5f-80b-1781002378 | claude-code | fb133d5f-80b1-42a4-90f7-3e77ceb11f9a | #146 | claude-opus-4-8 | 2872 | 12505 | 16004 | 260 | 15637 | 0.1070 | feat(governance): versioning + release foundation (#146) |
+| claude-code-a4f31c1f-4b1-1781013715 | claude-code | a4f31c1f-4b13-4994-9fe7-92f30086597e | #146 | claude-opus-4-8 | 2735 | 9800 | 16004 | 107 | 12642 | 0.0856 | feat(governance): version-consistency directive + reproducible markers (#146) -m |

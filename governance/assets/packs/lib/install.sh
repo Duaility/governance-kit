@@ -37,7 +37,7 @@ stamp_managed_marker() {
     # Rewrites the `# governance-kit:managed` marker line in <dest> to the
     # versioned form:
     #
-    #   # governance-kit:managed kit-version=<v> generated=<YYYY-MM-DD>
+    #   # governance-kit:managed kit-version=<v>
     #
     # Used by `init`, `kit update`, and any future writer that copies a
     # kit-runtime template into a target repo. The marker line lives in the
@@ -45,9 +45,9 @@ stamp_managed_marker() {
     # scripts); this helper finds whichever of the first 3 lines carries the
     # bare-or-versioned marker and rewrites it in place.
     #
-    # Idempotent — re-stamping a file already on the target version produces
-    # the same bytes (modulo `generated=<date>`, which tracks the most recent
-    # stamp time and is informational, not load-bearing).
+    # Fully idempotent and reproducible — re-stamping a file already on the
+    # target version produces byte-identical output (the marker carries no
+    # wall-clock date, so stamping the same version twice is a no-op diff).
     #
     # The marker is the per-file version pin: `governance kit update` reads
     # `kit-version=<v>` from each managed file to detect drift, treating
@@ -58,9 +58,8 @@ stamp_managed_marker() {
         echo "stamp_managed_marker: $dest does not exist" >&2
         return 1
     fi
-    local date marker line_no
-    date=$(date +%Y-%m-%d)
-    marker="# governance-kit:managed kit-version=${kit_version} generated=${date}"
+    local marker line_no
+    marker="# governance-kit:managed kit-version=${kit_version}"
     line_no=$(awk '/^# governance-kit:managed/ { print NR; exit }' "$dest")
     if [[ -z "$line_no" ]]; then
         echo "stamp_managed_marker: $dest does not carry the managed marker" >&2

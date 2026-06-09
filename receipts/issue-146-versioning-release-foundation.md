@@ -1,6 +1,6 @@
 # issue-146 — versioning + release foundation
 
-Addresses [#146](https://github.com/Duaility/governance-kit/issues/146) — **Phases 0 and 1**. Phases 2–4 remain open in the issue and are tracked as the unchecked items below; they land in follow-up PRs.
+Addresses [#146](https://github.com/Duaility/governance-kit/issues/146) — **Phases 0–3** (landed across stacked PRs against this issue). Phase 4 (cut the first real tags) remains open and is tracked as the unchecked item below; it is post-merge.
 
 ## Checklist
 
@@ -11,8 +11,9 @@ Addresses [#146](https://github.com/Duaility/governance-kit/issues/146) — **Ph
 - [x] release.yml tag-triggered workflow
 - [x] CHANGELOG.md seed
 - [x] RELEASE_FLOW.md
-- [ ] version-consistency directive (Phase 2)
-- [ ] release-only bumps + reproducible markers (Phase 3)
+- [x] version-consistency directive
+- [x] kit-version-consistency dogfood directive
+- [x] release-only bumps + reproducible markers
 - [ ] cut first kit/core tags (Phase 4)
 
 ## What changed
@@ -24,10 +25,14 @@ Addresses [#146](https://github.com/Duaility/governance-kit/issues/146) — **Ph
 - **release.yml tag-triggered workflow.** New `.github/workflows/release.yml` cuts a GitHub Release from the matching CHANGELOG section on a `kit/v*` / `core/v*` tag push, using only SHA-pinned actions plus the preinstalled `gh` CLI.
 - **CHANGELOG.md seed.** New keep-a-changelog `CHANGELOG.md` with an `[Unreleased]` section and curated historical (pre-tag) entries.
 - **RELEASE_FLOW.md.** New `governance/references/RELEASE_FLOW.md` documents the release procedure and the "version lines are written only by release.sh" cardinal rule.
+- **version-consistency directive.** New shipped core directive (`packs/core/directives/version-consistency/`, `standard` preset, `surface: repo-state`, `hook: pre-commit`) asserting that every managed-file `kit-version=` marker equals `.governance/install.yaml`'s `kit_version`; the managed set is derived from the manifest so it never trips over generator code or fixtures, and it is a no-op without the manifest. Constitution subsection + evolution-log entry + four eval cases (consistent / drift / no-manifest / no-kit_version) land with it; added to `DIRECTIVES_CATALOG.md`.
+- **kit-version-consistency dogfood directive.** New repo-local directive (`.governance/packs/duaility/governance-kit/directives/kit-version-consistency/`, registered in `packs.lock`) guarding the kit-authoring sources that only exist in this repo: `kit.yaml` version == `SKILL.md` frontmatter version, and core's `min_governance_kit` ≤ the kit version (the axis invariant). Runs in this repo's own suite.
+- **release-only bumps + reproducible markers.** Dropped the `generated=<wall-clock-date>` field from the `# governance-kit:managed kit-version=<v>` marker format — both writers (`stamp_managed_marker` in `install.sh`, `_write_marker` in `hooks.sh`) now emit dateless markers, so re-stamping the same version is a byte-identical no-op. Re-stamped the 9 live managed files in this repo, updated the `test-install-sh.sh` assertion (now asserts the exact dateless line + `assert_not_contains generated=`), and refreshed the format references in `UPDATE_FLOW.md`, `INIT_FLOW.md`, `PACK_AUTHORING.md`, `UNINSTALL_FLOW.md`, and the kit-update eval README. Documented the release-only-bump rule in `AGENTS.md` and tag-based pinning (prefer `@<name>/vX.Y.Z` over `@main`) in `PACK_VERBS.md`.
 
 ## Out of scope
 
-- Phase 2 (the `version-consistency` directive), Phase 3 (the release-only-bump switch + dropping `generated=<date>` from the marker format), and Phase 4 (cutting the first real tags) — tracked as the unchecked items in #146.
+- Phase 4 (cutting the first real `kit/v0.3.0` + `core/v0.3.4` tags) — post-merge, tracked as the unchecked item in #146; it runs `scripts/release.sh`, which re-stamps every marker to the new dateless format as part of the `kit/v0.4.0` cut.
+- Consuming the shipped `version-consistency` directive into this repo's own lock (would need a core pack release + `pack update`); deferred to the pack-release flow. The dogfood's version story is already self-enforced in CI by the local `kit-version-consistency` directive.
 - Renumbering historical versions; the pre-tag 0.3.4 PATCH-for-a-feature mislabel stays, with correct semver applied forward.
 
 ## Decisions
@@ -35,12 +40,15 @@ Addresses [#146](https://github.com/Duaility/governance-kit/issues/146) — **Ph
 - **Pulled RELEASE_FLOW.md forward from Phase 3.** VERSIONING.md and CHANGELOG.md link to it and `release.sh` ships in this PR, so shipping the flow doc now keeps internal doc links valid instead of dangling.
 - **Marker files are auto-discovered, not hardcoded.** `release.sh` greps tracked files for the leading `# governance-kit:managed` marker and excludes generator code (`…/lib/*`), test data (`scripts/test-*`), eval fixtures (`governance/evals/*`), and `governance/references/*` docs that show the marker as an example. More maintainable than a static list; the Phase-2 `version-consistency` directive will backstop drift.
 - **First-tag CHANGELOG sections are minimal.** With no prior `<axis>/v*` tag, `release.sh` emits a short "initial tagged release" section rather than dumping all of git history; the curated seed entries cover pre-tag history.
-- **Scope is Phases 0–1 of a multi-PR epic.** #146 is intentionally one issue spanning several PRs; this receipt's checklist mirrors that, with completed items checked and remaining phases left unchecked (the directive permits unchecked items as remaining work).
+- **Scope is Phases 0–3 of a multi-PR epic.** #146 is intentionally one issue spanning several PRs; `receipt-per-issue` forbids a second receipt for the same issue, so this one receipt accumulates across the stacked PRs — completed items checked, remaining Phase 4 (post-merge tag cut) left unchecked.
+- **Left old-format markers in eval/uninstall fixtures intact.** The kit-update `reconstructable-repo` and uninstall `bootstrapped-repo` fixtures keep their dated (and `pack-version=`) markers — `read_marker_kit_version` and `hook_has_marker` are date-agnostic, so those fixtures now also serve as backward-read coverage that old-format markers are still parsed/detected. Only live managed files and the writers/docs moved to the dateless form.
+- **Split version-consistency into shipped-core vs dogfood-local.** The shipped `version-consistency` validates an *installed* repo (manifest vs markers); the kit-authoring sources (`kit.yaml`, `SKILL.md` frontmatter, the core floor) only exist in this repo and have no manifest, so they're guarded by a separate repo-local `kit-version-consistency` directive. Per the doc-integrity precedent, the shipped directive is verified by evals but not consumed into this repo's lock in the same PR (that needs a core release + pack update).
 
 ## Verification
 
-- `bash .governance/run.sh` → all directives green except the two pre-existing accounting reds on HEAD `68e623f` (unrelated to this change; `main` is red on the same two).
-- `bash scripts/test.sh` → all kit-internal layers green, including packctl reading kit.yaml (`test-packs`: 1 pack, 15 directives/evals).
+- `bash .governance/run.sh` → all 16 directives green, including the new local `kit-version-consistency`. (The accounting directives pass on this branch because Mode B validates the trailered branch commits, not the trailerless baseline.)
+- `bash scripts/test.sh` → all kit-internal layers green, including packctl reading kit.yaml and the new `version-consistency` eval — 4 cases: consistent / drift / no-manifest / no-kit_version (`test-packs`: 1 pack, 16 directives/evals).
+- Phase 3 marker migration verified: `test-install-sh` (69 assertions, incl. the dateless-marker assertions), `test-hooks-sh` (83, dispatcher generation), and `test-runtime` (44, shipped run.sh/lib.sh) all green; the 9 live managed files now carry dateless `kit-version=0.3` markers and `version-consistency` / `kit-version-consistency` still pass.
 - `bash scripts/release.sh core 0.4.0 --dry-run` and `bash scripts/release.sh kit 0.4.0 --dry-run` → correct source bump, stamp set, tag, and generated CHANGELOG section; no files written.
 - `no-broken-internal-doc-links` green → VERSIONING.md / RELEASE_FLOW.md / CHANGELOG.md links resolve.
 - `workflows-hardened` green → release.yml is SHA-pinned and least-privilege.

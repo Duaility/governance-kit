@@ -378,7 +378,9 @@ stamp_managed_marker "$script" "9.9"
 line2="$(sed -n '2p' "$script")"
 assert_contains "shebang script: marker line 2 carries kit-version=" \
     "kit-version=9.9" "$line2"
-assert_contains "shebang script: marker line 2 carries generated=" \
+assert_eq "shebang script: marker line 2 is dateless (reproducible)" \
+    "# governance-kit:managed kit-version=9.9" "$line2"
+assert_not_contains "shebang script: marker carries no generated= date" \
     "generated=" "$line2"
 got="$(read_marker_kit_version "$script")"
 assert_eq "shebang script: read_marker_kit_version round-trips" "9.9" "$got"
