@@ -5,15 +5,3 @@
 .claude/
 __pycache__/
 *.pyc
-
-# Reconstructed pack trees — phases 3+4+6 of #114 (#118).
-#
-# Packs with `source: gh` in `.governance/packs.lock` are rebuilt from the
-# pack cache (or working-tree resolver, #115) by
-# `governance/assets/packs/lib/reconcile.sh`. The expanded copies under
-# `.governance/packs/<owner>/<name>/` are reconstructable artifacts, not
-# source — gitignored so a clone + reconcile produces a deterministic tree
-# from the lockfile. Hand-authored packs (lockfile `source: local`) stay
-# committed; the kit's own `governance-kit/core` is now `source: gh`
-# (post-#117), so it gets rebuilt rather than tracked.
-.governance/packs/governance-kit/
