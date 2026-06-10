@@ -18,10 +18,11 @@ Tracking issue: [Duaility/governance-kit#31](https://github.com/Duaility/governa
 
 ```
 governance init                                       # bootstrap a repo
-governance kit update [--with-packs] [--dry-run] [--force]
+governance kit update [--with-packs] [--check-upstream] [--dry-run] [--force]
                                                       # re-sync runtime files (run.sh, lib.sh, enable-governance.sh,
                                                       # governance.yml, hook dispatchers) when a new kit
-                                                      # version is on PATH; --with-packs also re-pins gh packs
+                                                      # version is on PATH; --with-packs also re-pins gh packs;
+                                                      # --check-upstream reports if the installed skill is behind
 governance pack search [query]                        # search community catalog
 governance pack create <name>                         # scaffold a repo-local pack at packs/<repo-owner>/<name>/
 governance pack add <ref>                             # e.g. gh:acme/soc2-pack@main
@@ -97,6 +98,7 @@ Key invariants:
 - Diff-before-exec per file. Files without a line-2 `governance-kit:managed` marker are surfaced as `Skipped (unmanaged)` and the user picks `keep` / `apply anyway` / `overwrite-with-backup`.
 - No silent downgrades: a manifest stamp newer than the kit on PATH stops the verb.
 - `--with-packs` chains `pack update` for every `source: gh` entry; without the flag, kit-runtime sync is a pure local file-copy and never touches the network.
+- `--check-upstream` adds a read-only `git ls-remote` against the kit's upstream to report whether the *installed skill* is behind the latest published `kit/vX.Y.Z` — a signal only. It never fetches-and-applies the kit (that stays the skill manager's job, `npx skills update governance --global`); the verb only ever syncs the repo to the installed kit.
 - Refuses on a dirty working tree (override with `--force`).
 - One atomic commit per run, Conventional Commits subject, no auto-push.
 
