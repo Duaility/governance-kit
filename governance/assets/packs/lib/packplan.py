@@ -14,10 +14,8 @@ would start running before the operator approves it.
 the plan and executes it. With `--diff` the plan also carries the per-directive
 folder diff PACK_VERBS.md's diff-before-exec step shows the user.
 
-Run via:
-    uv run --with PyYAML python .../packplan.py pack-plan add <root> <ref> [--diff]
-    uv run --with PyYAML python .../packplan.py pack-plan update <root> [<pack-id>] [--diff]
-    uv run --with PyYAML python .../packplan.py pack-plan remove <root> <pack-id>
+Run via `packverb.py pack-plan {add,update,remove} <root> [target] [--diff]`
+(lifecycle_cli.py registers the subcommand).
 """
 
 from __future__ import annotations
@@ -25,7 +23,6 @@ from __future__ import annotations
 import argparse
 import difflib
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -223,22 +220,3 @@ def cmd_pack_plan(args: argparse.Namespace) -> int:
         return 1
     print(json.dumps(plan, indent=2))
     return 0
-
-
-def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser()
-    sub = parser.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("pack-plan")
-    p.add_argument("mode", choices=["add", "update", "remove"])
-    p.add_argument("root")
-    p.add_argument("target", nargs="?", default=None,
-                   help="ref for add; optional pack-id for update; pack-id for remove")
-    p.add_argument("--diff", action="store_true",
-                   help="include the per-directive folder diff (add/update)")
-    p.set_defaults(func=cmd_pack_plan)
-    args = parser.parse_args(argv)
-    return int(args.func(args))
-
-
-if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))

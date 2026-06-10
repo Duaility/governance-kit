@@ -33,40 +33,18 @@ from typing import Any
 
 from applylib import (
     bash_lib,
-    git_dirty,
-    hook_digests,
+    dirty_gate,
+    load_decisions,
     refuse,
-    regenerate_hooks,
+    regen_hooks_step,
     smoke_test,
 )
 from kitverb import KIT_VERSION, compute_plan, stamped_text
 
+# Per-file decision verbs. Defaults when a dest is not named: `apply` for
+# managed files (the marker is the regeneration contract), `keep` for
+# unmanaged ones (no marker means user-owned, never silently overwritten).
 _UNMANAGED_DECISIONS = ("keep", "apply", "overwrite-with-backup")
-
-
-def _load_decisions(raw: str | None) -> dict[str, str]:
-    """Per-file decision overrides: {<dest-rel>: keep|apply|overwrite-with-backup}.
-
-    Defaults when a dest is not named: `apply` for managed files (`apply`/`add`
-    status — the marker is the regeneration contract), `keep` for `unmanaged`
-    ones (no marker means user-owned, never silently overwritten). Accepts
-    inline JSON or a path to a JSON file. Unknown decision values are rejected
-    here; destinations that don't need a decision (status `skip`, or absent
-    from the plan) are rejected later — a decisions object that doesn't match
-    reality is an error, not a shrug.
-    """
-    if not raw:
-        return {}
-    text = raw if raw.lstrip().startswith("{") else Path(raw).read_text()
-    decisions = json.loads(text)
-    if not isinstance(decisions, dict):
-        raise ValueError("--decisions must be a JSON object of {dest: decision}")
-    for dest, decision in decisions.items():
-        if decision not in _UNMANAGED_DECISIONS:
-            raise ValueError(
-                f"--decisions[{dest!r}]: {decision!r} is not one of {', '.join(_UNMANAGED_DECISIONS)}"
-            )
-    return decisions
 
 
 def _update_manifest_kit_version(manifest_path: Path, kit_version: str) -> None:
@@ -128,7 +106,7 @@ def cmd_kit_apply(args: argparse.Namespace) -> int:
     }
 
     try:
-        decisions = _load_decisions(args.decisions)
+        decisions = load_decisions(args.decisions, _UNMANAGED_DECISIONS)
     except (ValueError, OSError, json.JSONDecodeError) as exc:
         return refuse(report, f"bad --decisions: {exc}", "fix the decisions JSON and re-run")
 
@@ -169,14 +147,9 @@ def cmd_kit_apply(args: argparse.Namespace) -> int:
     if plan["delta"] == "pre-tracking":
         report["assumptions"].append("pre-tracking install: recording kit_version for the first time")
 
-    try:
-        dirty = git_dirty(root)
-    except (OSError, subprocess.CalledProcessError) as exc:
-        return refuse(report, f"git status failed: {exc}", "run from a git repository")
-    if dirty and not args.force:
-        return refuse(report, "working tree has uncommitted changes", "commit or stash, or re-run with --force")
-    if dirty:
-        report["assumptions"].append("--force: applied over a dirty working tree")
+    gated = dirty_gate(root, args.force, report)
+    if gated is not None:
+        return gated
 
     # --- resolve per-file actions ---
     by_dest = {f["dest"]: f for f in plan["files"]}
@@ -234,18 +207,11 @@ def cmd_kit_apply(args: argparse.Namespace) -> int:
         shutil.copymode(src, dest)
         report["added" if entry["status"] == "add" else "updated"].append(entry["dest"])
 
-    before = hook_digests(root, plan["hook_strategy"])
-    hooks = regenerate_hooks(root, plan["hook_strategy"], KIT_VERSION)
-    if hooks.returncode != 0:
-        report.update(
-            result="error",
-            hook_dispatcher="failed",
-            reason=f"hook regeneration failed: {hooks.stderr.strip()}",
-            recovery="resolve the hook collision (unmanaged hook file), `git checkout -- .` to restore, re-run",
-        )
-        print(json.dumps(report, indent=2))
-        return 1
-    report["hook_dispatcher"] = "regenerated" if hook_digests(root, plan["hook_strategy"]) != before else "unchanged"
+    hooks_rc = regen_hooks_step(
+        root, plan["hook_strategy"], KIT_VERSION, report,
+        recovery="resolve the hook collision (unmanaged hook file), `git checkout -- .` to restore, re-run")
+    if hooks_rc is not None:
+        return hooks_rc
 
     manifest_path = root / ".governance" / "install.yaml"
     if manifest_path.is_file():

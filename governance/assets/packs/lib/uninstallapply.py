@@ -27,7 +27,6 @@ import argparse
 import json
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -171,20 +170,3 @@ def cmd_uninstall_apply(args: argparse.Namespace) -> int:
     report["result"] = "dry-run" if dry else "applied"
     print(json.dumps(report, indent=2))
     return 0
-
-
-def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser()
-    sub = parser.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("uninstall-apply")
-    p.add_argument("root")
-    p.add_argument("--mode", choices=["dry-run", "soft", "hard"], default="soft")
-    p.add_argument("--allow-heuristic", action="store_true",
-                   help="permit a destructive mode when the manifest is absent (explicit opt-in)")
-    p.set_defaults(func=cmd_uninstall_apply)
-    args = parser.parse_args(argv)
-    return int(args.func(args))
-
-
-if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))

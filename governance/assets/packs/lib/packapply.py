@@ -32,39 +32,23 @@ import argparse
 import json
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
 from applylib import (
     bash_lib,
-    git_dirty,
-    hook_digests,
+    dirty_gate,
+    load_decisions,
     refuse,
-    regenerate_hooks,
+    regen_hooks_step,
     smoke_test,
 )
 from packctl import KIT_VERSION
 from packplan import compute_pack_plan
 from packverb import load_lockfile, write_lockfile, _utc_now
 
+# Per-directive overrides: {<directive-id>: apply|skip}. Default apply.
 _DIRECTIVE_DECISIONS = ("apply", "skip")
-
-
-def _load_decisions(raw: str | None) -> dict[str, str]:
-    """Per-directive overrides: {<directive-id>: apply|skip}. Default apply."""
-    if not raw:
-        return {}
-    text = raw if raw.lstrip().startswith("{") else Path(raw).read_text()
-    decisions = json.loads(text)
-    if not isinstance(decisions, dict):
-        raise ValueError("--decisions must be a JSON object of {directive-id: apply|skip}")
-    for did, decision in decisions.items():
-        if decision not in _DIRECTIVE_DECISIONS:
-            raise ValueError(
-                f"--decisions[{did!r}]: {decision!r} is not one of {', '.join(_DIRECTIVE_DECISIONS)}"
-            )
-    return decisions
 
 
 def _install_asset_rels(pack_dir: Path, did: str) -> list[str]:
@@ -224,15 +208,11 @@ def _finish(root: Path, plan: dict[str, Any], report: dict[str, Any], dry_run: b
         report.update(result="dry-run", hook_dispatcher="would-regenerate")
         print(json.dumps(report, indent=2))
         return 0
-    before = hook_digests(root, strategy)
-    hooks = regenerate_hooks(root, strategy, KIT_VERSION)
-    if hooks.returncode != 0:
-        report.update(result="error", hook_dispatcher="failed",
-                      reason=f"hook regeneration failed: {hooks.stderr.strip()}",
-                      recovery="resolve the hook collision, `git checkout -- .` to restore, re-run")
-        print(json.dumps(report, indent=2))
-        return 1
-    report["hook_dispatcher"] = "regenerated" if hook_digests(root, strategy) != before else "unchanged"
+    hooks_rc = regen_hooks_step(
+        root, strategy, KIT_VERSION, report,
+        recovery="resolve the hook collision, `git checkout -- .` to restore, re-run")
+    if hooks_rc is not None:
+        return hooks_rc
     report["smoke_test"] = smoke_test(root, tests_dir)
     report["result"] = "applied"
     print(json.dumps(report, indent=2))
@@ -248,7 +228,7 @@ def cmd_pack_apply(args: argparse.Namespace) -> int:
         "hook_dispatcher": "unchanged", "smoke_test": None, "assumptions": [],
     }
     try:
-        decisions = _load_decisions(args.decisions)
+        decisions = load_decisions(args.decisions, _DIRECTIVE_DECISIONS)
     except (ValueError, OSError, json.JSONDecodeError) as exc:
         return refuse(report, f"bad --decisions: {exc}", "fix the decisions JSON and re-run")
 
@@ -262,34 +242,10 @@ def cmd_pack_apply(args: argparse.Namespace) -> int:
         if gated is not None:
             return gated
 
-    try:
-        dirty = git_dirty(root)
-    except (OSError, subprocess.CalledProcessError) as exc:
-        return refuse(report, f"git status failed: {exc}", "run from a git repository")
-    if dirty and not args.force:
-        return refuse(report, "working tree has uncommitted changes", "commit or stash, or re-run with --force")
-    if dirty:
-        report["assumptions"].append("--force: applied over a dirty working tree")
+    gated = dirty_gate(root, args.force, report)
+    if gated is not None:
+        return gated
 
     if args.mode == "remove":
         return _apply_remove(root, plan, report, args.dry_run)
     return _apply_add_update(root, plan, decisions, report, args.dry_run)
-
-
-def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser()
-    sub = parser.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("pack-apply")
-    p.add_argument("mode", choices=["add", "update", "remove"])
-    p.add_argument("root")
-    p.add_argument("target", nargs="?", default=None)
-    p.add_argument("--decisions", default=None)
-    p.add_argument("--dry-run", action="store_true")
-    p.add_argument("--force", action="store_true")
-    p.set_defaults(func=cmd_pack_apply)
-    args = parser.parse_args(argv)
-    return int(args.func(args))
-
-
-if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))

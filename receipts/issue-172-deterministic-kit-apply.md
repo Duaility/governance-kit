@@ -39,6 +39,10 @@ This PR lands the migration in four phases on one branch, under this one issue (
 - [x] SKILL.md + VERBS.md name the plan/apply pair for init, pack, reset, uninstall
 - [x] 6 new contract tests in scripts/test-init.py wired into test.sh
 
+### Simplification pass
+- [x] Dead per-module CLI entry points deleted; lifecycle_cli.py is the single registration
+- [x] Repeated gate/regen/decisions blocks hoisted into applylib.py
+
 ### Suites
 - [x] bash scripts/test.sh clean
 - [x] bash .governance/run.sh clean
@@ -77,6 +81,11 @@ This PR lands the migration in four phases on one branch, under this one issue (
 - INIT_FLOW.md mechanical Steps 3–7 collapsed onto init-apply; elicitation kept with the operator — **`governance/references/INIT_FLOW.md`** gains a "Deterministic plan/apply" section; Step 3's hand-assembled `write_installed_manifest`/`lock-add` bash block becomes the `init-apply` call, Step 4 keeps only principle inference (the template copy + splice move to the engine), and Steps 5/6/7 (runtime / hooks / CI) collapse onto init-apply while the genuinely-interactive hook-strategy and unmarked-collision choices stay with the operator.
 - SKILL.md + VERBS.md name the plan/apply pair for init, pack, reset, uninstall — **`governance/SKILL.md`** gains a deterministic plan/apply bullet in each of the `init`, `uninstall`, `reset`, and `pack *` sections (matching the existing `kit update` one); **`governance/references/VERBS.md`** names the pair in the `init`, `reset`, `uninstall`, and `pack *` entries.
 - 6 new contract tests in scripts/test-init.py wired into test.sh — two pure (`collisions` cross-pack detection, `assemble_constitution` splicing principles + subsections and dropping the template example) and four end-to-end `init-apply` against a throwaway git repo with a local source pack (no network): full assembly (directive folder minus `evals/`, CONSTITUTION with principles + subsection, stamped runtime + workflow, generated `.githooks/pre-commit` + `core.hooksPath` + `enable-governance.sh`, manifest + lock, seeded `WIDGETS.md` ledgered, AGENTS stub), existing-install refusal, cross-pack collision refusal, `--dry-run` purity. Wired as a new `test.sh` layer.
+
+### Simplification pass
+
+- Dead per-module CLI entry points deleted; lifecycle_cli.py is the single registration — the eight plan/apply modules each carried a `main()` + `__main__` block duplicating the argparse wiring already in **`lifecycle_cli.py`**; nothing invoked them (tests and flow docs go through `packverb.py`/`kitverb.py`), and duplicated flag definitions can silently drift. Deleted, with each module's "Run via" docstring now pointing at the `packverb.py` subcommand.
+- Repeated gate/regen/decisions blocks hoisted into applylib.py — **`applylib.py`** gains `dirty_gate()` (the dirty-working-tree refusal + `--force` assumption, previously copy-pasted in kitapply/packapply/resetapply), `regen_hooks_step()` (digest-compare + regenerate + error-report, previously in four engines; init passes `changed_label="generated"`), and `load_decisions()` (the inline-JSON-or-file `--decisions` parser with optional allowed-verb validation, previously in three). resetplan.py now imports `_manifest_context` from packplan.py alongside `_dir_diff`; uninstallplan.py imports `HOOK_KINDS` from applylib instead of redefining it. Net −187 lines, behavior unchanged — the contract suites pass untouched.
 
 ## Out of scope
 

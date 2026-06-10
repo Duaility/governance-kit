@@ -28,11 +28,10 @@ import argparse
 import json
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
-from applylib import bash_lib, git_dirty, hook_digests, refuse, regenerate_hooks, smoke_test
+from applylib import bash_lib, dirty_gate, refuse, regen_hooks_step, smoke_test
 from packctl import KIT_VERSION
 from resetplan import compute_reset_plan
 
@@ -73,14 +72,9 @@ def cmd_reset_apply(args: argparse.Namespace) -> int:
         print(json.dumps(report, indent=2))
         return 0
 
-    try:
-        dirty = git_dirty(root)
-    except (OSError, subprocess.CalledProcessError) as exc:
-        return refuse(report, f"git status failed: {exc}", "run from a git repository")
-    if dirty and not args.force:
-        return refuse(report, "working tree has uncommitted changes", "commit or stash, or re-run with --force")
-    if dirty:
-        report["assumptions"].append("--force: applied over a dirty working tree")
+    gated = dirty_gate(root, args.force, report)
+    if gated is not None:
+        return gated
 
     report["preserved_handauthored"] = plan["preserved_handauthored"]
     constitution = root / "CONSTITUTION.md"
@@ -117,15 +111,10 @@ def cmd_reset_apply(args: argparse.Namespace) -> int:
     if constitution.is_file() and const_text != constitution.read_text():
         constitution.write_text(const_text)
 
-    before = hook_digests(root, plan["hook_strategy"])
-    hooks = regenerate_hooks(root, plan["hook_strategy"], KIT_VERSION)
-    if hooks.returncode != 0:
-        report.update(result="error", hook_dispatcher="failed",
-                      reason=f"hook regeneration failed: {hooks.stderr.strip()}",
-                      recovery="`git checkout -- .` to restore, then re-run")
-        print(json.dumps(report, indent=2))
-        return 1
-    report["hook_dispatcher"] = "regenerated" if hook_digests(root, plan["hook_strategy"]) != before else "unchanged"
+    hooks_rc = regen_hooks_step(root, plan["hook_strategy"], KIT_VERSION, report,
+                                recovery="`git checkout -- .` to restore, then re-run")
+    if hooks_rc is not None:
+        return hooks_rc
 
     if args.date and constitution.is_file() and (report["restored"] or report["dropped"]):
         from docsurgery import append_evolution_log
@@ -151,24 +140,3 @@ def cmd_reset_apply(args: argparse.Namespace) -> int:
     report["result"] = "applied"
     print(json.dumps(report, indent=2))
     return 0
-
-
-def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser()
-    sub = parser.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("reset-apply")
-    p.add_argument("scope", choices=["directive", "pack", "all"])
-    p.add_argument("root")
-    p.add_argument("target", nargs="?", default=None)
-    p.add_argument("--drop-handauthored", action="store_true")
-    p.add_argument("--dry-run", action="store_true")
-    p.add_argument("--force", action="store_true")
-    p.add_argument("--date", default=None, help="YYYY-MM-DD for the Evolution Log entry (operator-supplied)")
-    p.add_argument("--author", default=None, help="git user for the Evolution Log entry")
-    p.set_defaults(func=cmd_reset_apply)
-    args = parser.parse_args(argv)
-    return int(args.func(args))
-
-
-if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))

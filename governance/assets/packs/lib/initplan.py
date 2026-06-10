@@ -21,8 +21,6 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import sys
-from pathlib import Path
 from typing import Any
 
 from packctl import scalar
@@ -99,33 +97,13 @@ def compute_init_plan(decisions: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _load_decisions(raw: str) -> dict[str, Any]:
-    text = raw if raw.lstrip().startswith("{") else Path(raw).read_text()
-    data = json.loads(text)
-    if not isinstance(data, dict):
-        raise ValueError("--decisions must be a JSON object")
-    return data
-
-
 def cmd_init_plan(args: argparse.Namespace) -> int:
+    from applylib import load_decisions
+
     try:
-        decisions = _load_decisions(args.decisions)
+        decisions = load_decisions(args.decisions)
     except (ValueError, OSError, json.JSONDecodeError) as exc:
         print(json.dumps({"error": f"bad --decisions: {exc}"}, indent=2))
         return 1
     print(json.dumps(compute_init_plan(decisions), indent=2))
     return 0
-
-
-def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser()
-    sub = parser.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("init-plan")
-    p.add_argument("--decisions", required=True)
-    p.set_defaults(func=cmd_init_plan)
-    args = parser.parse_args(argv)
-    return int(args.func(args))
-
-
-if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))

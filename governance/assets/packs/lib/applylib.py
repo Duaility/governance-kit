@@ -48,6 +48,42 @@ def git_dirty(root: Path) -> bool:
     return bool(proc.stdout.strip())
 
 
+def dirty_gate(root: Path, force: bool, report: dict[str, Any]) -> int | None:
+    """The shared dirty-working-tree gate. Returns the refuse exit code,
+    or None to proceed (recording the --force assumption when taken)."""
+    try:
+        dirty = git_dirty(root)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        return refuse(report, f"git status failed: {exc}", "run from a git repository")
+    if dirty and not force:
+        return refuse(report, "working tree has uncommitted changes", "commit or stash, or re-run with --force")
+    if dirty:
+        report["assumptions"].append("--force: applied over a dirty working tree")
+    return None
+
+
+def load_decisions(raw: str | None, allowed: tuple[str, ...] | None = None) -> dict[str, Any]:
+    """Parse a `--decisions` value — inline JSON or a path to a JSON file.
+
+    With `allowed`, every value must be one of those strings (per-file /
+    per-directive decision verbs); a decisions object that doesn't match is an
+    error, not a shrug. Without it, any JSON object passes (init's free-form
+    decisions document)."""
+    if not raw:
+        return {}
+    text = raw if raw.lstrip().startswith("{") else Path(raw).read_text()
+    decisions = json.loads(text)
+    if not isinstance(decisions, dict):
+        raise ValueError("--decisions must be a JSON object")
+    if allowed:
+        for key, decision in decisions.items():
+            if decision not in allowed:
+                raise ValueError(
+                    f"--decisions[{key!r}]: {decision!r} is not one of {', '.join(allowed)}"
+                )
+    return decisions
+
+
 def bash_lib(script: str, *argv: str) -> subprocess.CompletedProcess[str]:
     """Run a snippet with install.sh + hooks.sh sourced ($1 = lib dir)."""
     return subprocess.run(
@@ -81,6 +117,25 @@ def regenerate_hooks(root: Path, strategy: str, kit_version: str) -> subprocess.
         'generate_hooks_for_strategy "$1" "$2" "$3" "$spec"'
     )
     return bash_lib(script, str(root), strategy, kit_version)
+
+
+def regen_hooks_step(root: Path, strategy: str, kit_version: str, report: dict[str, Any],
+                     recovery: str, changed_label: str = "regenerated") -> int | None:
+    """Regenerate the dispatchers and record the outcome on the report.
+
+    Sets `hook_dispatcher` to `changed_label` / `unchanged` by digest
+    comparison. On failure, stamps the error + recovery onto the report,
+    prints it, and returns the error exit code (1); returns None on success."""
+    before = hook_digests(root, strategy)
+    hooks = regenerate_hooks(root, strategy, kit_version)
+    if hooks.returncode != 0:
+        report.update(result="error", hook_dispatcher="failed",
+                      reason=f"hook regeneration failed: {hooks.stderr.strip()}",
+                      recovery=recovery)
+        print(json.dumps(report, indent=2))
+        return 1
+    report["hook_dispatcher"] = changed_label if hook_digests(root, strategy) != before else "unchanged"
+    return None
 
 
 def smoke_test(root: Path, tests_dir: str) -> dict[str, Any]:

@@ -13,20 +13,19 @@ under `--drop-handauthored`), and — with `--diff` — emits the per-directive
 this and executes the restore. The operator keeps the diff-before-exec `yes` and
 the commit.
 
-Run via:
-    uv run --with PyYAML python .../resetplan.py reset-plan <scope> <root> [target] [--diff]
+Run via `packverb.py reset-plan <scope> <root> [target] [--diff]`
+(lifecycle_cli.py registers the subcommand).
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
-from packctl import load_yaml, scalar
-from packplan import _dir_diff
+from packctl import scalar
+from packplan import _dir_diff, _manifest_context
 from packverb import fetch_ref, load_lockfile, parse_ref
 
 
@@ -37,15 +36,6 @@ def _pinned_ref(entry: dict[str, Any]) -> str:
     if parsed["subpath"]:
         base += f"/{parsed['subpath']}"
     return f"{base}@{scalar(entry.get('sha'))}"
-
-
-def _manifest_context(root: Path) -> dict[str, str]:
-    p = root / ".governance" / "install.yaml"
-    m = load_yaml(p) if p.is_file() else {}
-    return {
-        "hook_strategy": scalar(m.get("hook_strategy")) or "githooks",
-        "tests_dir": scalar(m.get("tests_dir")) or ".governance",
-    }
 
 
 def _resolve_directive(root: Path, pack: dict[str, Any], did: str, with_diff: bool) -> dict[str, Any]:
@@ -143,21 +133,3 @@ def cmd_reset_plan(args: argparse.Namespace) -> int:
         return 1
     print(json.dumps(plan, indent=2))
     return 0
-
-
-def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser()
-    sub = parser.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("reset-plan")
-    p.add_argument("scope", choices=["directive", "pack", "all"])
-    p.add_argument("root")
-    p.add_argument("target", nargs="?", default=None)
-    p.add_argument("--drop-handauthored", action="store_true")
-    p.add_argument("--diff", action="store_true")
-    p.set_defaults(func=cmd_reset_plan)
-    args = parser.parse_args(argv)
-    return int(args.func(args))
-
-
-if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))

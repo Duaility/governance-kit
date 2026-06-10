@@ -13,21 +13,20 @@ default). It writes nothing.
 recomputes this and executes it in the order UNINSTALL_FLOW.md Step 5 fixes
 (hooks → config → AGENTS.md → tree → path-B → seeded → backups → manifest last).
 
-Run via:
-    uv run --with PyYAML python .../uninstallplan.py uninstall-plan <root> [--mode <m>]
+Run via `packverb.py uninstall-plan <root> [--mode <m>]`
+(lifecycle_cli.py registers the subcommand).
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
+from applylib import HOOK_KINDS
 from packctl import load_yaml, scalar
 
-HOOK_KINDS = ("pre-commit", "commit-msg", "prepare-commit-msg", "post-commit", "pre-push")
 AGENTS_OPEN = "<!-- governance: directives-to-follow -->"
 AGENTS_CLOSE = "<!-- /governance: directives-to-follow -->"
 
@@ -134,18 +133,3 @@ def cmd_uninstall_plan(args: argparse.Namespace) -> int:
     root = Path(args.root).resolve()
     print(json.dumps(compute_uninstall_plan(root, args.mode), indent=2))
     return 0
-
-
-def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser()
-    sub = parser.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("uninstall-plan")
-    p.add_argument("root")
-    p.add_argument("--mode", choices=["dry-run", "soft", "hard"], default="soft")
-    p.set_defaults(func=cmd_uninstall_plan)
-    args = parser.parse_args(argv)
-    return int(args.func(args))
-
-
-if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))

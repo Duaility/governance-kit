@@ -26,24 +26,15 @@ import argparse
 import json
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
-from applylib import bash_lib, hook_digests, refuse, regenerate_hooks, smoke_test
+from applylib import bash_lib, load_decisions, refuse, regen_hooks_step, smoke_test
 from initplan import assemble_constitution, collisions
 from packctl import KIT_VERSION
 from packverb import load_lockfile, write_lockfile, _utc_now
 
 KIT_ASSETS = Path(__file__).resolve().parents[2]  # governance/assets
-
-
-def _load_decisions(raw: str) -> dict[str, Any]:
-    text = raw if raw.lstrip().startswith("{") else Path(raw).read_text()
-    data = json.loads(text)
-    if not isinstance(data, dict):
-        raise ValueError("--decisions must be a JSON object")
-    return data
 
 
 def _copy_stamp(src: Path, dest: Path) -> None:
@@ -114,7 +105,7 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
         "smoke_test": None, "assumptions": [],
     }
     try:
-        decisions = _load_decisions(args.decisions)
+        decisions = load_decisions(args.decisions)
     except (ValueError, OSError, json.JSONDecodeError) as exc:
         return refuse(report, f"bad --decisions: {exc}", "fix the decisions JSON and re-run")
 
@@ -178,11 +169,11 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
         _copy_stamp(KIT_ASSETS / "governance.yml", root / ".github" / "workflows" / "governance.yml")
 
         # Hooks + Path-A onboarding.
-        before = hook_digests(root, strategy)
-        hooks = regenerate_hooks(root, strategy, KIT_VERSION)
-        if hooks.returncode != 0:
-            raise RuntimeError(f"hook generation failed: {hooks.stderr.strip()}")
-        report["hook_dispatcher"] = "generated" if hook_digests(root, strategy) != before else "unchanged"
+        hooks_rc = regen_hooks_step(
+            root, strategy, KIT_VERSION, report, changed_label="generated",
+            recovery="`git clean -fdx .governance .githooks` and `git checkout -- .` to reset, then re-run")
+        if hooks_rc is not None:
+            return hooks_rc
         if strategy == "githooks":
             subprocess.run(["git", "-C", str(root), "config", "core.hooksPath", ".githooks"], check=False)
             _copy_stamp(KIT_ASSETS / "enable-governance.sh", root / "scripts" / "enable-governance.sh")
@@ -201,20 +192,3 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
     report["result"] = "applied"
     print(json.dumps(report, indent=2))
     return 0
-
-
-def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser()
-    sub = parser.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("init-apply")
-    p.add_argument("root")
-    p.add_argument("--decisions", required=True)
-    p.add_argument("--dry-run", action="store_true")
-    p.add_argument("--force", action="store_true")
-    p.set_defaults(func=cmd_init_apply)
-    args = parser.parse_args(argv)
-    return int(args.func(args))
-
-
-if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))
