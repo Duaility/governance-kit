@@ -5,7 +5,7 @@ license: MIT
 compatibility: Designed for Claude Code and Codex; requires git and bash.
 metadata:
   author: governance-kit
-  version: "0.4.0"
+  version: "0.5.0"
 ---
 
 # governance
