@@ -24,7 +24,6 @@ diffs, and the commit. `--dry-run` resolves every action and writes nothing.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import re
 import shutil
@@ -32,19 +31,17 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from applylib import (
+    bash_lib,
+    git_dirty,
+    hook_digests,
+    refuse,
+    regenerate_hooks,
+    smoke_test,
+)
 from kitverb import KIT_VERSION, compute_plan, stamped_text
 
-LIB_DIR = Path(__file__).resolve().parent
-
 _UNMANAGED_DECISIONS = ("keep", "apply", "overwrite-with-backup")
-
-_HOOK_DIR_FOR_STRATEGY = {
-    "githooks": ".githooks",
-    "husky": ".husky",
-    "pre-commit": ".governance/hooks",
-}
-
-_HOOK_KINDS = ("pre-commit", "commit-msg", "prepare-commit-msg", "post-commit", "pre-push")
 
 
 def _load_decisions(raw: str | None) -> dict[str, str]:
@@ -72,14 +69,6 @@ def _load_decisions(raw: str | None) -> dict[str, str]:
     return decisions
 
 
-def _git_dirty(root: Path) -> bool:
-    proc = subprocess.run(
-        ["git", "-C", str(root), "status", "--porcelain"],
-        check=True, text=True, capture_output=True,
-    )
-    return bool(proc.stdout.strip())
-
-
 def _update_manifest_kit_version(manifest_path: Path, kit_version: str) -> None:
     """In-place `kit_version:` write-through that preserves every other field.
 
@@ -105,15 +94,6 @@ def _update_manifest_kit_version(manifest_path: Path, kit_version: str) -> None:
     manifest_path.write_text("".join(lines))
 
 
-def _bash_lib(script: str, *argv: str) -> subprocess.CompletedProcess[str]:
-    """Run a snippet with install.sh + hooks.sh sourced ($1 = lib dir)."""
-    return subprocess.run(
-        ["bash", "-c", f'set -eu; source "$1/install.sh"; source "$1/hooks.sh"; shift; {script}',
-         "_", str(LIB_DIR), *argv],
-        check=False, text=True, capture_output=True,
-    )
-
-
 def _write_fresh_manifest(root: Path, plan: dict[str, Any], owner: str, repo: str) -> subprocess.CompletedProcess[str]:
     """v3 manifest for the reconstructed-pin path, via install.sh write_installed_manifest."""
     argv = [
@@ -126,49 +106,7 @@ def _write_fresh_manifest(root: Path, plan: dict[str, Any], owner: str, repo: st
     enable_script = root / "scripts" / "enable-governance.sh"
     if enable_script.is_file():
         argv += ["--enable-governance-script", "scripts/enable-governance.sh"]
-    return _bash_lib('write_installed_manifest "$@"', *argv)
-
-
-def _hook_digests(root: Path, strategy: str) -> dict[str, str]:
-    hook_dir = root / _HOOK_DIR_FOR_STRATEGY[strategy]
-    digests: dict[str, str] = {}
-    for kind in _HOOK_KINDS:
-        path = hook_dir / kind
-        if path.is_file():
-            digests[kind] = hashlib.sha256(path.read_bytes()).hexdigest()
-    return digests
-
-
-def _regenerate_hooks(root: Path, strategy: str) -> subprocess.CompletedProcess[str]:
-    script = (
-        'spec="$(mktemp)"; trap \'rm -f "$spec"\' EXIT; '
-        'build_hook_spec_from_installed_directives "$1" "$spec"; '
-        'generate_hooks_for_strategy "$1" "$2" "$3" "$spec"'
-    )
-    return _bash_lib(script, str(root), strategy, KIT_VERSION)
-
-
-def _smoke_test(root: Path, tests_dir: str) -> dict[str, Any]:
-    runner = root / tests_dir / "run.sh"
-    if not runner.is_file():
-        return {"exit_code": None, "summary": f"{tests_dir}/run.sh missing — not run"}
-    try:
-        proc = subprocess.run(
-            ["bash", str(runner)], cwd=root,
-            check=False, text=True, capture_output=True, timeout=600,
-        )
-    except subprocess.TimeoutExpired:
-        return {"exit_code": None, "summary": "timed out after 600s"}
-    output = (proc.stdout + proc.stderr).strip()
-    failing = [ln.strip() for ln in output.splitlines() if ln.lstrip().startswith("✗")]
-    summary = failing[0] if failing else (output.splitlines()[-1].strip() if output else "")
-    return {"exit_code": proc.returncode, "summary": summary}
-
-
-def _refuse(report: dict[str, Any], reason: str, recovery: str) -> int:
-    report.update(result="refused", reason=reason, recovery=recovery)
-    print(json.dumps(report, indent=2))
-    return 2
+    return bash_lib('write_installed_manifest "$@"', *argv)
 
 
 def cmd_kit_apply(args: argparse.Namespace) -> int:
@@ -192,7 +130,7 @@ def cmd_kit_apply(args: argparse.Namespace) -> int:
     try:
         decisions = _load_decisions(args.decisions)
     except (ValueError, OSError, json.JSONDecodeError) as exc:
-        return _refuse(report, f"bad --decisions: {exc}", "fix the decisions JSON and re-run")
+        return refuse(report, f"bad --decisions: {exc}", "fix the decisions JSON and re-run")
 
     # --- delta gates (UPDATE_FLOW.md Step 2, now enforced in code) ---
     if plan["delta"] == "up-to-date":
@@ -200,19 +138,19 @@ def cmd_kit_apply(args: argparse.Namespace) -> int:
         print(json.dumps(report, indent=2))
         return 0
     if plan["delta"] == "downgrade":
-        return _refuse(
+        return refuse(
             report,
             f"recorded kit_version {plan['installed_kit_version']} is newer than the kit on PATH ({KIT_VERSION})",
             "upgrade the kit on PATH (refresh the installed skill), then re-run",
         )
     if plan["delta"] == "no-recoverable-pin":
-        return _refuse(
+        return refuse(
             report,
             "no install.yaml and no kit-version= marker on any managed file",
             "governance uninstall, then governance init",
         )
     if plan["delta"] == "pre-tracking" and not args.record_pre_tracking:
-        return _refuse(
+        return refuse(
             report,
             "install.yaml carries no kit_version (pre-tracking install)",
             "re-run with --record-pre-tracking to record the current kit version",
@@ -220,7 +158,7 @@ def cmd_kit_apply(args: argparse.Namespace) -> int:
 
     if plan["manifest_source"] == "reconstructed":
         if not (args.owner and args.repo):
-            return _refuse(
+            return refuse(
                 report,
                 "install.yaml is missing (pin reconstructed from markers); a fresh manifest needs the repo identity",
                 "re-run with --owner <github-owner> --repo <repo-name>",
@@ -232,11 +170,11 @@ def cmd_kit_apply(args: argparse.Namespace) -> int:
         report["assumptions"].append("pre-tracking install: recording kit_version for the first time")
 
     try:
-        dirty = _git_dirty(root)
+        dirty = git_dirty(root)
     except (OSError, subprocess.CalledProcessError) as exc:
-        return _refuse(report, f"git status failed: {exc}", "run from a git repository")
+        return refuse(report, f"git status failed: {exc}", "run from a git repository")
     if dirty and not args.force:
-        return _refuse(report, "working tree has uncommitted changes", "commit or stash, or re-run with --force")
+        return refuse(report, "working tree has uncommitted changes", "commit or stash, or re-run with --force")
     if dirty:
         report["assumptions"].append("--force: applied over a dirty working tree")
 
@@ -245,7 +183,7 @@ def cmd_kit_apply(args: argparse.Namespace) -> int:
     decidable = {d for d, f in by_dest.items() if f["status"] != "skip"}
     unknown = sorted(set(decisions) - decidable)
     if unknown:
-        return _refuse(
+        return refuse(
             report,
             f"--decisions names destinations with nothing to decide in the plan: {', '.join(unknown)}",
             "re-run kit-plan and rebuild the decisions object",
@@ -296,8 +234,8 @@ def cmd_kit_apply(args: argparse.Namespace) -> int:
         shutil.copymode(src, dest)
         report["added" if entry["status"] == "add" else "updated"].append(entry["dest"])
 
-    before = _hook_digests(root, plan["hook_strategy"])
-    hooks = _regenerate_hooks(root, plan["hook_strategy"])
+    before = hook_digests(root, plan["hook_strategy"])
+    hooks = regenerate_hooks(root, plan["hook_strategy"], KIT_VERSION)
     if hooks.returncode != 0:
         report.update(
             result="error",
@@ -307,7 +245,7 @@ def cmd_kit_apply(args: argparse.Namespace) -> int:
         )
         print(json.dumps(report, indent=2))
         return 1
-    report["hook_dispatcher"] = "regenerated" if _hook_digests(root, plan["hook_strategy"]) != before else "unchanged"
+    report["hook_dispatcher"] = "regenerated" if hook_digests(root, plan["hook_strategy"]) != before else "unchanged"
 
     manifest_path = root / ".governance" / "install.yaml"
     if manifest_path.is_file():
@@ -325,7 +263,7 @@ def cmd_kit_apply(args: argparse.Namespace) -> int:
             return 1
         report["manifest"] = "created"
 
-    report["smoke_test"] = _smoke_test(root, plan["tests_dir"])
+    report["smoke_test"] = smoke_test(root, plan["tests_dir"])
     report["result"] = "applied"
     print(json.dumps(report, indent=2))
     return 0

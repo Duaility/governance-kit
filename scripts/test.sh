@@ -9,6 +9,9 @@
 #   2. test-packverb.py       — packverb.py (refs, capability glob, lockfile, catalog)
 #   2b. test-kitverb.py       — kitverb.py (kit-plan: version delta, manifest
 #                               reconstruction, managed-file inventory/status)
+#   2c. test-packverb-apply.py — packplan.py/packapply.py (pack-plan/pack-apply
+#                               add/update/remove) + docsurgery.py CONSTITUTION
+#                               subsection surgery
 #   3. test-install-sh.sh     — install.sh helpers (copy_tree_without_evals,
 #                               install_directive_folder, install_directive_assets,
 #                               write_installed_manifest flag matrix)
@@ -65,6 +68,10 @@ run_layer "packverb (Python)" \
 run_layer "kitverb: kit-plan delta/reconstruction/inventory (Python)" \
     uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-kitverb.py" \
     || failed_layers+=("test-kitverb.py")
+
+run_layer "pack-apply: plan/apply add/update/remove + doc surgery (Python)" \
+    uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-packverb-apply.py" \
+    || failed_layers+=("test-packverb-apply.py")
 
 run_layer "install.sh helpers (bash)" \
     bash "$ROOT/scripts/test-install-sh.sh" \

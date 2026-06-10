@@ -432,6 +432,29 @@ def main(argv: list[str]) -> int:
     p.add_argument("query", nargs="?", default="")
     p.set_defaults(func=cmd_catalog_search)
 
+    # pack-plan / pack-apply: the deterministic plan/apply pair for
+    # `governance pack {add,update,remove}` (issue #172). The engines live in
+    # their own modules (packplan.py / packapply.py) to keep each file a
+    # focused unit and to import this module's fetch/lockfile/capability
+    # plumbing without a cycle; the parser wires them lazily.
+    p = sub.add_parser("pack-plan")
+    p.add_argument("mode", choices=["add", "update", "remove"])
+    p.add_argument("root")
+    p.add_argument("target", nargs="?", default=None)
+    p.add_argument("--diff", action="store_true")
+    from packplan import cmd_pack_plan
+    p.set_defaults(func=cmd_pack_plan)
+
+    p = sub.add_parser("pack-apply")
+    p.add_argument("mode", choices=["add", "update", "remove"])
+    p.add_argument("root")
+    p.add_argument("target", nargs="?", default=None)
+    p.add_argument("--decisions", default=None)
+    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--force", action="store_true")
+    from packapply import cmd_pack_apply
+    p.set_defaults(func=cmd_pack_apply)
+
     args = parser.parse_args(argv)
     return int(args.func(args))
 

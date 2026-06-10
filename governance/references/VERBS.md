@@ -63,10 +63,12 @@ Full flows live in [PACK_VERBS.md](PACK_VERBS.md). Summary:
 | `pack search [query]` | Search `governance/assets/catalog.community.json` and return matching entries via `packverb catalog-search`. |
 | `pack add <ref>` | Fetch a pack from a GitHub ref (`gh:owner/repo[/subpath][@rev]`), resolve to a concrete SHA, validate, show `check.sh` diffs before writing (diff-before-exec), install directive folders, and record the pin in `.governance/packs.lock`. Refuse if any directive declares `reads:`/`writes:` globs and the directive's `check.sh` references paths outside those globs. |
 | `pack update [<pack-id>]` | Resolve the ref to a newer SHA, re-run diff-before-exec, rewrite directive folders, update the lock. |
-| `pack remove <pack-id>` | Remove installed directive folders owned by the pack (from `.governance/packs.lock`), regenerate the hook dispatcher, prune the lock entry. |
+| `pack remove <pack-id>` | Remove installed directive folders owned by the pack (from `.governance/packs.lock`), strip their CONSTITUTION.md subsections, regenerate the hook dispatcher, prune the lock entry. |
 | `pack list` | Print every installed pack from `.governance/packs.lock` (kit-bundled, community, repo-local) via `packverb lock-list --long`. |
 
-**Never** install by hand-copying into `governance/assets/packs/` — that is governance-kit's own in-tree source tree, not a consumer's repo surface. Pack installs for a consumer repo flow through `governance pack add`.
+- **Deterministic plan/apply.** `add`/`update`/`remove` resolve via `packverb pack-plan {add,update,remove} … [--diff]` and execute via `packverb pack-apply {add,update,remove} …` (one tested call: install/delete folders, seeded-asset ledger, CONSTITUTION subsection surgery, hook regeneration, lockfile upsert/prune). The skill never hand-executes file operations; per-directive `--decisions {"<id>": "skip"}` holds individual directives back.
+
+**Never** install by hand-copying into `packs/` — that is governance-kit's own in-tree source tree, not a consumer's repo surface. Pack installs for a consumer repo flow through `governance pack add`.
 
 ## `directive *`
 

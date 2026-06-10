@@ -1,4 +1,4 @@
-<!-- last-verified: 2026-04-24 -->
+<!-- last-verified: 2026-06-10 -->
 
 # governance pack * — verb flows
 
@@ -111,25 +111,62 @@ Scaffolds an empty repo-local pack at `.governance/packs/<repo-owner>/<name>/` f
 
 `pack create` does **not** edit `.governance/install.yaml` or `.governance/packs.lock` or any hook scripts — the pack has no directives yet, so nothing to register or wire. The first `directive add --pack <owner>/<name>` is the step that adds the pack entry to `packs.lock` (with `source: local`) and regenerates hooks.
 
+## Deterministic plan/apply
+
+`pack add`, `pack update`, and `pack remove` follow the same terraform-style
+split as `kit update` (issue #172): a pure **plan** that resolves everything
+before any write, and a tested **apply** engine that executes it in one call.
+The skill never hand-executes `cp` / `rm` / lockfile edits / hook regen.
+
+- **Plan.** `packverb pack-plan {add|update|remove} <root> [<ref-or-id>] [--diff]`
+  fetches (add/update), validates, capability-checks, classifies each directive
+  `add`/`update`/`remove`, and — with `--diff` — emits the per-directive folder
+  diff. It writes nothing to the working tree (fetch only populates the
+  SHA-addressed cache). The engine lives in `packplan.py`.
+- **Diff-before-exec.** The skill shows the plan's per-directive diffs and asks
+  for an explicit `yes`. This is the user's last chance to reject, and the only
+  step that stays the operator's.
+- **Apply.** `packverb pack-apply {add|update|remove} <root> [<ref-or-id>]
+  [--decisions <json>] [--dry-run] [--force]` recomputes the plan and executes:
+  for add/update it installs the approved directive folders (`install.sh`
+  `install_directive_folder` + `install_directive_assets`), records seeded files
+  in `install_assets_seeded`, regenerates the hook dispatcher, and upserts the
+  lockfile pin **last**; for remove it deletes the directive folders, strips each
+  CONSTITUTION.md subsection (`docsurgery`), drops the empty pack root,
+  regenerates hooks, and prunes the lock entry **first**. The engine lives in
+  `packapply.py`. `--decisions {"<directive-id>": "skip"}` holds individual
+  directives back; everything else installs by default.
+- **One atomic commit.** The apply writes and reports; staging and the commit
+  stay with the operator.
+
+The apply enforces in code every gate that used to be prose: refuse on pack
+validation or capability violations, on a dirty working tree without `--force`,
+on removing `governance-kit/core` wholesale, on a pack absent from the lockfile.
+Exit 0 applied/up-to-date/dry-run, 2 refused, 1 error. The dirty-tree gate is the
+rollback story: every path written is tracked, so `git checkout -- . && git
+clean -fd .governance/packs` restores a clean tree if a late step fails.
+
 ## `pack add <ref>`
 
 1. **Parse + pre-flight.** `packverb parse-ref <ref>` to confirm the syntax, then refuse to run if:
    - not inside a git repo;
    - `CONSTITUTION.md` or `.governance/` are missing (run `governance init` first);
    - the ref's `@rev` is an unqualified branch name (`@main`, `@master`) → accept, but warn that the pinned SHA — not the branch — is what gets recorded.
-2. **Fetch.** `packverb fetch <ref>` clones the requested rev shallowly into the shared cache, drops `.git`, and returns the resolved SHA + `pack_dir`.
-3. **Validate pack.** `packverb validate-pack <pack_dir>` — rejects on missing required fields, preset cycles, `min_governance_kit > KIT_VERSION`, bad capability fields, etc.
-4. **Capability-check every directive.** For each directive folder under `<pack_dir>/directives/`, run `packverb capability-check <directive_dir>`. Any violation aborts the install with the violating path surfaced to the user.
-5. **Diff-before-exec.** For each directive that would install:
-   - If a directive with the same id is already installed (cross-checked against `.governance/packs.lock`), show `diff -ruN <installed-directive-dir> <fetched-directive-dir>/<directive-id>` so the user sees exactly what `check.sh` code is about to start running on their commits.
-   - If the directive is new, show the directive folder tree and the first 50 lines of `check.sh`.
-   - **Confirm before proceeding.** This step is the user's last chance to reject.
-6. **Install.** Reuse `install_directive_folder` from `governance/assets/packs/lib/install.sh`: copy each directive folder into `.governance/packs/<pack-id>/directives/<directive-id>/` minus the `evals/` directory, make scripts executable, lay down `install-assets/` where applicable. If any directive seeds an `install-asset/`, append the path to `install_assets_seeded` in `.governance/install.yaml`.
-7. **Regenerate the hook dispatcher.** Reuse `generate_hooks_for_strategy` from `governance/assets/packs/lib/hooks.sh`, passing `install.yaml`'s `hook_strategy` value so husky and pre-commit.com installs land identical dispatchers (with populator wiring) rather than the validator-only shim that pre-issue-#101 husky paths produced. A pack add may introduce directives with new `hook:` declarations or new `hooks/<kind>.sh` populators — both are picked up automatically by the runtime-discovery loop in the regenerated dispatcher.
-8. **Update the lockfile.** `packverb lock-add .governance/packs.lock <pack-id> --source gh --version <v> --ref <ref> --sha <sha> [--subpath <s>] [--min-kit <v>] --directive <id> ...` for each installed directive. The lockfile is the ownership ledger `uninstall` and `reset` trust for pack provenance.
-9. **Report.** Print the pinned SHA, the directive ids installed, and the updated hook scripts.
+2. **Plan.** `packverb pack-plan add <root> <ref> --diff` fetches into the shared
+   cache, validates the pack, capability-checks every directive, and classifies
+   each one `add` (new) or `update` (same id already installed) with its diff.
+3. **Diff-before-exec.** Show the per-directive diffs (new directives show the
+   full `check.sh` as an addition) and ask for an explicit `yes`.
+4. **Apply.** `packverb pack-apply add <root> <ref>` installs the approved
+   directive folders, lays down any `install-assets/` and records them in
+   `install_assets_seeded`, regenerates the hook dispatcher (so new `hook:`
+   declarations and `hooks/<kind>.sh` populators are picked up by the
+   runtime-discovery loop), and upserts the lockfile pin with the resolved SHA.
+5. **Report & commit.** The report carries the pinned SHA, the directive ids
+   installed, and the regenerated hooks. Stage and commit.
 
-Failure modes: any step 2–5 fails → abort with the fetched cache entry intact (future retries are cache-hits). Failure at step 6+ → roll back any already-copied directive folders before returning non-zero.
+A pack that fails validation or capability-check is refused before any write,
+with the fetched cache entry left intact (future retries are cache-hits).
 
 ## `pack update [<pack-id>]`
 
@@ -137,26 +174,30 @@ Default target: every lockfile entry. With a `<pack-id>` argument, update only t
 
 > Distinct from `governance reset --pack <id>`: `pack update` re-pins to a **newer** SHA (picks up upstream changes); `reset` restores to the **currently pinned** SHA (undoes local drift). Reach for `pack update` when the user wants newer rules, `reset` when they want pristine ones. See [RESET_FLOW.md](RESET_FLOW.md).
 
-1. Read the lockfile with `packverb lock-read`.
-2. For each entry: re-fetch using the original `ref` string (which carries the floating rev like `@main`). If the resolved SHA matches the locked SHA → skip.
-3. For entries whose SHA drifted, run validation + capability-check + diff-before-exec against the already-installed directive folders. The diff is the meat of this verb: the user sees precisely what changed in `check.sh` before the update lands.
-4. On confirmation, overwrite the directive folders, regenerate the hook dispatcher, and `lock-add` the new SHA (upsert replaces the existing entry).
+1. **Plan.** `packverb pack-plan update <root> [<pack-id>] --diff` reads the
+   lockfile, re-fetches each `gh` entry via its stored `ref`, and classifies any
+   whose SHA drifted as `update` (SHA unchanged → `skip`; `local` packs → skipped
+   with a reason). The per-directive diff is the meat of this verb.
+2. **Diff-before-exec.** Show the diffs and ask for an explicit `yes`. If every
+   pack's SHA is unchanged, `pack-apply` reports `up-to-date` and writes nothing.
+3. **Apply.** `packverb pack-apply update <root> [<pack-id>]` overwrites the
+   drifted directive folders, regenerates the hook dispatcher, and upserts the
+   new SHA into the lockfile.
 
 ## `pack remove <pack-id>`
 
 Works on installed (`source: gh`) and repo-local (`source: local`) packs.
 
-1. Read `.governance/packs.lock`; confirm the pack id is present.
-2. List the directives the lockfile attributes to this pack. Preview to the user which directive folders will be deleted.
-3. On confirmation, for each directive:
-   - `rm -rf .governance/packs/<pack-id>/directives/<directive-id>/`
-   - Remove the directive's subsection from `CONSTITUTION.md` if present (ownership marker guarded — same discipline as `governance uninstall`).
-4. Remove the pack's `pack.yaml` (and the now-empty `<owner>/<name>/` directory).
-5. Regenerate the hook dispatcher so removed directives are no longer invoked.
-6. `packverb lock-remove .governance/packs.lock <pack-id>`.
-7. If any of the pack's directives seeded files listed in `.governance/install.yaml`'s `install_assets_seeded`, prune those entries.
+1. **Plan.** `packverb pack-plan remove <root> <pack-id>` (offline) reads the
+   lockfile, lists the directive folders attributed to the pack, and flags which
+   of their CONSTITUTION.md subsections are present. Preview the deletions.
+2. **Apply.** On confirmation, `packverb pack-apply remove <root> <pack-id>`
+   deletes each directive folder, strips its CONSTITUTION.md subsection
+   (`docsurgery`, exact-heading-matched so a prefix id never aliases), drops the
+   now-empty `<owner>/<name>/` pack root, regenerates the hook dispatcher so
+   removed directives are no longer invoked, and prunes the lock entry.
 
-Never remove `governance-kit/core` wholesale — even though its lockfile entry is now `source: gh` like any other pack (post-#117), the kit pack is the bedrock of every governance-kit setup. Removing individual `governance-kit/core` directives is done with `governance directive remove <id>` instead.
+Never remove `governance-kit/core` wholesale — even though its lockfile entry is now `source: gh` like any other pack (post-#117), the kit pack is the bedrock of every governance-kit setup. `pack-apply remove governance-kit/core` is refused; remove individual core directives with `governance directive remove <id>` instead.
 
 ## `pack list`
 
