@@ -34,6 +34,18 @@ stage_all
 commit_quiet "fixture: consistent stamps"
 EVAL_LABEL="$EVAL_ID" expect_pass "$CHECK"
 
+# pass — manifest pins kit_version with single quotes (older-init bootstrap).
+# YAML permits both quote styles; the parser must strip either, else `expected`
+# keeps the quotes and never matches the bare `kit-version=` marker. Regression
+# guard for the self-equal-looking violation in issue #170 (finding A).
+sed -i.bak "s/^kit_version:.*/kit_version: '$KITV'/" .governance/install.yaml && rm -f .governance/install.yaml.bak
+stage_all
+commit_quiet "fixture: single-quoted kit_version"
+EVAL_LABEL="$EVAL_ID single-quoted pin" expect_pass "$CHECK"
+
+# restore double-quoted pin for the remaining cases
+sed -i.bak "s/^kit_version:.*/kit_version: \"$KITV\"/" .governance/install.yaml && rm -f .governance/install.yaml.bak
+
 # fail — one managed file drifts to a different kit version
 write_marked .github/workflows/governance.yml "0.0"
 stage_all

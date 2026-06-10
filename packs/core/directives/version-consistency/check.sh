@@ -28,7 +28,10 @@ MANIFEST=".governance/install.yaml"
 [[ -f "$MANIFEST" ]] || directive_end   # no-op: nothing installed to validate
 
 manifest_field() {  # scalar value of a top-level key, quotes/comments stripped
-    sed -nE "s/^$1:[[:space:]]*\"?([^\"#[:space:]]*)\"?.*/\1/p" "$MANIFEST" | head -1
+    # Accept either quote style — YAML permits both, and older-`init` repos
+    # single-quote `kit_version: '0.3'`. Stripping only `"` left the quotes in
+    # the value, so it never matched the bare `kit-version=` marker (#170).
+    sed -nE "s/^$1:[[:space:]]*['\"]?([^'\"#[:space:]]*)['\"]?.*/\1/p" "$MANIFEST" | head -1
 }
 
 expected="$(manifest_field kit_version)"
@@ -60,7 +63,7 @@ for f in "${managed[@]}"; do
     [[ -n "$v" ]] || continue   # unmanaged / bare marker — out of this directive's scope
     checked=$((checked + 1))
     if [[ "$v" != "$expected" ]]; then
-        violation "$f is stamped kit-version=$v but .governance/install.yaml pins kit_version=$expected — run 'governance kit update' or re-stamp so every managed file agrees"
+        violation "$f is stamped kit-version='$v' but .governance/install.yaml pins kit_version='$expected' — run 'governance kit update' or re-stamp so every managed file agrees"
     fi
 done
 
