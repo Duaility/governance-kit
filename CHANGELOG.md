@@ -21,6 +21,15 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [kit/v0.5.0] - 2026-06-10
+
+### Added
+- repo-pin the kit and delegate apply to its engine (#177) (#178)
+
+### Fixed
+- harden release.sh changelog builder against empty trailing group (#179)
+- release.sh re-pins up-to-date eval fixture on kit bump (#175) (#176)
+
 ## [kit/v0.4.0] - 2026-06-10
 
 ### Added

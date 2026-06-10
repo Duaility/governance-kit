@@ -2,7 +2,7 @@ version: "3"
 generated_at: 2026-05-08T00:00:00Z
 owner: acme
 repo: up-to-date-repo
-kit_version: "0.4.0"
+kit_version: "0.5.0"
 kit_ref: gh:duaility/governance-kit/governance@kit/v0.4.0
 kit_sha: 0000000000000000000000000000000000000000
 hook_strategy: githooks
