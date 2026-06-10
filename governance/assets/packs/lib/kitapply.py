@@ -39,7 +39,7 @@ from applylib import (
     regen_hooks_step,
     smoke_test,
 )
-from kitverb import KIT_VERSION, compute_plan, stamped_text
+from kitverb import KIT_ASSETS, KIT_VERSION, compute_plan, stamped_text
 
 # Per-file decision verbs. Defaults when a dest is not named: `apply` for
 # managed files (the marker is the regeneration contract), `keep` for
@@ -72,12 +72,18 @@ def _update_manifest_kit_version(manifest_path: Path, kit_version: str) -> None:
     manifest_path.write_text("".join(lines))
 
 
-def _write_fresh_manifest(root: Path, plan: dict[str, Any], owner: str, repo: str) -> subprocess.CompletedProcess[str]:
-    """v3 manifest for the reconstructed-pin path, via install.sh write_installed_manifest."""
+def _write_fresh_manifest(root: Path, plan: dict[str, Any], owner: str, repo: str,
+                          stamp_version: str) -> subprocess.CompletedProcess[str]:
+    """v3 manifest for the reconstructed-pin path, via install.sh write_installed_manifest.
+
+    Records only `kit_version`; the `kit_ref`/`kit_sha` pin is written separately
+    by the orchestration's `kit-pin` step after a successful apply (issue #177),
+    so the value-write is identical regardless of which target engine applied.
+    """
     argv = [
         str(root),
         "--owner", owner, "--repo", repo,
-        "--kit-version", KIT_VERSION,
+        "--kit-version", stamp_version,
         "--hook-strategy", plan["hook_strategy"],
         "--tests-dir", plan["tests_dir"],
     ]
@@ -89,12 +95,19 @@ def _write_fresh_manifest(root: Path, plan: dict[str, Any], owner: str, repo: st
 
 def cmd_kit_apply(args: argparse.Namespace) -> int:
     root = Path(args.root).resolve()
-    plan = compute_plan(root)
+    # The forward/same case delegates to the fetched target's own engine, which
+    # uses its own KIT_ASSETS/KIT_VERSION. The overrides below are exercised only
+    # on a delegated downgrade: the local (newer) engine writing the fetched
+    # older target's assets, stamped the older version, hooks from its lib.
+    assets_root = Path(args.assets_root).resolve() if args.assets_root else KIT_ASSETS
+    stamp_version = args.stamp_version or KIT_VERSION
+    hooks_lib = Path(args.hooks_lib).resolve() if args.hooks_lib else None
+    plan = compute_plan(root, assets_root=assets_root, stamp_version=stamp_version)
 
     report: dict[str, Any] = {
         "result": None,
         "from": plan["installed_kit_version"],
-        "to": KIT_VERSION,
+        "to": stamp_version,
         "delta": plan["delta"],
         "manifest_source": plan["manifest_source"],
         "updated": [], "added": [], "skipped": [], "kept": [],
@@ -112,14 +125,21 @@ def cmd_kit_apply(args: argparse.Namespace) -> int:
 
     # --- delta gates (UPDATE_FLOW.md Step 2, now enforced in code) ---
     if plan["delta"] == "up-to-date":
+        # Same-version no-op for the file apply. The shim still records the
+        # kit_ref/kit_sha pin afterward via `kit-pin` (the backfill path for a
+        # repo whose manifest predates the pin fields).
         report.update(result="up-to-date", skipped=[f["dest"] for f in plan["files"]])
         print(json.dumps(report, indent=2))
         return 0
-    if plan["delta"] == "downgrade":
+    if plan["delta"] == "downgrade" and not args.allow_downgrade:
         return refuse(
             report,
-            f"recorded kit_version {plan['installed_kit_version']} is newer than the kit on PATH ({KIT_VERSION})",
-            "upgrade the kit on PATH (refresh the installed skill), then re-run",
+            f"recorded kit_version {plan['installed_kit_version']} is newer than the target ({stamp_version})",
+            "re-run with --allow-downgrade to roll the kit-runtime backward",
+        )
+    if plan["delta"] == "downgrade":
+        report["assumptions"].append(
+            f"--allow-downgrade: rolling the kit-runtime from {plan['installed_kit_version']} back to {stamp_version}"
         )
     if plan["delta"] == "no-recoverable-pin":
         return refuse(
@@ -203,22 +223,24 @@ def cmd_kit_apply(args: argparse.Namespace) -> int:
             shutil.copy2(dest, bak)
             report["backups"].append(entry["dest"] + ".pre-update.bak")
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(stamped_text(src, KIT_VERSION))
+        dest.write_text(stamped_text(src, stamp_version))
         shutil.copymode(src, dest)
         report["added" if entry["status"] == "add" else "updated"].append(entry["dest"])
 
+    hook_kwargs = {"lib_dir": hooks_lib} if hooks_lib is not None else {}
     hooks_rc = regen_hooks_step(
-        root, plan["hook_strategy"], KIT_VERSION, report,
-        recovery="resolve the hook collision (unmanaged hook file), `git checkout -- .` to restore, re-run")
+        root, plan["hook_strategy"], stamp_version, report,
+        recovery="resolve the hook collision (unmanaged hook file), `git checkout -- .` to restore, re-run",
+        **hook_kwargs)
     if hooks_rc is not None:
         return hooks_rc
 
     manifest_path = root / ".governance" / "install.yaml"
     if manifest_path.is_file():
-        _update_manifest_kit_version(manifest_path, KIT_VERSION)
+        _update_manifest_kit_version(manifest_path, stamp_version)
         report["manifest"] = "updated"
     else:
-        fresh = _write_fresh_manifest(root, plan, args.owner, args.repo)
+        fresh = _write_fresh_manifest(root, plan, args.owner, args.repo, stamp_version)
         if fresh.returncode != 0:
             report.update(
                 result="error",

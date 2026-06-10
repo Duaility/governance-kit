@@ -13,7 +13,9 @@ version: "3"
 generated_at: 2026-04-29T16:45:34Z
 owner: acme                      # GitHub owner of the bootstrapping repo (lowercased)
 repo: widgets                    # GitHub repo name of the bootstrapping repo (lowercased)
-kit_version: "0.3"               # KIT_VERSION that did the install or last `kit update` (optional within v3 — absent on pre-tracking installs)
+kit_version: "0.4.0"             # KIT_VERSION that did the install or last `kit update` (optional within v3 — absent on pre-tracking installs)
+kit_ref: gh:duaility/governance-kit/governance@kit/v0.4.0  # content-addressed pin of that kit (optional within v3 — backfilled on first `kit update`)
+kit_sha: 1f3c…40hex              # resolved 40-hex commit the ref points at (optional within v3 — omitted when init was offline)
 hook_strategy: githooks          # or: husky | pre-commit
 constitution: true               # CONSTITUTION.md was written at repo root
 ci_workflow: .github/workflows/governance.yml
@@ -48,6 +50,7 @@ Notes on the emitted shape:
 
 - `version` is a **quoted string** (`"3"`), not a bare integer. YAML treats both identically, but fixture byte-diffs depend on the exact form the emitter writes.
 - `kit_version` is the `KIT_VERSION` constant ([packctl.py](../assets/packs/lib/packctl.py)) of the kit that did the install or last `kit update`. It mirrors the per-file `kit-version=<v>` marker each kit-owned file carries (runtime templates and hook dispatchers alike). The markers are the source of truth; this field is a cache so common `kit update` paths can read one file instead of scanning every managed file. If the manifest is missing or the field is absent, `kit update` reconstructs it by scanning markers (taking the min `kit-version=`) and rewrites the field on success. The field is **optional within v3** — repos bootstrapped before it existed simply omit it; `kit update` treats absence as "pre-tracking install" and offers to record the current `KIT_VERSION` on the next run. Quoted-string form (`"0.2"`).
+- `kit_ref` / `kit_sha` are the **content-addressed pin** of the kit this repo runs — the repo-pinned model (issue #177). `kit_ref` is a `gh:<owner>/<repo>/governance@kit/vX.Y.Z` ref (the kit's own publish path, *not* this repo's `owner`/`repo`); `kit_sha` is the resolved 40-hex commit it points at, the same `git ls-remote` / fetch resolution packs use. Together they make the manifest the **authoritative statement of which kit this repo runs**: `kit update` fetches this tree into `~/.governance/cache/kits/<owner>__<repo>@<sha>/` and **delegates plan/apply to its own engine** (`kitverb.py`), so the code that writes version X's files is version X's code. Both are **optional within v3**: `init` records `kit_ref` always (it is constructible offline) and `kit_sha` when a network resolve succeeds; either absent field is **backfilled on the first `kit update`** that runs under this change (via the `kit-pin` step after a successful apply). Unquoted scalar form. The pair is orthogonal to `version-consistency`, which still validates only `kit_version` against the managed-file markers.
 - `collisions[*]` uses a flat `extra` field, not named `backup_path` / `userhook_path` sub-fields. Interpret `extra` based on `resolution`: `wrap` ⇒ userhook sibling path; `overwrite` ⇒ `.pre-governance.bak` backup path; `skip` ⇒ no extra.
 - Keys appear in the emitter's fixed order (metadata → flags → `install_assets_seeded` → `collisions` → optional `path_b`). Do not rely on order when parsing, but **do** preserve it when regenerating fixtures — byte-diffs matter for the eval harness.
 - The `packs:` block from v2 is gone. Pack pin state — id, version, source, ref, sha, directives — lives in `.governance/packs.lock`. See [LOCK_SCHEMA.md](LOCK_SCHEMA.md).
@@ -88,13 +91,14 @@ Everything else reset needs (which packs exist, which directives belong to each,
 
 | Field | Purpose in kit update |
 |---|---|
-| `kit_version` | The cached version pin. Compared against the `KIT_VERSION` of the kit on PATH to determine whether the repo is up-to-date, behind (forward update), or ahead (refused — no silent downgrades). Absence means pre-tracking install; the verb scans per-file markers to reconstruct the pin, falling back to "pre-tracking install" only if no versioned marker is found. |
+| `kit_version` | The cached version pin. Compared against the **resolved target** version (the latest published `kit/vX.Y.Z` tag by default, or `--to X.Y.Z`) to classify the update as forward / same / downgrade. Absence means pre-tracking install; the verb scans per-file markers to reconstruct the pin, falling back to "pre-tracking install" only if no versioned marker is found. |
+| `kit_ref` / `kit_sha` | The pin `kit update` fetches when resolving offline (the cache-fallback hop) and the value it re-writes after a successful apply. On an online run the resolved target supersedes them; on an offline run with no published tags reachable, the verb re-applies this cached pin before falling back to the installed skill. |
 | `hook_strategy` | Selects the dispatcher generator (`.githooks/`, `.husky/`, or `.governance/hooks/`) when regenerating hooks. |
 | `tests_dir` | Where `run.sh` / `lib.sh` live, for the per-file diff-and-copy. |
 | `enable_governance_script` | Path A only — the destination path for the `enable-governance.sh` re-sync. Omitted under Path B (the verb skips that file pair). |
 | `ci_workflow` | The destination path for the `governance.yml` re-sync. |
 
-After a successful run, `kit update` rewrites the manifest with the new `kit_version` and unchanged everything else. See [UPDATE_FLOW.md](UPDATE_FLOW.md).
+After a successful run, `kit update` rewrites the manifest with the new `kit_version` and the resolved `kit_ref` / `kit_sha`, everything else unchanged. See [UPDATE_FLOW.md](UPDATE_FLOW.md).
 
 ## Legacy fallback — v0.1 / v2 manifests
 

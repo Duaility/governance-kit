@@ -73,27 +73,47 @@ def parse_ref(ref: str) -> dict[str, str]:
     }
 
 
-def cache_root() -> Path:
-    """Shared pack cache root. Honors `GOVERNANCE_KIT_HOME`; defaults to ~/.governance/cache/."""
+def cache_base() -> Path:
+    """Shared cache base. Honors `GOVERNANCE_KIT_HOME`; defaults to ~/.governance/cache/.
+
+    Two content-addressed namespaces live under here: `packs/` (rules content,
+    keyed by pack id) and `kits/` (the framework engine + assets, keyed by
+    owner/repo). See `cache_root()` and `kitverb.fetch_kit_ref`.
+    """
     override = os.environ.get("GOVERNANCE_KIT_HOME")
-    base = Path(override) if override else Path.home() / ".governance" / "cache"
-    return base / "packs"
+    return Path(override) if override else Path.home() / ".governance" / "cache"
+
+
+def cache_root() -> Path:
+    """Shared pack cache root. Honors `GOVERNANCE_KIT_HOME`; defaults to ~/.governance/cache/packs/."""
+    return cache_base() / "packs"
 
 
 def _slugify_pack_id(pack_id: str) -> str:
     return pack_id.replace("/", "__")
 
 
-def fetch_ref(ref: str, cache_dir: Path | None = None) -> dict[str, str]:
-    """Clone `ref` into the shared cache, resolving HEAD to a concrete SHA.
+def clone_into_cache(
+    ref: str,
+    namespace: str,
+    identity,
+    cache_dir: Path | None = None,
+) -> dict[str, str]:
+    """Clone `ref` into `<cache>/<namespace>/<slug>@<sha>`, resolving HEAD to a SHA.
 
-    Idempotent: repeat calls with the same resolved SHA hit the cache. A monorepo
-    that hosts and consumes its own pack (the kit's own `governance-kit/core`)
-    fetches it over the network like any other consumer — `pack update` then
-    dogfoods the real fetch path against the published ref.
+    The fetch primitive shared by every content-addressed ingestion route. It
+    does the clone/init-fetch dance, resolves the concrete commit SHA, then
+    hands the fetched subpath to `identity(target_dir, parsed) -> (slug, extra)`
+    — the per-namespace validator that proves the tree is what it claims to be
+    (a `pack.yaml` for packs, an `assets/kit.yaml` for kits) and names the
+    cache-dir stem. `extra` is merged into the returned dict.
+
+    Idempotent: a repeat fetch of the same resolved SHA hits the cache and
+    skips the move. Returns `{sha, cache_dir, target_dir, **extra}` where
+    `target_dir` is the cached `<subpath>` (or the cache dir when no subpath).
     """
     parsed = parse_ref(ref)
-    root = cache_dir if cache_dir else cache_root()
+    root = cache_dir if cache_dir else cache_base() / namespace
     root.mkdir(parents=True, exist_ok=True)
 
     rev = parsed["rev"]
@@ -133,25 +153,42 @@ def fetch_ref(ref: str, cache_dir: Path | None = None) -> dict[str, str]:
             ["git", "-C", str(tmp_path), "rev-parse", "HEAD"], text=True
         ).strip()
 
-        pack_sub = tmp_path / parsed["subpath"] if parsed["subpath"] else tmp_path
-        if not (pack_sub / "pack.yaml").is_file():
+        target = tmp_path / parsed["subpath"] if parsed["subpath"] else tmp_path
+        slug, extra = identity(target, parsed)
+
+        final_root = root / f"{slug}@{sha}"
+        target_in_cache = final_root / parsed["subpath"] if parsed["subpath"] else final_root
+        result = {"sha": sha, "cache_dir": str(final_root), "target_dir": str(target_in_cache), **extra}
+        if final_root.exists():
+            return result
+
+        shutil.rmtree(tmp_path / ".git", ignore_errors=True)
+        shutil.move(str(tmp_path), str(final_root))
+        return result
+
+
+def fetch_ref(ref: str, cache_dir: Path | None = None) -> dict[str, str]:
+    """Clone `ref` into the shared pack cache, resolving HEAD to a concrete SHA.
+
+    Idempotent: repeat calls with the same resolved SHA hit the cache. A monorepo
+    that hosts and consumes its own pack (the kit's own `governance-kit/core`)
+    fetches it over the network like any other consumer — `pack update` then
+    dogfoods the real fetch path against the published ref.
+    """
+    def identity(target: Path, parsed: dict[str, str]) -> tuple[str, dict[str, str]]:
+        if not (target / "pack.yaml").is_file():
             raise SystemExit(
                 f"fetch: no pack.yaml at {parsed['subpath'] or '<root>'} in {ref}"
             )
-        pack_id = scalar(pack_manifest(pack_sub).get("id"))
+        pack_id = scalar(pack_manifest(target).get("id"))
         if not pack_id or not PACK_ID_RE.match(pack_id):
             raise SystemExit(
                 f"fetch: pack.yaml id {pack_id!r} is not a scoped id (pattern: author/slug)"
             )
+        return _slugify_pack_id(pack_id), {"id": pack_id}
 
-        final_root = root / f"{_slugify_pack_id(pack_id)}@{sha}"
-        pack_dir = final_root / parsed["subpath"] if parsed["subpath"] else final_root
-        if final_root.exists():
-            return {"sha": sha, "pack_dir": str(pack_dir), "cache_dir": str(final_root), "id": pack_id}
-
-        shutil.rmtree(tmp_path / ".git", ignore_errors=True)
-        shutil.move(str(tmp_path), str(final_root))
-        return {"sha": sha, "pack_dir": str(pack_dir), "cache_dir": str(final_root), "id": pack_id}
+    res = clone_into_cache(ref, "packs", identity, cache_dir=cache_dir)
+    return {"sha": res["sha"], "pack_dir": res["target_dir"], "cache_dir": res["cache_dir"], "id": res["id"]}
 
 
 # ---- Capability-glob enforcement ------------------------------------------

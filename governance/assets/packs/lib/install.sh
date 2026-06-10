@@ -183,6 +183,7 @@ write_installed_manifest() {
     #       --owner <github-owner> \
     #       --repo <github-repo-name> \
     #       [--kit-version <semver>] \
+    #       [--kit-ref <gh-ref>] [--kit-sha <40-hex>] \
     #       [--hook-strategy githooks|husky|pre-commit] \
     #       [--ci-workflow <path>] \
     #       [--tests-dir <path>] \
@@ -199,6 +200,13 @@ write_installed_manifest() {
     # of the kit doing the install or `kit update`. Optional within v3 — if
     # absent the field is omitted from the emitted YAML, which `kit update`
     # later reads as a pre-tracking install.
+    #
+    # `--kit-ref` / `--kit-sha` record the content-addressed pin of the kit
+    # that did the install — the repo-pinned model (issue #177): the manifest is
+    # the authoritative statement of which kit this repo runs, and `kit update`
+    # fetches that ref and delegates apply to its engine. Both optional; emitted
+    # only when supplied (init resolves the sha via `git ls-remote` and omits it
+    # when offline, leaving it to be backfilled on the first `kit update`).
     #
     # `owner` and `repo` are the GitHub-shaped identity of the bootstrapping
     # repo, lowercased. They define the default repo-local pack at
@@ -220,7 +228,7 @@ write_installed_manifest() {
     local agents_md_snippet="false" agents_md_created="false"
     local path_b_framework=""
     local enable_governance_script=""
-    local owner="" repo="" kit_version=""
+    local owner="" repo="" kit_version="" kit_ref="" kit_sha=""
     local -a install_assets=() collisions=() path_b_entries=()
 
     while [[ $# -gt 0 ]]; do
@@ -228,6 +236,8 @@ write_installed_manifest() {
             --owner)             owner="$2";             shift 2 ;;
             --repo)              repo="$2";              shift 2 ;;
             --kit-version)       kit_version="$2";       shift 2 ;;
+            --kit-ref)           kit_ref="$2";           shift 2 ;;
+            --kit-sha)           kit_sha="$2";           shift 2 ;;
             --hook-strategy)     hook_strategy="$2";     shift 2 ;;
             --ci-workflow)       ci_workflow="$2";       shift 2 ;;
             --tests-dir)         tests_dir="$2";         shift 2 ;;
@@ -262,6 +272,12 @@ write_installed_manifest() {
         printf 'repo: %s\n' "$repo"
         if [[ -n "$kit_version" ]]; then
             printf 'kit_version: "%s"\n' "$kit_version"
+        fi
+        if [[ -n "$kit_ref" ]]; then
+            printf 'kit_ref: %s\n' "$kit_ref"
+        fi
+        if [[ -n "$kit_sha" ]]; then
+            printf 'kit_sha: %s\n' "$kit_sha"
         fi
         printf 'hook_strategy: %s\n' "$hook_strategy"
         printf 'constitution: %s\n' "$constitution_flag"

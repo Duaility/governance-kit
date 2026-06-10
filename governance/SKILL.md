@@ -18,11 +18,15 @@ Tracking issue: [Duaility/governance-kit#31](https://github.com/Duaility/governa
 
 ```
 governance init                                       # bootstrap a repo
-governance kit update [--with-packs] [--check-upstream] [--dry-run] [--force]
-                                                      # re-sync runtime files (run.sh, lib.sh, enable-governance.sh,
-                                                      # governance.yml, hook dispatchers) when a new kit
-                                                      # version is on PATH; --with-packs also re-pins gh packs;
-                                                      # --check-upstream reports if the installed skill is behind
+governance kit update [--to X.Y.Z] [--allow-downgrade] [--offline]
+                      [--with-packs] [--check-upstream] [--dry-run] [--force]
+                                                      # resolve a target kit (default: latest published kit/vX.Y.Z
+                                                      # tag; --to picks an exact version), fetch its tree, and
+                                                      # delegate apply to its own engine — re-syncing run.sh, lib.sh,
+                                                      # enable-governance.sh, governance.yml, hook dispatchers and
+                                                      # recording the kit_ref/kit_sha pin; --allow-downgrade rolls
+                                                      # backward; --offline resolves from cache/installed skill;
+                                                      # --with-packs also re-pins gh packs
 governance pack search [query]                        # search community catalog
 governance pack create <name>                         # scaffold a repo-local pack at packs/<repo-owner>/<name>/
 governance pack add <ref>                             # e.g. gh:acme/soc2-pack@main
@@ -91,20 +95,21 @@ Key invariants:
 
 ## `governance kit update`
 
-Re-syncs the kit-runtime files installed at `init` (`run.sh`, `lib.sh`, `enable-governance.sh`, `governance.yml`, hook dispatchers) when a newer kit is on PATH. Stamps the new version into `install.yaml.kit_version`. Disjoint from `pack update`: this verb updates the *framework* code, not the rules content.
+Moves the repo to a pinned kit version and re-syncs the kit-runtime files `init` seeded (`run.sh`, `lib.sh`, `enable-governance.sh`, `governance.yml`, hook dispatchers). The **repo-pinned model** (issue #177): `install.yaml`'s `kit_ref`/`kit_sha` are the authoritative statement of which kit this repo runs. The verb resolves a target → fetches its tree → **delegates apply to the target's own engine** → records the pin. Disjoint from `pack update`: this updates the *framework* code, not the rules content.
 
 **Authoritative flow:** [references/UPDATE_FLOW.md](references/UPDATE_FLOW.md) Steps 1–8.
 
 Key invariants:
 
-- Deterministic plan/apply pair: [`assets/packs/lib/kitverb.py`](assets/packs/lib/kitverb.py) `kit-plan --diff` resolves the plan (version delta, managed-file inventory, noise-free diffs) and `kit-apply` executes it (gates, pre-stamped writes, per-file decisions, hook regeneration, manifest write-through, smoke test) in one tested call. The skill elicits decisions, shows diffs, and commits — it never hand-executes `cp` / marker stamping / manifest edits.
-- Refuses without `install.yaml`. The manifest is the version pin this verb writes through.
+- Resolve → fetch → delegate. [`assets/packs/lib/kitverb.py`](assets/packs/lib/kitverb.py) `kit-resolve` resolves the target (default: latest published `kit/vX.Y.Z` tag; `--to X.Y.Z` for an exact version; offline falls back through the cached pin → installed skill), fetches it into `~/.governance/cache/kits/`, and names the engine to delegate to. The skill is a thin bootstrapper — it elicits decisions, shows diffs, and commits; it never hand-executes `cp` / marker stamping / manifest edits.
+- Deterministic plan/apply pair: the resolved engine's `kit-plan --diff` resolves the file plan (version delta, managed-file inventory, noise-free diffs) and `kit-apply` executes it (gates, pre-stamped writes, per-file decisions, hook regeneration, manifest write-through, smoke test) in one tested call. Forward/same-version run the *fetched target's own* engine, so version X's files are written by version X's code.
 - Diff-before-exec per file. Files without a line-2 `governance-kit:managed` marker are surfaced as `Skipped (unmanaged)` and the user picks `keep` / `apply anyway` / `overwrite-with-backup`.
-- No silent downgrades: a manifest stamp newer than the kit on PATH stops the verb.
-- `--with-packs` chains `pack update` for every `source: gh` entry; without the flag, kit-runtime sync is a pure local file-copy and never touches the network.
-- `--check-upstream` adds a read-only `git ls-remote` against the kit's upstream to report whether the *installed skill* is behind the latest published `kit/vX.Y.Z` — a signal only. It never fetches-and-applies the kit (that stays the skill manager's job, `npx skills update governance --global`); the verb only ever syncs the repo to the installed kit.
-- Refuses on a dirty working tree (override with `--force`).
-- One atomic commit per run, Conventional Commits subject, no auto-push.
+- Downgrades are explicit: `--allow-downgrade` rolls backward (driven by the newer local engine against the fetched older assets); without it the verb refuses, naming the flag.
+- Delegation floor: a target below `kit/v0.4.0` ships no engine and is refused with the legacy `npx skills add …#kit/v<target>` reinstall path.
+- After a successful apply the resolved `kit_ref`/`kit_sha` are recorded via `kit-pin`; absent pin fields on a pre-#177 repo are backfilled on the first update.
+- `--with-packs` chains `pack update` for every `source: gh` entry. `--check-upstream` adds the read-only `git ls-remote` signal in the report (resolution already consults published tags).
+- No network at hook/commit time — fetching is confined to the verb; `--offline` skips even that.
+- Refuses on a dirty working tree (override with `--force`). One atomic commit per run, Conventional Commits subject, no auto-push.
 
 ## `governance reset`
 

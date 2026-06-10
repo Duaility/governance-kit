@@ -264,7 +264,8 @@ def test_apply_refuses_downgrade() -> None:
         before = tree_digest(root)
         rc, report = kit_apply(root)
         assert rc == 2 and report["result"] == "refused", report
-        assert "newer than the kit on PATH" in report["reason"]
+        assert "newer than the target" in report["reason"]
+        assert "--allow-downgrade" in report["recovery"]
         assert tree_digest(root) == before
 
 
