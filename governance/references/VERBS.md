@@ -27,7 +27,8 @@ full rearchitecture context.
 - **Not** an alias for `reset` — see disambiguation in [`../SKILL.md`](../SKILL.md). "uninstall" removes governance entirely; "reset" restores rules to pinned versions while leaving the install in place.
 - **Modes:** `dry-run` (default when manifest missing), `soft` (default when manifest present), `hard` (also strips seeded docs like `QUALITY.md`, `COSTS.md`, and `.pre-governance.bak` backups).
 - **Authoritative flow:** [UNINSTALL_FLOW.md](UNINSTALL_FLOW.md) Steps 1–6.
-- **Source-of-truth ladder:** install manifest → `governance-kit:managed kit-version=<v>` line-2 marker → heuristic fallback (forces dry-run).
+- **Deterministic plan/apply.** `packverb uninstall-plan` surveys/classifies; `packverb uninstall-apply --mode <m> [--allow-heuristic]` executes the reversal in fixed order (hooks → config → AGENTS.md → tree → path-B → seeded → backups → `.governance/` last). The skill never hand-executes the deletions.
+- **Source-of-truth ladder:** install manifest → `governance-kit:managed kit-version=<v>` line-2 marker → heuristic fallback (forces dry-run; a destructive mode needs `--allow-heuristic`).
 - **Directive:** never delete a file without ownership evidence.
 
 ## `kit update`
@@ -49,6 +50,7 @@ full rearchitecture context.
 - **Scopes (exactly one required):** `--directive <id>`, `--pack <id>`, `--all`.
 - **Flags:** `--drop-handauthored` (only with `--all`), `--dry-run`, `--force` (override the dirty-working-tree refusal).
 - **Authoritative flow:** [RESET_FLOW.md](RESET_FLOW.md) Steps 1–7.
+- **Deterministic plan/apply.** `packverb reset-plan <scope> … [--diff]` resolves pinned sources + classifies restore/skip/drop; `packverb reset-apply <scope> … [--date --author]` restores folders + CONSTITUTION subsections, regenerates hooks, and appends the Evolution Log in one tested call. The skill never hand-executes file operations.
 - **Pinned, not latest.** Reset restores to the SHA in `.governance/packs.lock` (or the kit-bundled `governance-kit/core` tree). For newer upstream content use `pack update`.
 - **Hand-authored is preserved by default.** Pass `--drop-handauthored` to delete user-added directives that have no pristine source.
 - **Diff-before-exec.** Per-directive diff is shown before any file is written.

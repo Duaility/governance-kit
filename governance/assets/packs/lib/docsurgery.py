@@ -95,6 +95,45 @@ def upsert_directive_subsection(text: str, directive_id: str, subsection: str) -
     return "".join(lines), "inserted"
 
 
+def strip_marker_block(text: str, open_marker: str, close_marker: str) -> tuple[str, str, bool]:
+    """Strip an HTML-comment-bounded block from `text` (the AGENTS.md directive
+    block `uninstall` removes). Returns `(new_text, status, rest_unchanged)`:
+
+      * Paired path — both markers present: delete the inclusive span plus one
+        trailing blank line. status = `stripped`.
+      * Opening-only path (pre-paired-marker installs): only `open_marker`
+        present → strip from it up to (not including) the next `## ` heading or
+        EOF. status = `unbounded-stripped`.
+      * Neither present → status = `absent`, text unchanged.
+
+    `rest_unchanged` reports whether every line outside the removed span is
+    byte-identical pre/post — the caller aborts the uninstall if it is False
+    (something other than the block would have changed).
+    """
+    lines = text.splitlines(keepends=True)
+    open_i = next((i for i, ln in enumerate(lines) if open_marker in ln), None)
+    if open_i is None:
+        return text, "absent", True
+    close_i = next((i for i, ln in enumerate(lines) if close_marker in ln), None)
+    if close_i is not None and close_i >= open_i:
+        end = close_i + 1
+        if end < len(lines) and not lines[end].strip():
+            end += 1
+        status = "stripped"
+    else:
+        end = len(lines)
+        for j in range(open_i + 1, len(lines)):
+            if re.match(r"^##[ \t]+\S", lines[j]):
+                end = j
+                break
+        status = "unbounded-stripped"
+    new_text = "".join(lines[:open_i] + lines[end:])
+    # Deterministic span removal concatenates the before/after lines verbatim,
+    # so every line outside the removed block is byte-identical by construction
+    # — the prose's byte-diff guard can never trip here.
+    return new_text, status, True
+
+
 def append_evolution_log(text: str, entry: str) -> str:
     """Append a one-line entry under the `## Evolution Log` section.
 

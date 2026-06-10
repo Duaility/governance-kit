@@ -73,6 +73,10 @@ run_layer "pack-apply: plan/apply add/update/remove + doc surgery (Python)" \
     uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-packverb-apply.py" \
     || failed_layers+=("test-packverb-apply.py")
 
+run_layer "reset/uninstall: plan/apply engines (Python)" \
+    uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-reset-uninstall.py" \
+    || failed_layers+=("test-reset-uninstall.py")
+
 run_layer "install.sh helpers (bash)" \
     bash "$ROOT/scripts/test-install-sh.sh" \
     || failed_layers+=("test-install-sh.sh")

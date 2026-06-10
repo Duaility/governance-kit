@@ -46,6 +46,37 @@ the same commit.
 
 ---
 
+## Deterministic plan/apply
+
+`reset` follows the same terraform-style split as `kit update` and the `pack`
+verbs (issue #172): a pure **plan** and a tested **apply** engine. The skill
+never hand-executes `rm` / `cp` / CONSTITUTION edits / hook regen.
+
+- **Plan.** `packverb reset-plan {directive|pack|all} <root> [<target>]
+  [--drop-handauthored] [--diff]` resolves the in-scope directive set, locates
+  each one's **pinned** pristine source (re-fetching the lockfile SHA into the
+  cache if missing), classifies it `restore` / `skip` (byte-identical) / `drop`,
+  and with `--diff` emits the per-directive `installed → pristine` folder diff.
+  It writes nothing. Engine: `resetplan.py`.
+- **Diff-before-exec.** The skill shows the diffs and asks for an explicit `yes`.
+- **Apply.** `packverb reset-apply {directive|pack|all} <root> [<target>]
+  [--drop-handauthored] [--dry-run] [--force] [--date YYYY-MM-DD] [--author <u>]`
+  recomputes the plan and executes: restore folders via `copy_tree_without_evals`,
+  replace/insert CONSTITUTION subsections via `docsurgery`, drop hand-authored
+  directives (under `--drop-handauthored`), regenerate the hook dispatcher, append
+  one Evolution Log entry per pack, and smoke-test. Engine: `resetapply.py`.
+- **One atomic commit.** The apply writes and reports; the commit stays with the
+  operator (who supplies `--date`/`--author` for the log entry, and the `(#N)`
+  anchor on the commit).
+
+The apply enforces in code every gate that was prose: refuse when the lockfile is
+missing (reset is lockfile-driven), when the scope resolves to nothing, on a
+dirty tree without `--force`. It leaves `.governance/freshness.conf` untouched
+(that file holds opt-in doc paths, not per-directive state). Exit 0
+applied/no-op/dry-run, 2 refused, 1 error.
+
+---
+
 ## Activation flow
 
 Run these steps in order. Do not skip steps unless noted.
@@ -99,151 +130,46 @@ the hand-authored set is preserved untouched and listed under
 `--directive` or `--pack` (those scopes have no notion of "all
 hand-authored directives in scope").
 
-### Step 3 — Locate the pristine source for each in-scope directive
+### Step 3 — Plan
 
-For each pack-sourced directive in scope:
+Run `packverb reset-plan <scope> <root> [<target>] [--drop-handauthored] --diff`.
+The plan locates each in-scope directive's **pinned** pristine source — the cache
+at `${GOVERNANCE_KIT_HOME:-$HOME/.governance/cache}/packs/<pack-id-slug>@<sha>/<subpath>/directives/<id>/`
+(re-fetched from the lockfile `ref@<sha>` if the cache entry is missing; a fetch
+failure aborts the plan, never a partial reset), classifies each one `restore` /
+`skip` (byte-identical to pinned) / `drop` (hand-authored, only under
+`--drop-handauthored`), and emits the per-directive `installed → pristine` folder
+diff. The plan writes nothing.
 
-1. Look up the pack id and the directive id in the lockfile.
-2. **`source: gh`** — read the entry's `sha`, `ref`, and `subpath` from
-   `.governance/packs.lock`. Pristine source is the cache at
-   `${GOVERNANCE_KIT_HOME:-$HOME/.governance/cache}/packs/<pack-id-slug>@<sha>/<subpath>/directives/<directive-id>/`
-   (where `/` in pack id is encoded as `__`). This applies to both community
-   packs and `governance-kit/core` (post-#117 the kit's core pack is fetched
-   from `gh:duaility/governance-kit/packs/core@<rev>` like any other pack).
-3. If the cache entry is missing, re-fetch with
-   `packverb fetch <ref>@<sha>` to repopulate (a network clone of the ref).
-   If the fetch fails, abort the entire reset — partial reset is not a
-   supported state.
+### Step 4 — Confirm (diff-before-exec)
 
-For hand-authored directives in the `--drop-handauthored` set, there
-is no pristine source — they are deletions, not restorations. Mark
-them `kind: drop`.
+Show the user the plan: the scope, the pinned-source resolution, the
+restore/skip/drop classification, and — for each restored directive — the diff
+that will be applied so they see the exact code that will start running on their
+commits. This is the same diff-before-exec discipline `pack add`/`pack update`
+use. Ask for an explicit `yes`. Silent acceptance must not proceed — reset is
+destructive and is the verb a user reaches for while *recovering* from a state
+they did not understand.
 
-For each pack-sourced directive, also compute:
+### Step 5 — Apply
 
-- The byte-diff between the installed `.governance/packs/<owner>/<repo>/directives/<id>/`
-  and the pristine source (excluding `evals/`, which is not
-  installed). If empty, mark the directive `kind: skip` and
-  surface that in the report.
-- The current `CONSTITUTION.md` subsection for `<id>` (best-effort
-  match by heading) and the pristine subsection from the pack's
-  `directives/<id>/constitution.md`. Compute the byte-diff.
-- Any per-directive loosen/grandfather state in
-  `.governance/freshness.conf` or in-source waivers added during
-  amend Step 4 (best-effort scan: comments matching
-  `governance: allow-<id>`). Reset clears the freshness.conf
-  thresholds for in-scope directives; in-source waivers are left
-  alone (those are repo content, not directive state).
-
-### Step 4 — Confirm
-
-Refuse to proceed if `git status --porcelain` shows uncommitted
-changes, unless `--force` was passed. Tell the user to commit, stash,
-or re-run with `--force`.
-
-Show the user the exact plan:
-
-```
-Reset scope: --all  (or: --directive <id>  /  --pack <id>)
-Pinned-source resolution:
-  core                     → kit-bundled tree
-  acme/widgets@5f3c... → cache: ~/.governance/packs/acme__widgets@5f3c.../
-
-Directives to restore (kind: restore):
-  constitution-exists    no diff — skipped
-  no-secrets             check.sh: 12 +/-3, constitution.md: 4 +/-2
-  agent-token-accounting check.sh: 0 +/-0, constitution.md: 1 +/-0
-
-Directives to drop (kind: drop)         [--drop-handauthored]:
-  custom-org-rule        hand-authored, no pristine source
-
-Directives preserved (hand-authored, no flag):
-  custom-org-rule
-
-Other state to clear:
-  .governance/freshness.conf entries for: no-secrets
-
-Hook dispatcher: regenerate (a directive may declare a different `hook:` after restore)
-
-Working tree: clean
-```
-
-For every restored directive, also print the diff that will be
-applied (`diff -ruN <installed> <pristine>`) so the user sees the
-exact code that will start running on their commits. This is the same
-diff-before-exec discipline `pack add` and `pack update` use.
-
-Ask for an explicit `yes` to execute. Silent acceptance must not
-proceed — this is destructive, and reset is the kind of verb a user
-runs when they are *recovering* from a state they did not understand,
-so confirmation is part of the help.
-
-### Step 5 — Execute the restore
-
-For each directive marked `kind: restore`, in order:
-
-1. **Replace the directive folder.** Remove
-   `.governance/packs/<owner>/<repo>/directives/<id>/` and copy the pristine
-   `directives/<id>/` from the source resolved in Step 3, minus the
-   `evals/` directory. This mirrors `install_directive_folder` from
-   `governance/assets/packs/lib/install.sh` — same contract, same
-   exclusions.
-2. **Restore the CONSTITUTION subsection.** Read the pack's
-   `directives/<id>/constitution.md`. If `CONSTITUTION.md` already
-   has a subsection whose heading matches `<id>`, replace it
-   in-place. If not, insert it alphabetically under the **Directives**
-   section. Preserve everything else in the file verbatim — same
-   discipline as amend Step 5(a).
-3. **Clear loosen/grandfather state.** If the directive id appears in
-   `.governance/freshness.conf`, remove its line. (In-source
-   waiver comments are left alone; they are repo content.)
-
-For each directive marked `kind: drop` (only present under
-`--all --drop-handauthored`), in order:
-
-1. `rm -rf .governance/packs/<owner>/<repo>/directives/<id>/`.
-2. Strip the matching subsection from `CONSTITUTION.md`. If no
-   subsection is found, note it in the report.
-
-For directives marked `kind: skip`, do nothing — they are already
-identical to the pinned version.
-
-After all directive-level changes:
-
-4. **Regenerate the hook dispatcher.** Reuse `generate_hooks_for_strategy`
-   from `governance/assets/packs/lib/hooks.sh`, passing the manifest's
-   `hook_strategy` so the regenerated dispatchers land in the right
-   directory for the host framework (`.githooks/`, `.husky/`, or
-   `.governance/hooks/`). A reset can change which hooks are needed
-   (e.g., a directive's `hook:` field may differ between the
-   installed-and-amended version and the pinned version, or a new
-   `hooks/<kind>.sh` populator may have appeared upstream).
-5. **Append an Evolution Log entry.** Use today's date from the
-   session environment and the format the file already uses. Default
-   shape per restored or dropped directive (group restores into one
-   log entry per pack to keep the log readable):
-
-   ```markdown
-   - YYYY-MM-DD — @<git-config-user> — Reset directives from `<pack-id>` to pinned `<sha>` (`<id-1>`, `<id-2>`, ...).
-   ```
-
-   For dropped hand-authored directives:
-
-   ```markdown
-   - YYYY-MM-DD — @<git-config-user> — Drop hand-authored directives via `reset --drop-handauthored` (`<id-1>`, `<id-2>`, ...).
-   ```
-
-6. **Smoke-test.** Run `bash .governance/run.sh` against the
-   restored tree. Capture exit code and output for the report. Do
-   **not** abort on failure — the directive set is now pristine, and
-   any failures are repo state the user needs to know about.
+Run `packverb reset-apply <scope> <root> [<target>] [--drop-handauthored]
+[--force] --date <YYYY-MM-DD> --author <git-user>`. The engine recomputes the
+plan and, in one call: replaces each restored directive folder from the pinned
+source (minus `evals/`), replaces/inserts its CONSTITUTION.md subsection from the
+pinned `constitution.md`, drops hand-authored directories + strips their
+subsections (under `--drop-handauthored`), regenerates the hook dispatcher (a
+restore can change which hooks are needed), appends one Evolution Log entry per
+pack (`- <date> — @<author> — Reset directives from \`<pack-id>\` to pinned
+\`<sha>\` (...)`), and smoke-tests without aborting on failure. It refuses a dirty
+tree without `--force` and leaves `.governance/freshness.conf` untouched.
+`--dry-run` resolves everything and writes nothing.
 
 ### Step 6 — Stage and commit
 
-Use `git add -A .governance/packs/<pack-id>/directives CONSTITUTION.md` plus any
-hook files the dispatcher regenerated and `.governance/freshness.conf`
-if it changed. Run `git status` to confirm the staged set is exactly
-the reset surface. Leave any unrelated changes unstaged.
+Stage the reset surface from the report (`.governance/packs/<pack-id>/directives`,
+`CONSTITUTION.md`, the regenerated hook files). Run `git status` to confirm the
+staged set is exactly the reset surface. Leave any unrelated changes unstaged.
 
 Conventional Commits subject, matching the scope:
 
