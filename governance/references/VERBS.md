@@ -36,9 +36,10 @@ full rearchitecture context.
 - **Precondition:** repo must have governance installed (`.governance/` and at least one kit-owned file present). Reads the version pin from `install.yaml.kit_version`; if the manifest is missing or the field is absent, scans per-file `kit-version=` markers and takes the min. Refuses only when neither manifest nor any versioned marker is found — that means there is no recoverable version pin.
 - **Flags:** `--with-packs` (also chain `pack update` for every `source: gh` entry), `--check-upstream` (read-only check of whether the installed skill is behind the latest published `kit/vX.Y.Z` — a signal only; never fetches-and-applies, routes to the skill manager), `--dry-run`, `--force` (override the dirty-working-tree refusal).
 - **Authoritative flow:** [UPDATE_FLOW.md](UPDATE_FLOW.md) Steps 1–8.
+- **Deterministic plan/apply.** `kitverb.py kit-plan --diff` resolves the plan; `kitverb.py kit-apply` executes it (gates, stamped writes, per-file decisions, hook regeneration, manifest write-through, smoke test) in one tested call. The skill never hand-executes file operations.
 - **Disjoint from `pack update`.** Updates the kit-runtime files (`run.sh`, `lib.sh`, `enable-governance.sh`, `governance.yml`, hook dispatchers) and the `kit_version` pin in `install.yaml`. For directive-content updates use `pack update`. Use both with `kit update --with-packs`.
 - **No silent downgrades.** A manifest stamp newer than the kit on PATH stops the verb.
-- **Diff-before-exec.** Per-file diff is shown before any file is written; files lacking the line-2 `governance-kit:managed` marker surface as `Skipped (unmanaged)` and the user picks `keep` / `apply anyway` / `overwrite-with-backup`.
+- **Diff-before-exec.** Per-file diff is shown before any file is written; files lacking the line-2 `governance-kit:managed` marker surface as `Skipped (unmanaged)` and the user picks `keep` / `apply` / `overwrite-with-backup` (passed to `kit-apply` as `--decisions`).
 - **One atomic commit.** Conventional-commit subject `chore(governance): kit update <old> → <new>` (or `... (+packs)` under `--with-packs`).
 
 ## `reset`

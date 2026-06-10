@@ -64,6 +64,10 @@ RATES: dict[str, tuple[float, float, float, float]] = {
     "claude-opus":   (5.00, 6.25, 0.50, 25.00),
     "claude-sonnet": (3.00, 3.75, 0.30, 15.00),
     "claude-haiku":  (1.00, 1.25, 0.10,  5.00),
+    "claude-fable":  (10.00, 12.50, 1.00, 50.00),
+
+    # ── Claude Fable — version-specific rows ───────────────────────────
+    "claude-fable-5": (10.00, 12.50, 1.00, 50.00),
 
     # ── Claude Opus — version-specific rows ────────────────────────────
     "claude-opus-4-7": (5.00, 6.25, 0.50, 25.00),

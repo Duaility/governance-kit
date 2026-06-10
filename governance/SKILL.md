@@ -94,6 +94,7 @@ Re-syncs the kit-runtime files installed at `init` (`run.sh`, `lib.sh`, `enable-
 
 Key invariants:
 
+- Deterministic plan/apply pair: [`assets/packs/lib/kitverb.py`](assets/packs/lib/kitverb.py) `kit-plan --diff` resolves the plan (version delta, managed-file inventory, noise-free diffs) and `kit-apply` executes it (gates, pre-stamped writes, per-file decisions, hook regeneration, manifest write-through, smoke test) in one tested call. The skill elicits decisions, shows diffs, and commits — it never hand-executes `cp` / marker stamping / manifest edits.
 - Refuses without `install.yaml`. The manifest is the version pin this verb writes through.
 - Diff-before-exec per file. Files without a line-2 `governance-kit:managed` marker are surfaced as `Skipped (unmanaged)` and the user picks `keep` / `apply anyway` / `overwrite-with-backup`.
 - No silent downgrades: a manifest stamp newer than the kit on PATH stops the verb.

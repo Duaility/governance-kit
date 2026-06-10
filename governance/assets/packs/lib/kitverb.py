@@ -17,11 +17,28 @@ pure, side-effect-free computation and prints it as JSON:
 This is the piece consumers previously hand-assembled from prose — the bash
 arrays, the marker scan, the min-reduction, the no-downgrade gate — i.e. the
 exact surface where a missed `bash 3.2` quirk or a skipped phase silently
-produced a wrong plan (issue #170, finding B). It writes nothing: the agent
-still owns diff-before-exec, the per-file confirmation, and the apply itself
-(`cp` + install.sh `stamp_managed_marker` + hooks.sh
-`generate_hooks_for_strategy` + install.sh `write_installed_manifest`). The
-plan is reproducible and unit-tested; the apply primitives already are.
+produced a wrong plan (issue #170, finding B). `kit-plan` writes nothing.
+With `--diff` it also emits the per-file unified diff, computed against the
+source template *after* the new `kit-version=` stamp — the same noise-free
+diff UPDATE_FLOW.md Step 4 shows the user.
+
+`kit-apply <root>` is the deterministic execution half (issue #172; engine
+in kitapply.py, dispatched from this CLI). It
+recomputes the plan (never trusts a stale one), enforces the gates that used
+to be prose — refuse on `downgrade` / `no-recoverable-pin`, refuse on
+`pre-tracking` without `--record-pre-tracking`, refuse on a dirty working
+tree without `--force` — then executes the whole apply in one call: writes
+each managed file pre-stamped, honors per-file `--decisions` overrides
+(`keep` / `apply` / `overwrite-with-backup`; managed files default to
+`apply`, unmanaged ones to `keep`), regenerates the hook dispatchers through
+hooks.sh
+`generate_hooks_for_strategy`, writes `kit_version` through to
+`install.yaml` (in-place edit when the manifest exists; a fresh v3 manifest
+via install.sh `write_installed_manifest` when the pin was reconstructed —
+that path requires `--owner`/`--repo`), smoke-tests `run.sh`, and prints a
+JSON report. The operator (agent or human) keeps what is genuinely theirs:
+eliciting the decisions, showing the diffs, and the commit. `--dry-run`
+resolves every action and writes nothing.
 
 `kit-upstream [--repo <owner/repo>]` is the opt-in read-only staleness check
 behind `governance kit update --check-upstream` (issue #170, option 2). It
@@ -33,13 +50,15 @@ skill manager's job, so the running flow never applies a version it doesn't
 understand and the skill manager's pinning is never bypassed.
 
 Run via:
-    uv run --with PyYAML python governance/assets/packs/lib/kitverb.py kit-plan <root>
+    uv run --with PyYAML python governance/assets/packs/lib/kitverb.py kit-plan <root> [--diff]
+    uv run --with PyYAML python governance/assets/packs/lib/kitverb.py kit-apply <root> [--decisions <json>] [--dry-run] [--force] [--record-pre-tracking] [--owner <o> --repo <r>]
     uv run --with PyYAML python governance/assets/packs/lib/kitverb.py kit-upstream [--repo <owner/repo>]
 """
 
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import re
 import subprocess
@@ -192,8 +211,12 @@ def _delta(installed: str | None, manifest_present: bool) -> str:
     return "up-to-date"
 
 
-def cmd_kit_plan(args: argparse.Namespace) -> int:
-    root = Path(args.root).resolve()
+def compute_plan(root: Path) -> dict[str, Any]:
+    """The full `kit-plan` resolution as a pure computation.
+
+    Shared by `kit-plan` (which prints it) and `kit-apply` (which recomputes
+    it at execution time rather than trusting a possibly-stale plan file).
+    """
     manifest_path = root / ".governance" / "install.yaml"
 
     manifest: dict[str, Any] = {}
@@ -210,7 +233,7 @@ def cmd_kit_plan(args: argparse.Namespace) -> int:
         reconstructed_from = recon["from"]
         manifest_source = "reconstructed" if installed is not None else "absent"
 
-    plan = {
+    return {
         "kit_version": KIT_VERSION,
         "installed_kit_version": installed,
         "manifest_source": manifest_source,
@@ -220,6 +243,42 @@ def cmd_kit_plan(args: argparse.Namespace) -> int:
         "tests_dir": scalar(manifest.get("tests_dir")) or ".governance",
         "files": _inventory(root, manifest),
     }
+
+
+def stamped_text(src: Path, kit_version: str) -> str:
+    """Source template text with the marker pre-stamped to `kit-version=<v>`.
+
+    Python mirror of install.sh `stamp_managed_marker` (same contract: the
+    bare-or-versioned `# governance-kit:managed` line within the first 3
+    lines is rewritten; no wall-clock date, so re-stamping is byte-stable).
+    Mirrored here so diffs and applies never show marker-line noise. Text
+    without a marker in the first 3 lines is returned unchanged.
+    """
+    lines = src.read_text().splitlines(keepends=True)
+    for i, line in enumerate(lines[:3]):
+        if line.startswith("# governance-kit:managed"):
+            lines[i] = f"# governance-kit:managed kit-version={kit_version}\n"
+            break
+    return "".join(lines)
+
+
+def file_diff(dest: Path, dest_rel: str, new_text: str) -> str:
+    """Unified diff from the current destination to the stamped source."""
+    old = dest.read_text(errors="replace").splitlines(keepends=True) if dest.is_file() else []
+    diff = difflib.unified_diff(
+        old, new_text.splitlines(keepends=True),
+        fromfile=f"a/{dest_rel}", tofile=f"b/{dest_rel}",
+    )
+    return "".join(diff)
+
+
+def cmd_kit_plan(args: argparse.Namespace) -> int:
+    root = Path(args.root).resolve()
+    plan = compute_plan(root)
+    if args.diff:
+        for entry in plan["files"]:
+            new_text = stamped_text(Path(entry["src"]), KIT_VERSION)
+            entry["diff"] = file_diff(root / entry["dest"], entry["dest"], new_text)
     print(json.dumps(plan, indent=2))
     return 0
 
@@ -283,7 +342,29 @@ def main(argv: list[str]) -> int:
 
     p = sub.add_parser("kit-plan")
     p.add_argument("root")
+    p.add_argument("--diff", action="store_true",
+                   help="include per-file unified diffs (dest vs stamped source)")
     p.set_defaults(func=cmd_kit_plan)
+
+    p = sub.add_parser("kit-apply")
+    p.add_argument("root")
+    p.add_argument("--decisions", default=None,
+                   help="JSON of {dest: keep|apply|overwrite-with-backup} for unmanaged files — inline or a path to a JSON file")
+    p.add_argument("--dry-run", action="store_true",
+                   help="resolve every action and report; write nothing")
+    p.add_argument("--force", action="store_true",
+                   help="proceed over a dirty working tree")
+    p.add_argument("--record-pre-tracking", action="store_true",
+                   help="consent to recording kit_version on a pre-tracking install")
+    p.add_argument("--owner", default=None,
+                   help="github owner for the fresh manifest (reconstructed-pin path only)")
+    p.add_argument("--repo", default=None,
+                   help="repo name for the fresh manifest (reconstructed-pin path only)")
+    # Local import: kitapply imports compute_plan/stamped_text from this
+    # module, so a top-level import here would be a cycle. The engine lives
+    # in its own module to keep each file a focused, reviewable unit.
+    from kitapply import cmd_kit_apply
+    p.set_defaults(func=cmd_kit_apply)
 
     p = sub.add_parser("kit-upstream")
     p.add_argument("--repo", default=None,

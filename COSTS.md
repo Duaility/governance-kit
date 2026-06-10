@@ -252,3 +252,4 @@ Schema:
 | claude-code-5e4925a0-dbd-1781028031 | claude-code | 5e4925a0-dbd1-4ed0-bff3-f8a2beda1106 | #168 | claude-opus-4-8 | 5744 | 21358 | 32008 | 1240 | 28342 | 0.2092 | docs: document kit and pack release process in README (#168)Add a Releasing sect |
 | claude-code-521d18ae-fc0-1781072291 | claude-code | 521d18ae-fc03-48fd-be1d-0957a9bdf969 | #170 | claude-opus-4-8 | 43111 | 144567 | 1831796 | 22342 | 210020 | 2.5935 |  |
 | claude-code-521d18ae-fc0-1781072417 | claude-code | 521d18ae-fc03-48fd-be1d-0957a9bdf969 | #170 | claude-opus-4-8 | 0 | 0 | 0 | 0 | 0 | 0.0000 |  |
+| claude-code-040c6567-e16-1781075870 | claude-code | 040c6567-e16f-4d0e-aae1-c7bea4e733be | #172 | claude-fable-5 | 94947 | 1456436 | 32575766 | 230545 | 1781928 | 63.2579 |  |
