@@ -113,6 +113,14 @@ if [[ "$AXIS" == "kit" ]]; then
     )
 fi
 
+# The one eval fixture whose pin must track KIT_VERSION (scripts/test-kitverb.py
+# ::test_up_to_date_fixture_pin_tracks_kit_version). It's excluded from marker
+# discovery (evals are deliberately pinned to old versions), so re-pin it here
+# atomically with the bump — committing it apart from the chore(release) commit
+# would leave the suite red. future-kit-repo / stale-repo pin different versions
+# on purpose and are NOT touched.
+UP_TO_DATE_FIXTURE="governance/evals/kit-update/files/up-to-date-repo/.governance/install.yaml"
+
 # ── changelog section ─────────────────────────────────────────────────────
 build_changelog_section() {
     local date base range
@@ -166,6 +174,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
     if [[ "$AXIS" == "kit" ]]; then
         echo "frontmatter:   governance/SKILL.md  version → $VERSION"
         echo "manifest:      .governance/install.yaml  kit_version → $VERSION"
+        echo "eval fixture:  $UP_TO_DATE_FIXTURE  kit_version → $VERSION"
         echo "markers (${#marker_files[@]}):"
         printf '   %s\n' "${marker_files[@]}"
     fi
@@ -180,6 +189,7 @@ set_quoted_field "$SRC" "$ANCHOR" "$VERSION"
 if [[ "$AXIS" == "kit" ]]; then
     set_quoted_field "governance/SKILL.md" '^  version: "' "$VERSION"
     set_quoted_field ".governance/install.yaml" '^kit_version: "' "$VERSION"
+    set_quoted_field "$UP_TO_DATE_FIXTURE" '^kit_version: "' "$VERSION"
     for f in "${marker_files[@]}"; do
         [[ -f "$f" ]] && stamp_managed_marker "$f" "$VERSION"
     done
