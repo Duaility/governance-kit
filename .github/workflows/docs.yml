@@ -46,6 +46,9 @@ jobs:
           DOCS_SITE_BASE_PATH: ${{ env.BASE_PATH }}
           DOCS_SITE_CANONICAL_ORIGIN: ${{ env.ORIGIN }}
       - run: npm run docs:smoke
+        env:
+          DOCS_SITE_BASE_PATH: ${{ env.BASE_PATH }}
+          DOCS_SITE_CANONICAL_ORIGIN: ${{ env.ORIGIN }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist/docs-site
