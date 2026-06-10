@@ -40,18 +40,32 @@ JSON report. The operator (agent or human) keeps what is genuinely theirs:
 eliciting the decisions, showing the diffs, and the commit. `--dry-run`
 resolves every action and writes nothing.
 
+`kit-resolve <root>` is the repo-pinned orchestration brain (issue #177). It
+resolves a `kit update` target (default: the latest published `kit/vX.Y.Z` tag;
+`--to X.Y.Z` for an exact version; offline falls back through the cached pin then
+the installed skill), fetches that tree via `fetch_kit_ref` into the `kits/`
+cache, gates the floor (target ≥ 0.4.0) and direction (`--allow-downgrade`), and
+reports which engine the shim should delegate `kit-plan`/`kit-apply` to. Forward
+and same-version updates exec the *fetched target's own* `kitverb.py` — so the
+code that writes version X's files is version X's code, and markers never lie. A
+downgrade runs the *local newer* engine against the fetched older target's
+`assets/` + `lib/`. `kit-pin <root> --kit-ref --kit-sha` records the resulting
+pin in install.yaml after a successful apply. `kit-resolve` writes nothing.
+
 `kit-upstream [--repo <owner/repo>]` is the opt-in read-only staleness check
 behind `governance kit update --check-upstream` (issue #170, option 2). It
 resolves the latest published `kit/vX.Y.Z` tag via `git ls-remote` and compares
 it to the installed `KIT_VERSION`, reporting `current` / `behind` (with a count
-and the skill-manager refresh command) / `ahead` / `unknown` (offline). It is
-strictly a *signal*: it never fetches-and-applies the kit — that stays the
-skill manager's job, so the running flow never applies a version it doesn't
-understand and the skill manager's pinning is never bypassed.
+and the skill-manager refresh command) / `ahead` / `unknown` (offline). Since
+#177 promoted published-tag resolution to the `kit update` default, this stays
+as the lightweight signal that does not fetch.
 
 Run via:
-    uv run --with PyYAML python governance/assets/packs/lib/kitverb.py kit-plan <root> [--diff]
-    uv run --with PyYAML python governance/assets/packs/lib/kitverb.py kit-apply <root> [--decisions <json>] [--dry-run] [--force] [--record-pre-tracking] [--owner <o> --repo <r>]
+    uv run --with PyYAML python governance/assets/packs/lib/kitverb.py kit-resolve <root> [--to X.Y.Z] [--repo <owner/repo>] [--allow-downgrade] [--offline]
+    uv run --with PyYAML python governance/assets/packs/lib/kitverb.py kit-plan <root> [--diff] [--assets-root <path>] [--stamp-version <v>]
+    uv run --with PyYAML python governance/assets/packs/lib/kitverb.py kit-apply <root> [--decisions <json>] [--dry-run] [--force] [--record-pre-tracking] [--owner <o> --repo <r>] [--assets-root <path>] [--stamp-version <v>] [--hooks-lib <path>] [--allow-downgrade]
+    uv run --with PyYAML python governance/assets/packs/lib/kitverb.py kit-pin <root> --kit-ref <ref> --kit-sha <sha>
+    uv run --with PyYAML python governance/assets/packs/lib/kitverb.py fetch-kit <ref>
     uv run --with PyYAML python governance/assets/packs/lib/kitverb.py kit-upstream [--repo <owner/repo>]
 """
 
@@ -72,6 +86,16 @@ from packctl import KIT_VERSION, _version_tuple, load_yaml, scalar
 # real origin in the `skills` lockfile (`source: Duaility/governance-kit`);
 # `--repo` overrides this for forks. GitHub owner/repo is case-insensitive.
 DEFAULT_KIT_REPO = "duaility/governance-kit"
+
+# The kit is published from its skill subdir, so a kit ref points at
+# `<owner>/<repo>/governance@kit/vX.Y.Z` — the tree whose `assets/kit.yaml`
+# carries the version and whose `assets/packs/lib/kitverb.py` is the engine.
+KIT_SUBPATH = "governance"
+
+# Delegated plan/apply requires the target to ship `kitverb.py kit-plan` /
+# `kit-apply`, first present in kit/v0.4.0 (issue #172). A `kit update` to a
+# target below this floor is refused — there is no engine to delegate to.
+KIT_DELEGATION_FLOOR = "0.4.0"
 
 # Skill-manager refresh command — the one trusted, pinned channel for pulling a
 # newer kit onto the machine. kit-upstream only ever points here; never applies.
@@ -111,12 +135,14 @@ def read_marker(dest: Path) -> dict[str, Any]:
     return {"state": "bare", "version": None}
 
 
-def _status_for(marker: dict[str, Any], exists: bool) -> str:
+def _status_for(marker: dict[str, Any], exists: bool, stamp_version: str) -> str:
     """Plan-status hint from the destination's marker state.
 
     A hint, not a verdict: the agent still computes the byte-diff (`diff -u`)
     before showing or applying anything. `apply` on a same-version stamp is a
-    byte-identical no-op, so the diff is what ultimately decides.
+    byte-identical no-op, so the diff is what ultimately decides. `stamp_version`
+    is the version being written (this engine's own, or — on a delegated
+    downgrade — the fetched older target's).
     """
     if not exists:
         return "add"
@@ -125,30 +151,32 @@ def _status_for(marker: dict[str, Any], exists: bool) -> str:
     if marker["state"] == "bare":
         return "apply"              # re-stamp brings it under per-file tracking
     # versioned
-    if marker["version"] == KIT_VERSION:
+    if marker["version"] == stamp_version:
         return "skip"
     return "apply"
 
 
-def _inventory(root: Path, manifest: dict[str, Any]) -> list[dict[str, Any]]:
+def _inventory(root: Path, manifest: dict[str, Any], assets_root: Path, stamp_version: str) -> list[dict[str, Any]]:
     """Managed kit-asset ↔ destination pairs, per UPDATE_FLOW.md Step 3.
 
     Derived from manifest fields so the set matches exactly what `init` wrote.
     The hook dispatchers are regenerated wholesale (hooks.sh), not copied from a
     static asset, so they are reported via `hook_strategy`, not as file pairs.
+    `assets_root` is the source tree to copy from (this engine's own assets, or
+    — on a delegated downgrade — the fetched older target's `assets/`).
     """
     tests_dir = scalar(manifest.get("tests_dir")) or ".governance"
     ci_workflow = scalar(manifest.get("ci_workflow"))
     enable_script = scalar(manifest.get("enable_governance_script"))
 
     pairs: list[tuple[str, str, str]] = [
-        (str(KIT_ASSETS / "dot-governance" / "run.sh"), f"{tests_dir}/run.sh", "run.sh"),
-        (str(KIT_ASSETS / "dot-governance" / "lib.sh"), f"{tests_dir}/lib.sh", "lib.sh"),
+        (str(assets_root / "dot-governance" / "run.sh"), f"{tests_dir}/run.sh", "run.sh"),
+        (str(assets_root / "dot-governance" / "lib.sh"), f"{tests_dir}/lib.sh", "lib.sh"),
     ]
     if ci_workflow:
-        pairs.append((str(KIT_ASSETS / "governance.yml"), ci_workflow, "ci_workflow"))
+        pairs.append((str(assets_root / "governance.yml"), ci_workflow, "ci_workflow"))
     if enable_script:
-        pairs.append((str(KIT_ASSETS / "enable-governance.sh"), enable_script, "enable_governance_script"))
+        pairs.append((str(assets_root / "enable-governance.sh"), enable_script, "enable_governance_script"))
 
     files: list[dict[str, Any]] = []
     for src, rel_dest, key in pairs:
@@ -162,7 +190,7 @@ def _inventory(root: Path, manifest: dict[str, Any]) -> list[dict[str, Any]]:
             "exists": exists,
             "marker": marker["state"],
             "dest_version": marker["version"],
-            "status": _status_for(marker, exists),
+            "status": _status_for(marker, exists, stamp_version),
         })
     return files
 
@@ -193,8 +221,12 @@ def _reconstruct(root: Path) -> dict[str, Any]:
     return {"version": lowest, "from": [rel for rel, _ in found]}
 
 
-def _delta(installed: str | None, manifest_present: bool) -> str:
-    """Version delta vs the kit on PATH.
+def _delta(installed: str | None, manifest_present: bool, stamp_version: str) -> str:
+    """Version delta of the recorded pin vs `stamp_version` (the version being applied).
+
+    `stamp_version` is normally this engine's own `KIT_VERSION`. On a delegated
+    downgrade the local engine runs against a fetched older target, so it is the
+    target's version — which is how the same code path classifies `downgrade`.
 
     When `installed` is unknown the distinction is whether a manifest exists at
     all: a manifest with no `kit_version` is a *pre-tracking* install (recover
@@ -203,7 +235,7 @@ def _delta(installed: str | None, manifest_present: bool) -> str:
     """
     if installed is None:
         return "pre-tracking" if manifest_present else "no-recoverable-pin"
-    inst, kit = _version_tuple(installed), _version_tuple(KIT_VERSION)
+    inst, kit = _version_tuple(installed), _version_tuple(stamp_version)
     if inst < kit:
         return "forward"
     if inst > kit:
@@ -211,12 +243,25 @@ def _delta(installed: str | None, manifest_present: bool) -> str:
     return "up-to-date"
 
 
-def compute_plan(root: Path) -> dict[str, Any]:
+def compute_plan(
+    root: Path,
+    assets_root: Path | None = None,
+    stamp_version: str | None = None,
+) -> dict[str, Any]:
     """The full `kit-plan` resolution as a pure computation.
 
     Shared by `kit-plan` (which prints it) and `kit-apply` (which recomputes
     it at execution time rather than trusting a possibly-stale plan file).
+
+    `assets_root` / `stamp_version` default to this engine's own
+    `KIT_ASSETS` / `KIT_VERSION` — the forward and same-version case, where the
+    *fetched target's* engine runs the plan against its own tree (issue #177,
+    decision 4). They are overridden only on a delegated downgrade, when the
+    local (newer) engine plans against the fetched older target's assets and
+    version (decision 5).
     """
+    assets_root = assets_root if assets_root is not None else KIT_ASSETS
+    stamp_version = stamp_version if stamp_version is not None else KIT_VERSION
     manifest_path = root / ".governance" / "install.yaml"
 
     manifest: dict[str, Any] = {}
@@ -234,14 +279,14 @@ def compute_plan(root: Path) -> dict[str, Any]:
         manifest_source = "reconstructed" if installed is not None else "absent"
 
     return {
-        "kit_version": KIT_VERSION,
+        "kit_version": stamp_version,
         "installed_kit_version": installed,
         "manifest_source": manifest_source,
         "reconstructed_from": reconstructed_from,
-        "delta": _delta(installed, manifest_present),
+        "delta": _delta(installed, manifest_present, stamp_version),
         "hook_strategy": scalar(manifest.get("hook_strategy")) or "githooks",
         "tests_dir": scalar(manifest.get("tests_dir")) or ".governance",
-        "files": _inventory(root, manifest),
+        "files": _inventory(root, manifest, assets_root, stamp_version),
     }
 
 
@@ -274,10 +319,12 @@ def file_diff(dest: Path, dest_rel: str, new_text: str) -> str:
 
 def cmd_kit_plan(args: argparse.Namespace) -> int:
     root = Path(args.root).resolve()
-    plan = compute_plan(root)
+    assets_root = Path(args.assets_root).resolve() if args.assets_root else KIT_ASSETS
+    stamp_version = args.stamp_version or KIT_VERSION
+    plan = compute_plan(root, assets_root=assets_root, stamp_version=stamp_version)
     if args.diff:
         for entry in plan["files"]:
-            new_text = stamped_text(Path(entry["src"]), KIT_VERSION)
+            new_text = stamped_text(Path(entry["src"]), stamp_version)
             entry["diff"] = file_diff(root / entry["dest"], entry["dest"], new_text)
     print(json.dumps(plan, indent=2))
     return 0
@@ -309,6 +356,25 @@ def upstream_status(published: list[str], installed: str) -> dict[str, Any]:
     return {"status": status, "latest_published": latest, "releases_behind": len(behind)}
 
 
+def fetch_published_tags(repo: str) -> tuple[list[str], str | None]:
+    """`(kit versions, error)` from `git ls-remote --tags <repo>`.
+
+    The single network read both `kit-upstream` (signal) and `kit-resolve`
+    (default target resolution) share. `error` is non-None when offline / git is
+    missing / the repo is unreachable — callers degrade rather than block.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "ls-remote", "--tags", f"https://github.com/{repo}"],
+            check=False, text=True, capture_output=True, timeout=20,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return [], str(exc)
+    if proc.returncode != 0:
+        return [], proc.stderr.strip() or f"git ls-remote exited {proc.returncode}"
+    return parse_kit_tags(proc.stdout), None
+
+
 def cmd_kit_upstream(args: argparse.Namespace) -> int:
     repo = args.repo or DEFAULT_KIT_REPO
     result: dict[str, Any] = {
@@ -316,21 +382,11 @@ def cmd_kit_upstream(args: argparse.Namespace) -> int:
         "repo": repo,
         "refresh_cmd": REFRESH_CMD,
     }
-    error = None
-    try:
-        proc = subprocess.run(
-            ["git", "ls-remote", "--tags", f"https://github.com/{repo}"],
-            check=False, text=True, capture_output=True, timeout=20,
-        )
-        error = proc.stderr.strip() if proc.returncode != 0 else None
-    except (OSError, subprocess.SubprocessError) as exc:
-        error = str(exc)
-
+    published, error = fetch_published_tags(repo)
     if error is not None:
         # Offline / git missing / bad repo — degrade to `unknown`, never block.
         result.update(status="unknown", latest_published=None, releases_behind=0, error=error)
     else:
-        published = parse_kit_tags(proc.stdout)
         result.update(upstream_status(published, KIT_VERSION), published=published)
     print(json.dumps(result, indent=2))
     return 0
@@ -344,6 +400,10 @@ def main(argv: list[str]) -> int:
     p.add_argument("root")
     p.add_argument("--diff", action="store_true",
                    help="include per-file unified diffs (dest vs stamped source)")
+    p.add_argument("--assets-root", default=None,
+                   help="source asset tree to plan against (default: this kit's own)")
+    p.add_argument("--stamp-version", default=None,
+                   help="version to stamp/compare (default: this kit's KIT_VERSION)")
     p.set_defaults(func=cmd_kit_plan)
 
     p = sub.add_parser("kit-apply")
@@ -360,11 +420,49 @@ def main(argv: list[str]) -> int:
                    help="github owner for the fresh manifest (reconstructed-pin path only)")
     p.add_argument("--repo", default=None,
                    help="repo name for the fresh manifest (reconstructed-pin path only)")
+    p.add_argument("--assets-root", default=None,
+                   help="source asset tree to apply from (default: this kit's own; a "
+                        "delegated downgrade points it at the fetched older target)")
+    p.add_argument("--stamp-version", default=None,
+                   help="version to stamp/record (default: this kit's KIT_VERSION)")
+    p.add_argument("--hooks-lib", default=None,
+                   help="lib dir whose install.sh/hooks.sh generate the dispatchers "
+                        "(default: this kit's own; the fetched target's on a downgrade)")
+    p.add_argument("--allow-downgrade", action="store_true",
+                   help="permit rolling the kit-runtime backward (target older than recorded)")
     # Local import: kitapply imports compute_plan/stamped_text from this
     # module, so a top-level import here would be a cycle. The engine lives
     # in its own module to keep each file a focused, reviewable unit.
     from kitapply import cmd_kit_apply
     p.set_defaults(func=cmd_kit_apply)
+
+    # Network + pin orchestration lives in kitresolve.py (kept separate so each
+    # module stays focused and under the file-size budget). Lazy-imported here
+    # because kitresolve imports this module at top level — a top-level import
+    # the other way would be a cycle. Issue #177.
+    from kitresolve import cmd_fetch_kit, cmd_kit_pin, cmd_kit_resolve
+
+    p = sub.add_parser("kit-resolve")
+    p.add_argument("root")
+    p.add_argument("--to", default=None,
+                   help="resolve an exact published version X.Y.Z (default: latest tag)")
+    p.add_argument("--repo", default=None,
+                   help=f"owner/repo to resolve kit/v* tags from (default {DEFAULT_KIT_REPO})")
+    p.add_argument("--allow-downgrade", action="store_true",
+                   help="permit resolving a target older than the repo's recorded pin")
+    p.add_argument("--offline", action="store_true",
+                   help="skip the network; resolve from the cached pin or installed skill")
+    p.set_defaults(func=cmd_kit_resolve)
+
+    p = sub.add_parser("kit-pin")
+    p.add_argument("root")
+    p.add_argument("--kit-ref", required=True)
+    p.add_argument("--kit-sha", required=True)
+    p.set_defaults(func=cmd_kit_pin)
+
+    p = sub.add_parser("fetch-kit")
+    p.add_argument("ref")
+    p.set_defaults(func=cmd_fetch_kit)
 
     p = sub.add_parser("kit-upstream")
     p.add_argument("--repo", default=None,

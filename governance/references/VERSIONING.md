@@ -90,6 +90,20 @@ lockfile, so the pin stays reproducible even though the tag name is human-legibl
 Pinning `@main` (the current default) silently tracks latest — prefer a tag for
 any repo that wants to choose its version.
 
+The **kit axis pins the same way** since issue #177. `.governance/install.yaml`
+records `kit_ref` (a `gh:duaility/governance-kit/governance@kit/vX.Y.Z` ref) and
+the resolved `kit_sha`, and `governance kit update` fetches that tree into
+`~/.governance/cache/kits/` and delegates plan/apply to *its* engine — the
+gradle-wrapper / rustup model, where the repo's manifest is the authoritative
+statement of which kit it runs and the machine honours it rather than deciding.
+`kit update` resolves the latest published `kit/vX.Y.Z` tag by default, or an
+exact version with `--to X.Y.Z`; `--allow-downgrade` is required to move
+backward. This pin is **content state, not a derived version line** — it is
+written by `init` / `kit update`, never by `release.sh`, and `version-consistency`
+still validates only `kit_version` against the managed-file markers. Delegated
+apply requires the target to ship the `kitverb.py` engine, first present in
+`kit/v0.4.0`; that is the delegation floor.
+
 ## Release procedure (summary)
 
 Bumps happen **only** in `chore(release)` commits cut by the release script —

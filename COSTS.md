@@ -267,3 +267,5 @@ Schema:
 | claude-code-7a0841bc-9f9-1781082458 | claude-code | 7a0841bc-9f94-443e-a017-7ece6abd9800 | #175 | claude-opus-4-8 | 149 | 7219 | 795196 | 5042 | 12410 | 0.5695 | fix(governance): release.sh re-pins up-to-date eval fixture on kit bump (#175) |
 | claude-code-7a0841bc-9f9-1781082565 | claude-code | 7a0841bc-9f94-443e-a017-7ece6abd9800 | #175 | claude-opus-4-8 | 143 | 9739 | 580218 | 7975 | 17857 | 0.5511 | fix(governance): release.sh re-pins up-to-date eval fixture on kit bump (#175) |
 | claude-code-7a0841bc-9f9-1781082641 | claude-code | 7a0841bc-9f94-443e-a017-7ece6abd9800 | #175 | claude-opus-4-8 | 10 | 1928 | 438214 | 2007 | 3945 | 0.2814 | fix(governance): release.sh re-pins up-to-date eval fixture on kit bump (#175) |
+| claude-code-0384b4f4-6a0-1781091708 | claude-code | 0384b4f4-6a04-4e25-a535-fcee1a7f4adc | #177 | claude-opus-4-8 | 65800 | 724693 | 62143598 | 426328 | 1216821 | 46.5883 |  |
+| claude-code-23b06f2b-a17-1781092667 | claude-code | 23b06f2b-a170-4f7d-a5c7-9eba68ae5c32 | #177 | claude-opus-4-8 | 5380 | 28662 | 32008 | 658 | 34700 | 0.2385 | refactor(governance): drop dead code and gate explicit --to fallback (#177)Post- |

@@ -9,6 +9,8 @@
 #   2. test-packverb.py       — packverb.py (refs, capability glob, lockfile, catalog)
 #   2b. test-kitverb.py       — kitverb.py (kit-plan: version delta, manifest
 #                               reconstruction, managed-file inventory/status)
+#   2b'. test-kitresolve.py   — kitresolve.py (kit-resolve/kit-pin: target
+#                               resolution, floor/downgrade gates, delegation)
 #   2c. test-packverb-apply.py — packplan.py/packapply.py (pack-plan/pack-apply
 #                               add/update/remove) + docsurgery.py CONSTITUTION
 #                               subsection surgery
@@ -68,6 +70,10 @@ run_layer "packverb (Python)" \
 run_layer "kitverb: kit-plan delta/reconstruction/inventory (Python)" \
     uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-kitverb.py" \
     || failed_layers+=("test-kitverb.py")
+
+run_layer "kitresolve: resolve/pin/delegation params (Python)" \
+    uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-kitresolve.py" \
+    || failed_layers+=("test-kitresolve.py")
 
 run_layer "pack-apply: plan/apply add/update/remove + doc surgery (Python)" \
     uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-packverb-apply.py" \

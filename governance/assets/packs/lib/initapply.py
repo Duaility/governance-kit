@@ -67,6 +67,17 @@ def _write_manifest(root: Path, decisions: dict[str, Any], seeded: list[str], re
     argv = [str(root), "--owner", decisions["owner"], "--repo", decisions["repo"],
             "--kit-version", KIT_VERSION, "--hook-strategy", decisions.get("hook_strategy", "githooks"),
             "--ci-workflow", ".github/workflows/governance.yml", "--tests-dir", ".governance"]
+    # Record the content-addressed pin of the installing kit (issue #177): the
+    # ref is constructible offline; the sha is pre-resolved by the flow (via
+    # `git ls-remote`) and threaded through decisions, omitted when unavailable
+    # (backfilled on the first `kit update`). No network in the engine itself.
+    from kitverb import DEFAULT_KIT_REPO  # lazy: avoid import cycle
+    from kitresolve import build_kit_ref
+    kit_ref = decisions.get("kit_ref") or build_kit_ref(DEFAULT_KIT_REPO, KIT_VERSION)
+    kit_sha = decisions.get("kit_sha")
+    argv += ["--kit-ref", kit_ref]
+    if kit_sha:
+        argv += ["--kit-sha", kit_sha]
     if (root / "AGENTS.md").is_file():
         argv.append("--agents-md-snippet")
     if report.get("agents_md") == "stub created":
