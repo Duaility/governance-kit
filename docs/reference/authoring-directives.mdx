@@ -1,0 +1,105 @@
+---
+title: 'Authoring directives'
+summary: 'The craft guide for writing a good directive — start from the bad merge, the qualities to aim for, anti-patterns to avoid, the check contract, and patterns by class.'
+---
+
+# Authoring directives
+
+A good directive is the encoding of a lesson — usually an incident — into a rule the repo can enforce forever. This page is the craft guide: what to aim for, what to avoid, and the standard patterns.
+
+## Start from the bad merge
+
+Before writing anything, answer four questions (the *intent map* the `directive add` flow asks for):
+
+1. **What bad merge are we trying to block?** Concrete, not abstract.
+2. **What's the policy surface?** `repo-state` (the tree at rest) or `change-set` (the diff)?
+3. **Where is it enforceable?** Repo-at-rest, staged diff locally, branch diff in CI?
+4. **Why does that surface fit?** A change-set obligation checked as repo-state either always passes or always fails.
+
+## Qualities to aim for
+
+- **Deterministic** — same repo state, same verdict, every time. No wall-clock, no randomness, no network.
+- **Fast** — it runs on every commit; target under a second.
+- **Specific** — the violation message names *what*, *where*, and enough *why* to fix it without opening docs.
+- **Minimal scope** — one directive, one concern. Don't fuse orthogonal checks; they fail together and waive together.
+- **Waivable** — if legitimate exceptions exist, support the standard waiver comment rather than forcing bypasses.
+
+## Anti-patterns
+
+<Warning>
+- **Style dressed as governance.** Formatting opinions belong in formatters and linters.
+- **Directives without rationale.** A rule nobody remembers the reason for gets deleted the first time it's inconvenient.
+- **Checks that lie.** A weak proxy (e.g. "file mentions the word 'test'") creates false confidence — worse than no check.
+- **Non-idempotent checks.** Governance *reads*; remediation *writes*. If a directive needs a write path (stamping trailers), it ships a separate hook populator.
+- **Network calls in checks.** A flaky hook is a skipped hook, and a skipped hook demotes enforcement to CI-only.
+</Warning>
+
+## The check contract
+
+```bash
+#!/usr/bin/env bash
+# Directive: <one-line statement>
+# Rationale: <why — link an incident if there is one>
+set -u
+source "$(dirname "$0")/../../lib.sh"
+directive_start "<directive-id>"     # must match the folder name
+require_git                          # if the check touches git
+
+# ... inspect ...
+#   violation "path:line — specific message"
+#   has_waiver "$file" "$line" "<directive-id>" && continue
+
+directive_end                        # owns the exit status — never call exit
+```
+
+Conventions that keep checks portable and self-clean:
+
+- Prefer `git grep -InE` with pathspec excludes over `find | xargs grep` — it respects tracking and `.gitignore`.
+- Avoid GNU-only regex; `\b` isn't portable across BSD `git grep` — use `-w`.
+- Self-exempt the directive's own files via pathspec: `:!.governance/packs/<pack-id>/directives/<id>/**`.
+
+## Patterns by class
+
+| Class | When | Implementation notes |
+|---|---|---|
+| **Change-set-aware** | "Every substantive change must update X" | Inspect `git diff --cached --name-only` locally, merge-base diff in CI. Exempt non-substantive paths explicitly. |
+| **Existence / content** | "File X must exist and be real" | Check a small known set of locations; validate a minimum content signal, not just presence. |
+| **Pattern scan** (`no-*`) | "This pattern must never appear" | `git grep`; anchor patterns carefully; per-line waiver; exclude the directive itself. |
+| **Metric** (`*-limit`) | "Quantity Y stays under N" | Expose the limit as an env var (`GOVERNANCE_<X>_LIMIT`); report actual vs. limit. |
+| **Structural** (`*-hardened`) | Multi-part shape checks | Name each sub-check in its violation; report all failures before exiting, not just the first. |
+
+## Evals: the test's tests
+
+Every directive ships `evals/test.sh` — pass *and* fail fixtures run in a throwaway repo via the kit's `eval-lib.sh`:
+
+```bash
+#!/usr/bin/env bash
+set -u
+EVAL_ID="<directive-id>"
+source "$ROOT/governance/assets/packs/lib/eval-lib.sh"
+
+fixture_init                          # throwaway git repo
+install_directive "$PACK_DIR" "$EVAL_ID"
+expect_pass "$DIRECTIVE"              # clean fixture passes
+
+echo "violation" >> some-file         # introduce the violation
+stage_all
+expect_fail "$DIRECTIVE"              # dirty fixture fails
+
+fixture_cleanup
+eval_done
+```
+
+A directive whose fail fixture doesn't fail is a check that lies. Evals are author-side only — they're stripped when the directive is vendored into a target repo.
+
+## The amendment flow does the ceremony
+
+You don't wire any of this by hand in a target repo: `governance directive add` collects the spec, drafts the check from a template, syntax-checks it, **smoke-tests it against your live repo**, splices the constitution subsection, syncs the lockfile, and commits the [atomic triple](/concepts/constitution).
+
+The smoke-test outcome drives one explicit decision when violators already exist:
+
+- **Loosen** — relax the threshold/pattern before committing.
+- **Grandfather** — waive the existing violators, reviewably, in the same diff.
+- **Block** — land the rule as-is; CI stays red until the tree is fixed.
+
+Pick one consciously; never ship a silently-red PR.

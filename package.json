@@ -1,0 +1,22 @@
+{
+  "name": "governance-kit-docs",
+  "private": true,
+  "type": "module",
+  "description": "Static documentation site for governance-kit. Mintlify-format docs.json + MDX, rendered by a custom generator (scripts/docs-site/) and deployed to GitHub Pages.",
+  "scripts": {
+    "docs:build": "node scripts/docs-site/build.mjs && node scripts/docs-site/source-index.mjs && pagefind --site dist/docs-site --output-path dist/docs-site/pagefind && node scripts/docs-site/pagefind-normalize.mjs",
+    "docs:serve": "python3 -m http.server 4173 --bind 127.0.0.1 -d dist/docs-site",
+    "docs:smoke": "node scripts/docs-site/smoke.mjs"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "gray-matter": "4.0.3",
+    "highlight.js": "11.11.1",
+    "jsdom": "26.1.0",
+    "markdown-it": "14.1.1",
+    "markdown-it-anchor": "9.2.0",
+    "mermaid": "11.15.0",
+    "pagefind": "1.5.2",
+    "svg-pan-zoom": "3.6.2"
+  }
+}

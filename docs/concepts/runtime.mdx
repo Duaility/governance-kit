@@ -1,0 +1,93 @@
+---
+title: 'The runtime: hooks & run.sh'
+summary: 'What actually happens between git commit and [PASS] — the runner, the generated hook dispatchers, populators, and the enforcement contract with CI.'
+---
+
+# The runtime: hooks & run.sh
+
+This page traces what actually happens between `git commit` and `[PASS]` — the runner, the generated hook dispatchers, and the enforcement contract with CI.
+
+## The pieces
+
+```
+.governance/
+├── run.sh        # entrypoint: discovers and runs every installed check
+├── lib.sh        # shared helpers: directive_start/_end, violation, has_waiver, …
+├── install.yaml  # init receipt (choices + side effects)
+├── packs.lock    # pack pin state
+└── packs/<owner>/<name>/directives/<id>/check.sh   # the vendored checks
+
+.githooks/        # generated dispatchers (Path A; or .husky/, .governance/hooks/)
+├── pre-commit
+├── commit-msg
+├── prepare-commit-msg
+├── post-commit
+└── pre-push
+
+.github/workflows/governance.yml   # CI: bash .governance/run.sh on every PR
+```
+
+`run.sh` and `lib.sh` are **kit-owned, version-stamped files**: line 2 carries `# governance-kit:managed kit-version=<v>`. That marker is the ownership contract — it is how `kit update` knows what it may regenerate and how `uninstall` knows what it may delete. Files without the marker are yours; the kit never touches them.
+
+## What happens on `git commit`
+
+<Steps>
+  <Step title="git fires a hook">
+    `core.hooksPath` points at `.githooks/`, so git runs the generated dispatcher (e.g. `pre-commit`, then `commit-msg`).
+  </Step>
+  <Step title="The dispatcher filters by hook kind">
+    Each installed directive declared its `hook:` in `directive.yaml`; the pre-commit dispatcher runs only pre-commit directives, the commit-msg dispatcher only commit-msg ones.
+  </Step>
+  <Step title="Populators run first">
+    Directives can ship side-effect scripts (`hooks/<kind>.sh`) — e.g. `agent-token-accounting`'s `prepare-commit-msg` helper *stamps* the token trailers, and its check then *verifies* them. Governance reads; remediation writes; the two are separate scripts.
+  </Step>
+  <Step title="Each check runs">
+    `check.sh` sources `lib.sh`, announces itself with `directive_start`, inspects the repo (staged tree for `change-set` directives, tree-at-rest for `repo-state` ones), records `violation`s, and `directive_end` decides pass/fail.
+  </Step>
+  <Step title="Any failure blocks the commit">
+    It prints the directive id, the offending location, and the message. The agent fixes and retries.
+  </Step>
+  <Step title="CI repeats everything on the trunk">
+    `governance.yml` runs `bash .governance/run.sh` on every PR and push to main — full suite, no hook filtering, no skip.
+  </Step>
+</Steps>
+
+Run it yourself any time:
+
+```sh
+bash .governance/run.sh                    # full suite
+bash .governance/run.sh <directive-id>     # one directive
+```
+
+## Generated, not copied: the hook dispatchers
+
+`init` does not ship static hook files — it **generates** dispatchers from the installed manifest, for one of three strategies:
+
+| Strategy | When | Where dispatchers land |
+|---|---|---|
+| `githooks` (Path A, default) | No tracked hook framework detected | `.githooks/`, plus `git config core.hooksPath .githooks` and a committed `scripts/enable-governance.sh` for new clones |
+| `husky` (Path B) | Repo already uses husky | `.husky/` |
+| `pre-commit` (Path B) | Repo already uses pre-commit.com | `.governance/hooks/`, referenced from `.pre-commit-config.yaml` |
+
+All five dispatcher kinds are generated with identical bodies and the line-2 ownership marker. Because they're generated from `directive.yaml` declarations, installing or removing a directive just regenerates them — there is no hand-maintained hook registry to drift.
+
+<Note>
+**Collisions are first-class.** If a hook already exists at a managed path, `init` stops and offers: **wrap** (rename yours to `<name>.userhook`, exec it at the end of the dispatcher — the default), **merge by hand** (skip hook install, rely on CI), or **overwrite with backup**. `uninstall` reverses the wrap, renaming your hook back.
+</Note>
+
+## The enforcement contract
+
+Local hooks are a convenience; **CI is the contract**:
+
+- `SKIP_GOVERNANCE=1` and `--no-verify` skip the local hook for hotfixes — but `governance.yml` re-runs every directive on every PR, and there is no developer-side bypass for CI.
+- **No network at commit time.** Hooks and checks never fetch; all fetching lives inside user-invoked verbs. A flaky hook is a skipped hook, and a skipped hook silently demotes enforcement to CI-only — so the hook path is kept deterministic and fast (checks target < 1 second each).
+- **Deterministic verdicts.** Same repo state, same result — checks avoid wall-clock and randomness so re-runs are meaningful.
+
+## Mode B: validating history, not just the working tree
+
+`change-set` directives that police *commits* (message format, receipts, accounting trailers) have two operating modes:
+
+- **Pending-commit mode** (in the hook) — validate the commit being made right now.
+- **Walker mode** (in CI) — walk the commits between the merge-base and `HEAD`, validating each. This is what makes the rules hold on the trunk even when a local hook was skipped, and what makes them survive squash-merges (which is why accounting uses stable keys rather than commit SHAs — see [the audit chain](/concepts/audit-chain)).
+
+Next: [The audit chain & ledgers](/concepts/audit-chain) — the part built specifically for agent-authored commits.

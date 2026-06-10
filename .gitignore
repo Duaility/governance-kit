@@ -5,3 +5,7 @@
 .claude/
 __pycache__/
 *.pyc
+
+# docs site (Node toolchain + build output)
+node_modules/
+dist/

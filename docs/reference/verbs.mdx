@@ -1,0 +1,112 @@
+---
+title: 'Verbs'
+summary: 'The governance skill lifecycle surface — init, kit update, pack *, directive *, reset, and uninstall — and the design rules they all share.'
+---
+
+# Verbs
+
+The `governance` skill is the **single writer** for every governance-kit lifecycle operation. One entry point, six verb families:
+
+```
+governance init                                        # bootstrap a repo
+governance kit update [--to X.Y.Z] [--with-packs] [--dry-run] [--force]
+governance pack {list,search,add,update,remove,create} # pack lifecycle
+governance directive {add,modify,remove} [--pack <owner>/<name>]
+governance reset {--directive <id> | --pack <id> | --all}
+governance uninstall [--dry-run | --soft | --hard]
+```
+
+Shared design rules across all verbs:
+
+- **Plan / apply.** Elicitation (questions, choices) is separated from a mechanical, tested apply step.
+- **Diff-before-exec.** Anything that writes shows the exact changes and asks for an explicit yes first.
+- **Idempotent.** Running a verb against an already-converged repo is a successful no-op.
+- **Ownership-marker discipline.** Verbs only regenerate or delete files they can identify as kit-owned.
+- **No network at commit time.** Fetching happens inside verbs, never in hooks.
+
+## governance init
+
+Bootstraps governance-driven development in a repo. The flow:
+
+<Steps>
+  <Step title="Survey">
+    Confirm a git repo; detect existing governance artifacts and the hook situation (`.husky/`, `.pre-commit-config.yaml`, or none). Existing installs get an augment-or-overwrite question.
+  </Step>
+  <Step title="Discover packs">
+    Build the menu from each directive's `directive.yaml`.
+  </Step>
+  <Step title="Choose">
+    Packs (core is locked on), preset (`minimal` / `standard` / `strict` / custom), then per-category fine-tuning. Final set: `always_install(core) ∪ preset ∪ user selections`.
+  </Step>
+  <Step title="Infer principles">
+    3–5 high-level principles derived from the chosen directives, recorded in the constitution.
+  </Step>
+  <Step title="Write the surface">
+    `CONSTITUTION.md`, the AGENTS.md compliance block, `.governance/run.sh` + `lib.sh`, generated hook dispatchers for the detected strategy, and the CI workflow. Hook collisions stop the flow and offer wrap / merge-by-hand / overwrite-with-backup.
+  </Step>
+  <Step title="Record">
+    Every choice in `.governance/install.yaml`, every pack pin in `.governance/packs.lock`.
+  </Step>
+  <Step title="Validate & converge">
+    Run the full suite against the staged tree; fix findings inline (rotate leaked secrets, SHA-pin actions, stub missing docs) or surface them.
+  </Step>
+  <Step title="Commit">
+    One install commit through the hook path (populators stamp the accounting trailers), plus a bootstrap receipt when the audit chain is installed.
+  </Step>
+</Steps>
+
+## governance kit update
+
+Re-syncs the kit-owned runtime files to a newer kit version. The repo is **pinned**: `install.yaml` says which kit it runs; `kit update` is the only thing that advances it.
+
+- Resolves the target (latest published `kit/vX.Y.Z` tag by default, `--to X.Y.Z` for exact, cache/installed-skill fallback offline), then **delegates the apply to the fetched version's own engine**.
+- Inventories managed files by their `kit-version=` markers; per-file diffs; unmanaged files (no marker) are never overwritten without an explicit per-file choice.
+- Regenerates hook dispatchers, updates `install.yaml`, smoke-tests, records the new pin.
+- Disjoint from pack content — `--with-packs` chains a `pack update` afterwards.
+- Downgrades require `--allow-downgrade`; the floor version is enforced.
+
+## governance pack *
+
+| Verb | What it does |
+|---|---|
+| `pack list` | Enumerate installed packs from the lockfile: id, source, version, SHA, ref. |
+| `pack search [query]` | Browse the advisory community catalog. |
+| `pack add <ref>` | Fetch `gh:<owner>/<repo>[/<subpath>][@<rev>]`, validate, capability-check every directive, show full diffs, then vendor the directive code, splice constitution subsections, regenerate dispatchers, and pin SHA in the lockfile. |
+| `pack update [<pack-id>]` | Re-fetch each `gh` pack via its stored ref; for drifted SHAs show per-directive diffs, then overwrite, regenerate, re-pin. Repo-local packs are skipped. |
+| `pack remove <pack-id>` | Delete the pack's directive folders, strip its constitution subsections, regenerate dispatchers, prune the lockfile. `governance-kit/core` can't be removed wholesale — opt out of individual core directives with `directive remove`. |
+| `pack create <name>` | Scaffold a hand-authored repo-local pack at `.governance/packs/<repo-owner>/<name>/` (a `pack.yaml` with no `source:` and an empty `directives/`). |
+
+## governance directive *
+
+Hand-authored amendments via the [atomic triple](/concepts/constitution): directive folder + constitution subsection + evolution-log entry, one commit.
+
+- `directive add <id>` — collect the spec (statement, rationale, check logic, exceptions, surface), draft `check.sh` from the template, smoke-test against the live repo, splice the constitution, sync the lockfile, commit.
+- `directive modify <id>` — same flow against an existing repo-local directive; the original rationale is preserved unless the policy intent changes.
+- `directive remove <id>` — delete the folder, strip the subsection, log the removal; also the supported way to opt out of an individual core directive.
+- `--pack <owner>/<name>` targets a specific repo-local pack; without it, the repo's own default pack is used (auto-created on first add).
+- Community (`source: gh`) directives are refused — use `pack update` / `pack remove` for those.
+
+<Note>
+If the new check fails against the current tree, the flow asks one blocking question — **loosen**, **grandfather** (waivers, reviewable in the diff), or **block** (land it, CI goes red until fixed) — rather than shipping a silently-red PR.
+</Note>
+
+## governance reset
+
+Restores pack-sourced directives to their **pinned** SHA — the recovery hatch for drift (hand-edits, corruption) without uninstalling.
+
+- Scope is exactly one of `--directive <id>`, `--pack <id>`, `--all`.
+- Lockfile-driven: re-fetches the pinned source (cache-first), classifies each directive restore / skip (byte-identical) / drop, shows diffs, applies atomically, regenerates dispatchers, appends one evolution-log entry per pack.
+- Hand-authored directives are preserved by default; `--all --drop-handauthored` is the opt-in to drop them.
+- Contrast with `pack update`: *update* moves the pin forward; *reset* moves the tree back to the pin.
+
+## governance uninstall
+
+Cleanly reverses everything `init` did, using a three-layer source of truth: the install manifest, then ownership markers, then heuristics (which force dry-run).
+
+| Mode | Effect |
+|---|---|
+| `--dry-run` | Print the plan; touch nothing. Default whenever state is ambiguous. |
+| `--soft` (default) | Remove kit-owned files; keep pack-seeded docs (`QUALITY.md`, `COSTS.md`, …) and backups. |
+| `--hard` | Remove everything governance touched, including seeded docs and backups. |
+
+Execution order is fixed: hooks (restoring any `.userhook` wraps), `git config core.hooksPath`, the AGENTS.md block (marker-bounded surgery), tree files, Path-B framework entries, seeded docs, backups, and `.governance/` last. It deletes only what it can identify as kit-owned, never your content, and leaves changes unstaged for your own commit. Removing the *skill* from your machine is separate — delete the symlink your installer created.

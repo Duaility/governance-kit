@@ -1,0 +1,92 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "governance-kit",
+  "description": "Governance-driven development: declare the repo state you want in a versioned CONSTITUTION.md, ship every rule with an executable test, and let agents converge on it.",
+  "theme": "mint",
+  "icons": {
+    "library": "lucide"
+  },
+  "logo": {
+    "light": "/assets/governance-mark.svg",
+    "dark": "/assets/governance-mark.svg"
+  },
+  "fonts": {
+    "body": { "family": "Inter" },
+    "heading": { "family": "Inter" }
+  },
+  "favicon": "/assets/governance-mark.svg",
+  "colors": {
+    "primary": "#0B8A5C",
+    "dark": "#3DDC97",
+    "light": "#8FEBC4"
+  },
+  "styling": {
+    "codeblocks": {
+      "theme": { "dark": "min-dark", "light": "min-light" }
+    }
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/Duaility/governance-kit",
+        "icon": "github"
+      }
+    ]
+  },
+  "redirects": [],
+  "navigation": {
+    "languages": [
+      {
+        "language": "en",
+        "tabs": [
+          {
+            "tab": "Guide",
+            "groups": [
+              {
+                "group": "Get started",
+                "pages": [
+                  "index",
+                  "guide/introduction",
+                  "guide/getting-started",
+                  "guide/mental-models"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "Inner workings",
+            "groups": [
+              {
+                "group": "How it works",
+                "pages": [
+                  "concepts/constitution",
+                  "concepts/packs",
+                  "concepts/runtime",
+                  "concepts/audit-chain",
+                  "concepts/versioning"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "Reference",
+            "groups": [
+              {
+                "group": "Reference",
+                "pages": [
+                  "reference/verbs",
+                  "reference/directive-catalog",
+                  "reference/schemas",
+                  "reference/authoring-directives",
+                  "reference/authoring-packs",
+                  "reference/native-tests"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
