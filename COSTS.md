@@ -250,3 +250,5 @@ Schema:
 | claude-code-e5be56d9-598-1781024615 | claude-code | e5be56d9-5982-40ea-aacd-912b10fc2e84 | #164 | claude-opus-4-8 | 3369 | 148461 | 30830627 | 131861 | 283691 | 19.6566 | refactor(governance): delete working-tree resolver; dogfood pack update via real |
 | claude-code-95102b22-38b-1781025210 | claude-code | 95102b22-38b4-4fbc-a5a4-d56309cf821c | #166 | claude-opus-4-8 | 5380 | 21846 | 32008 | 1120 | 28346 | 0.2074 | refactor(governance): delete orphaned reconcile.sh (#166) |
 | claude-code-5e4925a0-dbd-1781028031 | claude-code | 5e4925a0-dbd1-4ed0-bff3-f8a2beda1106 | #168 | claude-opus-4-8 | 5744 | 21358 | 32008 | 1240 | 28342 | 0.2092 | docs: document kit and pack release process in README (#168)Add a Releasing sect |
+| claude-code-521d18ae-fc0-1781072291 | claude-code | 521d18ae-fc03-48fd-be1d-0957a9bdf969 | #170 | claude-opus-4-8 | 43111 | 144567 | 1831796 | 22342 | 210020 | 2.5935 |  |
+| claude-code-521d18ae-fc0-1781072417 | claude-code | 521d18ae-fc03-48fd-be1d-0957a9bdf969 | #170 | claude-opus-4-8 | 0 | 0 | 0 | 0 | 0 | 0.0000 |  |
