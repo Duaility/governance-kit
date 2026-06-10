@@ -29,6 +29,33 @@ Leaving intact: files the user owns (pack-seeded docs like `QUALITY.md` / `COSTS
 
 ---
 
+## Deterministic plan/apply
+
+`uninstall` follows the same terraform-style split as `kit update`, `pack *`, and
+`reset` (issue #172): a pure **plan** that surveys + classifies, and a tested
+**apply** engine that executes the reversal. The skill never hand-executes the
+`rm` / `mv` / `git config` / AGENTS.md edits.
+
+- **Plan.** `packverb uninstall-plan <root> [--mode soft|hard|dry-run]` surveys
+  the repo against the UNINSTALL_MATRIX, classifies it (`fully-installed` /
+  `partial` / `unmarked-collision` / `none-detected`), records the source-of-truth
+  (`manifest` / `heuristic`), and emits the exact deletion/restore inventory:
+  marked hooks, `.userhook` restores, unmarked-hook collisions, the AGENTS.md
+  marker state, tree deletes, Path-B entries, seeded docs, and `.pre-governance.bak`
+  backups. It writes nothing. Engine: `uninstallplan.py`.
+- **Apply.** `packverb uninstall-apply <root> [--mode soft|hard|dry-run]
+  [--allow-heuristic]` recomputes the plan and executes the reversal in the fixed
+  Step-5 order. Engine: `uninstallapply.py`. It does no destructive git ops and no
+  commit.
+- The apply enforces in code: `none-detected` → idempotent no-op; an
+  `unmarked-collision` → refuse and surface the colliding hooks (never delete
+  somebody else's hook); a missing manifest (heuristic) → refuse a destructive
+  mode unless `--allow-heuristic` (silence is not consent; `--mode dry-run` is
+  always allowed). Soft preserves seeded docs + backups; hard deletes them. Exit 0
+  applied/no-op/dry-run, 2 refused.
+
+---
+
 ## Activation flow
 
 Run these steps in order. Do not skip steps unless noted.
@@ -129,26 +156,25 @@ The preview is informational. Ask for an explicit `yes` to execute — this is d
 | `delete with backup` | Move the hook to `<path>.pre-reset.bak`, then remove the reference from `core.hooksPath` if it becomes empty. |
 | `restore wrap` (only if a `<name>.userhook` sibling exists) | Delete the managed hook (if any) and rename `<name>.userhook` back to `<name>`. |
 
-### Step 5 — Execute
+### Step 5 — Execute (via `uninstall-apply`)
 
-Delete and restore in this order (deliberate — the manifest is read last so its absence is the idempotency signal for subsequent runs):
+Run `packverb uninstall-apply <root> --mode <soft|hard|dry-run> [--allow-heuristic]`.
+The engine deletes and restores in this fixed order (deliberate — the
+`.governance/` pair is removed last, so its absence is the idempotency signal for
+subsequent runs):
 
-1. **Hooks first.** Delete `.githooks/<name>` that carry the marker. Rename `<name>.userhook` siblings back to `<name>`. Never delete unmarked hooks — those were resolved in Step 4 or skipped.
-2. **Git config.** If `core.hooksPath` still equals `.githooks`, run `git config --unset core.hooksPath`. If the value changed since install or was cleared manually, leave it alone and note in the report.
-3. **AGENTS.md surgery.** Read the file and remove the directive block.
-   - **Paired-marker path (v1 directive):** locate `<!-- governance: directives-to-follow -->` and `<!-- /governance: directives-to-follow -->` and delete the span (inclusive of both marker lines, plus the blank line immediately after the closing marker if present).
-   - **Opening-marker-only path (pre-PR-#26 directive):** if only the opening marker is present, strip from that line up to — but not including — the next `^## ` heading (or end-of-file). Record the heuristic in the report's `Assumptions:` line.
-   - Run a byte-diff on the remainder and abort the whole `uninstall` if any non-block line changed.
-   - If the manifest records `agents_md_created: true` (init's Step 4b Case 2), offer to delete the file entirely in hard mode; keep it in soft mode.
-4. **Tree deletes.** `CONSTITUTION.md`, `.governance/` (recursive), `.github/workflows/governance.yml`.
-5. **Path B.** If the repo uses husky or `pre-commit`, remove only the governance entries from the framework's config file (keep every other hook intact). Use the manifest's `path_b_entries` list if present; otherwise grep for entries that invoke `.governance/run.sh`.
-6. **Seeded docs.** In soft mode: preserve, report as orphaned. In hard mode: delete `QUALITY.md`, `COSTS.md`, and every path the manifest lists under `install_assets_seeded`.
-7. **Backups.** In soft mode: preserve `*.pre-governance.bak`, report them. In hard mode: delete them.
-8. **Manifest pair.** Delete `.governance/install.yaml` and `.governance/packs.lock`. If `.governance/` is now empty, `rmdir` it.
+1. **Hooks first.** Delete `.githooks/<name>` that carry the line-2 marker; rename `<name>.userhook` siblings back to `<name>`. Unmarked hooks are never touched — they tripped the `unmarked-collision` refusal in the plan.
+2. **Git config.** Unset `core.hooksPath` only if it still equals `.githooks` (Path A). A user-redirected value is left alone and reported.
+3. **AGENTS.md surgery** (`docsurgery.strip_marker_block`). Paired markers → delete the inclusive span + the trailing blank line. Opening-marker-only → strip to the next `^## ` heading and record the heuristic in `Assumptions:`. Span removal is byte-safe by construction (every other line is preserved verbatim). A manifest `agents_md_created: true` stub is left in place (deleting a possibly-grown doc stays the operator's call).
+4. **Tree deletes.** `CONSTITUTION.md`, the CI workflow, the enable-governance script.
+5. **Path B.** Remove only the governance entries (`.governance/run.sh` invocations) from the husky / `pre-commit` config, using the manifest's `path_b.entries`.
+6. **Seeded docs.** Soft: preserve + report as orphaned. Hard: delete every path the manifest lists under `install_assets_seeded`.
+7. **Backups.** Soft: preserve `*.pre-governance.bak`. Hard: delete them.
+8. **`.governance/` last.** Remove the directory recursively (manifest pair, runtime, packs, configs go with it).
 
-All deletes use plain `rm` / `git rm` against tracked paths. Never `git clean`, `git reset --hard`, or stash — those can touch the user's uncommitted work.
+All deletes are plain `rm` against tracked paths. The engine never runs `git clean`, `git reset --hard`, or stash, and never commits — same discipline as `init`. `--mode dry-run` reports the would-be actions and writes nothing.
 
-**Leave changes unstaged.** Do not `git commit`. The user reviews the diff and commits intentionally, same discipline as `governance init`. The pre-commit hook is also gone now, so `git diff` is the only guard rail — which is the desired end state of an uninstall.
+**Leave changes unstaged.** The user reviews the diff and commits intentionally. The pre-commit hook is also gone now, so `git diff` is the only guard rail — the desired end state of an uninstall.
 
 ### Step 6 — Report
 

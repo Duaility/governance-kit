@@ -62,7 +62,7 @@ Run in parallel:
 - Resolve the full update plan in one deterministic call:
   ```sh
   uv run --quiet --isolated --with PyYAML python \
-      governance/assets/packs/lib/kitverb.py kit-plan "<root>"
+      governance/assets/packs/lib/kitverb.py kit-plan "<root>" --diff
   ```
 
 `kit-plan` is the side-effect-free core of Steps 1–3. It reads
@@ -84,12 +84,19 @@ shell-portability quirk or a skipped phase silently produced a wrong plan
 | `manifest_source` | `install.yaml` / `reconstructed` / `absent`. |
 | `reconstructed_from` | Files that contributed to a reconstructed pin (name them in the `Assumptions:` line). |
 | `delta` | `forward` / `up-to-date` / `downgrade` / `pre-tracking` / `no-recoverable-pin` — drives Step 2. |
-| `files[]` | `{key, src, dest, exists, marker, dest_version, status}` per managed file — the Step 3 inventory. |
+| `files[]` | `{key, src, dest, exists, marker, dest_version, status, diff}` per managed file — the Step 3 inventory. |
 
-`status` is a hint, not a verdict — `skip` (versioned marker == `KIT_VERSION`),
-`apply` (older or bare marker), `add` (destination missing), `unmanaged`
-(no marker; user-owned). The agent still computes the byte-diff (`diff -u`) in
-Step 3 before showing or applying anything.
+`status` is a per-file action hint — `skip` (versioned marker ==
+`KIT_VERSION`), `apply` (older or bare marker), `add` (destination missing),
+`unmanaged` (no marker; user-owned). With `--diff`, each entry also carries
+the unified diff from the current destination to the **stamped** source —
+the kit template with the new `kit-version=` already applied, so the marker
+line is never spurious noise. Show these diffs in Step 4; do not hand-stamp
+temp copies to compute them.
+
+The execution half is `kit-apply` (Step 5) — it **recomputes this same plan
+at execution time** and re-enforces every gate in code, so a stale reading
+of the plan cannot slip through.
 
 If `delta` is `no-recoverable-pin` (`manifest_source: absent`), stop: the user
 has no recoverable version pin (truly pre-marker install or all managed files
@@ -103,7 +110,7 @@ on success and an `Assumptions:` line records the reconstruction.
 
 | `delta` | Action |
 |---|---|
-| `pre-tracking` | Manifest present but carries no `kit_version`. Offer to record the current `KIT_VERSION`; proceed (render `<prev>` as `unknown` in the report). |
+| `pre-tracking` | Manifest present but carries no `kit_version`. Offer to record the current `KIT_VERSION`; on consent, pass `--record-pre-tracking` to `kit-apply` in Step 5 (render `<prev>` as `unknown` in the report). Without that flag `kit-apply` refuses — the flag *is* the recorded consent. |
 | `forward` | Forward update. Continue to Step 3. |
 | `up-to-date` | No-op for kit-runtime. If `--with-packs`, jump to Step 6. Else report `kit: up-to-date` and exit — but **always** emit the skill-provenance line (below). |
 | `downgrade` | Stop. The repo was last touched by a newer kit; running an older `kit update` against it would silently downgrade. The user's recovery path is to upgrade the kit on PATH (e.g., `uvx --reinstall …`) and re-run. |
@@ -206,22 +213,14 @@ marker scan finds in each managed file:
 | Present but bare (`# governance-kit:managed` with no `kit-version=`) | Treat as version-unknown but kit-owned. Apply forward in this run; the new stamp brings it under per-file pin tracking. |
 | Absent | Treat as user-owned. Surface as `Skipped (unmanaged)` and offer the per-file `keep` / `apply anyway` / `overwrite-with-backup` choice. |
 
-For each pair, compute:
-- **Diff status:** byte-equal (`skip`), byte-different + versioned marker
-  (`apply`), byte-different + bare marker (`apply` — re-stamp brings it
-  under tracking), byte-different + marker absent (`unmanaged`),
-  destination missing (`add`).
-- **Diff text:** `diff -u <dest> <src-stamped>` for the user-visible
-  plan, where `<src-stamped>` is the source template after
-  `stamp_managed_marker` has applied the new `kit-version=` and today's
-  date. This avoids spurious diff noise from the marker line.
+Per-file action status and diff text both come from `kit-plan --diff`
+(Step 1) — there is nothing to compute by hand in this step.
 
-### Step 4 — Confirm
+### Step 4 — Confirm and collect decisions
 
-Refuse to proceed if `git status --porcelain` shows uncommitted changes,
-unless `--force` was passed.
-
-Show the user the plan:
+Show the user the plan (`kit-apply` re-checks the dirty-tree and delta
+gates in code, but surface refusals *before* asking for confirmation —
+don't collect decisions for a run that will be refused):
 
 ```
 kit update: 0.2 → 0.3
@@ -247,56 +246,66 @@ Hook dispatcher: regenerate (.githooks/{pre-commit,commit-msg,...})
 Working tree: clean
 ```
 
-For every file in `Apply`, print the diff under the summary so the user
-sees what is changing in `run.sh` etc. before any file is touched. Same
-diff-before-exec discipline `pack add` and `reset` use.
+For every file in `Apply`, print the diff (from `kit-plan --diff`) under
+the summary so the user sees what is changing in `run.sh` etc. before any
+file is touched. Same diff-before-exec discipline `pack add` and `reset`
+use.
 
-For files in `Skip (unmanaged)`, offer **per-file** the three options:
-- `keep` (default) — leave the file alone; report under `Skipped`.
-- `apply anyway` — overwrite, no backup.
-- `overwrite-with-backup` — write `<path>.pre-update.bak` then overwrite.
+Collect per-file decisions into a JSON object `{<dest>: <decision>}`:
+
+- For files in `Skip (unmanaged)`, offer **per-file** the three options:
+  - `keep` (default) — leave the file alone; report under `Skipped (unmanaged)`.
+  - `apply` — overwrite, no backup.
+  - `overwrite-with-backup` — write `<path>.pre-update.bak` then overwrite.
+- For a *managed* file the user wants to hold back (hand-edited under the
+  marker), the same `keep` / `overwrite-with-backup` overrides are
+  accepted; managed files default to `apply` — the marker is the
+  regeneration contract.
 
 Ask for an explicit `yes` to execute the kit-runtime block. Silent
 acceptance must not proceed — the verb is destructive.
 
-### Step 5 — Execute the kit-runtime sync
+### Step 5 — Execute: one `kit-apply` call
 
-For each pair in `Apply` or chosen `apply` / `overwrite-with-backup` from
-Step 4, in order:
+The entire apply is a single deterministic call (issue #172):
 
-1. If `overwrite-with-backup`, rename `<dest>` to `<dest>.pre-update.bak`.
-2. `cp <kit>/<src> <dest>`. Preserve mode (`chmod +x` for `run.sh`,
-   `enable-governance.sh`).
-3. Stamp the marker with the new kit version:
-   ```sh
-   stamp_managed_marker "<dest>" "<KIT_VERSION>"
-   ```
-   This rewrites the bare `# governance-kit:managed` line in the source
-   template to the versioned form `# governance-kit:managed
-   kit-version=<v>` in place. `stamp_managed_marker` is idempotent and
-   reproducible (no wall-clock date), and lives in
-   `governance/assets/packs/lib/install.sh`.
+```sh
+uv run --quiet --isolated --with PyYAML python \
+    governance/assets/packs/lib/kitverb.py kit-apply "<root>" \
+    --decisions '{"scripts/enable-governance.sh": "keep"}'   # only if Step 4 collected any
+```
 
-For each pair in `Add` (destination missing): `cp <kit>/<src> <dest>`.
+Flags, all optional: `--decisions <json|file>` (per-file overrides from
+Step 4), `--dry-run` (resolve every action, write nothing), `--force`
+(proceed over a dirty tree — mirror it in `Assumptions:`),
+`--record-pre-tracking` (the consent from Step 2's pre-tracking branch),
+`--owner <o> --repo <r>` (required only when `manifest_source` is
+`reconstructed` — the fresh manifest needs the repo identity).
 
-After all file pairs:
+`kit-apply` executes, in order, everything this step used to spell out as
+prose: re-enforces the delta and dirty-tree gates, writes each approved
+file **pre-stamped** with the new `kit-version=` marker (mode preserved),
+honors the per-file decisions (backups as `<path>.pre-update.bak`),
+regenerates the hook dispatchers via hooks.sh `generate_hooks_for_strategy`
+under the manifest's `hook_strategy`, writes `kit_version` through to
+`install.yaml` (in-place edit that preserves every other field; on the
+reconstructed path a fresh v3 manifest via install.sh
+`write_installed_manifest`), smoke-tests `bash <tests_dir>/run.sh`, and
+prints a JSON report. **Do not hand-execute `cp` / `stamp_managed_marker` /
+hook regeneration / manifest edits** — that hand-assembly is the drift
+surface this subcommand closed, exactly as `kit-plan` closed the plan side
+(issue #170, finding B).
 
-4. **Regenerate the hook dispatcher.** Reuse `generate_hooks_for_strategy`
-   from `governance/assets/packs/lib/hooks.sh`, passing the manifest's
-   `hook_strategy`. The new generator may emit different dispatcher
-   bodies (that is the whole point of `kit update`); the existing
-   ownership marker discipline picks up regenerated files silently and
-   prompts for unmanaged ones (Step 6 collision flow in
-   [INIT_FLOW.md](INIT_FLOW.md)).
-
-5. **Update `install.yaml`.** Re-emit the manifest with
-   `kit_version: "<new>"`. Use `write_installed_manifest`'s
-   `--kit-version` flag (see [INSTALL_SCHEMA.md](INSTALL_SCHEMA.md)).
-
-6. **Smoke-test.** Run `bash .governance/run.sh` against the post-update
-   tree. Capture exit code and output for the report. Do **not** abort
-   on failure — failures may reflect repo state the user needs to know
-   about. Surface them in the report.
+Report fields → exit codes: `result` is `applied` / `up-to-date` /
+`dry-run` (exit 0), `refused` (exit 2 — `reason` + `recovery` name the
+gate), or `error` (exit 1 — partial writes possible; the tree was clean,
+so `git checkout -- .` restores it). `updated` / `added` / `skipped` /
+`kept` / `unmanaged` / `backups` list per-file outcomes; `hook_dispatcher`
+is `regenerated` or `unchanged` (byte-compared); `manifest` is `updated` /
+`created`; `smoke_test` carries `{exit_code, summary}`; `assumptions`
+collects the reconstruction / pre-tracking / `--force` notes for the
+Step 8 report. A smoke-test failure does **not** abort the run — surface
+it; it may reflect repo state the user needs to know about.
 
 ### Step 6 — (Optional) Chain `pack update`
 
@@ -323,12 +332,15 @@ lockfile already records the floating `ref`.
 
 ### Step 7 — Stage and commit
 
-`git add` the staged set:
-- Every kit-runtime file that was rewritten.
-- The regenerated hook dispatchers.
+`git add` the staged set — read it from the `kit-apply` report:
+- Every file in `updated` + `added`.
+- The regenerated hook dispatchers (when `hook_dispatcher: regenerated`).
 - `.governance/install.yaml`.
 - (Under `--with-packs`) any directive folders + lockfile updates from
   the chained `pack update` runs.
+
+Never stage the `backups` entries (`*.pre-update.bak`) — they are the
+user's local safety copies, not part of the update.
 
 Run `git status` to confirm the staged set is exactly the update surface.
 
@@ -442,11 +454,16 @@ variant — the verb either emits the full block or it has not finished.
   the verb reconstructs the pin by scanning markers (taking the min
   `kit-version=`) and rewrites the manifest on success. Only a repo
   with neither manifest nor versioned markers is unrecoverable.
-- **Diff-before-exec.** Step 4 prints the per-file diff before any file
-  is touched. Same discipline that protects `pack add` and `reset`.
-  The diff is computed against the source template *after* the new
-  `kit-version=` and today's date have been stamped, so the marker line
-  itself is not spurious noise.
+- **Plan and apply are both deterministic.** `kit-plan` computes the plan;
+  `kit-apply` executes it — gates, stamped writes, decisions, hook regen,
+  manifest write-through, smoke test — in one tested call. The operator
+  (agent or human) owns only what is genuinely theirs: eliciting
+  decisions, showing diffs, and the commit. Prose is not an executor.
+- **Diff-before-exec.** Step 4 prints the per-file diff (from
+  `kit-plan --diff`) before any file is touched. Same discipline that
+  protects `pack add` and `reset`. The diff is computed against the
+  source template *after* the new `kit-version=` has been stamped, so the
+  marker line itself is not spurious noise.
 - **Marker is the contract.** Line-2 `governance-kit:managed` is the
   ownership marker. Files without it are user-owned and surface as
   `Skipped (unmanaged)` — never silently overwritten. This is the

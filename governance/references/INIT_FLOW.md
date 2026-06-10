@@ -28,6 +28,43 @@ Governance evolves: new directives get added to `CONSTITUTION.md` *and* to `.gov
 
 ---
 
+## Deterministic plan/apply
+
+`init` is the most interactive verb, but its **mechanical** half follows the same
+plan/apply split as the other lifecycle verbs (issue #172). The operator owns the
+elicitation — pack/preset/directive selection (Step 3), principle inference (Step
+4), hook-collision choices (Step 6), the Step-8 finding loop, and the commit
+(Step 9). Everything mechanical is one tested call.
+
+- **Plan.** `packverb init-plan --decisions <json>` validates the resolved
+  install set (refuses a cross-pack directive-id collision — a flat-namespace
+  overwrite) and emits the directive inventory for the diff-before-exec preview.
+  Engine: `initplan.py` (also owns the pure CONSTITUTION assembly).
+- **Apply.** `packverb init-apply <root> --decisions <json> [--dry-run] [--force]`
+  consumes the operator's serialized decisions and assembles the whole install in
+  one call: install each directive folder + its `install-assets/`, seed
+  `freshness.conf`/`integrity.conf`, assemble + write CONSTITUTION.md (template +
+  operator principles + each directive's `constitution.md` subsection, the example
+  replaced), create the AGENTS.md stub when asked, stamp the runtime
+  (`run.sh`/`lib.sh`) and CI workflow, generate the hook dispatchers (+ for
+  `githooks`: `core.hooksPath` and `enable-governance.sh`), write the
+  `install.yaml` receipt + `packs.lock` pin, and smoke-test. Engine: `initapply.py`.
+
+The `decisions` object the operator serializes carries: `owner`/`repo`,
+`hook_strategy`, `principles[]`, `seed_agents_stub`, and `packs[]` (each with `id`,
+`version`, `source`, `ref`/`sha`/`subpath`, the resolved local `pack_dir`, and the
+final `directives[]` install list). The apply refuses outside a git repo, refuses
+to clobber an existing install without `--force`, and refuses a collision. It does
+**not** make the commit (Step 9) — that stays the operator's, so the accounting
+populators read the live session transcript. `--dry-run` reports the would-be
+writes and changes nothing.
+
+Steps 3–7 below describe the elicitation and the resolved inputs; the file writes
+they used to spell out are now the `init-apply` call. Step 8 (validate + resolve
+findings) and Step 9 (commit) remain the operator's.
+
+---
+
 ## Activation flow
 
 Run these steps in order. Do not skip steps unless noted.
@@ -148,59 +185,49 @@ Ask this explicitly whenever the user requests a custom directive or a directive
 
 Do not accept a repo-exists proxy for a change-set obligation unless you explicitly tell the user it is only a weak approximation and they approve that tradeoff.
 
-For each directive in the final install list, use `../assets/packs/lib/install.sh`:
-
-- `install_directive_folder <pack-dir> <directive> <repo-root>` copies `<pack-dir>/directives/<directive>/` into `.governance/packs/<pack-id>/directives/<directive>/`, excluding `evals/`, and marks `check.sh` plus directive-owned hooks/runtimes executable.
-- `install_directive_assets <pack-dir> <directive> <repo-root>` copies optional `install-assets/` files into the target repo without overwriting existing files in augment mode. This is how directives such as `issues-tracked` seed `QUALITY.md` and `agent-token-accounting` seeds `COSTS.md`.
-- If the user selects `doc-freshness`, also copy `../assets/freshness.conf` to `.governance/freshness.conf` (the seed file is commented — every path is opt-in by uncommenting).
-- `doc-integrity` is `always_install: true`, so it is always in the install list — copy `../assets/integrity.conf` to `.governance/integrity.conf`. Unlike `freshness.conf`, this seed ships with all standard rules **enabled** (each is a no-op until its document exists), so document integrity is on by default; the user opts a document out by deleting or commenting its line.
-
-After all directives are installed, write the install state pair:
+This is where the elicitation ends and the mechanical assembly begins. Resolve
+the GitHub `<owner>/<repo>` identity (Step 1), locate each selected pack's source
+dir (the kit-bundled `packs/core/` or a fetched cache dir for community packs —
+resolve its pinned SHA with `packverb fetch <ref>` so the lock entry records a
+real pin), and serialize the `decisions` object: `owner`/`repo`, `hook_strategy`,
+the inferred `principles[]`, `seed_agents_stub`, and `packs[]` (each with `id`,
+`version`, `source`, `ref`/`sha`/`subpath`, the resolved `pack_dir`, and the final
+`directives[]` install list). Then hand the whole assembly to `init-apply`:
 
 ```sh
-# 1) write the install receipt — init choices + side-effect ledger
-kit_version="$(uv run --quiet --isolated --with PyYAML python \
-    governance/assets/packs/lib/packctl.py kit-version)"
-write_installed_manifest "$repo_root" \
-    --owner "$repo_owner" --repo "$repo_name" \
-    --kit-version "$kit_version" \
-    --hook-strategy githooks \
-    --ci-workflow .github/workflows/governance.yml \
-    --tests-dir .governance \
-    --agents-md-snippet \                  # add --agents-md-created if Step 4b Case 2 fired
-    --install-asset QUALITY.md \           # repeat per seeded install-asset
-    --install-asset COSTS.md \
-    --collision .githooks/pre-commit:wrap:.githooks/pre-commit.userhook   # only if Step 6 hit collisions
-
-# 2) record governance-kit/core in the lockfile (source: gh — fetched via
-#    the kit's own monorepo subpath, just like any community pack).
-#    Resolve the kit version's HEAD SHA at install time and record it as
-#    the pin (a real network fetch of the ref, like any other pack).
-core_sha="$(packverb fetch gh:duaility/governance-kit/packs/core@v$core_pack_version | python3 -c 'import json,sys;print(json.load(sys.stdin)["sha"])')"
-packverb lock-add "$repo_root/.governance/packs.lock" governance-kit/core \
-    --source gh --version "$core_pack_version" \
-    --ref "gh:duaility/governance-kit/packs/core@v$core_pack_version" \
-    --sha "$core_sha" \
-    --subpath packs/core \
-    --directive required-docs \
-    --directive secrets-hygiene \
-    --directive agent-token-accounting     # ... one --directive per installed core directive
+packverb init-apply "$repo_root" --decisions decisions.json
 ```
 
-`--owner` and `--repo` are required — they carry the `<owner>/<name>` identity surveyed in Step 1 and define the default repo-local pack at `.governance/packs/<owner>/<repo>/`. `--kit-version` records the `KIT_VERSION` of the kit doing the install so `governance kit update` can detect the version delta on later runs ([UPDATE_FLOW.md](UPDATE_FLOW.md)). `--install-asset` is repeatable (once per seeded file — `install_directive_assets` copied it). `--collision` is `path:resolution[:extra]` where `resolution` ∈ `wrap | skip | overwrite-with-backup` and `extra` is the userhook or `.bak` path. `--path-b-framework` + `--path-b-entry <file>:<fingerprint>` replace `--hook-strategy githooks` when `init` took Path B. Omit `--no-constitution` unless the user explicitly asked to skip the constitution (nonstandard).
+`init-apply` installs each directive folder (minus `evals/`) + its
+`install-assets/`, seeds `freshness.conf` (when `doc-freshness` is installed) and
+`integrity.conf` (when `doc-integrity` is — it is `always_install`, on by default,
+each rule a no-op until its document exists), assembles + writes CONSTITUTION.md,
+stamps the runtime + CI workflow, generates the hooks (+ `core.hooksPath` /
+`enable-governance.sh` for `githooks`), and writes the `install.yaml` v3 receipt +
+`packs.lock` v2 pin. The receipt's `--install-asset`/`--agents-md-*` ledger and the
+lock's per-pack directive list are derived from the decisions and the installed
+tree — no hand-assembled `write_installed_manifest`/`lock-add` invocations. The
+install pair is the authoritative record `governance uninstall` and `reset` trust;
+installed directive folders are user-owned copies, not an auto-upgrade contract.
+See [INSTALL_SCHEMA.md](INSTALL_SCHEMA.md) and [LOCK_SCHEMA.md](LOCK_SCHEMA.md).
 
-The install pair is `install.yaml` v3 + `packs.lock` v2; installed directive folders are still user-owned copies and the pair is not an auto-upgrade contract. `governance uninstall` treats both files as the authoritative record of what the kit owns. See [INSTALL_SCHEMA.md](INSTALL_SCHEMA.md) and [LOCK_SCHEMA.md](LOCK_SCHEMA.md).
+### Step 4 — Infer the principles
 
-### Step 4 — Write the constitution
+The only operator judgment in the constitution is the **Principles** section.
+Infer 3-5 high-level principles from the directives the user picked (plus a
+generic starter like "Changes to the constitution require changes to the
+enforcing tests") and put them in the decisions object's `principles[]`.
+`init-apply` assembles the rest: it copies `CONSTITUTION.template.md`, splices the
+operator principles into the **Principles** section, and splices each directive's
+`constitution.md` subsection verbatim into the **Directives** section (replacing
+the template example), leaving Compliance / Amendment process / Evolution Log
+intact.
 
-Copy `../assets/CONSTITUTION.template.md` to `<repo-root>/CONSTITUTION.md`. Then tailor it:
-
-- The template ships with a **Compliance** section directly under the cardinal-directive callout — leave it intact. Every bootstrapped repo gets it.
-- Fill the **Principles** section with 3-5 high-level principles inferred from the directives the user picked, plus a generic starter like "Changes to the constitution require changes to the enforcing tests."
-- Under **Directives**, for each directive in the final install list, read the directive's subsection snippet (`<pack-dir>/directives/<directive>/constitution.md`) and splice it verbatim into the **Directives** section. Every snippet is already in the standard Directive / Rationale / Enforced by / Exceptions shape — do not rewrite.
-- Leave the **Evolution Log** section with a template entry and a note that each amendment needs a commit.
-
-Do not invent principles the user did not pick. It is better to ship a short constitution than a bloated one. If you had to infer anything material — preset or hook strategy — record it under `Assumptions:` in the final summary. If you install any custom or change-set-aware directive, make sure the directive text says what merge it blocks, not just what file shape it checks.
+Do not invent principles the user did not pick. It is better to ship a short
+constitution than a bloated one. If you had to infer anything material — preset or
+hook strategy — record it under `Assumptions:` in the final summary. If you
+install any custom or change-set-aware directive, make sure the directive text
+says what merge it blocks, not just what file shape it checks.
 
 ### Step 4b — Inject the Compliance directive into AGENTS.md
 
@@ -218,58 +245,47 @@ Three cases:
 
 After injecting, run `bash .governance/run.sh` once so the user sees whether the newly-seeded AGENTS.md still needs more content.
 
-### Step 5 — Install the test runner
+### Step 5 — The test runner (installed by `init-apply`)
 
-Copy `../assets/dot-governance/run.sh` to `.governance/run.sh` and mark it executable (`chmod +x`). This is the entrypoint — it discovers and runs every `directives/<id>/check.sh`, prints a summary, and exits non-zero on any failure.
-
-Copy `../assets/dot-governance/lib.sh` to `.governance/lib.sh` — shared helpers (pass/fail/skip output, `tracked_files` helper that respects `.gitignore`).
-
-After copying, stamp each runtime template with the per-file version pin:
-
-```sh
-source ../assets/packs/lib/install.sh
-stamp_managed_marker "$repo_root/.governance/run.sh" "$kit_version"
-stamp_managed_marker "$repo_root/.governance/lib.sh" "$kit_version"
-```
-
-`stamp_managed_marker` rewrites the bare `# governance-kit:managed` line in the template into the versioned form `# governance-kit:managed kit-version=<v>`. The marker is the per-file version pin `governance kit update` reads to detect drift; `install.yaml.kit_version` mirrors it. It carries no wall-clock date, so re-stamping the same version is a byte-identical no-op.
+`init-apply` copies `../assets/dot-governance/run.sh` → `.governance/run.sh`
+(the entrypoint — discovers and runs every `directives/<id>/check.sh`) and
+`lib.sh` → `.governance/lib.sh` (shared pass/fail/skip + `tracked_files`
+helpers), makes them executable, and stamps each with the per-file version pin
+(`# governance-kit:managed kit-version=<v>`, byte-stable, no wall-clock date) —
+the pin `governance kit update` reads to detect drift, mirrored by
+`install.yaml.kit_version`.
 
 `init` only installs the bash runner. Governance is a meta-layer that sits on top of the project's code — coupling the directive suite to the project's own test runner (pytest / jest / go test) inverts the dependency. Bash works in any repo, in any CI, without install steps. Users who want governance failures to surface alongside their normal test report can add native test wrappers post-init by following [NATIVE_TESTS.md](NATIVE_TESTS.md) — that is an opt-in enhancement, not part of bootstrap.
 
-### Step 6 — Install the git hooks
+### Step 6 — The git hooks (generated by `init-apply`)
 
-Hooks are **generated**, not copied. Use `../assets/packs/lib/install.sh` to build a hook spec from the installed directive folders, then pass that spec to `../assets/packs/lib/hooks.sh`. Always invoke `generate_hooks_for_strategy` rather than `generate_hooks` directly — the strategy-aware wrapper is the single entry point that enforces parity across host hook frameworks:
+Hooks are **generated**, not copied. `init-apply` builds a hook spec from the
+installed directive folders and calls `hooks.sh generate_hooks_for_strategy`
+(via the shared `applylib.regenerate_hooks`) under the decisions'
+`hook_strategy`. The wrapper emits all five dispatchers — `pre-commit`,
+`commit-msg`, `prepare-commit-msg`, `post-commit`, `pre-push` — into the right
+dir per strategy (`.githooks/` / `.husky/` / `.governance/hooks/`) with identical
+bodies, each carrying the line-2 ownership marker. Every dispatcher scans
+installed `directive.yaml` files at runtime, runs directive-owned
+`hooks/<kind>.sh` populators first, then `check.sh` for matching `hook:`
+declarations, and honors `SKIP_GOVERNANCE=1`. **Never** hand-roll a `bash
+.governance/run.sh` shim into a host framework — that flat runner skips `hook:`
+filtering and populators, the exact gap the generator closes.
 
-```sh
-build_hook_spec_from_installed_rules <repo-root> /tmp/governance-hook-spec.tsv
-generate_hooks_for_strategy <repo-root> <strategy> <pack-version-label> /tmp/governance-hook-spec.tsv
-```
+For **`githooks`** (default when no other framework is present), `init-apply`
+also runs `git config core.hooksPath .githooks` and lays down + stamps
+`scripts/enable-governance.sh` — the one-command onboarding every other
+contributor runs once per fresh clone. In the final report, point new
+contributors at it (in `README.md` or `AGENTS.md`); until they run it,
+`required-docs` nags with the exact command. `init-apply` does **not** create
+files under `.git/hooks/`; if `.git/hooks/pre-commit` already exists from another
+tool, surface it before proceeding (it could be a husky / pre-commit.com hook).
 
-`<strategy>` is `githooks`, `husky`, or `pre-commit` — the same value you record as `hook_strategy:` in the manifest. The wrapper picks the install dir per strategy (`.githooks/`, `.husky/`, `.governance/hooks/`) and emits identical dispatcher bodies, so directive-owned populator hooks (`directives/<id>/hooks/<kind>.sh`) are wired in every path. **Do not** hand-roll a `bash .governance/run.sh` shim into the host framework's hook file — `.governance/run.sh` is a flat `check.sh` runner that ignores `hook:` filtering and skips populators, which is exactly the gap closed by going through the generator.
+The `hook_strategy` and any **collision resolution** stay the operator's call (the
+plan/apply mechanics don't pick a framework or resolve an unmarked-hook
+conflict):
 
-The generator:
-
-1. Emits all five dispatchers — `pre-commit`, `commit-msg`, `prepare-commit-msg`, `post-commit`, `pre-push` — so future user-owned amendments that add a compatible `hook:` declaration are discovered without regenerating hooks.
-2. Each dispatcher scans installed directive `directive.yaml` files under `.governance/packs/<owner>/<name>/directives/` at runtime, runs directive-owned `hooks/<kind>.sh` helpers first, then runs `check.sh` for directives whose `hook:` matches the dispatcher. Dispatchers honor `SKIP_GOVERNANCE=1`.
-3. Stamps each dispatcher with a **line-2 ownership marker**:
-   ```sh
-   #!/usr/bin/env bash
-   # governance-kit:managed kit-version=<v>
-   ```
-   The marker shape is identical to the one runtime templates carry. `kit-version=<v>` is the per-file version pin `governance kit update` reads to detect drift; installed pack/directive details live in `.governance/packs.lock`.
-
-Path choice:
-
-**Path A — repo-local `.githooks/`** (default when no other framework is present).
-
-1. Generate `.githooks/pre-commit`, `.githooks/commit-msg`, `.githooks/prepare-commit-msg`, `.githooks/post-commit`, and `.githooks/pre-push`.
-2. `chmod +x` every generated hook.
-3. Record `hook_strategy: githooks` in `.governance/install.yaml` so `required-docs`' `hooks` sub-check enforces the `.githooks/` scaffolding.
-4. Run `git config core.hooksPath .githooks` in the bootstrapping clone.
-5. Copy `../assets/enable-governance.sh` to `<repo-root>/scripts/enable-governance.sh` (create `scripts/` if missing), `chmod +x` it, and `stamp_managed_marker "$repo_root/scripts/enable-governance.sh" "$kit_version"`. This is the one-command onboarding for every other contributor: they run `./scripts/enable-governance.sh` once per fresh clone and `core.hooksPath` is set. Worktrees inherit `.git/config` from their parent, so the script does not need to run per worktree. In the final report, tell the user to point new contributors at this script (mentioning it in `README.md` or `AGENTS.md` is a good place). Until a contributor runs it, `required-docs` nags on every commit with the exact command.
-6. **Do not** create files under `.git/hooks/`. If `.git/hooks/pre-commit` (or `commit-msg`) already exists from a previous bootstrap or another tool, ask the user before deleting — it could be a husky or pre-commit.com hook (see Path B).
-
-**Pre-existing hook collision (unmarked).** If the survey in Step 1 found a target hook that exists and lacks the ownership marker, STOP before writing. Show the user the existing hook and offer three options:
+**Pre-existing hook collision (unmarked).** If the survey in Step 1 found a target hook that exists and lacks the ownership marker, STOP before running `init-apply`. Show the user the existing hook and offer three options:
 
 1. **Wrap** (default) — write the generated hook, rename the existing one to `<name>.userhook`, and exec it at the end of the generated hook. Keeps both behaviors.
 2. **Merge by hand** — print both scripts, skip hook install, rely on CI.
@@ -286,9 +302,13 @@ In this path:
 - Record each materialized hook file under `path_b.entries` with its fingerprint so `governance uninstall` and `governance reset` can recognize the kit's output.
 - Tell the user explicitly that the repo is using its existing tracked hook framework instead of `.githooks/`, and that populator coverage (token-accounting, steering-accounting) now matches Path A.
 
-### Step 7 — Install the CI workflow
+### Step 7 — The CI workflow (installed by `init-apply`)
 
-Copy `../assets/governance.yml` to `.github/workflows/governance.yml` and stamp it: `stamp_managed_marker "$repo_root/.github/workflows/governance.yml" "$kit_version"`. The workflow runs `bash .governance/run.sh` on `push` to `main` and on every `pull_request`, and it never skips — CI is the backstop the pre-commit hook can be bypassed around. If the user later opts into native tests via [NATIVE_TESTS.md](NATIVE_TESTS.md), they extend the workflow at that point.
+`init-apply` copies `../assets/governance.yml` → `.github/workflows/governance.yml`
+and stamps it. The workflow runs `bash .governance/run.sh` on `push` to `main`
+and on every `pull_request`, and never skips — CI is the backstop the pre-commit
+hook can be bypassed around. If the user later opts into native tests via
+[NATIVE_TESTS.md](NATIVE_TESTS.md), they extend the workflow at that point.
 
 ### Step 8 — Validate the working tree and resolve findings
 

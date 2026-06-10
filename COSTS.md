@@ -252,3 +252,8 @@ Schema:
 | claude-code-5e4925a0-dbd-1781028031 | claude-code | 5e4925a0-dbd1-4ed0-bff3-f8a2beda1106 | #168 | claude-opus-4-8 | 5744 | 21358 | 32008 | 1240 | 28342 | 0.2092 | docs: document kit and pack release process in README (#168)Add a Releasing sect |
 | claude-code-521d18ae-fc0-1781072291 | claude-code | 521d18ae-fc03-48fd-be1d-0957a9bdf969 | #170 | claude-opus-4-8 | 43111 | 144567 | 1831796 | 22342 | 210020 | 2.5935 |  |
 | claude-code-521d18ae-fc0-1781072417 | claude-code | 521d18ae-fc03-48fd-be1d-0957a9bdf969 | #170 | claude-opus-4-8 | 0 | 0 | 0 | 0 | 0 | 0.0000 |  |
+| claude-code-040c6567-e16-1781075870 | claude-code | 040c6567-e16f-4d0e-aae1-c7bea4e733be | #172 | claude-fable-5 | 94947 | 1456436 | 32575766 | 230545 | 1781928 | 63.2579 |  |
+| claude-code-e6c8de76-07d-1781077448 | claude-code | e6c8de76-07d4-45fa-914f-e91aa1c2ef6a | #172 | claude-opus-4-8 | 2735 | 10914 | 16004 | 190 | 13839 | 0.0946 | feat(governance): deterministic pack-plan/pack-apply (#172)Phase 2 of moving lif |
+| claude-code-040c6567-e16-1781078495 | claude-code | 040c6567-e16f-4d0e-aae1-c7bea4e733be | #172 | claude-opus-4-8 | 131998 | 903946 | 53171188 | 337560 | 1373504 | 41.3342 | feat(governance): deterministic reset-apply + uninstall-apply (#172)Phase 3 of m |
+| claude-code-040c6567-e16-1781079488 | claude-code | 040c6567-e16f-4d0e-aae1-c7bea4e733be | #172 | claude-opus-4-8 | 5574 | 161332 | 27512976 | 97131 | 264037 | 17.2210 | feat(governance): deterministic init-plan + init-apply (#172)Phase 4 (final) of  |
+| claude-code-6ec2790a-e73-1781080471 | claude-code | 6ec2790a-e73f-4532-ab79-629c4bd13776 | #172 | claude-opus-4-8 | 5884 | 22390 | 32008 | 866 | 29140 | 0.2070 | refactor(governance): dedupe lifecycle engines onto applylib + single CLI regist |

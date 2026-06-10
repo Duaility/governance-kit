@@ -10,6 +10,7 @@ full rearchitecture context.
 - **Aliases a user might type:** `governance init`, `governance bootstrap`, `set up governance`, `install governance-kit`, `add governance to this repo`.
 - **Precondition:** must be a git repo.
 - **Authoritative flow:** [INIT_FLOW.md](INIT_FLOW.md) Steps 1–8.
+- **Deterministic plan/apply.** The operator owns the elicitation (packs/preset/directives, principles, collision choices, the Step-8 finding loop, the commit); `packverb init-plan --decisions <json>` validates the resolved set + emits the inventory, and `packverb init-apply <root> --decisions <json>` does the mechanical assembly (directive installs, CONSTITUTION assembly, runtime/CI stamping, hook generation, manifest + lock writes, smoke test) in one tested call.
 - **Assets used:**
   - `../assets/CONSTITUTION.template.md`
   - `../assets/AGENTS.snippet.md`
@@ -27,7 +28,8 @@ full rearchitecture context.
 - **Not** an alias for `reset` — see disambiguation in [`../SKILL.md`](../SKILL.md). "uninstall" removes governance entirely; "reset" restores rules to pinned versions while leaving the install in place.
 - **Modes:** `dry-run` (default when manifest missing), `soft` (default when manifest present), `hard` (also strips seeded docs like `QUALITY.md`, `COSTS.md`, and `.pre-governance.bak` backups).
 - **Authoritative flow:** [UNINSTALL_FLOW.md](UNINSTALL_FLOW.md) Steps 1–6.
-- **Source-of-truth ladder:** install manifest → `governance-kit:managed kit-version=<v>` line-2 marker → heuristic fallback (forces dry-run).
+- **Deterministic plan/apply.** `packverb uninstall-plan` surveys/classifies; `packverb uninstall-apply --mode <m> [--allow-heuristic]` executes the reversal in fixed order (hooks → config → AGENTS.md → tree → path-B → seeded → backups → `.governance/` last). The skill never hand-executes the deletions.
+- **Source-of-truth ladder:** install manifest → `governance-kit:managed kit-version=<v>` line-2 marker → heuristic fallback (forces dry-run; a destructive mode needs `--allow-heuristic`).
 - **Directive:** never delete a file without ownership evidence.
 
 ## `kit update`
@@ -36,9 +38,10 @@ full rearchitecture context.
 - **Precondition:** repo must have governance installed (`.governance/` and at least one kit-owned file present). Reads the version pin from `install.yaml.kit_version`; if the manifest is missing or the field is absent, scans per-file `kit-version=` markers and takes the min. Refuses only when neither manifest nor any versioned marker is found — that means there is no recoverable version pin.
 - **Flags:** `--with-packs` (also chain `pack update` for every `source: gh` entry), `--check-upstream` (read-only check of whether the installed skill is behind the latest published `kit/vX.Y.Z` — a signal only; never fetches-and-applies, routes to the skill manager), `--dry-run`, `--force` (override the dirty-working-tree refusal).
 - **Authoritative flow:** [UPDATE_FLOW.md](UPDATE_FLOW.md) Steps 1–8.
+- **Deterministic plan/apply.** `kitverb.py kit-plan --diff` resolves the plan; `kitverb.py kit-apply` executes it (gates, stamped writes, per-file decisions, hook regeneration, manifest write-through, smoke test) in one tested call. The skill never hand-executes file operations.
 - **Disjoint from `pack update`.** Updates the kit-runtime files (`run.sh`, `lib.sh`, `enable-governance.sh`, `governance.yml`, hook dispatchers) and the `kit_version` pin in `install.yaml`. For directive-content updates use `pack update`. Use both with `kit update --with-packs`.
 - **No silent downgrades.** A manifest stamp newer than the kit on PATH stops the verb.
-- **Diff-before-exec.** Per-file diff is shown before any file is written; files lacking the line-2 `governance-kit:managed` marker surface as `Skipped (unmanaged)` and the user picks `keep` / `apply anyway` / `overwrite-with-backup`.
+- **Diff-before-exec.** Per-file diff is shown before any file is written; files lacking the line-2 `governance-kit:managed` marker surface as `Skipped (unmanaged)` and the user picks `keep` / `apply` / `overwrite-with-backup` (passed to `kit-apply` as `--decisions`).
 - **One atomic commit.** Conventional-commit subject `chore(governance): kit update <old> → <new>` (or `... (+packs)` under `--with-packs`).
 
 ## `reset`
@@ -48,6 +51,7 @@ full rearchitecture context.
 - **Scopes (exactly one required):** `--directive <id>`, `--pack <id>`, `--all`.
 - **Flags:** `--drop-handauthored` (only with `--all`), `--dry-run`, `--force` (override the dirty-working-tree refusal).
 - **Authoritative flow:** [RESET_FLOW.md](RESET_FLOW.md) Steps 1–7.
+- **Deterministic plan/apply.** `packverb reset-plan <scope> … [--diff]` resolves pinned sources + classifies restore/skip/drop; `packverb reset-apply <scope> … [--date --author]` restores folders + CONSTITUTION subsections, regenerates hooks, and appends the Evolution Log in one tested call. The skill never hand-executes file operations.
 - **Pinned, not latest.** Reset restores to the SHA in `.governance/packs.lock` (or the kit-bundled `governance-kit/core` tree). For newer upstream content use `pack update`.
 - **Hand-authored is preserved by default.** Pass `--drop-handauthored` to delete user-added directives that have no pristine source.
 - **Diff-before-exec.** Per-directive diff is shown before any file is written.
@@ -62,10 +66,12 @@ Full flows live in [PACK_VERBS.md](PACK_VERBS.md). Summary:
 | `pack search [query]` | Search `governance/assets/catalog.community.json` and return matching entries via `packverb catalog-search`. |
 | `pack add <ref>` | Fetch a pack from a GitHub ref (`gh:owner/repo[/subpath][@rev]`), resolve to a concrete SHA, validate, show `check.sh` diffs before writing (diff-before-exec), install directive folders, and record the pin in `.governance/packs.lock`. Refuse if any directive declares `reads:`/`writes:` globs and the directive's `check.sh` references paths outside those globs. |
 | `pack update [<pack-id>]` | Resolve the ref to a newer SHA, re-run diff-before-exec, rewrite directive folders, update the lock. |
-| `pack remove <pack-id>` | Remove installed directive folders owned by the pack (from `.governance/packs.lock`), regenerate the hook dispatcher, prune the lock entry. |
+| `pack remove <pack-id>` | Remove installed directive folders owned by the pack (from `.governance/packs.lock`), strip their CONSTITUTION.md subsections, regenerate the hook dispatcher, prune the lock entry. |
 | `pack list` | Print every installed pack from `.governance/packs.lock` (kit-bundled, community, repo-local) via `packverb lock-list --long`. |
 
-**Never** install by hand-copying into `governance/assets/packs/` — that is governance-kit's own in-tree source tree, not a consumer's repo surface. Pack installs for a consumer repo flow through `governance pack add`.
+- **Deterministic plan/apply.** `add`/`update`/`remove` resolve via `packverb pack-plan {add,update,remove} … [--diff]` and execute via `packverb pack-apply {add,update,remove} …` (one tested call: install/delete folders, seeded-asset ledger, CONSTITUTION subsection surgery, hook regeneration, lockfile upsert/prune). The skill never hand-executes file operations; per-directive `--decisions {"<id>": "skip"}` holds individual directives back.
+
+**Never** install by hand-copying into `packs/` — that is governance-kit's own in-tree source tree, not a consumer's repo surface. Pack installs for a consumer repo flow through `governance pack add`.
 
 ## `directive *`
 

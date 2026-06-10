@@ -67,6 +67,8 @@ Bootstraps governance-driven development in the current repo:
 
 **Authoritative flow:** [references/INIT_FLOW.md](references/INIT_FLOW.md) Steps 1–8. Pack manifests are validated against the `KIT_VERSION` constant in [`assets/packs/lib/packctl.py`](assets/packs/lib/packctl.py); packs declaring a newer `min_governance_kit` are rejected.
 
+Deterministic plan/apply: the skill owns the elicitation (packs/preset/directives, principles, collision choices, the Step-8 finding loop, the commit); [`assets/packs/lib/packverb.py`](assets/packs/lib/packverb.py) `init-plan`/`init-apply` (engines `initplan.py`/`initapply.py`) do the mechanical assembly — directive installs, CONSTITUTION assembly from subsections, runtime/CI stamping, hook generation, manifest + lock writes, smoke test — from a serialized `--decisions` object. It never hand-executes those writes.
+
 ### When to skip the flow
 
 - Repo is not a git repo → stop, tell the user governance requires git.
@@ -81,6 +83,7 @@ Cleanly tears down a previously-bootstrapped governance-kit setup. Reverses ever
 
 Key invariants:
 
+- Deterministic plan/apply pair: `packverb uninstall-plan` surveys + classifies and `packverb uninstall-apply --mode <m> [--allow-heuristic]` (engines `uninstallplan.py`/`uninstallapply.py`) executes the reversal in fixed order in one tested call. The skill never hand-executes the `rm` / `mv` / `git config` / AGENTS.md edits.
 - Never delete a file without ownership evidence (manifest entry or line-2 `governance-kit:managed` marker).
 - Dry-run is the default when the manifest is missing but artifacts are detected.
 - No destructive git ops — no `git clean`, no `git reset --hard`, no stash.
@@ -94,6 +97,7 @@ Re-syncs the kit-runtime files installed at `init` (`run.sh`, `lib.sh`, `enable-
 
 Key invariants:
 
+- Deterministic plan/apply pair: [`assets/packs/lib/kitverb.py`](assets/packs/lib/kitverb.py) `kit-plan --diff` resolves the plan (version delta, managed-file inventory, noise-free diffs) and `kit-apply` executes it (gates, pre-stamped writes, per-file decisions, hook regeneration, manifest write-through, smoke test) in one tested call. The skill elicits decisions, shows diffs, and commits — it never hand-executes `cp` / marker stamping / manifest edits.
 - Refuses without `install.yaml`. The manifest is the version pin this verb writes through.
 - Diff-before-exec per file. Files without a line-2 `governance-kit:managed` marker are surfaced as `Skipped (unmanaged)` and the user picks `keep` / `apply anyway` / `overwrite-with-backup`.
 - No silent downgrades: a manifest stamp newer than the kit on PATH stops the verb.
@@ -120,6 +124,7 @@ Reset restores to the **SHA already pinned**, not upstream HEAD. Use `governance
 
 Key invariants:
 
+- Deterministic plan/apply pair: `packverb reset-plan <scope> … [--diff]` resolves pinned sources + classifies restore/skip/drop and `packverb reset-apply <scope> … [--date --author]` (engines `resetplan.py`/`resetapply.py`) restores folders + CONSTITUTION subsections, regenerates hooks, and appends the Evolution Log in one tested call. The skill never hand-executes file operations.
 - Refuses on a dirty working tree (override with `--force`).
 - Diff-before-exec: every restore prints the per-directive diff before any file is written.
 - One atomic commit per run, Conventional Commits subject, Evolution Log entry appended.
@@ -131,6 +136,7 @@ Install, update, list, and remove community packs. Packs are resolved from GitHu
 
 See [references/PACK_VERBS.md](references/PACK_VERBS.md) for step-by-step flows. Key guarantees:
 
+- **Deterministic plan/apply.** `add`/`update`/`remove` resolve via `packverb pack-plan {add,update,remove} … [--diff]` and execute via `packverb pack-apply {add,update,remove} …` (engines `packplan.py`/`packapply.py`) — one tested call for install/delete folders, the seeded-asset ledger, CONSTITUTION subsection surgery, hook regeneration, and lockfile upsert/prune. The skill never hand-executes file operations.
 - **SHA-pinned.** `pack add gh:acme/soc2@main` resolves `main` once and records the SHA; subsequent `check.sh` runs never chase a moving branch.
 - **Diff-before-exec.** Every install / update shows the `check.sh` diff before writing. The user sees the code that will start running on their commits.
 - **Capability-enforced.** Directives that declare `reads:`/`writes:` globs in `directive.yaml` have their `check.sh` statically swept for out-of-bound path references; a single violation aborts the install.
