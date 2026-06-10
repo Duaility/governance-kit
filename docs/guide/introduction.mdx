@@ -1,0 +1,94 @@
+---
+title: 'What is governance-kit?'
+summary: 'Governance-driven development — a constitution every agent reads, every commit is checked against, and that evolves as one artifact with its tests.'
+---
+
+# What is governance-kit?
+
+governance-kit is a toolkit for **governance-driven development (GDD)**: a workflow where your repository's rules live in a versioned `CONSTITUTION.md`, every rule ships with an executable test, and agents — not humans — do the work of keeping the repo compliant.
+
+It installs as an [Agent Skill](https://agentskills.io) into Claude Code, Codex, Cursor, and 40+ skills-compatible runtimes. One skill, one entry point: the `governance` verb surface.
+
+## The problem it solves
+
+Coding agents author most of the changes now. That shifts the hard problem: it is no longer "tell one agent what to do in one session" — it is **keeping the repository understandable across many branches, many agents, and many handoffs**.
+
+Two things stop scaling at agent throughput:
+
+1. **Steering.** Your guidance has to reach the *next* agent, on the *next* branch, without you in the room. Per-turn prompting does not compose — the next agent cannot read your last conversation.
+2. **Visibility.** When agents ship the diffs, you need a readable trail, not a stack of PRs and ephemeral chat transcripts.
+
+governance-kit answers both with repo-native artifacts:
+
+- **A constitution** — `CONSTITUTION.md`, a versioned set of directives every agent reads and every commit is checked against.
+- **Ledgers** — append-only files (`COSTS.md`, `STEERING.md`, `QUALITY.md`, `receipts/`) that record what agents were told, what they did, and what it cost.
+
+## The stance in one line
+
+> Describe the state, continuously check reality, and let agents reconcile the difference.
+
+This is declarative reconciliation — the Kubernetes/Terraform model — applied to a repository:
+
+| | In governance-kit |
+|---|---|
+| **Desired state** | `CONSTITUTION.md` — directives, rationale, exceptions, evolution log |
+| **Current state** | The working tree, staged diff, commit message, receipts, ledgers |
+| **Controller** | `.governance/run.sh` + git hook dispatchers + CI |
+| **Reconciler** | The agent — reads the gap and its rationale, fixes the repo, re-runs |
+
+A failed check is not a scolding; it is a *gap report*. It names the directive, the offending file and line, and the rationale. A frontier-model agent reading that rationale generalizes to cases the rule's author never encoded.
+
+## What a directive looks like
+
+Every directive is a self-contained folder — test, prose, metadata, and fixtures travel together:
+
+```
+doc-freshness/
+├── directive.yaml    # category, summary, surface, hook
+├── check.sh          # the executable test (pre-commit + CI)
+├── constitution.md   # Directive / Rationale / Enforced by / Exceptions
+└── evals/test.sh     # pass + fail fixtures
+```
+
+The `constitution.md` carries the *why*:
+
+```markdown
+### doc-freshness
+
+- **Directive**: Docs opted into `.governance/freshness.conf` carry a
+  `<!-- last-verified: YYYY-MM-DD -->` marker dated within the last 90 days.
+- **Rationale**: Critical runbooks and onboarding docs decay. A periodic
+  "someone re-read this" checkpoint keeps them honest.
+- **Enforced by**: .governance/packs/governance-kit/core/directives/doc-freshness/check.sh
+- **Exceptions**: Remove a doc from freshness.conf to opt it out.
+```
+
+A bare hook would only check the date format. The rationale tells the next agent — and the next human — what the date is *for*.
+
+## What it is not
+
+<AccordionGroup>
+  <Accordion title="Not a linter" icon="paintbrush">
+    Formatting opinions belong in formatters. Directives encode *governance* — invariants whose violation costs you an incident, an audit finding, or institutional memory.
+  </Accordion>
+  <Accordion title="Not a spec tool" icon="file-text">
+    [spec-kit](https://github.com/github/spec-kit)-style workflows answer *"what should this feature do?"* — per-task, pre-implementation, often disposable. GDD answers *"what must every commit satisfy?"* — persistent, post-implementation, mechanical. They compose: spec-kit steers the agent at runtime; GDD steers it at "compile time."
+  </Accordion>
+  <Accordion title="Not just hooks" icon="git-branch">
+    pre-commit / husky / lefthook run scripts. governance-kit runs scripts **and** carries the rationale, the audit trail, and the evolution history alongside each test — and its checks are plain bash you can lift out if you only want the enforcement half.
+  </Accordion>
+</AccordionGroup>
+
+## Where to go next
+
+<Columns cols={3}>
+  <Card title="Getting started" href="/guide/getting-started" icon="rocket">
+    Install, bootstrap, watch a gate fire.
+  </Card>
+  <Card title="Mental models" href="/guide/mental-models" icon="brain">
+    The seven ideas everything else builds on.
+  </Card>
+  <Card title="Inner workings" href="/concepts/constitution" icon="cog">
+    How the pieces fit together.
+  </Card>
+</Columns>

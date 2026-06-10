@@ -1,0 +1,120 @@
+---
+title: 'Authoring packs'
+summary: 'How to build a self-contained, versioned bundle of directives — layout, pack.yaml, constitution snippets, capability declarations, what install does, and distribution.'
+---
+
+# Authoring packs
+
+A pack is a self-contained, versioned bundle of directives that any repo can install with one command. Author one when a directive set should be shared — across your org's repos, or with the community.
+
+## Two ways to start
+
+- **Repo-local first** (recommended): `governance pack create <name>` scaffolds a hand-authored pack at `.governance/packs/<owner>/<name>/`; grow it with `governance directive add --pack <owner>/<name>`. When it's worth sharing, lift the pack directory into its own repo.
+- **Standalone repo**: author the layout below in its own GitHub repo; consumers install it with `governance pack add gh:<owner>/<repo>@<tag>`.
+
+## Layout
+
+```
+<pack-root>/
+├── pack.yaml                    # identity + presets
+└── directives/
+    └── <directive-id>/          # folder name IS the directive id
+        ├── directive.yaml       # metadata (see File schemas)
+        ├── check.sh             # the executable test
+        ├── constitution.md      # the subsection spliced into CONSTITUTION.md
+        ├── evals/test.sh        # pass + fail fixtures (author-side)
+        ├── install-assets/      # optional: files seeded at install
+        ├── lib/                 # optional: shared bash / stdlib Python
+        ├── hooks/<kind>.sh      # optional: dispatcher-wired side effects
+        └── runtimes/<name>.sh   # optional: per-runtime helpers
+```
+
+Directives are atoms: everything one rule needs lives in its folder, so adding, moving, or deleting a directive is a single `git mv`. There is deliberately no pack-wide registry to keep in sync.
+
+## pack.yaml
+
+```yaml
+id: acme/soc2-pack          # <author>/<slug>, slug matches the directory
+name: SOC 2 Controls
+version: "1.0.0"            # semver — bump on any semantic change
+min_governance_kit: "0.4.0" # kit floor; validated at install
+description: Controls mapped to SOC 2 CC-series criteria.
+author: acme
+presets:
+  minimal: [vendor-pins]
+  standard:
+    extends: minimal
+    add: [change-management]
+  strict:
+    extends: standard
+    add: [evidence-retention]
+```
+
+Versioning policy: **MAJOR** when a previously-passing repo would break (directive removed/renamed, check tightened), **MINOR** for additive changes, **PATCH** for fixes. Tag releases (`v1.0.0` or `<pack>/v1.0.0`) so consumers pin immutable refs.
+
+## The constitution snippet
+
+Each directive's `constitution.md` becomes a subsection of the consumer's `CONSTITUTION.md`, so write it self-contained:
+
+```markdown
+### <directive-id>
+
+- **Directive**: <one-sentence statement, present tense, must / must not>.
+- **Rationale**: <why this exists — link the incident if there is one>.
+- **Enforced by**: `.governance/packs/<pack-id>/directives/<id>/check.sh` (runs in <hook>).
+- **Exceptions**: <none | waiver format | config file>
+```
+
+The rationale is the part that does the steering — it's what a frontier-model agent reads to generalize beyond the literal check.
+
+## Capability declarations
+
+Declare what each check touches in its `directive.yaml`:
+
+```yaml
+reads:
+  - .github/workflows/**
+writes: []
+```
+
+At install, a static sweep verifies the check references only declared paths; violations block the install with no partial state. Tight declarations are part of your pack's trust story — consumers review vendored check code in their own diffs, and least-privilege claims make that review fast.
+
+## What installation does with your pack
+
+Understanding the consumer side helps you author well. `governance pack add gh:you/your-pack@v1.0.0`:
+
+<Steps>
+  <Step title="Fetch and validate">
+    Resolves the ref to a SHA, validates the pack structure.
+  </Step>
+  <Step title="Capability-check">
+    Statically sweeps every directive against its declared `reads:`/`writes:`.
+  </Step>
+  <Step title="Show diffs">
+    The consumer sees full per-directive diffs (new directives show the entire `check.sh`).
+  </Step>
+  <Step title="Vendor the code">
+    Copies `directives/<id>/` into `.governance/packs/you/your-pack/` — **minus `evals/`** and author-side assets.
+  </Step>
+  <Step title="Splice the constitution">
+    Each `constitution.md` is spliced into the consumer's `CONSTITUTION.md`.
+  </Step>
+  <Step title="Regenerate dispatchers">
+    Your `hook:` declarations and `hooks/<kind>.sh` populators get wired in.
+  </Step>
+  <Step title="Pin in the lockfile">
+    id, version, ref, and SHA are recorded in `.governance/packs.lock`.
+  </Step>
+</Steps>
+
+So: your `check.sh` must run from its vendored location (source `../../lib.sh`, nothing author-repo-relative), and anything needed at runtime must live inside the directive folder.
+
+## Testing a pack
+
+Give every directive real pass/fail fixtures in `evals/test.sh` (see [Authoring directives](/reference/authoring-directives)). In the governance-kit repo itself, `bash scripts/test-packs.sh` validates pack structure, runs every eval, and proves a fresh repo bootstrapped from the pack runs green end-to-end — the same bar your pack should meet.
+
+## Distribution
+
+- Publish the repo, tag a release, and tell consumers to pin the tag:
+  `governance pack add gh:acme/soc2-pack@v1.2.0`
+- Optionally submit a PR adding your pack to the advisory catalog (`catalog.community.json` in the governance-kit repo) so it shows up in `governance pack search`. The catalog is discovery only — installs work against any ref.

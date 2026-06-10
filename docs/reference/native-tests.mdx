@@ -1,0 +1,91 @@
+---
+title: 'Native tests & hook frameworks'
+summary: 'Bash checks are the dependency-free baseline. How to optionally wrap them in pytest / jest / go test, and how to wire dispatchers into husky or pre-commit.com.'
+---
+
+# Native tests & hook frameworks
+
+Bash checks are the baseline: they run anywhere git runs, with zero dependencies. Everything on this page is **post-init, opt-in** — `governance init` never scaffolds any of it.
+
+## Why bash is the default
+
+- Works in every repo, every CI image, every hook framework.
+- No coupling to the project toolchain: a pytest regression can't turn the *governance* suite red.
+- Each `check.sh` is portable — liftable into any other runner.
+
+The trade-off is reporting: violations print to the hook/CI log rather than your test report. If you want them in the report, wrap them.
+
+## Wrapping the suite in your test runner
+
+When the repo already runs pytest / jest / go test in CI, a thin wrapper surfaces each directive as a test case:
+
+<CodeGroup>
+
+```python pytest
+# .governance/test_governance.py
+import subprocess, pathlib, pytest
+
+CHECKS = sorted(pathlib.Path(".governance/packs").glob("*/*/directives/*/check.sh"))
+
+@pytest.mark.parametrize("check", CHECKS, ids=lambda c: c.parent.name)
+def test_directive(check):
+    r = subprocess.run(["bash", str(check)], capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+```
+
+```js jest / vitest
+// .governance/governance.test.js
+import { execFileSync } from 'node:child_process'
+import { globSync } from 'glob'
+
+const checks = globSync('.governance/packs/*/*/directives/*/check.sh').sort()
+
+test.each(checks)('%s', (check) => {
+  execFileSync('bash', [check], { stdio: 'pipe' })
+})
+```
+
+```go go test
+// .governance/governance_test.go
+func TestDirectives(t *testing.T) {
+    checks, _ := filepath.Glob(".governance/packs/*/*/directives/*/check.sh")
+    for _, c := range checks {
+        c := c
+        t.Run(filepath.Base(filepath.Dir(c)), func(t *testing.T) {
+            out, err := exec.Command("bash", c).CombinedOutput()
+            if err != nil {
+                t.Fatalf("%s", out)
+            }
+        })
+    }
+}
+```
+
+</CodeGroup>
+
+You can also write directives natively when the logic is easier there (e.g. AST checks on Python imports) — keep the bash check as the canonical enforcement or replace it deliberately, but don't let two versions of the rule drift.
+
+<Warning>
+**The coupling trade-off.** Wrapping couples governance to the project toolchain: if the toolchain breaks, the governance suite reds with it. Pick deliberately; the bash runner keeps working either way.
+</Warning>
+
+## Alternative hook frameworks
+
+`init` detects husky and pre-commit.com and generates dispatchers for them (Path B). If you're wiring things up later by hand, use the generator — **don't** write a one-line `bash .governance/run.sh` shim:
+
+```bash
+source governance-kit/governance/assets/packs/lib/install.sh
+source governance-kit/governance/assets/packs/lib/hooks.sh
+build_hook_spec_from_installed_directives "$PWD" /tmp/governance-hook-spec.tsv
+
+generate_hooks_for_strategy "$PWD" husky      "<version>" /tmp/governance-hook-spec.tsv
+# or
+generate_hooks_for_strategy "$PWD" pre-commit "<version>" /tmp/governance-hook-spec.tsv
+```
+
+The reason: a hand-written shim runs *checks* but skips the dispatcher's two other jobs — filtering directives by their declared `hook:` kind, and running the **populator** scripts that stamp accounting trailers (`agent-token-accounting`, `agent-steering-accounting`). With a shim, those directives go from "self-maintaining" to "always failing."
+
+- **husky** — dispatchers are generated into `.husky/`; husky invokes them natively.
+- **pre-commit.com** — dispatchers are generated into `.governance/hooks/` and referenced from `.pre-commit-config.yaml` as local hooks.
+
+In all strategies, CI (`governance.yml`) runs the full `run.sh` suite regardless of what the local hooks did — the contract doesn't depend on the framework.

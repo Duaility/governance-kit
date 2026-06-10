@@ -1,0 +1,67 @@
+name: docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/**
+      - scripts/docs-site/**
+      - .github/workflows/docs.yml
+      - package.json
+  pull_request:
+    paths:
+      - docs/**
+      - scripts/docs-site/**
+      - .github/workflows/docs.yml
+      - package.json
+  workflow_dispatch:
+
+# GitHub Pages deploy needs pages:write + id-token:write; everything else is read-only.
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  # Project Pages serve under https://<owner>.github.io/<repo>/ — build with that base.
+  # For a user/org root site or custom domain, set BASE_PATH to "" and ORIGIN to the domain.
+  BASE_PATH: /governance-kit
+  ORIGIN: https://duaility.github.io/governance-kit
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: npm install --no-audit --no-fund
+      - name: Build docs site
+        run: npm run docs:build
+        env:
+          DOCS_SITE_BASE_PATH: ${{ env.BASE_PATH }}
+          DOCS_SITE_CANONICAL_ORIGIN: ${{ env.ORIGIN }}
+      - run: npm run docs:smoke
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/docs-site
+
+  deploy:
+    # Deploy only from main; PRs just build to validate.
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

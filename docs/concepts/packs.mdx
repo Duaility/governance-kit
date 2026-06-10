@@ -1,0 +1,107 @@
+---
+title: 'Packs, pins & vendoring'
+summary: 'How directives are bundled into packs, pinned by SHA in a lockfile, and vendored into your tree so the check code that gates your commits is reviewable in your own diffs.'
+---
+
+# Packs, pins & vendoring
+
+Directives ship in **packs** — versioned bundles installed and pinned as a unit. This page covers pack identity, the lockfile, and the trust model: why the check code that gates your commits is vendored into your own tree.
+
+## Pack identity
+
+Every pack — kit-bundled, community, or hand-authored — lives at the same kind of path in your repo, mirroring GitHub identity:
+
+```
+.governance/packs/<owner>/<name>/directives/<directive-id>/...
+```
+
+Three kinds, distinguished by provenance:
+
+| Kind | Where it's authored | Lockfile `source` | Example |
+|---|---|---|---|
+| **Core** | Bundled with the kit | `gh` | `governance-kit/core` — installs with `init`, always selected |
+| **Community** | Its own GitHub repo | `gh` | `acme/soc2-pack` — installed via `pack add gh:acme/soc2-pack@v1.2.0` |
+| **Repo-local** | Your repo, by hand or via `directive add` | `local` | `<your-org>/<your-repo>` — no upstream, skipped by `pack update` |
+
+A pack's root holds a `pack.yaml` (id, name, version, `min_governance_kit`, and the preset definitions) and a `directives/` tree of self-contained directive folders.
+
+## Pack refs and the shared cache
+
+Community packs are addressed by ref:
+
+```
+gh:<owner>/<repo>[/<subpath>][@<rev>]
+```
+
+- `subpath` points at the directory containing `pack.yaml` (monorepo support).
+- `rev` is a branch, tag, or 40-char SHA. **Pin tags, not branches** — `@main` silently tracks the moving tip on every update; `@core/v0.4.0` is an immutable, reviewable pin. Whatever you pin, it is resolved to a commit SHA at add time.
+
+Fetched packs land in a SHA-addressed, immutable shared cache (`~/.governance/cache/packs/<pack>@<sha>/`); hitting a cached SHA skips the network entirely.
+
+Discovery is separate from installation: `pack search` reads an advisory catalog (`catalog.community.json`), but `pack add` works against *any* GitHub ref, cataloged or not.
+
+## The lockfile: `.governance/packs.lock`
+
+The lockfile is the **single source of truth for which packs, at which versions, from which sources** the repo runs:
+
+```yaml
+version: "2"
+packs:
+  - id: governance-kit/core
+    version: "0.4.0"
+    source: gh
+    ref: gh:duaility/governance-kit/governance/assets/packs/core@core/v0.4.0
+    sha: e9d339cf…                # 40-char SHA — the trust unit
+    installed_at: 2026-06-09T13:00:00Z
+    directives: [commit-message-format, doc-integrity, …]
+
+  - id: acme/widgets             # repo-local pack: no upstream
+    version: "0.1"
+    source: local
+    directives: [pre-commit-test-gate]
+```
+
+Two details matter:
+
+- **The SHA is the trust unit.** The pack's self-declared `version` is informational; the resolved commit SHA is what integrity is checked against.
+- **Never hand-edit.** The lockfile is written exclusively by the `packverb` tooling, which the verbs drive.
+
+## Why vendor the code? (lock = truth, tree = auditability)
+
+`pack add` / `pack update` don't just pin a SHA — they **copy the directive code into `.governance/packs/<owner>/<name>/` and commit it** (directives only; author-side `evals/` and `install-assets/` sources are stripped).
+
+This is the `go mod vendor` / committed-Helm-`charts/` choice, made deliberately because governance is a trust tool:
+
+- The lock pins a SHA for **integrity** — you can always reconstruct exactly what was installed.
+- The committed tree adds **in-diff auditability** — a pack bump shows the real `check.sh` change in your PR, not just an opaque SHA bump. The code that will gate every commit is reviewed like any other code in your repo.
+
+Consequently every mutating pack verb is **diff-before-exec**: `pack add` shows the full `check.sh` of every incoming directive, `pack update` shows the diff between the pinned and the new revision, and nothing is written before you confirm.
+
+## Capability declarations
+
+A directive's `directive.yaml` may declare `reads:` / `writes:` path globs. At install time, `packverb capability-check` statically sweeps the directive's code; a directive referencing paths outside its declared bounds **blocks the install with no partial state**. Third-party check code gets a least-privilege contract, enforced before it ever runs.
+
+## update vs. reset
+
+Two verbs move directive code, in opposite directions:
+
+| | `governance pack update` | `governance reset` |
+|---|---|---|
+| Moves to | A **newer** upstream SHA | The **currently pinned** SHA |
+| Purpose | Pick up upstream changes | Undo local drift (hand-edits, corruption) |
+| Touches lockfile | Yes — re-pins | No — restores to it |
+| Repo-local packs | Skipped (no upstream) | Preserved (dropped only with `--all --drop-handauthored`) |
+
+Both are plan/apply with per-directive diffs and explicit confirmation.
+
+## Presets
+
+A pack's `pack.yaml` declares named presets — `minimal`, `standard`, `strict` — each listing directive ids (with `extends:` for union). At `init`, the install set is computed as:
+
+```
+install = always_install(core) ∪ preset_selection ∪ user_selections
+```
+
+across all selected packs, with cross-pack directive-id collisions rejected (the directive namespace is flat). `always_install: true` is reserved to `governance-kit/core` — used for the two directives the audit model depends on unconditionally (`doc-integrity`, `agent-steering-accounting`).
+
+Next: [The runtime](/concepts/runtime) — what actually happens when you type `git commit`.

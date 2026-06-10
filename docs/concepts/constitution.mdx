@@ -1,0 +1,133 @@
+---
+title: 'The constitution & directives'
+summary: 'What lives in CONSTITUTION.md, what a directive folder is made of, and how the atomic-triple amendment flow keeps prose and enforcement in lockstep.'
+---
+
+# The constitution & directives
+
+`CONSTITUTION.md` is the declarative description of the state your repository must stay in. This page covers what's in it, what a directive is made of, and how amendments keep prose and enforcement in lockstep.
+
+## What's in the constitution
+
+- **Principles** — high-level guidelines that depend on judgment. Not mechanically checkable; PR review is their enforcement gate.
+- **Directives** — one subsection per rule, each with four fields:
+  - **Directive** — one sentence, present tense, "must" / "must not".
+  - **Rationale** — why the rule exists, ideally linked to the incident that motivated it.
+  - **Enforced by** — the path to the check and the hook it runs in.
+  - **Exceptions** — the waiver format or config file that opts things out, or "none".
+- **The Evolution Log** — an append-only, dated history of every amendment, blameable to the commit that introduced it. Six months from now you can answer *why* a rule exists, not just *that* it does.
+
+Every line is git-blameable to the commit that introduced it **and** the test that enforces it, because the verbs require them to land together.
+
+## Anatomy of a directive
+
+A directive is a self-contained folder. The id *is* the folder name:
+
+```
+<pack>/directives/<directive-id>/
+├── directive.yaml       # metadata: category, summary, surface, hook
+├── check.sh             # the executable test
+├── constitution.md      # the subsection spliced into CONSTITUTION.md
+├── evals/test.sh        # pass + fail fixtures (author-side; stripped on install)
+├── install-assets/      # optional: files seeded at init (e.g. QUALITY.md)
+├── lib/                 # optional: shared bash / stdlib Python
+├── hooks/<kind>.sh      # optional: side-effect scripts wired into dispatchers
+└── runtimes/<name>.sh   # optional: per-runtime helpers
+```
+
+Self-containment is a design invariant: relocating a directive is one `git mv`, and the hook generator reads `directive.yaml` at install time rather than any pack-wide registry.
+
+### directive.yaml
+
+```yaml
+category: Quality          # menu grouping at init
+recommended: true          # pre-ticked in the picker
+summary: One-line description shown in the menu
+surface: repo-state        # or: change-set
+hook: pre-commit           # pre-commit | commit-msg | prepare-commit-msg
+                           #   | post-commit | pre-push | none (CI-only)
+always_install: true       # optional; reserved to governance-kit/core
+requires_hook_strategy: githooks   # optional environment filter
+reads:                     # optional capability declaration (path globs)
+  - .github/workflows/**
+writes: []
+```
+
+Two fields carry the key distinctions:
+
+- **`surface`** — `repo-state` checks the tree at rest ("README exists", "no secrets anywhere"); `change-set` checks the diff ("this commit's message", "every substantive change updates X"). Choosing the right surface is the first authoring decision: *what bad merge are we trying to block?*
+- **`hook`** — which git hook fires the check locally. CI always runs everything regardless.
+
+### check.sh
+
+Plain bash with a tiny contract, provided by `.governance/lib.sh`:
+
+```bash
+#!/usr/bin/env bash
+# Directive: no pdb breakpoints left in tracked Python source.
+# Rationale: pdb breakpoints committed to prod caused INC-2041.
+set -u
+source "$(dirname "$0")/../../lib.sh"
+directive_start "no-pdb-breakpoints"
+require_git
+
+while IFS=: read -r file line_no match; do
+    [[ -z "$file" ]] && continue
+    [[ "$file" == tests/* ]] && continue
+    has_waiver "$file" "$line_no" "no-pdb-breakpoints" && continue
+    violation "$file:$line_no — pdb breakpoint: ${match:0:80}"
+done < <(git grep -nE 'pdb\.set_trace\(\)|breakpoint\(\)' -- '*.py' 2>/dev/null || true)
+
+directive_end
+```
+
+`directive_start` / `directive_end` own the exit status and the `[PASS]`/`[FAIL]` output; `violation` records a finding; `has_waiver` honors in-source waivers. The runner discovers every installed `check.sh` and runs them all.
+
+## Waivers
+
+A waiver is an explicit, in-source exception:
+
+```
+# governance: allow-<directive-id> <reason>
+<!-- governance: allow-<directive-id> <reason> -->
+```
+
+Depending on the directive, waivers are line-level (next to the offending line), file-level (in the first 10 lines), or commit-level (in the commit body). They are data: searchable, blameable, and reviewable — the audit trail of every conscious exception.
+
+## Amending: the atomic triple
+
+You never hand-edit `CONSTITUTION.md`. The `governance directive {add,modify,remove}` verbs perform every amendment as an **atomic triple** in one commit:
+
+<Steps>
+  <Step title="The directive folder">
+    Under `.governance/packs/<owner>/<repo>/directives/<id>/` — created, updated, or deleted.
+  </Step>
+  <Step title="The Directives subsection">
+    In `CONSTITUTION.md` — inserted alphabetically, updated in place, or removed.
+  </Step>
+  <Step title="The Evolution Log entry">
+    `- YYYY-MM-DD — @author — Add <id>: <summary>.`
+  </Step>
+</Steps>
+
+The flow smoke-tests the new check against the live repo before committing. If pre-existing violators turn up, it asks one blocking question — **loosen** the rule, **grandfather** the violators with reviewable waivers, or **block** (land the rule, let CI go red until the tree is fixed) — and never silently punts a red PR to the reviewer.
+
+### Which directives can you amend?
+
+Amendment rights follow the owning pack's provenance (from `.governance/packs.lock`):
+
+| Owning pack source | `directive add/modify` | `directive remove` |
+|---|---|---|
+| `gh` (community) | Refused — use `pack update` / `pack remove` | Refused — use `pack remove` |
+| kit core | Refused — kit-managed | Allowed — the repo opts out |
+| `local` (repo-local) | **Allowed** — this is what `directive *` is for | Allowed |
+
+Hand-authored rules live in a **repo-local pack** (created automatically on first `directive add`, or explicitly with `pack create`). Pack-sourced directives that have drifted — edited by hand, corrupted — are restored with [`governance reset`](/reference/verbs), which puts them back to the *pinned* SHA without touching hand-authored ones.
+
+## Composition without a graph
+
+Directives deliberately have no `depends_on:` and no execution order. Each is an independent invariant; `run.sh` re-evaluates all of them on every firing. A directive whose precondition isn't met yet (e.g. "receipt must crosswalk" before any receipt exists) checks that precondition itself and skips with an informative note.
+
+The payoff is the convergence loop: fix the currently-failing directive, re-run, the next gate fires, fix that, re-run — until green. Some directives only *start* firing once an earlier one is satisfied; that cascade is by design.
+
+Next: [Packs, pins & vendoring](/concepts/packs) — where directives come from and how they're trusted.

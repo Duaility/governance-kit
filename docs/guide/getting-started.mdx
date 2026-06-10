@@ -1,0 +1,134 @@
+---
+title: 'Getting started'
+summary: 'Install the skill into your agent, bootstrap a repo with governance init, and watch a governance gate fire.'
+---
+
+# Getting started
+
+Three steps: install the skill into your agent, bootstrap a repo, make a bad commit to watch the gate fire.
+
+## Prerequisites
+
+- A git repository.
+- An agent runtime that supports Agent Skills (Claude Code, Codex, Cursor, …).
+- `bash` and `git` — the checks are plain bash, no other runtime dependencies.
+- `uv` (used by the pack tooling during `init`).
+
+## 1. Install the skill
+
+<CodeGroup>
+
+```sh All agents (user-wide)
+npx skills add Duaility/governance-kit -g
+```
+
+```sh One agent
+npx skills add Duaility/governance-kit -a claude-code
+```
+
+```sh Project-scoped
+npx skills add Duaility/governance-kit
+```
+
+</CodeGroup>
+
+`npx skills` auto-detects the skill and symlinks it into every skills-compatible runtime on your machine (`~/.claude/skills/`, `~/.codex/skills/`, …).
+
+<Accordion title="Manual install (no npx, or for hacking on the kit)" icon="wrench">
+```sh
+git clone https://github.com/Duaility/governance-kit
+cd governance-kit
+ln -s "$(pwd)/governance" ~/.claude/skills/governance   # Claude Code
+ln -s "$(pwd)/governance" ~/.codex/skills/governance    # Codex
+```
+Edits in the clone flow to every linked runtime live.
+</Accordion>
+
+## 2. Bootstrap a repo
+
+Inside the target repo, launch your agent and ask it to bootstrap:
+
+```sh
+claude
+> governance init
+```
+
+`init` is an interactive, deterministic flow (see [Verbs](/reference/verbs)). It will:
+
+<Steps>
+  <Step title="Survey the repo">
+    Detect existing governance artifacts and the hook situation (`.husky/`, `.pre-commit-config.yaml`, or none). Existing installs get an augment-or-overwrite question.
+  </Step>
+  <Step title="Choose packs and a preset">
+    Pick packs (the `governance-kit/core` pack is always included) and a preset — `minimal`, `standard`, or `strict` — or a custom directive selection.
+  </Step>
+  <Step title="Write the surface">
+    `CONSTITUTION.md`, the `.governance/` runtime, git hook dispatchers, and a CI workflow (`.github/workflows/governance.yml`).
+  </Step>
+  <Step title="Record provenance">
+    Pin every pack in `.governance/packs.lock` and record every choice and side effect in `.governance/install.yaml`.
+  </Step>
+  <Step title="Validate and commit">
+    Run the full suite against the staged tree, fix or surface any findings, and land everything as one install commit.
+  </Step>
+</Steps>
+
+### Choosing a preset
+
+| Preset | What you get |
+|---|---|
+| `minimal` | Foundation + security: required docs, secrets hygiene, repo hygiene, hardened workflows, no broken doc links. |
+| `standard` | `minimal` + commit discipline + the full [agent audit chain](/concepts/audit-chain): receipts, issue anchors, token and steering accounting, doc integrity. |
+| `strict` | `standard` + `no-orphan-todos`. |
+
+`standard` is the intended default for agent-heavy repos — it is the preset that turns on the issue → receipt → commit → cost chain.
+
+## 3. Watch a gate fire
+
+```sh
+$ git commit -m "stuff"
+[FAIL] commit-message-format — pending commit — 'stuff' does not match
+       Conventional Commits with an issue suffix (<type>(scope)?: <subject> (#123))
+```
+
+The failure names the directive, the gap, and the expected shape. An agent reads that and self-corrects on the next attempt — that loop *is* the product.
+
+Run the whole suite by hand any time:
+
+```sh
+bash .governance/run.sh                  # everything
+bash .governance/run.sh doc-freshness    # one directive
+```
+
+## Escape hatches
+
+For local hotfixes only — CI re-enforces every directive on every PR, so there is no developer-side bypass that survives a push:
+
+```sh
+SKIP_GOVERNANCE=1 git commit ...   # skip the local hook once
+git commit --no-verify             # same effect
+```
+
+Per-line and per-commit **waivers** are the structured alternative — explicit, reasoned, and visible in `git blame`:
+
+```
+# governance: allow-<directive-id> <reason>
+```
+
+## Day-2 operations
+
+| Task | Command |
+|---|---|
+| See what's installed | `governance pack list` |
+| Add a community pack | `governance pack add gh:acme/soc2-pack@v1.2.0` |
+| Pull newer directive content | `governance pack update` |
+| Add a repo-specific rule | `governance directive add <id>` |
+| Undo drift in a pack-sourced directive | `governance reset --directive <id>` |
+| Move to a newer kit version | `governance kit update` |
+| Tear everything down | `governance uninstall` |
+
+All verbs are covered in the [Verbs reference](/reference/verbs).
+
+<Warning>
+**Don't hand-edit the governance surface.** `CONSTITUTION.md`, `.governance/`, and the lockfile are written only by the verbs. The `directive *` and `reset` verbs keep the check, the rationale, and the evolution log in lockstep — hand-edits drift the constitution out of sync with the tests. This is the cardinal rule (see [Mental models](/guide/mental-models)).
+</Warning>

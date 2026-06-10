@@ -1,0 +1,86 @@
+---
+title: 'governance-kit'
+summary: 'governance-kit turns your repo rules into a versioned constitution — every directive ships with an executable test, and agents converge the repo on the declared state.'
+---
+
+# governance-kit
+
+> **Declare the repo state you want. Let agents converge on it.**
+
+**governance-kit is governance-driven development (GDD).** Your repository's rules live in a versioned `CONSTITUTION.md`, every rule ships with an executable test, and agents — not humans — do the work of keeping the repo compliant.
+
+It installs as an [Agent Skill](https://agentskills.io) into Claude Code, Codex, Cursor, and 40+ skills-compatible runtimes. One skill, one entry point: the `governance` verb surface.
+
+<Columns cols={3}>
+  <Card title="Get started" href="/guide/getting-started" icon="rocket">
+    Install the skill, bootstrap a repo, watch a gate fire.
+  </Card>
+  <Card title="Mental models" href="/guide/mental-models" icon="brain">
+    The seven ideas everything else is built on.
+  </Card>
+  <Card title="Inner workings" href="/concepts/constitution" icon="cog">
+    How directives, packs, hooks, and ledgers fit together.
+  </Card>
+</Columns>
+
+## The stance in one line
+
+> Describe the state, continuously check reality, and let agents reconcile the difference.
+
+This is declarative reconciliation — the Kubernetes/Terraform model — applied to a repository:
+
+| | In governance-kit |
+|---|---|
+| **Desired state** | `CONSTITUTION.md` — directives, rationale, exceptions, evolution log |
+| **Current state** | The working tree, staged diff, commit message, receipts, ledgers |
+| **Controller** | `.governance/run.sh` + git hook dispatchers + CI |
+| **Reconciler** | The agent — reads the gap and its rationale, fixes the repo, re-runs |
+
+A failed check is not a scolding; it is a *gap report*. It names the directive, the offending file and line, and the rationale. A frontier-model agent reading that rationale generalizes to cases the rule's author never encoded.
+
+## How it works
+
+```mermaid
+flowchart LR
+  C["CONSTITUTION.md — desired state"] --> G{"Governance checks: run.sh, hooks, CI"}
+  R["Repository — current state"] --> G
+  G -->|"pass"| OK(["Ready to merge"])
+  G -->|"fail: gap + rationale"| A["Agent fixes the gap"]
+  A -->|"commit, re-run"| R
+```
+
+## Why it exists
+
+Coding agents author most of the changes now. The hard problem is no longer "tell one agent what to do in one session" — it is keeping the repository understandable across many branches, many agents, and many handoffs. Two things stop scaling at agent throughput, and governance-kit answers both with repo-native artifacts:
+
+<Columns cols={2}>
+  <Card title="Steering" icon="compass">
+    Your guidance has to reach the *next* agent, on the *next* branch, without you in the room. A directive in `CONSTITUTION.md` does; a chat message doesn't.
+  </Card>
+  <Card title="Visibility" icon="receipt">
+    When agents ship the diffs, you need a readable trail. Append-only ledgers record what agents were told, what they did, and what it cost.
+  </Card>
+</Columns>
+
+## Explore
+
+<Columns cols={2}>
+  <Card title="The constitution & directives" href="/concepts/constitution" icon="scroll">
+    What a directive is made of and how amendments stay in lockstep.
+  </Card>
+  <Card title="Packs, pins & vendoring" href="/concepts/packs" icon="package">
+    Where directives come from and how they're trusted.
+  </Card>
+  <Card title="The audit chain & ledgers" href="/concepts/audit-chain" icon="link">
+    issue → receipt → commit → cost, made mechanical.
+  </Card>
+  <Card title="Verbs" href="/reference/verbs" icon="terminal">
+    Every lifecycle operation in one place.
+  </Card>
+  <Card title="Directive catalog" href="/reference/directive-catalog" icon="list-checks">
+    Everything the core pack ships, by preset.
+  </Card>
+  <Card title="Authoring directives" href="/reference/authoring-directives" icon="pen-tool">
+    Turn a lesson into a rule the repo enforces forever.
+  </Card>
+</Columns>

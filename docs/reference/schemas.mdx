@@ -1,0 +1,122 @@
+---
+title: 'File schemas'
+summary: 'The three files that define a repo governance state — install.yaml, packs.lock, directive.yaml — plus pack.yaml and the ownership marker that threads through them.'
+---
+
+# File schemas
+
+Three files define a repo's governance state. Two are machine-written records (`install.yaml`, `packs.lock`); one is per-directive metadata (`directive.yaml`). None are hand-edited — the verbs and their tooling are the only writers.
+
+## `.governance/install.yaml` — the install receipt
+
+Records every choice `init` made and every side effect it produced. Read by `uninstall` (what to reverse), `reset` (hook strategy), and `kit update` (current pin). Current schema version: `"3"`.
+
+```yaml
+version: "3"
+generated_at: 2026-04-29T16:45:34Z
+owner: acme                      # GitHub owner (lowercased)
+repo: widgets
+kit_version: "0.4.0"             # the kit that installed / last updated this repo
+kit_ref: gh:duaility/governance-kit/governance@kit/v0.4.0
+kit_sha: 1f3c…                   # resolved 40-char SHA
+hook_strategy: githooks          # githooks | husky | pre-commit
+constitution: true               # CONSTITUTION.md written by init
+ci_workflow: .github/workflows/governance.yml
+tests_dir: .governance
+agents_md_snippet: true          # marker-bounded block inserted into AGENTS.md
+agents_md_created: false         # true only when init created the stub
+enable_governance_script: scripts/enable-governance.sh   # githooks strategy only
+install_assets_seeded:           # files seeded by directives' install-assets/
+  - QUALITY.md
+  - COSTS.md
+collisions: []                   # hook-collision resolutions, if any
+# path_b: present only when hook_strategy != githooks
+```
+
+The manifest is the first layer of `uninstall`'s source-of-truth chain (manifest → ownership markers → heuristics). When it's missing, verbs degrade deliberately: `uninstall` falls back to marker-based detection with dry-run as the locked default; `kit update` can reconstruct the version from per-file markers; `reset` refuses outright (pack provenance can't be guessed).
+
+## `.governance/packs.lock` — the pack pin record
+
+The single source of truth for which packs, at which versions, from which sources. Current schema version: `"2"`.
+
+```yaml
+version: "2"
+packs:
+  - id: governance-kit/core      # <owner>/<name>, matches the directory
+    version: "0.4.0"             # pack.yaml's self-declared version (informational)
+    source: gh                   # gh | local — the discriminator
+    ref: gh:duaility/governance-kit/governance/assets/packs/core@core/v0.4.0
+    sha: e9d339cf…               # 40-char commit SHA — the trust unit
+    subpath: governance/assets/packs/core
+    min_governance_kit: "0.3.0"
+    installed_at: 2026-06-09T13:00:00Z
+    directives:                  # sorted list of directive ids the pack contributes
+      - agent-steering-accounting
+      - commit-message-format
+
+  - id: acme/widgets             # repo-local pack: no upstream
+    version: "0.1"
+    source: local                # forbidden fields: ref, sha, subpath,
+    directives:                  #   installed_at, min_governance_kit
+      - pre-commit-test-gate
+```
+
+Field rules by source:
+
+| `source` | Required | Forbidden |
+|---|---|---|
+| `gh` | `id`, `version`, `ref`, `sha`, `directives`, `installed_at` | — |
+| `local` | `id`, `version`, `directives` | `ref`, `sha`, `subpath`, `installed_at`, `min_governance_kit` |
+
+Rows are sorted by id, and the file is written exclusively through `packverb lock-{add,remove,read,list}`.
+
+## `directives/<id>/directive.yaml` — per-directive metadata
+
+```yaml
+category: Quality                 # menu grouping: Foundation, Security, SystemOfRecord,
+                                  #   CommitHygiene, Quality, AgentDiscipline, or custom
+recommended: true                 # pre-ticked in the init picker
+summary: One-line description for the picker
+surface: repo-state               # repo-state | change-set
+hook: pre-commit                  # pre-commit | commit-msg | prepare-commit-msg
+                                  #   | post-commit | pre-push | none (CI-only)
+always_install: true              # optional; reserved to governance-kit/core
+requires_hook_strategy: githooks  # optional; skip when strategy is incompatible
+reads:                            # optional capability declaration
+  - .github/workflows/**
+writes: []                        # most directives are read-only
+```
+
+There is no `id`, `script`, or `constitution` field by design: the id is the folder name, the script is always `check.sh`, the snippet is always `constitution.md`. The `reads:`/`writes:` globs are validated at install — a check referencing paths outside its declaration blocks the install.
+
+## `pack.yaml` — pack identity
+
+```yaml
+id: acme/soc2-pack               # <author>/<slug>; slug matches the directory
+name: SOC 2 Controls
+version: "1.2.0"                 # semver; the pack axis
+min_governance_kit: "0.4.0"     # kit floor, validated at install
+description: One-line summary.
+author: acme
+presets:
+  minimal: [access-reviews]
+  standard:
+    extends: minimal
+    add: [change-management, vendor-pins]
+  strict:
+    extends: standard
+    add: [evidence-retention]
+# no `source:` field ⇒ repo-local pack
+```
+
+The presence or absence of `source:` is how a pack on disk declares whether it has an upstream — see [Packs, pins & vendoring](/concepts/packs).
+
+## The ownership marker
+
+Not a file but a contract that threads through all of the above: kit-generated files carry
+
+```
+# governance-kit:managed kit-version=<X.Y.Z>
+```
+
+on line 2 (line 1 for YAML). It is how `kit update` decides what it may regenerate, how `uninstall` decides what it may delete, and what `version-consistency` audits. Dateless by design, so re-stamping the same version is byte-identical.
