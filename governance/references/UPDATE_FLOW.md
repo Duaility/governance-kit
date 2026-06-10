@@ -45,6 +45,7 @@ copies. This verb closes the loop:
 | A managed file was hand-edited (line-2 marker present, byte-diff non-empty) | Show the diff and ask per-file: `apply` / `skip` / `overwrite-with-backup` (writes `<path>.pre-update.bak` then overwrites). Default `apply`. |
 | A managed file is missing the line-2 marker | Treat as user-owned. Skip silently and surface in the report under `Skipped (unmanaged):`. |
 | `--with-packs` was passed | After the kit-runtime block, run `pack update` against every `source: gh` entry in the lockfile. Each pack still uses its own diff-before-exec confirmation. |
+| `--check-upstream` was passed | Run the read-only upstream check (`kitverb.py kit-upstream`) and surface the result in the `Upstream:` report row. **Never** auto-fetch-and-apply — if the installed skill is behind, route the user to the skill manager (`npx skills update governance --global`), then re-run. The verb still syncs the repo to the *installed* kit as usual. |
 | Structured question tools are unavailable | Use short free-text prompts. If no answer to a destructive prompt, stop. |
 
 ---
@@ -57,52 +58,100 @@ Run these steps in order. Do not skip steps unless noted.
 
 Run in parallel:
 - `git rev-parse --show-toplevel` — confirm git repo; capture the root.
-- Read `<root>/.governance/install.yaml`. Schema in [INSTALL_SCHEMA.md](INSTALL_SCHEMA.md).
 - Read `<root>/.governance/packs.lock` (only required when `--with-packs`).
-- Resolve `KIT_VERSION` from the kit currently loaded:
+- Resolve the full update plan in one deterministic call:
   ```sh
   uv run --quiet --isolated --with PyYAML python \
-      governance/assets/packs/lib/packctl.py kit-version
+      governance/assets/packs/lib/kitverb.py kit-plan "<root>"
   ```
 
-If `install.yaml` is missing, attempt **manifest reconstruction from
-markers** before giving up:
+`kit-plan` is the side-effect-free core of Steps 1–3. It reads
+`<root>/.governance/install.yaml`, or — when the manifest is absent —
+reconstructs the pin from the `kit-version=` markers on the default managed
+set (taking the semver-aware **min**, since an update only lands when *every*
+managed file catches up). It resolves the version delta against the kit on
+PATH and emits the managed-file inventory with each destination's marker state
+and a plan-status hint. It writes nothing. **Consume its JSON rather than
+re-deriving any of this by hand** — the bash-array reconstruction and
+min-reduction that used to live inline here is exactly the surface where a
+shell-portability quirk or a skipped phase silently produced a wrong plan
+(issue #170, finding B).
 
-```sh
-source governance/assets/packs/lib/install.sh
-versions=()
-for f in "$root"/.governance/run.sh \
-         "$root"/.governance/lib.sh \
-         "$root"/.github/workflows/governance.yml \
-         "$root"/scripts/enable-governance.sh \
-         "$root"/.githooks/pre-commit; do
-    v=$(read_marker_kit_version "$f" 2>/dev/null) || continue
-    [[ -n "$v" ]] && versions+=("$v")
-done
-```
+| Field | Use |
+|---|---|
+| `kit_version` | `KIT_VERSION` of the kit on PATH (the installed skill copy). |
+| `installed_kit_version` | The recorded/reconstructed pin, or `null`. |
+| `manifest_source` | `install.yaml` / `reconstructed` / `absent`. |
+| `reconstructed_from` | Files that contributed to a reconstructed pin (name them in the `Assumptions:` line). |
+| `delta` | `forward` / `up-to-date` / `downgrade` / `pre-tracking` / `no-recoverable-pin` — drives Step 2. |
+| `files[]` | `{key, src, dest, exists, marker, dest_version, status}` per managed file — the Step 3 inventory. |
 
-Take the minimum (semver-aware) of `versions[]` as the reconstructed
-`installed_kit_version`. The marker is the per-file version pin; taking
-the min reflects that an update only lands when *every* managed file
-catches up. If any versioned marker is found, proceed — the manifest
-will be rewritten on success and a `Assumptions:` line records the
-reconstruction.
+`status` is a hint, not a verdict — `skip` (versioned marker == `KIT_VERSION`),
+`apply` (older or bare marker), `add` (destination missing), `unmanaged`
+(no marker; user-owned). The agent still computes the byte-diff (`diff -u`) in
+Step 3 before showing or applying anything.
 
-If `install.yaml` is missing **and** no runtime file carries a
-versioned `kit-version=` marker, stop. The user has no recoverable
-version pin (truly pre-marker install or all managed files were
-hand-stripped). Recovery: `governance uninstall` + `governance init`.
+If `delta` is `no-recoverable-pin` (`manifest_source: absent`), stop: the user
+has no recoverable version pin (truly pre-marker install or all managed files
+were hand-stripped). Recovery: `governance uninstall` + `governance init`.
+When `manifest_source` is `reconstructed`, proceed — the manifest is rewritten
+on success and an `Assumptions:` line records the reconstruction.
 
 ### Step 2 — Resolve the version delta
 
-Read `installed_kit_version` from `install.yaml.kit_version`. Three cases:
+`kit-plan`'s `delta` field already classifies the update. Act on it:
 
-| Case | Action |
+| `delta` | Action |
 |---|---|
-| Field is absent (`null`) | Pre-tracking install. Treat `installed_kit_version` as `"0"` for the purpose of reporting; proceed. |
-| `installed_kit_version` < `KIT_VERSION` | Forward update. Continue to Step 3. |
-| `installed_kit_version` == `KIT_VERSION` | No-op for kit-runtime. If `--with-packs`, jump to Step 6. Else report `kit: up-to-date` and exit. |
-| `installed_kit_version` > `KIT_VERSION` | Stop. The repo was last touched by a newer kit; running an older `kit update` against it would silently downgrade. The user's recovery path is to upgrade the kit on PATH (e.g., `uvx --reinstall …`) and re-run. |
+| `pre-tracking` | Manifest present but carries no `kit_version`. Offer to record the current `KIT_VERSION`; proceed (render `<prev>` as `unknown` in the report). |
+| `forward` | Forward update. Continue to Step 3. |
+| `up-to-date` | No-op for kit-runtime. If `--with-packs`, jump to Step 6. Else report `kit: up-to-date` and exit — but **always** emit the skill-provenance line (below). |
+| `downgrade` | Stop. The repo was last touched by a newer kit; running an older `kit update` against it would silently downgrade. The user's recovery path is to upgrade the kit on PATH (e.g., `uvx --reinstall …`) and re-run. |
+| `no-recoverable-pin` | Already handled in Step 1 — stop with the `uninstall` + `init` recovery path. |
+
+**Skill-provenance line (up-to-date branch).** `KIT_VERSION` is resolved
+*only* from the locally installed skill (`packctl.py kit-version` →
+`governance/assets/kit.yaml`). The verb has **no awareness of the kit version
+published upstream**: if the installed skill is itself stale, this branch
+reports `up-to-date` while a newer kit exists — the single most confusing
+failure mode of a routine "pull the latest kit" (issue #170). So whenever this
+branch fires, the `Assumptions:` row must name the provenance and the refresh
+path, verbatim shape:
+
+> `Kit source: locally installed governance skill (kit <v>). "Up-to-date" is relative to the installed skill, not the published kit — to check for a newer release, refresh the skill (e.g. `npx skills update governance --global`) and re-run.`
+
+This is a no-network reminder: it does not fetch anything, it just stops the
+user from concluding "I'm current" when the real fix is one layer up, in the
+skill install.
+
+**Opt-in upstream check (`--check-upstream`).** When the user wants the hint
+turned into a measurement, `--check-upstream` resolves the latest published
+`kit/vX.Y.Z` tag and reports how far behind the installed skill is:
+
+```sh
+uv run --quiet --isolated --with PyYAML python \
+    governance/assets/packs/lib/kitverb.py kit-upstream
+```
+
+`kit-upstream` is read-only — a single `git ls-remote` against the kit's
+upstream (`duaility/governance-kit` by default; the skill records its real
+origin in the `skills` lockfile). It returns `status`
+(`current`/`behind`/`ahead`/`unknown`), `latest_published`, and
+`releases_behind`. Surface it in the `Upstream:` report row:
+
+- `behind` → `behind by <N> (latest <v>) — refresh the skill: npx skills update governance --global, then re-run`.
+- `current` → `current (latest <v>)`.
+- `unknown` (offline / git unavailable) → `not reachable (offline?)` — never block the verb on it.
+
+It is **only** a signal. `kit update` never fetches-and-applies a newer kit
+itself: that would make the *currently running* flow apply assets and a
+manifest contract it predates (silent version skew — the exact failure this
+verb exists to prevent), and it would bypass the skill manager's pinned,
+lock-verified install path with a second unaudited code-ingestion route.
+Pulling a newer kit onto the machine is the skill manager's job; this verb only
+syncs the repo to whatever kit is installed. So when `behind`, the verb routes
+to `npx skills update governance --global` and stops short of applying — it
+does not download or run upstream code.
 
 Do **not** attempt a downgrade automatically. Downgrades have to be
 explicit (`--allow-downgrade`, future flag) — silently rolling a runtime
@@ -111,8 +160,11 @@ of footgun this verb exists to prevent.
 
 ### Step 3 — Inventory the managed files
 
-Build the list of files this verb owns. Each entry pairs the kit asset
-with the install destination, derived from `install.yaml`:
+`kit-plan` already built this inventory — `files[]` pairs each kit asset
+(`src`) with its install destination (`dest`), derived from the manifest
+fields, and carries the destination's `marker` state, `dest_version`, and
+plan-status `status`. Use it directly; the table below documents what those
+pairs are:
 
 | Source (in kit) | Destination (in repo) | Marker |
 |---|---|---|
@@ -122,6 +174,12 @@ with the install destination, derived from `install.yaml`:
 | `assets/governance.yml` | `<ci_workflow>` | `governance-kit:managed kit-version=<v>` in first 3 lines |
 | `assets/freshness.conf` | `<tests_dir>/freshness.conf` (only if the file already exists — `kit update` does not seed it) | None — user-tunable config; skip on diff |
 | `assets/integrity.conf` | `<tests_dir>/integrity.conf` (only if the file already exists — `kit update` does not seed it) | None — user-tunable config; skip on diff |
+
+The hook dispatchers are kit-owned too, but `kit-plan` does not list them as
+file pairs — they are regenerated wholesale in Step 5 (`generate_hooks_for_strategy`)
+rather than copied from a static asset, so the plan reports `hook_strategy`
+instead. The two `*.conf` files above are likewise outside `files[]` (no
+marker, seed-only).
 
 **Marker shape.** The ownership marker is a `# governance-kit:managed`
 comment within the file's leading comment block: line 2 for shebang
@@ -285,6 +343,24 @@ Append the issue anchor the repo's `commit-message-format` directive
 requires (`(#N)`). If the user did not name an issue, ask for it as a
 blocking input — same discipline as every other writer in this skill.
 
+**Export `AGENT_ISSUE='#N'` for the commit.** This subject is delivered
+via a HEREDOC (below), not a `-m "<subject>"` flag — so the subject never
+lands in `git`'s argv. The `agent-steering-accounting` and
+`agent-token-accounting` pre-commit hooks infer the issue anchor by walking
+that argv for a `(#N)` token; with a HEREDOC there is nothing to walk, and
+they block the commit asking for `AGENT_ISSUE`. (This is *not* a regex
+mismatch with `commit-message-format` — that directive and the hooks accept
+the identical `(#N)` shape, including subjects like `… (+packs) (#N)`; the
+gap is purely that argv-based inference can't see a HEREDOC subject.) So
+prefix the commit:
+
+```sh
+AGENT_ISSUE='#N' git commit -F - <<'EOF'
+chore(governance): kit update <old> → <new> (#N)
+…
+EOF
+```
+
 The commit body should include:
 - The kit version delta.
 - A bullet list of files updated, skipped, and unmanaged-skip.
@@ -318,6 +394,9 @@ Skipped (unmanaged): <files without the line-2 marker + per-file user
 Hook dispatcher:  regenerated | unchanged
 Smoke test:       pass | fail (exit <code>): <first failing directive>
 Packs:            up-to-date | <N> updated | not checked (use --with-packs)
+Upstream:         not checked (use --check-upstream) | current (latest <v>) |
+                  behind by <N> (latest <v>) — refresh: npx skills update
+                  governance --global, then re-run | not reachable (offline?)
 Committed:        <short-sha> <conventional-commit subject>
                   (or `would-commit:` under `--dry-run`, or `none` for a
                   no-op / refusal)
@@ -329,8 +408,13 @@ For the documented short-circuit branches:
 
 - **Up-to-date no-op** — every row is `none` except `From → To:` (which
   reads `<v> → <v> (up-to-date)`), `Smoke test:` (`pass`), `Packs:` (the
-  `--with-packs`-aware sentinel), `Committed:` (`none`), and `Next:`
-  (`none` — the user has nothing to push).
+  `--with-packs`-aware sentinel), `Upstream:` (the `--check-upstream`-aware
+  sentinel), `Committed:` (`none`), and `Next:` (`none` — the user has nothing
+  to push). `Assumptions:` **must** carry the skill-provenance line (see above)
+  — this is the one branch where "up-to-date" can be a false negative, so the
+  report has to name what it actually compared against. With `--check-upstream`
+  the `Upstream:` row turns that caveat into a measured `current` / `behind by
+  <N>` instead.
 - **Refusal** (`no recoverable pin`, `no-downgrade`, dirty tree without
   `--force`) — emit `From → To:` with the detected delta, set every
   action row to `none`, and put the refusal reason and recovery path
@@ -338,7 +422,7 @@ For the documented short-circuit branches:
 
 ## Required final output
 
-Same 10-field block as Step 8 above. There is no shorter "summary"
+Same 11-field block as Step 8 above. There is no shorter "summary"
 variant — the verb either emits the full block or it has not finished.
 
 ---

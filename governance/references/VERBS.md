@@ -34,7 +34,7 @@ full rearchitecture context.
 
 - **Aliases a user might type:** `governance kit update`, `update governance-kit`, `pull the new kit version`, `sync run.sh from the kit`, `the kit was published — update this repo`.
 - **Precondition:** repo must have governance installed (`.governance/` and at least one kit-owned file present). Reads the version pin from `install.yaml.kit_version`; if the manifest is missing or the field is absent, scans per-file `kit-version=` markers and takes the min. Refuses only when neither manifest nor any versioned marker is found — that means there is no recoverable version pin.
-- **Flags:** `--with-packs` (also chain `pack update` for every `source: gh` entry), `--dry-run`, `--force` (override the dirty-working-tree refusal).
+- **Flags:** `--with-packs` (also chain `pack update` for every `source: gh` entry), `--check-upstream` (read-only check of whether the installed skill is behind the latest published `kit/vX.Y.Z` — a signal only; never fetches-and-applies, routes to the skill manager), `--dry-run`, `--force` (override the dirty-working-tree refusal).
 - **Authoritative flow:** [UPDATE_FLOW.md](UPDATE_FLOW.md) Steps 1–8.
 - **Disjoint from `pack update`.** Updates the kit-runtime files (`run.sh`, `lib.sh`, `enable-governance.sh`, `governance.yml`, hook dispatchers) and the `kit_version` pin in `install.yaml`. For directive-content updates use `pack update`. Use both with `kit update --with-packs`.
 - **No silent downgrades.** A manifest stamp newer than the kit on PATH stops the verb.

@@ -7,6 +7,8 @@
 # Layers:
 #   1. test-packctl.py        — packctl.py library + CLI (preset, validation)
 #   2. test-packverb.py       — packverb.py (refs, capability glob, lockfile, catalog)
+#   2b. test-kitverb.py       — kitverb.py (kit-plan: version delta, manifest
+#                               reconstruction, managed-file inventory/status)
 #   3. test-install-sh.sh     — install.sh helpers (copy_tree_without_evals,
 #                               install_directive_folder, install_directive_assets,
 #                               write_installed_manifest flag matrix)
@@ -59,6 +61,10 @@ run_layer "packctl: validate_pack_dir matrix (Python)" \
 run_layer "packverb (Python)" \
     uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-packverb.py" \
     || failed_layers+=("test-packverb.py")
+
+run_layer "kitverb: kit-plan delta/reconstruction/inventory (Python)" \
+    uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-kitverb.py" \
+    || failed_layers+=("test-kitverb.py")
 
 run_layer "install.sh helpers (bash)" \
     bash "$ROOT/scripts/test-install-sh.sh" \
