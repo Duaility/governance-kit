@@ -141,6 +141,9 @@ build_changelog_section() {
     [[ -n "$added"   ]] && printf '### Added\n%s\n\n' "$added"
     [[ -n "$fixed"   ]] && printf '### Fixed\n%s\n\n' "$fixed"
     [[ -n "$changed" ]] && printf '### Changed\n%s\n\n' "$changed"
+    # Never let an empty trailing group's `&&` short-circuit make the function
+    # return non-zero — `SECTION="$(build_changelog_section)"` runs under set -e.
+    return 0
 }
 SECTION="$(build_changelog_section)"
 

@@ -269,3 +269,4 @@ Schema:
 | claude-code-7a0841bc-9f9-1781082641 | claude-code | 7a0841bc-9f94-443e-a017-7ece6abd9800 | #175 | claude-opus-4-8 | 10 | 1928 | 438214 | 2007 | 3945 | 0.2814 | fix(governance): release.sh re-pins up-to-date eval fixture on kit bump (#175) |
 | claude-code-0384b4f4-6a0-1781091708 | claude-code | 0384b4f4-6a04-4e25-a535-fcee1a7f4adc | #177 | claude-opus-4-8 | 65800 | 724693 | 62143598 | 426328 | 1216821 | 46.5883 |  |
 | claude-code-23b06f2b-a17-1781092667 | claude-code | 23b06f2b-a170-4f7d-a5c7-9eba68ae5c32 | #177 | claude-opus-4-8 | 5380 | 28662 | 32008 | 658 | 34700 | 0.2385 | refactor(governance): drop dead code and gate explicit --to fallback (#177)Post- |
+| claude-code-0b00338b-f86-1781094263 | claude-code | 0b00338b-f86f-457e-bad0-83f00a865418 | #179 | claude-opus-4-8 | 43504 | 139564 | 1734411 | 38024 | 221092 | 2.9076 | fix(governance): harden release.sh changelog builder against empty trailing grou |
