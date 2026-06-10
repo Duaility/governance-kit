@@ -10,6 +10,7 @@ full rearchitecture context.
 - **Aliases a user might type:** `governance init`, `governance bootstrap`, `set up governance`, `install governance-kit`, `add governance to this repo`.
 - **Precondition:** must be a git repo.
 - **Authoritative flow:** [INIT_FLOW.md](INIT_FLOW.md) Steps 1–8.
+- **Deterministic plan/apply.** The operator owns the elicitation (packs/preset/directives, principles, collision choices, the Step-8 finding loop, the commit); `packverb init-plan --decisions <json>` validates the resolved set + emits the inventory, and `packverb init-apply <root> --decisions <json>` does the mechanical assembly (directive installs, CONSTITUTION assembly, runtime/CI stamping, hook generation, manifest + lock writes, smoke test) in one tested call.
 - **Assets used:**
   - `../assets/CONSTITUTION.template.md`
   - `../assets/AGENTS.snippet.md`

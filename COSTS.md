@@ -255,3 +255,4 @@ Schema:
 | claude-code-040c6567-e16-1781075870 | claude-code | 040c6567-e16f-4d0e-aae1-c7bea4e733be | #172 | claude-fable-5 | 94947 | 1456436 | 32575766 | 230545 | 1781928 | 63.2579 |  |
 | claude-code-e6c8de76-07d-1781077448 | claude-code | e6c8de76-07d4-45fa-914f-e91aa1c2ef6a | #172 | claude-opus-4-8 | 2735 | 10914 | 16004 | 190 | 13839 | 0.0946 | feat(governance): deterministic pack-plan/pack-apply (#172)Phase 2 of moving lif |
 | claude-code-040c6567-e16-1781078495 | claude-code | 040c6567-e16f-4d0e-aae1-c7bea4e733be | #172 | claude-opus-4-8 | 131998 | 903946 | 53171188 | 337560 | 1373504 | 41.3342 | feat(governance): deterministic reset-apply + uninstall-apply (#172)Phase 3 of m |
+| claude-code-040c6567-e16-1781079488 | claude-code | 040c6567-e16f-4d0e-aae1-c7bea4e733be | #172 | claude-opus-4-8 | 5574 | 161332 | 27512976 | 97131 | 264037 | 17.2210 | feat(governance): deterministic init-plan + init-apply (#172)Phase 4 (final) of  |

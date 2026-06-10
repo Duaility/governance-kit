@@ -77,6 +77,10 @@ run_layer "reset/uninstall: plan/apply engines (Python)" \
     uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-reset-uninstall.py" \
     || failed_layers+=("test-reset-uninstall.py")
 
+run_layer "init: plan/apply engine + CONSTITUTION assembly (Python)" \
+    uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-init.py" \
+    || failed_layers+=("test-init.py")
+
 run_layer "install.sh helpers (bash)" \
     bash "$ROOT/scripts/test-install-sh.sh" \
     || failed_layers+=("test-install-sh.sh")

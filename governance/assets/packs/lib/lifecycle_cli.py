@@ -69,3 +69,18 @@ def register_lifecycle(sub: argparse._SubParsersAction) -> None:
     p.add_argument("--allow-heuristic", action="store_true")
     from uninstallapply import cmd_uninstall_apply
     p.set_defaults(func=cmd_uninstall_apply)
+
+    # init-plan / init-apply — assemble a fresh governance install from the
+    # operator's resolved decisions (mechanical half of `governance init`).
+    p = sub.add_parser("init-plan")
+    p.add_argument("--decisions", required=True)
+    from initplan import cmd_init_plan
+    p.set_defaults(func=cmd_init_plan)
+
+    p = sub.add_parser("init-apply")
+    p.add_argument("root")
+    p.add_argument("--decisions", required=True)
+    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--force", action="store_true")
+    from initapply import cmd_init_apply
+    p.set_defaults(func=cmd_init_apply)
