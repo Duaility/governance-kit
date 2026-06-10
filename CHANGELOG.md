@@ -21,6 +21,24 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [kit/v0.4.0] - 2026-06-10
+
+### Added
+- move every lifecycle verb onto a deterministic plan/apply (#172) (#173)
+
+### Fixed
+- surface kit-update staleness + reproducible kit-plan (#170) (#171)
+- commit dogfood directive tree; align reconcile.sh with install path (#159)
+- re-pin dogfood lock to core/v0.4.0 standard preset (#157)
+- release.sh changelog splice keeps section spacing (#146)
+
+### Changed
+- document kit and pack release process in README (#169)
+- delete orphaned reconcile.sh (#167)
+- delete working-tree resolver; dogfood pack update via real fetch (#165)
+- drop reconcile from the kit's own CI and clone setup (#163)
+- cover kit + pack lifecycle and core ideas in README (#161)
+
 ## [kit/v0.3.5] - 2026-06-09
 
 - Initial tagged release on the kit axis. Pre-tag history is in the curated entries below.
