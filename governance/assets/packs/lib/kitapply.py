@@ -227,11 +227,10 @@ def cmd_kit_apply(args: argparse.Namespace) -> int:
         shutil.copymode(src, dest)
         report["added" if entry["status"] == "add" else "updated"].append(entry["dest"])
 
-    hook_kwargs = {"lib_dir": hooks_lib} if hooks_lib is not None else {}
     hooks_rc = regen_hooks_step(
         root, plan["hook_strategy"], stamp_version, report,
         recovery="resolve the hook collision (unmanaged hook file), `git checkout -- .` to restore, re-run",
-        **hook_kwargs)
+        lib_dir=hooks_lib)
     if hooks_rc is not None:
         return hooks_rc
 

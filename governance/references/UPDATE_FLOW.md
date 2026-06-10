@@ -80,6 +80,7 @@ copies. This verb closes the loop:
 | Resolved target is **older** than `install.yaml.kit_version` | Refuse unless `--allow-downgrade`. The refusal names the flag. With it, the *newer local* engine applies the *fetched older* assets (see Step 5). |
 | Resolved target is below the delegation floor (`< 0.4.0`) | Refuse — that target ships no `kitverb.py` engine to delegate to. Name the floor and the legacy `npx skills add …#kit/v<target>` reinstall path. |
 | Offline / upstream unreachable | Do not error. Fall back through the cached pin (`kit_ref`/`kit_sha`) → the installed skill, reporting the provenance. Exit 0 when there is nothing to do. |
+| Offline / fetch failed **with `--to X.Y.Z`** | The fallback may satisfy the request only if it resolves *exactly* X.Y.Z; a fallback that resolves a different version refuses (never "asked for X, applied Y, exit 0"). Re-run with network access or drop `--to`. |
 | Working tree has uncommitted changes | Refuse, unless `--force` is set. The user reviews `git status`, then commits / stashes / re-runs with `--force`. |
 | A managed file was hand-edited (line-2 marker present, byte-diff non-empty) | Show the diff and ask per-file: `apply` / `skip` / `overwrite-with-backup` (writes `<path>.pre-update.bak` then overwrites). Default `apply`. |
 | A managed file is missing the line-2 marker | Treat as user-owned. Skip silently and surface in the report under `Skipped (unmanaged):`. |

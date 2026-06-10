@@ -5,8 +5,8 @@ Companion to kitverb.py (the pure plan/stamp core) — split out so each module
 stays under the repo's file-size budget and keeps a single focus. This module
 owns everything that reaches the network or writes the pin (issue #177):
 
-  * `fetch_kit_ref` / `cached_kit_path` / `ls_remote_sha` — the kit twin of the
-    pack fetch machinery (`~/.governance/cache/kits/<owner>__<repo>@<sha>/`);
+  * `fetch_kit_ref` / `cached_kit_path` — the kit twin of the pack fetch
+    machinery (`~/.governance/cache/kits/<owner>__<repo>@<sha>/`);
   * `kit-resolve` — resolve a target (published tag / `--to` / cache / installed
     skill), fetch it, gate the floor + direction, and name the engine the shim
     delegates `kit-plan`/`kit-apply` to;
@@ -36,6 +36,7 @@ from kitverb import (
     KIT_DELEGATION_FLOOR,
     KIT_SUBPATH,
     REFRESH_CMD,
+    _delta,
     compute_plan,
     fetch_published_tags,
 )
@@ -45,28 +46,6 @@ from kitverb import (
 # newer engine against fetched older assets. Points at the *plan/apply* engine
 # (kitverb.py), not this orchestration module.
 KITVERB_SELF = Path(__file__).resolve().parent / "kitverb.py"
-
-
-def ls_remote_sha(repo: str, tag: str) -> str | None:
-    """Resolve a single tag to its commit SHA via `git ls-remote` (no clone).
-
-    Prefers the `^{}` peeled line (the commit an annotated tag points at — what
-    a clone of the tag would check out). Returns None offline or when the tag is
-    absent. Used by `init` to record `kit_sha` cheaply, without a full fetch.
-    """
-    try:
-        proc = subprocess.run(
-            ["git", "ls-remote", f"https://github.com/{repo}", f"refs/tags/{tag}"],
-            check=False, text=True, capture_output=True, timeout=20,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    if proc.returncode != 0 or not proc.stdout.strip():
-        return None
-    lines = proc.stdout.splitlines()
-    peeled = [ln for ln in lines if ln.rstrip().endswith("^{}")]
-    chosen = peeled[0] if peeled else lines[0]
-    return chosen.split()[0]
 
 
 def fetch_kit_ref(ref: str) -> dict[str, str]:
@@ -128,15 +107,14 @@ def _direction(current: str | None, target: str) -> str:
 
     `unknown` when there is no recorded pin (pre-tracking / reconstructed /
     no-manifest) — the delegated engine classifies and gates those cases itself.
+    A vocabulary map over kitverb's `_delta` (the resolve report speaks in
+    travel direction, the plan report in delta states) so the version compare
+    has one source of truth.
     """
     if current is None:
         return "unknown"
-    c, t = _version_tuple(current), _version_tuple(target)
-    if t > c:
-        return "forward"
-    if t < c:
-        return "downgrade"
-    return "same"
+    delta = _delta(current, manifest_present=True, stamp_version=target)
+    return "same" if delta == "up-to-date" else delta
 
 
 def cmd_kit_resolve(args: argparse.Namespace) -> int:
@@ -181,7 +159,8 @@ def cmd_kit_resolve(args: argparse.Namespace) -> int:
         "assumptions": [],
     }
 
-    manifest = self_plan_manifest(root)
+    manifest_path = root / ".governance" / "install.yaml"
+    manifest = load_yaml(manifest_path) if manifest_path.is_file() else {}
     target = ref = sha = kit_dir = cache_dir = provenance = None
     resolve_error: str | None = None
 
@@ -228,6 +207,18 @@ def cmd_kit_resolve(args: argparse.Namespace) -> int:
     report.update(target_version=target, kit_ref=ref, kit_sha=sha,
                   cache_dir=cache_dir, kit_dir=kit_dir, provenance=provenance)
 
+    # --- explicit-target gate: a fallback may not silently substitute ---
+    # The cache/installed-skill chain is right for *default* resolution, but
+    # `--to X.Y.Z` is a contract: succeeding with a different version would be
+    # "you asked for exactly X, I gave you Y, exit 0". Refuse the mismatch.
+    if args.to and provenance in ("cache", "installed-skill") and target != args.to:
+        return _resolve_refuse(
+            report,
+            f"--to {args.to} could not be fetched (offline / upstream unreachable) and the "
+            f"{provenance} fallback resolves a different version ({target})",
+            "re-run with network access to fetch the exact version, or drop --to to accept the fallback",
+        )
+
     # --- floor gate: a target below the delegation floor has no engine ---
     floor_ok = _version_tuple(target) >= _version_tuple(KIT_DELEGATION_FLOOR)
     report["floor_ok"] = floor_ok
@@ -271,12 +262,6 @@ def cmd_kit_resolve(args: argparse.Namespace) -> int:
     report["result"] = "ok"
     print(json.dumps(report, indent=2))
     return 0
-
-
-def self_plan_manifest(root: Path) -> dict[str, Any]:
-    """The repo's install.yaml as a dict (empty when absent) — for reading the pin."""
-    manifest_path = root / ".governance" / "install.yaml"
-    return load_yaml(manifest_path) if manifest_path.is_file() else {}
 
 
 def _resolve_refuse(report: dict[str, Any], reason: str, recovery: str) -> int:

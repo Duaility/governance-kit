@@ -11,7 +11,6 @@ let the local engine apply a fetched older/alternate tree.
 
 from __future__ import annotations
 
-import hashlib
 import importlib.util
 import json
 import os
@@ -97,14 +96,6 @@ def kit_apply(root, *flags):
     )
     assert result.stdout.strip(), f"kit-apply printed no report: {result.stderr}"
     return result.returncode, json.loads(result.stdout)
-
-
-def tree_digest(root):
-    out = {}
-    for path in sorted(root.rglob("*")):
-        if path.is_file() and ".git" not in path.parts:
-            out[str(path.relative_to(root))] = hashlib.sha256(path.read_bytes()).hexdigest()
-    return out
 
 
 def make_assets(tmp: Path, version: str, tag: str) -> Path:
@@ -296,6 +287,25 @@ def test_resolve_offline_cache_downgrade_gate() -> None:
         assert report["delegate"] is True
         assert report["engine_path"] == str(KITVERB_PATH)              # local newer engine
         assert report["assets_root"].endswith("/governance/assets")    # fetched older tree
+
+
+def test_resolve_offline_to_mismatch_refused() -> None:
+    # `--to` is a contract: a fallback that resolves a *different* version must
+    # refuse, not exit 0 with a silent substitute.
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        sha = "3" * 40
+        ref = make_cached_kit(home, "duaility", "governance-kit", "0.4.0", sha)
+        manifest = BASE_MANIFEST + f'kit_version: "0.4.0"\nkit_ref: {ref}\nkit_sha: {sha}\n'
+        root = make_repo(Path(tmp) / "repo", manifest=manifest)
+        rc, report = kit_resolve(root, "--offline", "--to", "0.5.0", home=home)
+        assert rc == 2 and report["result"] == "refused", report
+        assert "--to 0.5.0" in report["reason"] and "0.4.0" in report["reason"]
+        # ...but a fallback that satisfies the exact request is fine.
+        rc, report = kit_resolve(root, "--offline", "--to", "0.4.0", home=home)
+        assert rc == 0 and report["result"] == "ok", report
+        assert report["provenance"] == "cache"
+        assert report["target_version"] == "0.4.0"
 
 
 def test_resolve_offline_no_pin_falls_back_to_installed_skill() -> None:
