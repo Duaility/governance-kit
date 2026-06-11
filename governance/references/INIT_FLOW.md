@@ -10,15 +10,13 @@ The 8-step recipe `governance init` runs. Dispatched from
 3. A pre-commit hook (and commit-msg / prepare-commit-msg / post-commit / pre-push dispatchers when the selected directives need them) — runs `.governance/` before commits and pushes, with `SKIP_GOVERNANCE=1` and `git commit --no-verify` / `git push --no-verify` as escape hatches.
 4. A GitHub Actions workflow at `.github/workflows/governance.yml` — same tests, enforced in CI on every PR.
 
-Directives are grouped into **packs** — self-contained directories that bundle directives, their constitution snippets, and hook declarations. Seven concern-scoped packs ship in-tree today, under `packs/<concern>/` (source-of-truth in this monorepo; consumers fetch via `gh:duaility/governance-kit/packs/<concern>@<rev>`):
+Directives are grouped into **packs** — self-contained directories that bundle directives, their constitution snippets, and hook declarations. Five concern-scoped packs ship in-tree today, under `packs/<concern>/` (source-of-truth in this monorepo; consumers fetch via `gh:duaility/governance-kit/packs/<concern>@<rev>`):
 
 - **`governance-kit/foundation`** — `required-docs`, `kit-version-sync`, `repo-hygiene`.
 - **`governance-kit/security`** — `secrets-hygiene`, `token-permissions`, `pinned-dependencies`.
 - **`governance-kit/docs`** — `internal-doc-links`, `doc-freshness`.
 - **`governance-kit/commits`** — `commit-message-format`, `no-orphan-todos`, `no-unjustified-suppressions`.
-- **`governance-kit/process`** — the issue → receipt → commit traceability chain (`issue-templates` → `issues-tracked` → `receipt-per-issue` → `commit-issue-receipt-match`).
-- **`governance-kit/audit`** — the agent accounting ledgers (`agent-token-accounting`, `agent-steering-accounting`).
-- **`governance-kit/integrity`** — `doc-integrity`, `toolchain-config-protection`.
+- **`governance-kit/audit`** — a trustworthy record of agent work: issue → receipt → commit traceability (`issue-templates` → `issues-tracked` → `receipt-per-issue` → `commit-issue-receipt-match`), cost + steering accounting (`agent-token-accounting`, `agent-steering-accounting`), and the tamper protection that keeps those records honest (`doc-integrity`, `toolchain-config-protection`).
 
 `governance init` unions each pack's chosen preset across all bundled packs (see Step 3).
 
@@ -108,7 +106,7 @@ Record findings for use at Step 6.
 ### Step 2 — Discover directive packs
 
 Source the loader and enumerate packs from the kit's pack root
-(today: `packs/`, which holds the seven bundled `governance-kit/*` concern packs):
+(today: `packs/`, which holds the five bundled `governance-kit/*` concern packs):
 
 ```sh
 source governance/assets/packs/lib/packs.sh

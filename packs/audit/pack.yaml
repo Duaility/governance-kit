@@ -1,16 +1,24 @@
 # governance-kit audit pack
 #
-# The agent accounting ledgers: every agent-authored commit records what it
-# spent (token-accounting → COSTS.md) and every human correction it took
-# (steering-accounting → STEERING.md). Both bundle into `standard`.
-# `agent-steering-accounting` is mandatory (`always_install: true`): in this
-# kit's model every commit is agent-authored, so durable provenance includes
-# every human correction event alongside token-spend. STEERING.md captures
-# verbatim operator text — repos that need redaction layer that on top via the
-# directive's classifier hook rather than by skipping the directive.
+# A trustworthy record of agent work — the full chain plus the protection that
+# keeps it tamper-proof:
+#   * traceability — every unit of work is a tracked issue with a durable
+#     template (`issue-templates`), logged in `QUALITY.md` (`issues-tracked`),
+#     lands exactly one receipt (`receipt-per-issue`), and is referenced by the
+#     commit that closes it (`commit-issue-receipt-match`);
+#   * accounting — every agent-authored commit records what it spent
+#     (`agent-token-accounting` → COSTS.md) and every human correction it took
+#     (`agent-steering-accounting` → STEERING.md);
+#   * integrity — those records stay honest: receipts are immutable, ledgers
+#     append-only, frozen sections verbatim (`doc-integrity`), and the toolchain
+#     config can't be quietly changed to game a check (`toolchain-config-protection`).
 #
-# The issue → receipt → commit traceability that used to share this pack now
-# lives in `governance-kit/process`, so each pack maps to a single concern.
+# `agent-steering-accounting` and `doc-integrity` are mandatory
+# (`always_install: true`): in this kit's model every commit is agent-authored,
+# so the provenance trail and its tamper-protection are part of the baseline,
+# not an extra. STEERING.md captures verbatim operator text — repos that need
+# redaction layer that on top via the directive's classifier hook rather than
+# by skipping the directive.
 #
 # Directive metadata lives inside each directive's folder under
 # `directives/<id>/`. Presets are per-pack and unioned at init.
@@ -19,14 +27,20 @@ id: governance-kit/audit
 name: Agent audit-chain governance directives
 version: "0.1.0"
 min_governance_kit: "0.3"
-description: Agent accounting ledgers — token-spend (COSTS.md) and steering (STEERING.md).
+description: A trustworthy record of agent work — issue → receipt → commit → cost → steering, kept tamper-proof.
 author: governance-kit
 
 presets:
   standard:
     directives:
+      - issue-templates
+      - issues-tracked
+      - receipt-per-issue
+      - commit-issue-receipt-match
       - agent-token-accounting
       - agent-steering-accounting
+      - doc-integrity
+      - toolchain-config-protection
   strict:
     extends: standard
     directives: []

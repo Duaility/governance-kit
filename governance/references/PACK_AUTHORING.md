@@ -33,7 +33,7 @@ A directive that needs tuning ships two optional files in its folder and reads t
 
 The effective config is `defaults.conf` layered with the overlay (seeded once to the pack-qualified `.governance/conf/<owner>/<pack>/<id>.conf`): a bare line **adds** an item, `!<item>` **removes** a default (gitignore-style negation), `KEY=value` **overrides** a scalar (read with `conf_get`; env `GOVERNANCE_<KEY>` still wins). Helpers: `conf_file`, `conf_get`, `conf_rule_lines`, and `conf_list <id> "$(dirname "$0")/defaults.conf"` resolve the qualified overlay path from the directive's installed location automatically. A directive that declares capabilities must list `.governance/conf/**` under `reads:`.
 
-Kit-bundled packs are the seven concern packs `governance-kit/{foundation,security,docs,commits,process,audit,integrity}`, each under `packs/<concern>/`; the shared loader/install lib lives at `governance/assets/packs/lib/`. Out-of-tree community packs live in their own repos and are pulled in via `governance pack add gh:<owner>/<repo>`.
+Kit-bundled packs are the five concern packs `governance-kit/{foundation,security,docs,commits,audit}`, each under `packs/<concern>/`; the shared loader/install lib lives at `governance/assets/packs/lib/`. Out-of-tree community packs live in their own repos and are pulled in via `governance pack add gh:<owner>/<repo>`.
 
 ### Directive identity (homonyms)
 
@@ -198,7 +198,7 @@ Directives with external dependencies (Python libraries, per-runtime helpers, ho
 At activation the bootstrap skill:
 
 1. Discovers every `pack.yaml` under its asset tree (and optional external paths).
-2. Offers pack selection (`the seven bundled `governance-kit/*` packs are pre-selected and locked).
+2. Offers pack selection (`the five bundled `governance-kit/*` packs are pre-selected and locked).
 3. Offers a preset (`minimal` / `standard` / `strict`) and per-category multi-selects for the remaining directives.
 4. Computes `always_install ∪ preset_rules ∪ user_selections` across the selected packs.
 5. Applies environment filters such as `requires_hook_strategy`.

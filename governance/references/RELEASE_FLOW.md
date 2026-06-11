@@ -17,7 +17,7 @@ treat any out-of-band edit to those fields as drift.
 ## When to cut which axis
 
 - **`<pack>`** (a concern-pack name: `foundation`, `security`, `docs`,
-  `commits`, `process`, `audit`, `integrity`) — a directive-content change has
+  `commits`, `audit`) — a directive-content change has
   merged in that pack (new/changed/removed directive, preset edit, `check.sh`
   fix). Bumps that pack's `packs/<pack>/pack.yaml` `version` and cuts a
   `<pack>/vX.Y.Z` tag. Tag **lazily** — one invocation per pack whose subtree

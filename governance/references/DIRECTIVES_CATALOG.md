@@ -12,11 +12,9 @@ Seven concern-scoped packs ship in-tree, each at `packs/<concern>/`:
 | `governance-kit/security`   | `packs/security/`   | Supply-chain and credential hygiene. | Always present (bundled). |
 | `governance-kit/docs`       | `packs/docs/`       | Documentation-graph health. | Always present (bundled). |
 | `governance-kit/commits`    | `packs/commits/`    | Commit-message & in-source marker hygiene. | Always present (bundled). |
-| `governance-kit/process`    | `packs/process/`    | Issue → receipt → commit traceability. | Always present (bundled). |
-| `governance-kit/audit`      | `packs/audit/`      | Agent accounting ledgers (token + steering). | Always present (bundled). |
-| `governance-kit/integrity`  | `packs/integrity/`  | Append-only record protection + anti-gaming. | Always present (bundled). |
+| `governance-kit/audit`      | `packs/audit/`      | A trustworthy record of agent work — issue → receipt → commit traceability, cost + steering accounting, and tamper-proof record integrity. | Always present (bundled). |
 
-Presets are **per-pack** and unioned at init: each pack ships `minimal`/`standard`/`strict` blocks covering its slice, and `governance init` unions the chosen preset across all seven (see [the preset table](#presets-per-pack-unioned-at-init)). Community packs live in their own repos and install via `governance pack add gh:<owner>/<repo>`. For authoring a **third-party pack**, see [PACK_AUTHORING.md](PACK_AUTHORING.md).
+Presets are **per-pack** and unioned at init: each pack ships `minimal`/`standard`/`strict` blocks covering its slice, and `governance init` unions the chosen preset across all five (see [the preset table](#presets-per-pack-unioned-at-init)). Community packs live in their own repos and install via `governance pack add gh:<owner>/<repo>`. For authoring a **third-party pack**, see [PACK_AUTHORING.md](PACK_AUTHORING.md).
 
 The **Standards** column records the external standard a directive implements (OpenSSF Scorecard checks, CWE entries, …) so coverage and gaps are visible. It is advisory metadata (`standards:` in `directive.yaml`); empty cells are not failures, they are the roadmap.
 
@@ -63,9 +61,9 @@ Commit-message and in-source marker hygiene — the rules a repo opts into past 
 | `no-orphan-todos` | — | Every `TODO` / `FIXME` on a line references `#123` or `ABC-123`. |
 | `no-unjustified-suppressions` | — | Every lint / type-checker suppression — `eslint-disable*`, `@ts-ignore`, `@ts-expect-error`, `# noqa`, `# type: ignore`, `# pylint: disable`, `# pyright: ignore`, `#[allow(...)]`, `nolint`, `@SuppressWarnings` — references `#123` or `ABC-123` on the same line. Markdown is not scanned. Line waiver: `governance: allow-no-unjustified-suppressions <reason>`. |
 
-## `governance-kit/process`
+## `governance-kit/audit`
 
-Issue → receipt → commit traceability, for repos where every tree-change is produced through an agent runtime (Codex, Claude Code, Cursor, …). The directives form a chain: issue creation uses a durable template, issues are tracked, every issue has exactly one receipt, and every commit matches its receipt. Breaking any link makes the work non-traceable — the `standard` preset bundles the full chain.
+A trustworthy record of agent work, for repos where every tree-change is produced through an agent runtime (Codex, Claude Code, Cursor, …). Three linked layers — **traceability** (every unit of work is a tracked issue with exactly one receipt, and every commit matches its receipt), **accounting** (every commit carries its token cost and human-steering footprint), and **integrity** (those records stay tamper-proof — receipts immutable, ledgers append-only, frozen sections verbatim, toolchain config un-gameable). The `standard` preset bundles the full chain; `agent-steering-accounting` and `doc-integrity` are mandatory.
 
 | Directive | Standards | What it checks |
 |---|---|---|
@@ -73,30 +71,16 @@ Issue → receipt → commit traceability, for repos where every tree-change is 
 | `commit-issue-receipt-match` | — | Each commit's anchor — trailing `(#N)` in the subject or any `Issue: #N` body trailer — matches an `issue-<N>` token on a `receipts/*.md` it touches. `commit-msg` hook (Mode A) + CI merge-base→HEAD walk (Mode B). Per-commit waiver: `governance: allow-commit-issue-receipt-match <reason>`. |
 | `issue-templates` | — | `.github/ISSUE_TEMPLATE/` contains proposal + bug issue forms plus config; blank issues disabled; proposal requires Context / Decision / Scope / Acceptance criteria / Validation / Open questions; bug requires the core defect-report fields. Ships the templates under `install-assets/`. |
 | `issues-tracked` | — | `QUALITY.md` exists at repo root with `Open` and `Resolved` sections. Ships `install-assets/QUALITY.md`. |
-
-## `governance-kit/audit`
-
-The agent accounting ledgers, for repos where every tree-change is produced through an agent runtime (Codex, Claude Code, Cursor, …): every commit carries its token cost and human-steering footprint. Both bundle into `standard`; `agent-steering-accounting` is mandatory.
-
-| Directive | Standards | What it checks |
-|---|---|---|
 | `agent-token-accounting` | — | Every non-merge, non-revert commit carries the full trailer set (`Agent`, `Issue`, `Session`, `Token-Input`, `Token-Output`, `Token-Total`, `Cost-Key`, `Cost-USD`), satisfies `Total = Input + Output`, and has exactly one matching append-only row in `COSTS.md`. Price overrides via `rate <model> …` rows in `.governance/conf/governance-kit/audit/agent-token-accounting.conf`. See [AGENT_TOKEN_ACCOUNTING.md](AGENT_TOKEN_ACCOUNTING.md). |
 | `agent-steering-accounting` | — | **`always_install: true`.** Every non-merge, non-revert commit stamps the summary triple (`Steer-Count`, `Steer-Types`, `Steer-Tiers`); the numbers tally rows newly added to append-only `STEERING.md`. Detects human-steering events (interrupts → `tier: structural`; corrections → `tier: classifier`, regex `tier: lexical` fallback). Knobs in `.governance/conf/governance-kit/audit/agent-steering-accounting.conf`. Privacy caveat — `user-reason` cells contain verbatim operator text; redact via the classifier hook rather than skipping the directive. See [AGENT_STEERING_ACCOUNTING.md](AGENT_STEERING_ACCOUNTING.md). |
-
-## `governance-kit/integrity`
-
-Append-only record protection and anti-gaming for the process and audit packs' own artifacts (receipts, `COSTS.md`, `STEERING.md`, the constitution's Evolution Log).
-
-| Directive | Standards | What it checks |
-|---|---|---|
-| `doc-integrity` | — | **`always_install: true` — the standard rules ship active in the directive's `defaults.conf`.** Makes system-of-record documents append-only relative to the change set's default-branch baseline (a rule is a no-op until its document exists). Layered with the overlay `.governance/conf/governance-kit/integrity/doc-integrity.conf` (bare line adds, `!<rule>` drops a default). Three modes: `frozen-files <glob>` (each file immutable once on the trunk; new files OK — e.g. `receipts/*.md`), `append-only <file>` (baseline must be a byte-prefix of current — e.g. `COSTS.md`/`STEERING.md`), `frozen-section <file> <heading>` (baseline lines under the heading survive verbatim — e.g. `QUALITY.md` Resolved, `CONSTITUTION.md` Evolution Log). `commit-msg` hook (Mode A) + CI merge-base→HEAD walk (Mode B). Path-scoped waiver: `governance: allow-doc-integrity <path> <reason>`. |
-| `toolchain-config-protection` | — | A commit modifying toolchain config — linter, formatter, type-checker, CI workflow, or git-hook config — must carry a `governance: allow-toolchain-config <reason>` line in its body. Stops the "fix the rule, not the code" move from passing silently. Protected paths ship in the directive's `defaults.conf` (which omits `.governance/**` — already guarded by `kit-version-sync` + `doc-integrity`), layered with the overlay `.governance/conf/governance-kit/integrity/toolchain-config-protection.conf`. Merge/revert commits skipped. |
+| `doc-integrity` | — | **`always_install: true` — the standard rules ship active in the directive's `defaults.conf`.** Makes system-of-record documents append-only relative to the change set's default-branch baseline (a rule is a no-op until its document exists). Layered with the overlay `.governance/conf/governance-kit/audit/doc-integrity.conf` (bare line adds, `!<rule>` drops a default). Three modes: `frozen-files <glob>` (each file immutable once on the trunk; new files OK — e.g. `receipts/*.md`), `append-only <file>` (baseline must be a byte-prefix of current — e.g. `COSTS.md`/`STEERING.md`), `frozen-section <file> <heading>` (baseline lines under the heading survive verbatim — e.g. `QUALITY.md` Resolved, `CONSTITUTION.md` Evolution Log). `commit-msg` hook (Mode A) + CI merge-base→HEAD walk (Mode B). Path-scoped waiver: `governance: allow-doc-integrity <path> <reason>`. |
+| `toolchain-config-protection` | — | A commit modifying toolchain config — linter, formatter, type-checker, CI workflow, or git-hook config — must carry a `governance: allow-toolchain-config <reason>` line in its body. Stops the "fix the rule, not the code" move from passing silently. Protected paths ship in the directive's `defaults.conf` (which omits `.governance/**` — already guarded by `kit-version-sync` + `doc-integrity`), layered with the overlay `.governance/conf/governance-kit/audit/toolchain-config-protection.conf`. Merge/revert commits skipped. |
 
 ---
 
 ## Presets (per-pack, unioned at init)
 
-Each pack declares only the preset tiers it contributes to; `governance init` unions the chosen preset across all seven bundled packs. The union reproduces the directive sets below.
+Each pack declares only the preset tiers it contributes to; `governance init` unions the chosen preset across all five bundled packs. The union reproduces the directive sets below.
 
 | Preset | Directives (unioned across all bundled packs) |
 |---|---|

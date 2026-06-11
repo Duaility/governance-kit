@@ -10,7 +10,7 @@
 #            Re-stamps every derived copy (SKILL.md frontmatter, install.yaml
 #            kit_version, the `kit-version=` managed markers).
 #   <pack> — a bundled concern pack (foundation, security, docs, commits,
-#            process, audit, integrity). Source of truth:
+#            audit). Source of truth:
 #            packs/<pack>/pack.yaml `version`. Each pack versions and tags on
 #            its own axis; release lazily — only the pack(s) that actually
 #            changed since their last tag get a new tag. (The retired `core`

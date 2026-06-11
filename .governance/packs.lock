@@ -62,26 +62,8 @@ packs:
   directives:
   - agent-steering-accounting
   - agent-token-accounting
-- id: governance-kit/process
-  version: 0.1.0
-  source: gh
-  ref: gh:duaility/governance-kit/packs/process@main
-  sha: fd38a10012088c278a5ff614f8921bd6b35440d7
-  subpath: packs/process
-  min_governance_kit: '0.3'
-  installed_at: 2026-06-11 00:00:00+00:00
-  directives:
   - commit-issue-receipt-match
+  - doc-integrity
   - issue-templates
   - issues-tracked
   - receipt-per-issue
-- id: governance-kit/integrity
-  version: 0.1.0
-  source: gh
-  ref: gh:duaility/governance-kit/packs/integrity@main
-  sha: fd38a10012088c278a5ff614f8921bd6b35440d7
-  subpath: packs/integrity
-  min_governance_kit: '0.3'
-  installed_at: 2026-06-11 00:00:00+00:00
-  directives:
-  - doc-integrity

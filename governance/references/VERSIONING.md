@@ -82,8 +82,8 @@ kit/vX.Y.Z       # a kit (framework) release
 
 Each bundled `governance-kit/*` concern pack carries its own `pack.yaml`
 `version` and tags on its **own axis** — `foundation/vX.Y.Z`, `security/vX.Y.Z`,
-`docs/vX.Y.Z`, `commits/vX.Y.Z`, `process/vX.Y.Z`, `audit/vX.Y.Z`,
-`integrity/vX.Y.Z` — all starting at `0.1.0` and stepping independently. Tag
+`docs/vX.Y.Z`, `commits/vX.Y.Z`, `audit/vX.Y.Z` — all starting at `0.1.0` and
+stepping independently. Tag
 **lazily**: a release cuts a tag only for the pack(s) whose subtree actually
 changed since their last tag, so a `security`-only fix ships `security/v0.1.1`
 and touches nothing else — the six unchanged packs keep their existing tags and

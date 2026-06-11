@@ -29,12 +29,12 @@ Each pack is a directory. Seven concern-scoped packs ship in-tree under
 - `governance-kit/docs` — `internal-doc-links`, `doc-freshness`.
 - `governance-kit/commits` — `commit-message-format`, `no-orphan-todos`,
   `no-unjustified-suppressions`.
-- `governance-kit/process` — the issue → receipt → commit traceability chain:
-  `issue-templates`, `issues-tracked`, `receipt-per-issue`,
-  `commit-issue-receipt-match`.
-- `governance-kit/audit` — the agent accounting ledgers:
-  `agent-token-accounting`, `agent-steering-accounting`.
-- `governance-kit/integrity` — `doc-integrity`, `toolchain-config-protection`.
+- `governance-kit/audit` — a trustworthy record of agent work: issue → receipt
+  → commit traceability (`issue-templates`, `issues-tracked`,
+  `receipt-per-issue`, `commit-issue-receipt-match`), cost + steering accounting
+  (`agent-token-accounting`, `agent-steering-accounting`), and the tamper
+  protection that keeps those records honest (`doc-integrity`,
+  `toolchain-config-protection`).
 
 The shared pack `lib/` (`packs.sh`, `install.sh`, `hooks.sh`, `packctl.py`,
 `packverb.py`, `eval-lib.sh`) lives at `governance/assets/packs/lib/`.
