@@ -303,13 +303,13 @@ The kit and the bundled packs version on **independent** axes (the Helm `Chart.v
 Pick the semver level from the [policy table](governance/references/VERSIONING.md#semver-policy).
 
 ```sh
-bash scripts/release.sh <kit|core> <X.Y.Z> --dry-run   # preview the plan from any branch — bump, re-stamps, tag, CHANGELOG
-bash scripts/release.sh core 0.4.0                      # cut a core pack release
-bash scripts/release.sh kit 0.4.0                       # cut a kit release
-bash scripts/release.sh <kit|core> <X.Y.Z> --push       # cut and push the branch + tag in one step
+bash scripts/release.sh <kit|PACK> <X.Y.Z> --dry-run   # preview the plan from any branch — bump, re-stamps, tag, CHANGELOG
+bash scripts/release.sh security 0.2.0                  # cut a pack release (one invocation per changed pack)
+bash scripts/release.sh kit 0.6.0                       # cut a kit release
+bash scripts/release.sh <kit|PACK> <X.Y.Z> --push       # cut and push the branch + tag in one step
 ```
 
-A real run preflights — it refuses unless you are on `main` with a clean tree, the target is valid semver strictly greater than current, the tag doesn't already exist, and `bash .governance/run.sh` is green. It then bumps the single source of truth, re-derives every stamp (kit axis only), regenerates the `CHANGELOG.md` section from the Conventional Commits since the last matching tag, makes the `chore(release)` commit through the hook path, and creates the prefixed annotated tag (`kit/vX.Y.Z` / `core/vX.Y.Z`). Pushing the tag triggers [`release.yml`](.github/workflows/release.yml), which lifts the matching CHANGELOG section into a GitHub Release.
+A real run preflights — it refuses unless you are on `main` with a clean tree, the target is valid semver strictly greater than current, the tag doesn't already exist, and `bash .governance/run.sh` is green. It then bumps the single source of truth, re-derives every stamp (kit axis only), regenerates the `CHANGELOG.md` section from the Conventional Commits since the last matching tag, makes the `chore(release)` commit through the hook path, and creates the prefixed annotated tag (`kit/vX.Y.Z` / `<pack>/vX.Y.Z`). Each pack tags on its own axis and is released lazily — only the pack(s) whose subtree changed get a new tag. Pushing the tag triggers [`release.yml`](.github/workflows/release.yml), which lifts the matching CHANGELOG section into a GitHub Release.
 
 Full procedure and invariants: [RELEASE_FLOW.md](governance/references/RELEASE_FLOW.md). Axes, semver policy, and the tag scheme consumers pin against: [VERSIONING.md](governance/references/VERSIONING.md).
 

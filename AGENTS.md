@@ -136,7 +136,7 @@ snippet, metadata, and eval all live together under `directives/<directive-id>/`
 
 ### Versioning & releases
 
-Version lines are written **only** by [`scripts/release.sh`](scripts/release.sh), in `chore(release)` commits — feature and fix PRs never touch `governance/assets/kit.yaml`, any bundled pack's `packs/<concern>/pack.yaml` `version`, `SKILL.md` frontmatter, `.governance/install.yaml`'s `kit_version`, or any `kit-version=` marker. The kit (framework) and the bundled packs version on **independent** semver axes. Full policy, the tag scheme (`kit/vX.Y.Z`, `core/vX.Y.Z`), and the release procedure: [governance/references/VERSIONING.md](governance/references/VERSIONING.md) and [governance/references/RELEASE_FLOW.md](governance/references/RELEASE_FLOW.md).
+Version lines are written **only** by [`scripts/release.sh`](scripts/release.sh), in `chore(release)` commits — feature and fix PRs never touch `governance/assets/kit.yaml`, any bundled pack's `packs/<concern>/pack.yaml` `version`, `SKILL.md` frontmatter, `.governance/install.yaml`'s `kit_version`, or any `kit-version=` marker. The kit (framework) and each bundled pack version on **independent** semver axes. Full policy, the tag scheme (`kit/vX.Y.Z`, per-pack `<pack>/vX.Y.Z`, cut lazily), and the release procedure: [governance/references/VERSIONING.md](governance/references/VERSIONING.md) and [governance/references/RELEASE_FLOW.md](governance/references/RELEASE_FLOW.md).
 
 ### Commit messages
 

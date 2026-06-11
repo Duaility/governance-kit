@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
 # release.sh — cut a governance-kit release on one of the two semantic axes.
 #
-#   bash scripts/release.sh <kit|core> <version> [--dry-run] [--push]
+#   bash scripts/release.sh <kit|PACK> <version> [--dry-run] [--push]
 #
-# governance-kit ships two independently-versioned artifacts from one repo (see
+# governance-kit ships independently-versioned artifacts from one repo (see
 # governance/references/VERSIONING.md):
 #
-#   kit   — the framework. Source of truth: governance/assets/kit.yaml `version`.
-#           Re-stamps every derived copy (SKILL.md frontmatter, install.yaml
-#           kit_version, the `kit-version=` managed markers).
-#   core  — the bundled governance-kit/core pack. Source of truth:
-#           packs/core/pack.yaml `version`.
+#   kit    — the framework. Source of truth: governance/assets/kit.yaml `version`.
+#            Re-stamps every derived copy (SKILL.md frontmatter, install.yaml
+#            kit_version, the `kit-version=` managed markers).
+#   <pack> — a bundled concern pack (foundation, security, docs, commits,
+#            process, audit, integrity). Source of truth:
+#            packs/<pack>/pack.yaml `version`. Each pack versions and tags on
+#            its own axis; release lazily — only the pack(s) that actually
+#            changed since their last tag get a new tag. (The retired `core`
+#            axis is the historical predecessor; its tags stay as history.)
 #
 # This is the ONLY sanctioned writer of version lines — feature/fix PRs never
 # touch them. The script: validates a clean tree on `main` with a green suite,
@@ -39,7 +43,7 @@ for arg in "$@"; do
     esac
 done
 
-[[ "$AXIS" == "kit" || "$AXIS" == "core" ]] || die "usage: release.sh <kit|core> <version> [--dry-run] [--push]"
+[[ -n "$AXIS" ]] || die "usage: release.sh <kit|PACK> <version> [--dry-run] [--push]"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "version must be semver X.Y.Z (got '${VERSION:-}')"
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || die "not inside a git repo"
@@ -67,8 +71,10 @@ semver_gt() {           # true when $1 > $2
 # ── resolve current version + tag ─────────────────────────────────────────
 if [[ "$AXIS" == "kit" ]]; then
     SRC="governance/assets/kit.yaml";   ANCHOR='^version: "'
+elif [[ -f "packs/$AXIS/pack.yaml" ]]; then
+    SRC="packs/$AXIS/pack.yaml";        ANCHOR='^version: "'
 else
-    SRC="packs/core/pack.yaml";         ANCHOR='^version: "'
+    die "unknown axis '$AXIS' — expected 'kit' or a bundled pack name (packs/<name>/pack.yaml must exist)"
 fi
 CURRENT="$(read_quoted_field "$SRC" "$ANCHOR")"
 [[ -n "$CURRENT" ]] || die "could not read current $AXIS version from $SRC"
@@ -125,6 +131,14 @@ UP_TO_DATE_FIXTURE="governance/evals/kit-update/files/up-to-date-repo/.governanc
 build_changelog_section() {
     local date base range
     date="$(date +%Y-%m-%d)"
+    # Path-scope each axis to its own subtree so a pack's changelog lists only
+    # commits that touched that pack, and the kit's lists only non-pack commits.
+    local pathspec
+    if [[ "$AXIS" == "kit" ]]; then
+        pathspec=(-- . ':(exclude)packs')
+    else
+        pathspec=(-- "packs/$AXIS")
+    fi
     base="$(git describe --tags --match "${AXIS}/v*" --abbrev=0 2>/dev/null || true)"
     if [[ -z "$base" ]]; then
         # First tagged release on this axis — don't dump all of history; the
@@ -135,9 +149,9 @@ build_changelog_section() {
     range="${base}..HEAD"
     printf '## [%s] - %s\n\n' "$TAG" "$date"
     local added fixed changed
-    added="$(git log "$range" --no-merges --format='%s' | sed -nE 's/^feat(\([^)]*\))?(!)?: (.+)/- \3/p')"
-    fixed="$(git log "$range" --no-merges --format='%s' | sed -nE 's/^fix(\([^)]*\))?(!)?: (.+)/- \3/p')"
-    changed="$(git log "$range" --no-merges --format='%s' | sed -nE 's/^(refactor|perf|docs|build|ci|chore|revert|style|test)(\([^)]*\))?(!)?: (.+)/- \4/p')"
+    added="$(git log "$range" --no-merges --format='%s' "${pathspec[@]}" | sed -nE 's/^feat(\([^)]*\))?(!)?: (.+)/- \3/p')"
+    fixed="$(git log "$range" --no-merges --format='%s' "${pathspec[@]}" | sed -nE 's/^fix(\([^)]*\))?(!)?: (.+)/- \3/p')"
+    changed="$(git log "$range" --no-merges --format='%s' "${pathspec[@]}" | sed -nE 's/^(refactor|perf|docs|build|ci|chore|revert|style|test)(\([^)]*\))?(!)?: (.+)/- \4/p')"
     [[ -n "$added"   ]] && printf '### Added\n%s\n\n' "$added"
     [[ -n "$fixed"   ]] && printf '### Fixed\n%s\n\n' "$fixed"
     [[ -n "$changed" ]] && printf '### Changed\n%s\n\n' "$changed"
@@ -150,7 +164,7 @@ SECTION="$(build_changelog_section)"
 prepend_changelog() {   # insert SECTION above the first existing "## [" entry, or append
     local cl="CHANGELOG.md" tmp; tmp="$(mktemp)"
     if [[ ! -f "$cl" ]]; then
-        { printf '# Changelog\n\nAll notable changes to governance-kit. Kit and core-pack releases are\ntagged `kit/vX.Y.Z` / `core/vX.Y.Z`; see governance/references/VERSIONING.md.\n\n'; printf '%s' "$SECTION"; } > "$cl"
+        { printf '# Changelog\n\nAll notable changes to governance-kit. Kit and per-pack releases are\ntagged `kit/vX.Y.Z` / `<pack>/vX.Y.Z`; see governance/references/VERSIONING.md.\n\n'; printf '%s' "$SECTION"; } > "$cl"
         return
     fi
     # Insert the new release section after the [Unreleased] block — before the

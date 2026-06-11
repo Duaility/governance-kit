@@ -1,9 +1,9 @@
 # Versioning & release policy
 
-governance-kit is a monorepo that ships two independently-versioned things from
-one tree, plus a set of wire-format schema versions. This document defines what
-each version means, how the two semantic axes relate, the tag scheme consumers
-pin against, and the release procedure.
+governance-kit is a monorepo that ships a framework plus a set of
+independently-versioned concern packs from one tree, plus a set of wire-format
+schema versions. This document defines what each version means, how the semantic
+axes relate, the tag scheme consumers pin against, and the release procedure.
 
 > Mechanics live in [`scripts/release.sh`](../../scripts/release.sh) and
 > [RELEASE_FLOW.md](RELEASE_FLOW.md). Drift between the stamps below is caught by
@@ -16,10 +16,13 @@ pin against, and the release procedure.
 | **Kit** | What version of the *framework* is this? (run.sh, lib.sh, hook generators, the `governance` skill, schemas) | [`governance/assets/kit.yaml`](../assets/kit.yaml) `version` | `governance/SKILL.md` frontmatter `version`; `.governance/install.yaml` `kit_version`; the `# governance-kit:managed kit-version=<v>` markers stamped into every managed runtime file |
 | **Pack** | What version of this *directive content* is this? | each pack's `pack.yaml` `version` (the bundled concern packs live under [`packs/`](../../packs), e.g. [`packs/security/pack.yaml`](../../packs/security/pack.yaml)) | the consumer's `.governance/packs.lock` entry, written at `pack add`/`pack update` time |
 
-The axes move **independently**. A pack can ship a patch (a `check.sh` bug fix)
-on a stable kit — the `core` 0.3.1 → 0.3.2 → 0.3.3 sequence did exactly that
-without the kit moving off 0.3. This is the Helm model (`Chart.version` vs
-`appVersion`): don't collapse them.
+The axes move **independently** — and, since the decomposition, each pack moves
+independently of its sibling packs too. A pack can ship a patch (a `check.sh`
+bug fix) on a stable kit and without disturbing any other pack — the historical
+`core` 0.3.1 → 0.3.2 → 0.3.3 sequence did exactly that against the kit, and the
+per-pack axes now give every concern pack the same freedom relative to its
+siblings. This is the Helm model (`Chart.version` vs `appVersion`): don't
+collapse them.
 
 ### The axis contract
 
@@ -73,13 +76,26 @@ The monorepo ships more than one artifact, so tags are **prefixed** (the
 Go-submodule / Lerna convention):
 
 ```
-kit/vX.Y.Z      # a kit (framework) release
-core/vX.Y.Z     # a bundled-pack release
+kit/vX.Y.Z       # a kit (framework) release
+<pack>/vX.Y.Z    # a bundled-pack release — one axis per pack
 ```
 
-The bundled `governance-kit/*` concern packs each carry their own `pack.yaml`
-`version` and step independently (all start at `0.1.0`). Community packs live in
-their own repos and tag plain `vX.Y.Z`.
+Each bundled `governance-kit/*` concern pack carries its own `pack.yaml`
+`version` and tags on its **own axis** — `foundation/vX.Y.Z`, `security/vX.Y.Z`,
+`docs/vX.Y.Z`, `commits/vX.Y.Z`, `process/vX.Y.Z`, `audit/vX.Y.Z`,
+`integrity/vX.Y.Z` — all starting at `0.1.0` and stepping independently. Tag
+**lazily**: a release cuts a tag only for the pack(s) whose subtree actually
+changed since their last tag, so a `security`-only fix ships `security/v0.1.1`
+and touches nothing else — the six unchanged packs keep their existing tags and
+versions. This is the Go-multi-module / Changesets model: per-unit tags, cut on
+demand, never a flat bump across packs that did not change. Community packs live
+in their own repos and tag plain `vX.Y.Z`.
+
+> The retired `core/vX.Y.Z` axis (a single tag for the old catch-all `core`
+> pack) is historical: `core/v0.4.0` and earlier stay as immutable history, but
+> no new `core/*` tags are cut and `release.sh core …` now errors. The
+> [`release.yml`](../../.github/workflows/release.yml) trigger is `'*/v*'`, so
+> it still cuts a Release from any legacy `core/*` tag that is re-pushed.
 
 Consumers then pin a **readable, immutable** ref instead of an opaque SHA:
 
@@ -113,16 +129,19 @@ feature and fix PRs never touch version lines. See [RELEASE_FLOW.md](RELEASE_FLO
 for the full flow.
 
 ```sh
-# Cut a core pack release (content change merged):
-bash scripts/release.sh core 0.4.0
+# Cut a pack release (content change merged) — one invocation per changed pack:
+bash scripts/release.sh security 0.2.0
 
 # Cut a kit release (framework change merged):
-bash scripts/release.sh kit 0.4.0
+bash scripts/release.sh kit 0.6.0
 ```
 
-`release.sh` validates a clean tree on `main` with a green suite, bumps the one
-source of truth, re-derives every stamp, regenerates the `CHANGELOG.md` section
-from the Conventional Commits since the last matching tag, makes the
-`chore(release)` commit, and creates the prefixed annotated tag. Pushing the tag
-triggers [`release.yml`](../../.github/workflows/release.yml), which cuts the
-GitHub Release from the changelog section.
+The axis argument is `kit` or any bundled pack name (validated against
+`packs/<name>/pack.yaml`). `release.sh` validates a clean tree on `main` with a
+green suite, bumps the one source of truth, re-derives every stamp, regenerates
+the `CHANGELOG.md` section from the Conventional Commits since the last matching
+tag — **path-scoped to the axis's own subtree** (`packs/<pack>` for a pack,
+everything outside `packs/` for the kit), so each changelog lists only its own
+commits — makes the `chore(release)` commit, and creates the prefixed annotated
+tag. Pushing the tag triggers [`release.yml`](../../.github/workflows/release.yml),
+which cuts the GitHub Release from the changelog section.

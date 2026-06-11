@@ -4,6 +4,12 @@ name: Release
 # by scripts/release.sh (the only sanctioned version-line writer). The release
 # notes are the matching section lifted verbatim from CHANGELOG.md.
 #
+# The `'*/v*'` pattern matches every release axis — `kit/vX.Y.Z`, each bundled
+# pack's `<pack>/vX.Y.Z` (foundation, security, …), and the legacy `core/vX.Y.Z`
+# — in one rule, so adding a pack needs no edit here. `*` does not cross `/`, so
+# a bare `vX.Y.Z` tag is not matched. release.sh is the only sanctioned tag
+# writer, so a stray `x/vN` push cutting an empty release is not a real risk.
+#
 # This workflow is kit-repo-only — it is NOT a template shipped to target repos,
 # so it carries no `governance-kit:managed` marker. All actions are SHA-pinned
 # per the pinned-dependencies directive, with a least-privilege permissions:
@@ -13,8 +19,7 @@ name: Release
 on:
   push:
     tags:
-      - 'kit/v*'
-      - 'core/v*'
+      - '*/v*'
 
 permissions:
   contents: write
