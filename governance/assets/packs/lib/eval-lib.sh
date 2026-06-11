@@ -136,7 +136,7 @@ agents-md-exists directive. Governance directive tests care about shape and
 length, not about the actual prose of this file.
 
 Every eval copies this baseline and then mutates only what the directive
-under test cares about. Downstream directives (no-broken-internal-doc-links,
+under test cares about. Downstream directives (internal-doc-links,
 agents-md-exists itself) depend on the shape of this document, so extend
 it here rather than in per-directive evals.
 EOF

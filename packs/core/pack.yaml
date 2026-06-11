@@ -44,13 +44,14 @@ presets:
       - secrets-hygiene
       - repo-hygiene
       - workflows-hardened
-      - no-broken-internal-doc-links
+      - internal-doc-links
   standard:
     extends: minimal
     directives:
       - commit-message-format
       - version-consistency
       - doc-freshness
+      - toolchain-config-protection
       - issue-templates
       - issues-tracked
       - receipt-per-issue
@@ -62,3 +63,4 @@ presets:
     extends: standard
     directives:
       - no-orphan-todos
+      - no-unjustified-suppressions

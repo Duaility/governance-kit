@@ -421,6 +421,7 @@ stage_all
 EVAL_LABEL="$EVAL_ID added-missing-decisions" expect_fail "$CHECK"
 
 # pass — a newly added (staged) receipt that includes a `## Decisions` section
+#        and a fenced, re-runnable command in `## Verification`
 rm -f receipts/*.md
 cat > receipts/issue-31-new-with-decisions.md <<'EOF'
 # New receipt with decisions
@@ -439,7 +440,11 @@ None.
 
 ## Verification
 
-ok
+Ran the directive suite:
+
+```sh
+bash .governance/run.sh
+```
 
 ## Decisions
 
@@ -468,7 +473,9 @@ None.
 
 ## Verification
 
-ok
+```sh
+npm test
+```
 
 ## Decisions
 
@@ -476,6 +483,64 @@ None.
 EOF
 stage_all
 EVAL_LABEL="$EVAL_ID added-decisions-none" expect_pass "$CHECK"
+
+# ── Change-set scoping of the `## Verification` fenced-command rule ──
+# A newly added receipt must carry at least one fenced code block in
+# `## Verification`. Same forward-looking scope as `## Decisions`.
+
+# fail — a newly added (staged) receipt whose `## Verification` is prose only
+rm -f receipts/*.md
+cat > receipts/issue-34-prose-verification.md <<'EOF'
+# Prose-only verification
+
+## Checklist
+
+- [x] thing
+
+## What changed
+
+thing happened.
+
+## Out of scope
+
+None.
+
+## Verification
+
+Ran the tests and they passed.
+
+## Decisions
+
+None.
+EOF
+stage_all
+EVAL_LABEL="$EVAL_ID added-prose-verification" expect_fail "$CHECK"
+
+# pass — a pre-existing (committed) receipt with prose-only `## Verification`
+#        is grandfathered by the same change-set scope as the Decisions rule.
+rm -f receipts/*.md
+cat > receipts/issue-35-grandfathered-prose.md <<'EOF'
+# Grandfathered prose verification
+
+## Checklist
+
+- [x] thing
+
+## What changed
+
+thing happened.
+
+## Out of scope
+
+None.
+
+## Verification
+
+Ran the tests and they passed.
+EOF
+stage_all
+commit_quiet "docs: grandfathered prose-only verification"
+EVAL_LABEL="$EVAL_ID grandfathered-prose-verification" expect_pass "$CHECK"
 
 # pass — a pre-existing (committed) receipt without `## Decisions` is
 #        grandfathered: it is on HEAD, not in the change set, so the

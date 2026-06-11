@@ -17,6 +17,11 @@
 #      corpus is never retroactively swept. It records the off-spec
 #      decisions, forced changes, and tradeoffs a reviewer should know about;
 #      a receipt whose work followed the spec exactly writes "None".
+#   5. On receipts ADDED in the current change set, the `## Verification`
+#      section must contain at least one fenced code block (```). "Ran the
+#      tests" is a claim; a command a reviewer can copy and re-run is a
+#      receipt. Same forward-looking scope as rule 4 — pre-existing receipts
+#      are grandfathered.
 #
 # File-level waiver: `governance: allow-receipt-per-issue <reason>` in the
 # first 10 lines of a receipt exempts that receipt from all shape rules.
@@ -193,6 +198,15 @@ for f in "${receipt_files[@]}"; do
     if receipt_in_scope "$f"; then
         if ! grep -qE "^##[[:space:]]+Decisions\b" "$f"; then
             violation "$f — newly added receipt is missing a '## Decisions' section (record off-spec decisions, forced changes, and tradeoffs; write 'None' if the work followed the spec exactly)"
+        fi
+        # Verification must carry at least one runnable command (fenced code
+        # block) on newly added receipts. Only meaningful if the section
+        # exists; its absence is already flagged by the required-sections loop.
+        if grep -qE "^##[[:space:]]+Verification\b" "$f"; then
+            verif_body="$(extract_section "$f" "Verification")"
+            if ! printf '%s\n' "$verif_body" | grep -qE '^[[:space:]]*```'; then
+                violation "$f — newly added receipt's '## Verification' has no fenced code block; include at least one runnable command a reviewer can re-run (e.g. a \`\`\`sh … \`\`\` block), not just prose"
+            fi
         fi
     fi
 

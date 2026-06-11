@@ -339,7 +339,7 @@ Goal: make the install commit pass every installed directive on the first try, w
    | `workflows-hardened` (tag-pinned actions, missing `permissions:`) | SHA-pin every action and add an explicit `permissions:` block; re-stage the workflow file. |
    | `required-docs` (missing `LICENSE`, `SECURITY.md`, etc.) | Stub the missing file with a one-line placeholder the operator will flesh out. If they explicitly opted out of `required-docs`, this won't fire. |
    | `issue-templates` (missing `.github/ISSUE_TEMPLATE/*.md`) | Generate the templates the directive expects; the directive's `install-assets/` carries the canonical shape. |
-   | `no-broken-internal-doc-links` | Fix the broken link; do not waive. |
+   | `internal-doc-links` (`resolve` sub-check) | Fix the broken link; do not waive. The `reachable` sub-check stays off unless the repo opts in via `.governance/reachability.conf`. |
    | `commit-message-format`, `commit-issue-receipt-match`, `receipt-per-issue` | The bootstrap receipt + Step 9's commit subject together satisfy these. |
 
    If a finding can't be inline-fixed (rotating a credential, removing a load-bearing legacy artefact), **pause init and surface it to the operator** — do not paper over it with a broader waiver.

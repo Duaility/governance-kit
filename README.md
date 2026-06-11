@@ -147,8 +147,10 @@ Ships with `governance init`:
 |---|---|
 | `commit-message-format` | Commit messages match `<type>(scope)?: subject (#123)` — Conventional Commits prefix plus a trailing GitHub issue reference. |
 | `doc-freshness` | Opted-in docs carry a `<!-- last-verified: YYYY-MM-DD -->` marker within 90 days. |
-| `no-broken-internal-doc-links` | Markdown links to local paths resolve. |
+| `internal-doc-links` | Internal markdown links resolve; opt-in, every doc stays reachable from a root. |
 | `no-orphan-todos` | Every `TODO` / `FIXME` references an issue. |
+| `no-unjustified-suppressions` | Every lint / type-checker suppression references an issue. |
+| `toolchain-config-protection` | Lint / format / CI / hook config changes need a waiver reason. |
 | `repo-hygiene` | No merge markers, oversized files, build artefacts, debug statements, or overlong source files. |
 | `required-docs` | Baseline root-level docs and hook scaffolding exist. |
 | `secrets-hygiene` | No plaintext secrets in tracked files; `.env` is gitignored and untracked. |
@@ -247,10 +249,12 @@ The kit ships exactly one bundled pack — `governance-kit/core`. Everything bel
 | `secrets-hygiene` | No high-confidence secret patterns (AWS keys, GitHub tokens, Stripe live keys, etc.) committed to the tree. | minimal |
 | `repo-hygiene` | `.gitignore` exists; tracked files stay under the size limit. | minimal |
 | `workflows-hardened` | `.github/workflows/*.yml` declare `permissions:`, pin actions, and avoid `pull_request_target` foot-guns. | minimal |
-| `no-broken-internal-doc-links` | Internal markdown links resolve. | minimal |
+| `internal-doc-links` | Internal markdown links resolve (`resolve`); opt-in, every doc is reachable from a root (`reachable`). | minimal |
 | `commit-message-format` | Conventional Commits with an issue suffix (`<type>(scope)?: <subject> (#N)`). | standard |
 | `doc-freshness` | Docs in `.governance/freshness.conf` carry an in-window `<!-- last-verified: YYYY-MM-DD -->` marker. | standard |
+| `toolchain-config-protection` | A commit changing lint / format / type-check / CI / hook config carries a `governance: allow-toolchain-config <reason>` body line. | standard |
 | `no-orphan-todos` | Every `TODO`/`FIXME` references an issue. | strict |
+| `no-unjustified-suppressions` | Every lint / type-checker suppression (`@ts-ignore`, `# noqa`, …) references an issue. | strict |
 
 ### The agent audit chain
 

@@ -11,9 +11,9 @@ Everything below ships in the kit's one bundled pack, `governance-kit/core`. Com
 
 | Preset | Directives |
 |---|---|
-| `minimal` | `required-docs`, `secrets-hygiene`, `repo-hygiene`, `workflows-hardened`, `no-broken-internal-doc-links` |
-| `standard` | *minimal* + `commit-message-format`, `version-consistency`, `doc-freshness`, `issue-templates`, `issues-tracked`, `receipt-per-issue`, `commit-issue-receipt-match`, `doc-integrity`, `agent-token-accounting`, `agent-steering-accounting` |
-| `strict` | *standard* + `no-orphan-todos` |
+| `minimal` | `required-docs`, `secrets-hygiene`, `repo-hygiene`, `workflows-hardened`, `internal-doc-links` |
+| `standard` | *minimal* + `commit-message-format`, `version-consistency`, `doc-freshness`, `toolchain-config-protection`, `issue-templates`, `issues-tracked`, `receipt-per-issue`, `commit-issue-receipt-match`, `doc-integrity`, `agent-token-accounting`, `agent-steering-accounting` |
+| `strict` | *standard* + `no-orphan-todos`, `no-unjustified-suppressions` |
 
 <Note>
 `doc-integrity` and `agent-steering-accounting` are `always_install: true` — included in every install regardless of preset.
@@ -37,8 +37,8 @@ Everything below ships in the kit's one bundled pack, `governance-kit/core`. Com
 
 ## System of record
 
-### no-broken-internal-doc-links
-`minimal` · Every relative-path markdown link in tracked docs resolves to an existing file.
+### internal-doc-links
+`minimal` · Rolled-up health of the internal markdown link graph. **`resolve`** (always on): every relative-path link target in a tracked `.md` resolves to a real file. **`reachable`** (opt-in via `.governance/reachability.conf`): every tracked doc is reachable by following internal links from a declared root — a no-op until you write the config. `resolve` proves your links point somewhere real; `reachable` proves your docs are on the map.
 
 ### doc-freshness
 `standard` · Docs opted into `.governance/freshness.conf` carry a `<!-- last-verified: YYYY-MM-DD -->` marker dated within the last 90 days. A periodic "someone re-read this" checkpoint for runbooks and onboarding docs.
@@ -53,6 +53,9 @@ Everything below ships in the kit's one bundled pack, `governance-kit/core`. Com
 
 ### no-orphan-todos
 `strict` · Every `TODO` / `FIXME` in tracked source references an issue (`#123` or `ABC-123`). A TODO with no owner is a wish, not a plan.
+
+### no-unjustified-suppressions
+`strict` · Every lint / type-checker suppression — `eslint-disable*`, `@ts-ignore`, `@ts-expect-error`, `# noqa`, `# type: ignore`, `#[allow(...)]`, `@SuppressWarnings`, … — references an issue on the same line. The checker-silencing sibling of `no-orphan-todos`: muting a check is invisible in a green build unless the suppression names the ticket that owns un-muting it.
 
 ## Quality
 
@@ -70,7 +73,10 @@ See [The audit chain & ledgers](/concepts/audit-chain) for how these compose.
 `standard` · `QUALITY.md` exists at the repo root with `## Open` and `## Resolved` sections — the lightweight quality board the receipts and commits anchor to.
 
 ### receipt-per-issue
-`standard` · Every `receipts/*.md` carries a unique `issue-<N>` filename token and the four required sections, and every checked checklist item crosswalks into `## What changed` or `## Verification`.
+`standard` · Every `receipts/*.md` carries a unique `issue-<N>` filename token and the four required sections, and every checked checklist item crosswalks into `## What changed` or `## Verification`. Receipts **added in the change set** must also carry a `## Decisions` section and at least one fenced, re-runnable command in `## Verification`; pre-existing receipts are grandfathered.
+
+### toolchain-config-protection
+`standard` · A commit that touches linter / formatter / type-checker / CI / git-hook config must carry a `governance: allow-toolchain-config <reason>` body line. Stops the "edit the rule, not the code" move (loosen eslint, relax a ruff `select`, weaken a workflow's `permissions`) from passing silently in a green build. Protected paths default to a multi-ecosystem list, overridable via `.governance/protected-config.conf`.
 
 ### commit-issue-receipt-match
 `standard` · Every non-merge commit's issue anchor matches an `issue-<N>` token on a receipt the commit touches — the link that makes "which issue was this for?" mechanical.
