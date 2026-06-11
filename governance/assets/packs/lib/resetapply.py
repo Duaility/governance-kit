@@ -10,15 +10,18 @@ each in-scope directive to its **pinned** pristine source in one call:
 
   * `restore` — replace the directive folder from the pinned cache via install.sh
     `copy_tree_without_evals`, and replace/insert its CONSTITUTION.md subsection
-    via docsurgery from the pinned `constitution.md`.
+    via docsurgery from the pinned `constitution.md`. The folder includes the
+    shipped `config.conf` template, so restore refreshes that; the user-owned
+    `.governance/conf/<id>.conf` is never touched.
   * `drop` (only under `--all --drop-handauthored`) — delete the directive folder
-    and strip its CONSTITUTION.md subsection.
+    and its user conf, and strip its CONSTITUTION.md subsection.
   * `skip` — byte-identical to pinned; nothing to do.
 
 Then it regenerates the hook dispatcher, appends one Evolution Log entry per
 pack, and smoke-tests (never aborting on failure). `--dry-run` writes nothing.
-Leaves `.governance/freshness.conf` untouched (it holds opt-in doc paths, not
-per-directive state). The operator keeps the diff-before-exec `yes` and commit.
+Leaves `.governance/conf/` untouched (user-owned per-directive configuration,
+not per-directive pinned state). The operator keeps the diff-before-exec `yes`
+and commit.
 Prints a JSON report; exit 0 applied/no-op/dry-run, 2 refused, 1 error.
 """
 
@@ -103,6 +106,7 @@ def cmd_reset_apply(args: argparse.Namespace) -> int:
                 report["constitution_changed"].append(f"{d['id']}:{action}")
         elif d["kind"] == "drop":
             shutil.rmtree(root / d["dest"], ignore_errors=True)
+            (root / ".governance" / "conf" / f"{d['id']}.conf").unlink(missing_ok=True)
             report["dropped"].append(d["id"])
             if const_text:
                 const_text, removed = strip_directive_subsection(const_text, d["id"])

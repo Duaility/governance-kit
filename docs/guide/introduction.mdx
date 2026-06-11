@@ -55,12 +55,12 @@ The `constitution.md` carries the *why*:
 ```markdown
 ### doc-freshness
 
-- **Directive**: Docs opted into `.governance/freshness.conf` carry a
+- **Directive**: Docs opted into `.governance/conf/doc-freshness.conf` carry a
   `<!-- last-verified: YYYY-MM-DD -->` marker dated within the last 90 days.
 - **Rationale**: Critical runbooks and onboarding docs decay. A periodic
   "someone re-read this" checkpoint keeps them honest.
 - **Enforced by**: .governance/packs/governance-kit/core/directives/doc-freshness/check.sh
-- **Exceptions**: Remove a doc from freshness.conf to opt it out.
+- **Exceptions**: Remove a doc from `.governance/conf/doc-freshness.conf` to opt it out.
 ```
 
 A bare hook would only check the date format. The rationale tells the next agent — and the next human — what the date is *for*.

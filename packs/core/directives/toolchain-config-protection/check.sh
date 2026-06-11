@@ -14,13 +14,14 @@
 # from edits, and the harness-tampering sibling of `secrets-hygiene` /
 # `doc-integrity` (same waiver shape, same commit-msg + CI plumbing).
 #
-# Protected paths come from `.governance/protected-config.conf` when present
-# (one pattern per line; a trailing `/` means directory prefix, a pattern with
-# a `/` is matched against the full path, otherwise it matches the basename;
-# `#` comments and blank lines ignored). When that file is absent a built-in
-# multi-ecosystem default list applies — irrelevant patterns simply never match,
-# so a Python-only repo pays nothing for the JavaScript entries. The default
-# list deliberately omits `.governance/**`: governance's own managed files are
+# Protected paths come from the sibling `defaults.conf` (a built-in
+# multi-ecosystem default list), layered with the user overlay
+# `.governance/conf/toolchain-config-protection.conf` — a bare line adds a
+# pattern, `!<pattern>` removes a default. Match rules: a trailing `/` means
+# directory prefix, a pattern with a `/` is matched against the full path,
+# otherwise it matches the basename. Irrelevant patterns simply never match, so
+# a Python-only repo pays nothing for the JavaScript entries. The default list
+# deliberately omits `.governance/**`: governance's own managed files are
 # already guarded by `version-consistency` (markers) and `doc-integrity`
 # (ledgers), and routine `governance` verbs write there constantly.
 #
@@ -47,33 +48,16 @@ ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT" || exit 1
 
 # ── Protected-path patterns ───────────────────────────────────
+# The multi-ecosystem default pattern list ships in the sibling `defaults.conf`
+# (pack-owned, refreshed on update). The effective list layers the user overlay
+# `.governance/conf/toolchain-config-protection.conf` on top: a bare line adds a
+# pattern, `!<pattern>` removes a default. If the user removes every pattern the
+# directive protects nothing — their explicit choice.
 PATTERNS=()
-CONF="$ROOT/.governance/protected-config.conf"
-if [[ -f "$CONF" ]]; then
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        line="${line%%#*}"                       # strip trailing comment
-        line="${line#"${line%%[![:space:]]*}"}"  # ltrim
-        line="${line%"${line##*[![:space:]]}"}"  # rtrim
-        [[ -z "$line" ]] && continue
-        PATTERNS+=("$line")
-    done < "$CONF"
-else
-    PATTERNS=(
-        ".github/workflows/"
-        ".githooks/"
-        ".eslintrc" ".eslintrc.*" "eslint.config.*"
-        "biome.json" "biome.jsonc"
-        ".prettierrc" ".prettierrc.*" "prettier.config.*"
-        "tsconfig.json" "tsconfig.*.json"
-        "ruff.toml" ".ruff.toml" "pyproject.toml" "setup.cfg" ".flake8" "tox.ini"
-        ".golangci.yml" ".golangci.yaml"
-        "clippy.toml" ".clippy.toml" "rustfmt.toml" ".rustfmt.toml"
-        ".pre-commit-config.yaml"
-        "lefthook.yml" "lefthook.yaml"
-        ".editorconfig"
-        "Makefile"
-    )
-fi
+while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    PATTERNS+=("$line")
+done < <(conf_list toolchain-config-protection "$(dirname "$0")/defaults.conf")
 
 # is_protected <path> — true if the path matches any protected pattern.
 is_protected() {

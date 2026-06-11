@@ -6,8 +6,9 @@ Companion to initplan.py (the pure plan + CONSTITUTION assembly) and packverb.py
 pack/preset/directive selection, principle inference, hook-collision choices, the
 Step-8 finding-resolution loop, and the commit. `init-apply` consumes the
 operator's serialized `--decisions` and does the mechanical assembly in one
-tested call: install each directive folder + its install-assets, seed
-freshness/integrity configs, assemble and write CONSTITUTION.md, create the
+tested call: install each directive folder + its install-assets, seed each
+directive's user config from its shipped `config.conf`, assemble and write
+CONSTITUTION.md, create the
 AGENTS.md stub when asked, lay down + stamp the runtime (run.sh/lib.sh), generate
 the hook dispatchers (and, for githooks, `core.hooksPath` + enable-governance.sh),
 stamp the CI workflow, write the install.yaml receipt + packs.lock pin, and
@@ -43,24 +44,29 @@ def _copy_stamp(src: Path, dest: Path) -> None:
     bash_lib('stamp_managed_marker "$1" "$2"', str(dest), KIT_VERSION)
 
 
-def _install_directives(root: Path, packs: list[dict[str, Any]], report: dict[str, Any]) -> tuple[list[str], list[str]]:
+def _install_directives(root: Path, packs: list[dict[str, Any]], report: dict[str, Any]) -> tuple[list[str], list[str], list[str]]:
     seeded: list[str] = []
+    conf_seeded: list[str] = []
     all_dids: list[str] = []
     for pack in packs:
         pack_dir = pack["pack_dir"]
         for did in sorted(pack.get("directives") or []):
             all_dids.append(did)
             res = bash_lib(
-                'install_directive_folder "$1" "$2" "$3"; install_directive_assets "$1" "$2" "$3"',
+                'install_directive_folder "$1" "$2" "$3"; '
+                'install_directive_assets "$1" "$2" "$3"; '
+                'seed_directive_conf "$1" "$2" "$3"',
                 pack_dir, did, str(root))
             if res.returncode != 0:
                 raise RuntimeError(f"install of {pack['id']}/{did} failed: {res.stderr.strip()}")
             report["directives_installed"].append(f"{pack['id']}/{did}")
+            # seed_directive_conf prints the repo-relative path it seeded (if any).
+            conf_seeded.extend(line for line in res.stdout.splitlines() if line.strip())
             assets = Path(pack_dir) / "directives" / did / "install-assets"
             if assets.is_dir():
                 seeded.extend("/".join(p.relative_to(assets).parts)
                               for p in sorted(assets.rglob("*")) if p.is_file())
-    return all_dids, sorted(set(seeded))
+    return all_dids, sorted(set(seeded)), sorted(set(conf_seeded))
 
 
 def _write_manifest(root: Path, decisions: dict[str, Any], seeded: list[str], report: dict[str, Any]) -> None:
@@ -111,6 +117,7 @@ def _write_lock(root: Path, packs: list[dict[str, Any]]) -> None:
 def cmd_init_apply(args: argparse.Namespace) -> int:
     report: dict[str, Any] = {
         "result": None, "directives_installed": [], "seeded_assets": [],
+        "conf_seeded": [],
         "constitution": "unchanged", "agents_md": "untouched",
         "hook_dispatcher": "unchanged", "manifest": "unchanged",
         "smoke_test": None, "assumptions": [],
@@ -137,21 +144,27 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
 
     if args.dry_run:
         from initplan import directive_inventory
+        would_seed_conf = []
+        for pack in packs:
+            for did in sorted(pack.get("directives") or []):
+                tpl = Path(pack["pack_dir"]) / "directives" / did / "config.conf"
+                dest = root / ".governance" / "conf" / f"{did}.conf"
+                if tpl.is_file() and not dest.exists():
+                    would_seed_conf.append(f".governance/conf/{did}.conf")
         report.update(result="dry-run",
                       directives_installed=[d["dest"] for d in directive_inventory(packs)],
+                      conf_seeded=sorted(set(would_seed_conf)),
                       constitution="would-write", hook_dispatcher="would-generate", manifest="would-write")
         print(json.dumps(report, indent=2))
         return 0
 
     try:
-        all_dids, seeded = _install_directives(root, packs, report)
+        all_dids, seeded, conf_seeded = _install_directives(root, packs, report)
         report["seeded_assets"] = seeded
-
-        # Seed freshness/integrity configs for the directives that use them.
-        if "doc-freshness" in all_dids:
-            shutil.copy2(KIT_ASSETS / "freshness.conf", root / ".governance" / "freshness.conf")
-        if "doc-integrity" in all_dids:
-            shutil.copy2(KIT_ASSETS / "integrity.conf", root / ".governance" / "integrity.conf")
+        # Per-directive user config is seeded from each directive's shipped
+        # `config.conf` into `.governance/conf/<id>.conf` (augment-only) by
+        # seed_directive_conf, inside _install_directives.
+        report["conf_seeded"] = conf_seeded
 
         # CONSTITUTION.md: template + principles + spliced subsections.
         subsections = []

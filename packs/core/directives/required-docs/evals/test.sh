@@ -13,6 +13,13 @@ install_directive "$PACK_DIR" "$EVAL_ID"
 # pass — baseline fixture ships all required docs + githooks scaffolding
 EVAL_LABEL="$EVAL_ID" expect_pass "$CHECK"
 
+# fail — AGENTS_MD_MIN from the user conf forces the (otherwise valid) baseline
+# AGENTS.md to read as a stub (proves conf_get reads the conf, not just env)
+mkdir -p .governance/conf
+printf 'AGENTS_MD_MIN=100000\n' > .governance/conf/required-docs.conf
+EVAL_LABEL="$EVAL_ID agents-min from conf" expect_fail "$CHECK"
+rm -f .governance/conf/required-docs.conf
+
 # fail — missing CONSTITUTION.md
 rm CONSTITUTION.md
 EVAL_LABEL="$EVAL_ID missing constitution" expect_fail "$CHECK"

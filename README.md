@@ -112,13 +112,13 @@ The `constitution.md` carries the *why*:
 ```markdown
 ### doc-freshness
 
-- **Directive**: Docs opted into `.governance/freshness.conf` carry a
+- **Directive**: Docs opted into `.governance/conf/doc-freshness.conf` carry a
   `<!-- last-verified: YYYY-MM-DD -->` marker dated within the last 90 days.
 - **Rationale**: Critical runbooks and onboarding docs decay. A periodic
   "someone re-read this" checkpoint keeps them honest — if the deadline
   passes, either bump the date or fix the doc.
 - **Enforced by**: `.governance/packs/governance-kit/core/directives/doc-freshness/check.sh`
-- **Exceptions**: Remove a doc from `freshness.conf` to opt it out.
+- **Exceptions**: Remove a doc from `.governance/conf/doc-freshness.conf` to opt it out.
 ```
 
 A bare hook checks the date format. The rationale tells the next agent — and the next human — what the date is *for*.
@@ -251,7 +251,7 @@ The kit ships exactly one bundled pack — `governance-kit/core`. Everything bel
 | `workflows-hardened` | `.github/workflows/*.yml` declare `permissions:`, pin actions, and avoid `pull_request_target` foot-guns. | minimal |
 | `internal-doc-links` | Internal markdown links resolve (`resolve`); opt-in, every doc is reachable from a root (`reachable`). | minimal |
 | `commit-message-format` | Conventional Commits with an issue suffix (`<type>(scope)?: <subject> (#N)`). | standard |
-| `doc-freshness` | Docs in `.governance/freshness.conf` carry an in-window `<!-- last-verified: YYYY-MM-DD -->` marker. | standard |
+| `doc-freshness` | Docs in `.governance/conf/doc-freshness.conf` carry an in-window `<!-- last-verified: YYYY-MM-DD -->` marker. | standard |
 | `toolchain-config-protection` | A commit changing lint / format / type-check / CI / hook config carries a `governance: allow-toolchain-config <reason>` body line. | standard |
 | `no-orphan-todos` | Every `TODO`/`FIXME` references an issue. | strict |
 | `no-unjustified-suppressions` | Every lint / type-checker suppression (`@ts-ignore`, `# noqa`, …) references an issue. | strict |
@@ -266,7 +266,7 @@ The chain — **issue → receipt → commit → cost** — turned into mechanic
 | `issues-tracked` | `QUALITY.md` exists at repo root with `## Open` and `## Resolved` sections. | standard |
 | `receipt-per-issue` | Every `receipts/*.md` has a unique `issue-<N>` filename token, the four required sections, and each `- [x]` checklist item crosswalks into `## What changed` or `## Verification`. | standard |
 | `commit-issue-receipt-match` | Every non-merge commit's issue anchor (`(#N)` or `Issue: #N`) matches an `issue-<N>` token on a touched receipt. | standard |
-| `doc-integrity` | **`always_install: true` — mandatory in every install.** Makes system-of-record documents append-only (config: `.governance/integrity.conf`, seeded with all rules enabled): receipts immutable once on the trunk, `COSTS.md`/`STEERING.md` ledgers append-only, and frozen sections (`QUALITY.md` Resolved, the Evolution Log) keep their baseline lines verbatim. Branch-authored content stays editable until it merges. | standard |
+| `doc-integrity` | **`always_install: true` — mandatory in every install.** Makes system-of-record documents append-only (standard rules ship in the directive's `defaults.conf`, layered with the `.governance/conf/doc-integrity.conf` overlay): receipts immutable once on the trunk, `COSTS.md`/`STEERING.md` ledgers append-only, and frozen sections (`QUALITY.md` Resolved, the Evolution Log) keep their baseline lines verbatim. Branch-authored content stays editable until it merges. | standard |
 | `agent-token-accounting` | Every commit carries token + cost trailers and a matching `COSTS.md` row keyed by `Cost-Key`. | standard |
 | `agent-steering-accounting` | Every commit stamps `Steer-Count` / `Steer-Types` / `Steer-Tiers` and appends rows to append-only `STEERING.md`. **`always_install: true` — mandatory in every install.** Records human correction text verbatim — redact via the directive's classifier hook rather than skipping it. | standard |
 

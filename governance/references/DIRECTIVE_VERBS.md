@@ -31,6 +31,7 @@ A commit that touches the directive folder without the matching constitution edi
   - [`../assets/amend/directive.template.sh`](../assets/amend/directive.template.sh) — `check.sh` skeleton.
   - [`../assets/amend/directive-section.template.md`](../assets/amend/directive-section.template.md) — constitution subsection skeleton.
   - [DIRECTIVE_AUTHORING.md](DIRECTIVE_AUTHORING.md) — naming conventions, check patterns, smoke-test guidance.
+- **Config:** if the drafted directive needs tuning, ship a `config.conf` (overlay template) and, for a list-valued check, a `defaults.conf` in the directive folder, and seed `.governance/conf/<directive-id>.conf` from `config.conf` unless it already exists. Read both via the `lib.sh` helpers (`conf_get`, `conf_list`).
 - **Preconditions:** governance-kit must already be installed (`CONSTITUTION.md` present with `Directives` + `Evolution Log` headings, `.governance/install.yaml` present with `owner:` and `repo:` set, `.governance/packs.lock` present). If the kit is missing, stop and route to `governance init`.
 - **Smoke test before commit:** the drafted `check.sh` must pass against the current tree. If it fails on pre-existing violators, ask the single blocking question — **loosen** (which threshold), **grandfather** (add waivers to specific violators), or **block** (commit as-is, user fixes tree separately) — then act. Never ship a directive that red-lights HEAD.
 
@@ -45,7 +46,7 @@ A commit that touches the directive folder without the matching constitution edi
 - **Aliases a user might type:** "remove directive X", "retire directive X", "drop the directive about X".
 - **Authoritative flow:** [DIRECTIVE_AMEND_FLOW.md](DIRECTIVE_AMEND_FLOW.md) — the removal branch at the end of Step 5.
 - **Mechanics:**
-  1. Resolve the owning pack (from `--pack`, the default `<owner>/<repo>`, or by scanning `.governance/packs/*/*/directives/<directive-id>/`) and delete `.governance/packs/<pack-owner>/<pack-name>/directives/<directive-id>/`.
+  1. Resolve the owning pack (from `--pack`, the default `<owner>/<repo>`, or by scanning `.governance/packs/*/*/directives/<directive-id>/`) and delete `.governance/packs/<pack-owner>/<pack-name>/directives/<directive-id>/`, plus the directive's `.governance/conf/<directive-id>.conf` overlay if present.
   2. If that was the pack's last directive AND the pack is repo-local (`source: local` in the lockfile), also remove the pack's `pack.yaml` and the now-empty `<owner>/<name>/` directory, plus its lockfile entry via `packverb lock-remove .governance/packs.lock <pack-id>`.
   3. Remove the directive's **Directives** subsection from `CONSTITUTION.md`.
   4. Append an **Evolution Log** entry recording the removal date and reason.

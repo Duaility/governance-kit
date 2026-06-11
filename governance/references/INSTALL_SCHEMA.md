@@ -26,6 +26,10 @@ enable_governance_script: scripts/enable-governance.sh  # Path A only; omitted u
 install_assets_seeded:           # files seeded by directives' install-assets/
   - QUALITY.md
   - COSTS.md
+# NOTE: per-directive config overlays seeded from a directive's config.conf are
+# NOT listed here. They live at the deterministic path .governance/conf/<id>.conf
+# inside the .governance/ tree (which both uninstall modes delete wholesale), so
+# the path itself is the ledger; the apply engines report them under conf_seeded.
 collisions: []                   # empty list when Step 6 resolved nothing
 # path_b: block below only present when hook_strategy != githooks
 ```

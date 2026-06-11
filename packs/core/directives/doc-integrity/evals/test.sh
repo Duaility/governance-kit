@@ -10,9 +10,11 @@ CHECK=".governance/packs/governance-kit/core/directives/$EVAL_ID/check.sh"
 fixture_init
 install_directive "$PACK_DIR" "$EVAL_ID"
 
-# Opt three documents in, one per mode.
-cat > .governance/integrity.conf <<'EOF'
-frozen-files    receipts/*.md
+# Opt two documents in via the overlay (one per remaining mode). receipts/*.md
+# is already frozen by the pack-owned defaults.conf — exercising that the
+# defaults are live without being restated here.
+mkdir -p .governance/conf
+cat > .governance/conf/doc-integrity.conf <<'EOF'
 append-only     LEDGER.md
 frozen-section  NOTES.md   Resolved
 EOF
@@ -181,6 +183,28 @@ git commit --quiet --no-verify -am "chore: migrate ledger (#7)
 
 governance: allow-doc-integrity LEDGER.md one-time migration"
 EVAL_LABEL="$EVAL_ID modeB-waiver" expect_pass "$CHECK"
+reset_clean
+
+# ══════════════════════════════════════════════════════════════
+# Overlay layering — a default rule can be dropped with `!` negation
+# ══════════════════════════════════════════════════════════════
+# COSTS.md is append-only by the pack-owned defaults. Seed it on main.
+git checkout --quiet main
+printf '# Costs\n\nbaseline line\n' > COSTS.md
+git add COSTS.md
+git commit --quiet --no-verify -m "chore: seed COSTS (#7)"
+
+# fail — editing the baseline line trips the *default* append-only COSTS.md rule
+git checkout --quiet -b touch-costs
+sed -i.bak 's/baseline line/rewritten line/' COSTS.md && rm -f COSTS.md.bak
+git commit --quiet --no-verify -am "chore: rewrite COSTS (#7)"
+EVAL_LABEL="$EVAL_ID modeB-default-rule-active" expect_fail "$CHECK"
+
+# pass — the overlay drops that default with `!append-only COSTS.md`
+printf '!append-only COSTS.md\n' >> .governance/conf/doc-integrity.conf
+EVAL_LABEL="$EVAL_ID modeB-overlay-removes-default" expect_pass "$CHECK"
+# restore the overlay for hygiene
+sed -i.bak '/!append-only COSTS.md/d' .governance/conf/doc-integrity.conf && rm -f .governance/conf/doc-integrity.conf.bak
 reset_clean
 
 eval_done

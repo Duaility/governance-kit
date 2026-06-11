@@ -148,6 +148,11 @@ EOF
     # Note: not chmod +x'd here — install_directive_folder must mark it executable.
 
     echo "asset-content" > "$pack_dir/directives/$directive_id/install-assets/seeded/seeded-file.md"
+
+    cat > "$pack_dir/directives/$directive_id/config.conf" <<'EOF'
+# fixture overlay template
+KEY=value
+EOF
 }
 
 # ---- copy_tree_without_evals ----------------------------------------------
@@ -164,6 +169,7 @@ copy_tree_without_evals "$src" "$dest"
 assert_file_exists "copies check.sh"        "$dest/check.sh"
 assert_file_exists "copies directive.yaml"  "$dest/directive.yaml"
 assert_file_exists "copies constitution.md" "$dest/constitution.md"
+assert_file_exists "copies config.conf"     "$dest/config.conf"
 assert_file_exists "copies hooks/pre-commit.sh" "$dest/hooks/pre-commit.sh"
 assert_file_absent "excludes evals/"        "$dest/evals"
 assert_file_absent "excludes install-assets/" "$dest/install-assets"
@@ -230,6 +236,33 @@ install_directive_assets "$WORK/empty-pack" "quiet" "$target3" || {
 }
 PASS=$((PASS + 1))
 printf '  ok - install_directive_assets is a silent no-op when install-assets/ is absent\n'
+
+# ---- seed_directive_conf (augment-only overlay seeding) -------------------
+
+printf '── seed_directive_conf ─────────────────────────────────\n'
+target_conf="$WORK/target-conf"
+mkdir -p "$target_conf"
+
+# First install seeds .governance/conf/<id>.conf from config.conf and echoes
+# the seeded relative path.
+seeded_path="$(seed_directive_conf "$WORK/fixture-pack" "demo" "$target_conf")"
+assert_file_exists "seeds .governance/conf/<id>.conf" "$target_conf/.governance/conf/demo.conf"
+assert_eq "echoes the seeded relative path" ".governance/conf/demo.conf" "$seeded_path"
+
+# Second call is augment-only: a user-edited conf is preserved and nothing is
+# echoed (no seed happened).
+echo "USER=tweak" > "$target_conf/.governance/conf/demo.conf"
+seeded_again="$(seed_directive_conf "$WORK/fixture-pack" "demo" "$target_conf")"
+assert_eq "skips existing conf (no re-seed)" "" "$seeded_again"
+assert_eq "preserves user-edited conf" "USER=tweak" "$(cat "$target_conf/.governance/conf/demo.conf")"
+
+# A directive that ships no config.conf is a silent no-op.
+rm -f "$WORK/fixture-pack/directives/demo/config.conf"
+target_conf2="$WORK/target-conf2"
+mkdir -p "$target_conf2"
+noconf_out="$(seed_directive_conf "$WORK/fixture-pack" "demo" "$target_conf2")"
+assert_eq "no config.conf → no echo" "" "$noconf_out"
+assert_file_absent "no config.conf → no conf seeded" "$target_conf2/.governance/conf/demo.conf"
 
 # ---- directive_supports_hook_strategy -------------------------------------
 

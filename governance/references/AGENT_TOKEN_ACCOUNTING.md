@@ -51,8 +51,9 @@ Cost-USD: 2.7932
   `git log` without having to join against `COSTS.md`, and it survives
   squash merges alongside `Cost-Key`. A truly-unpriced model (no entry in
   `RATES` and no family-prefix match) blocks the commit at the pre-commit
-  hook — the operator either adds a pricing row to `lib/rates.py` or uses
-  `SKIP_GOVERNANCE=1` for a genuine hot-fix.
+  hook — the operator adds a `rate <model> ...` row to
+  `.governance/conf/agent-token-accounting.conf` (the user-owned override that
+  survives `pack update`) or uses `SKIP_GOVERNANCE=1` for a genuine hot-fix.
 
 ## Ledger schema
 
@@ -87,9 +88,11 @@ without re-deriving rates after the fact:
   lands between directive updates (e.g. `gpt-5.5`), longest-prefix lookup
   picks the family row so `cost-usd` stays populated. When even the
   family key misses, the pre-commit hook prints a red `✗ model 'X'
-  is not priced` error to stderr and blocks the commit — either add
-  a pricing row to `lib/rates.py` or use `SKIP_GOVERNANCE=1` to get
-  past a one-off.
+  is not priced` error to stderr and blocks the commit — either add a
+  `rate <model> <base_input> <cache_create> <cache_read> <output>` row to
+  `.governance/conf/agent-token-accounting.conf` (overrides merge over the
+  built-in `RATES`; a malformed row also blocks the commit) or use
+  `SKIP_GOVERNANCE=1` to get past a one-off.
 
 Why both `new-work` and `cost-usd`:
 

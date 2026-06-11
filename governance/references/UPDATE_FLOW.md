@@ -241,14 +241,17 @@ pairs are:
 | `assets/dot-governance/lib.sh` | `<tests_dir>/lib.sh` | `governance-kit:managed kit-version=<v>` in first 3 lines |
 | `assets/enable-governance.sh` | `<enable_governance_script>` (Path A only — field absent under Path B) | `governance-kit:managed kit-version=<v>` in first 3 lines |
 | `assets/governance.yml` | `<ci_workflow>` | `governance-kit:managed kit-version=<v>` in first 3 lines |
-| `assets/freshness.conf` | `<tests_dir>/freshness.conf` (only if the file already exists — `kit update` does not seed it) | None — user-tunable config; skip on diff |
-| `assets/integrity.conf` | `<tests_dir>/integrity.conf` (only if the file already exists — `kit update` does not seed it) | None — user-tunable config; skip on diff |
 
 The hook dispatchers are kit-owned too, but `kit-plan` does not list them as
 file pairs — they are regenerated wholesale in Step 5 (`generate_hooks_for_strategy`)
 rather than copied from a static asset, so the plan reports `hook_strategy`
-instead. The two `*.conf` files above are likewise outside `files[]` (no
-marker, seed-only).
+instead.
+
+Per-directive configuration is **not** kit-owned and never appears here: a
+directive's pack-owned `defaults.conf` is refreshed by `governance pack update`
+(it lives in the directive folder), and the user-owned overlay
+`.governance/conf/<id>.conf` is touched by no lifecycle verb after it is seeded.
+`kit update` leaves both alone.
 
 **Marker shape.** The ownership marker is a `# governance-kit:managed`
 comment within the file's leading comment block: line 2 for shebang

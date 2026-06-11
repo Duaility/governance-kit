@@ -67,4 +67,19 @@ GOVERNANCE_FILE_SIZE_LIMIT=5 EVAL_LABEL="$EVAL_ID file-size-limit waiver" expect
 git rm --quiet big.ts
 git commit --quiet --no-verify -m "chore: drop big.ts"
 
+# fail — FILE_SIZE_LIMIT comes from the user conf (no env var this time)
+mkdir -p .governance/conf
+printf 'FILE_SIZE_LIMIT=5\n' > .governance/conf/repo-hygiene.conf
+{
+    for i in $(seq 1 12); do
+        printf 'export const m%d = %d;\n' "$i" "$i"
+    done
+} > big2.ts
+git add big2.ts
+git commit --quiet --no-verify -m "chore: oversized ts via conf"
+EVAL_LABEL="$EVAL_ID file-size-limit from conf" expect_fail "$CHECK"
+git rm --quiet big2.ts
+git commit --quiet --no-verify -m "chore: drop big2.ts"
+rm -f .governance/conf/repo-hygiene.conf
+
 eval_done

@@ -70,8 +70,12 @@ Bad fit:
 
 ### Metric checks (`*-limit`)
 
-- Expose the limit as an env var override (`GOVERNANCE_<DIRECTIVE>_LIMIT`). Projects need to tune without forking the script.
+- Expose the limit through the per-directive config: read it with `conf_get <id> <KEY> <default>`, which resolves env `GOVERNANCE_<KEY>` first, then a `KEY=value` line in the user overlay `.governance/conf/<id>.conf`, then the default. Ship a commented `KEY=` example in the directive's `config.conf`. Projects need to tune without forking the script.
 - Report the actual value vs. the limit in the violation message. "file X has 612 lines (limit: 500)" is actionable; "file X is too large" isn't.
+
+### Configurable list checks
+
+- When a directive enforces a **list** (allowed types, protected paths, integrity rules), ship the defaults in a pack-owned `defaults.conf` and read the effective list with `conf_list <id> "$(dirname "$0")/defaults.conf"`. The user overlay `.governance/conf/<id>.conf` layers on top: a bare line adds, `!<item>` removes a default, so consumers keep receiving improved defaults on `pack update` while still being able to add or drop items. See [PACK_AUTHORING.md](PACK_AUTHORING.md) for the file layout.
 
 ### Structural checks (`*-hardened`, `*-current`)
 

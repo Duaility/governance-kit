@@ -31,5 +31,22 @@ EVAL_LABEL="$EVAL_ID waiver" expect_pass "$CHECK" "$msg"
 printf 'bogus: change the thing\n\ngovernance: allow-commit-message-format\n' > "$msg"
 EVAL_LABEL="$EVAL_ID waiver-without-reason" expect_fail "$CHECK" "$msg"
 
+# ── overlay layering on the pack-owned default type list ──
+mkdir -p .governance/conf
+
+# pass — overlay adds a custom type (`wip`)
+printf 'wip\n' > .governance/conf/commit-message-format.conf
+printf 'wip: scratch work (#7)\n' > "$msg"
+EVAL_LABEL="$EVAL_ID overlay-adds-type" expect_pass "$CHECK" "$msg"
+
+# fail — overlay drops a default type (`style`) with `!`, so it is rejected
+printf '!style\n' > .governance/conf/commit-message-format.conf
+printf 'style: reformat (#8)\n' > "$msg"
+EVAL_LABEL="$EVAL_ID overlay-removes-type" expect_fail "$CHECK" "$msg"
+
+# pass — a still-default type stays accepted after the removal above
+printf 'feat: real feature (#9)\n' > "$msg"
+EVAL_LABEL="$EVAL_ID default-type-survives" expect_pass "$CHECK" "$msg"
+
 rm -f "$msg"
 eval_done

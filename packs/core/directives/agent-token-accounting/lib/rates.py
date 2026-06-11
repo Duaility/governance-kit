@@ -30,10 +30,18 @@ Unknown model → `lookup()` returns None. The `cost` CLI exits non-zero
 and emits nothing on stdout, so the pre-commit caller can distinguish
 a real failure from a "cost=0.0000" priced row. Cost-USD is mandatory
 on new commits, so an unknown model blocks the commit — the operator
-either adds the missing entry to `RATES` (usually a family-prefix row)
-or waives via `SKIP_GOVERNANCE=1` for a hot-fix. The directive script's
-ledger validator still tolerates legacy rows with an empty `cost-usd`
-cell (grandfathered — pre-mandate history).
+adds a `rate <model> ...` row to `.governance/conf/agent-token-accounting.conf`
+(the user-owned override file, which survives `governance pack update`),
+or for a built-in default a family-prefix row to `RATES` here, or waives
+via `SKIP_GOVERNANCE=1` for a hot-fix. The directive script's ledger
+validator still tolerates legacy rows with an empty `cost-usd` cell
+(grandfathered — pre-mandate history).
+
+Per-repo price overrides: `load_overrides()` reads
+`.governance/conf/agent-token-accounting.conf` and MERGES its `rate` rows over
+`RATES` (user rows win), so a repo with negotiated pricing or a brand-new model
+never has to patch this pack-owned file. A malformed override row raises
+`ValueError`; the CLI turns that into a non-zero exit that blocks the commit.
 
 This module is stdlib-only.
 
@@ -49,6 +57,7 @@ CLI:
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 
@@ -93,6 +102,13 @@ RATES: dict[str, tuple[float, float, float, float]] = {
 
 _DATE_SUFFIX_RE = re.compile(r"-\d{8}$")
 
+# User-owned per-repo price overrides live here, relative to the repo root.
+# Each row is `rate <model> <base_input> <cache_create> <cache_read> <output>`
+# (per-MTok USD). Overrides MERGE OVER the built-in RATES — a user adds a new
+# model or corrects a price without patching this pack-owned file (which a
+# `governance pack update` would clobber). See config.conf for the template.
+_CONF_REL = os.path.join(".governance", "conf", "agent-token-accounting.conf")
+
 
 def normalize(model: str) -> str:
     """`claude-opus-4-5-20250929` → `claude-opus-4-5`."""
@@ -100,21 +116,89 @@ def normalize(model: str) -> str:
     return _DATE_SUFFIX_RE.sub("", m)
 
 
+def _find_conf() -> str | None:
+    """Walk up from the CWD to find `.governance/conf/agent-token-accounting.conf`.
+    The pre-commit hook and run.sh both invoke with the repo root as CWD; the
+    walk-up keeps it correct from a subdirectory too. None if not found."""
+    d = os.path.abspath(os.getcwd())
+    while True:
+        candidate = os.path.join(d, _CONF_REL)
+        if os.path.isfile(candidate):
+            return candidate
+        parent = os.path.dirname(d)
+        if parent == d:
+            return None
+        d = parent
+
+
+def load_overrides() -> dict[str, tuple[float, float, float, float]]:
+    """Parse the user conf's `rate` rows into a model → rates map. Empty when no
+    conf exists. Raises ValueError on a malformed row — a bad price table must
+    fail loudly, never silently misprice a commit."""
+    out: dict[str, tuple[float, float, float, float]] = {}
+    conf = _find_conf()
+    if conf is None:
+        return out
+    with open(conf, encoding="utf-8") as fh:
+        for lineno, raw in enumerate(fh, 1):
+            line = raw.split("#", 1)[0].strip()
+            if not line:
+                continue
+            parts = line.split()
+            if parts[0] != "rate":
+                raise ValueError(
+                    f"{conf}:{lineno}: unrecognized line {line!r} — override rows "
+                    f"must start with `rate` (or be a `#` comment)"
+                )
+            if len(parts) != 6:
+                raise ValueError(
+                    f"{conf}:{lineno}: malformed rate row — expected "
+                    f"`rate <model> <base_input> <cache_create> <cache_read> <output>`"
+                )
+            model = parts[1].lower().strip()
+            try:
+                nums = tuple(float(x) for x in parts[2:])
+            except ValueError:
+                raise ValueError(
+                    f"{conf}:{lineno}: rate row for {model!r} has a non-numeric price"
+                ) from None
+            out[model] = nums  # type: ignore[assignment]
+    return out
+
+
+def _prefix_match(norm: str, table: dict[str, tuple[float, float, float, float]],
+                  best_key: str) -> tuple[str, tuple[float, float, float, float] | None]:
+    """Longest-prefix lookup within one table; only beats `best_key` on a strictly
+    longer key, so a same-length override (searched first) wins ties."""
+    best_val: tuple[float, float, float, float] | None = None
+    for key in table:
+        if norm.startswith(key) and len(key) > len(best_key):
+            best_key, best_val = key, table[key]
+    return best_key, best_val
+
+
 def lookup(model: str) -> tuple[float, float, float, float] | None:
     """Return `(base, cache_create, cache_read, output)` per-MTok rates, or
-    None if the model isn't in the table."""
+    None if the model isn't priced. User overrides merge over the built-in
+    RATES: an exact override wins outright, and on a prefix match the override
+    wins ties (built-ins still win with a strictly longer, more-specific key)."""
     if not model:
         return None
     norm = normalize(model)
+    overrides = load_overrides()
+    # Exact match — override beats built-in.
+    if norm in overrides:
+        return overrides[norm]
     if norm in RATES:
         return RATES[norm]
-    # Longest-prefix match — `claude-sonnet-4-5-custom-suffix` finds the
-    # 4-5 row; `gpt-5.5` finds the `gpt-5` family row.
-    best_key = ""
-    for key in RATES:
-        if norm.startswith(key) and len(key) > len(best_key):
-            best_key = key
-    return RATES[best_key] if best_key else None
+    # Longest-prefix match across both tables — `claude-sonnet-4-5-custom-suffix`
+    # finds the 4-5 row; `gpt-5.5` finds the `gpt-5` family row. Overrides are
+    # searched first so an equal-length override prefix wins the tie.
+    best_key, best_val = _prefix_match(norm, overrides, "")
+    best_key, rates_val = _prefix_match(norm, RATES, best_key)
+    if rates_val is not None:
+        best_val = rates_val
+    return best_val
 
 
 def compute_cost_usd(
@@ -155,7 +239,13 @@ def _cmd_cost(argv: list[str]) -> int:
     except ValueError:
         print("rates cost: token counts must be integers", file=sys.stderr)
         return 2
-    cost = compute_cost_usd(model, *tokens)
+    try:
+        cost = compute_cost_usd(model, *tokens)
+    except ValueError as exc:
+        # A malformed price override must fail loudly — block the commit so the
+        # operator fixes `.governance/conf/agent-token-accounting.conf`.
+        print(f"rates cost: {exc}", file=sys.stderr)
+        return 2
     if cost is None:
         # Unpriced → exit 3 so the pre-commit hook can distinguish this
         # from a priced row that happens to total $0. Stderr carries the

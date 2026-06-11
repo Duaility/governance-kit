@@ -126,6 +126,22 @@ def _resolve_pack(root: Path, ref: str, with_diff: bool, from_sha: str | None) -
             "status": "update" if installed.is_dir() else "add",
             "dest": dest_rel,
         }
+        # Surface per-directive config drift so the operator can be told to
+        # reconcile their user overlay by hand — `pack update` refreshes the
+        # shipped `config.conf` (overlay template) and `defaults.conf` (live
+        # default list) in the installed tree but never rewrites the user-owned
+        # `.governance/conf/<id>.conf`. A change to defaults.conf is the most
+        # consequential, since it shifts what the directive enforces by default.
+        if d["status"] == "update":
+            def _bytes(p: Path) -> bytes:
+                return p.read_bytes() if p.is_file() else b""
+            d["config_drift"] = any(
+                _bytes(installed / name) != _bytes(src / name)
+                for name in ("config.conf", "defaults.conf")
+            )
+            user_conf = f".governance/conf/{did}.conf"
+            d["user_conf"] = user_conf
+            d["user_conf_present"] = (root / user_conf).is_file()
         if with_diff:
             d["diff"] = _dir_diff(installed, src, dest_rel)
         directives.append(d)
@@ -173,6 +189,10 @@ def _plan_remove(root: Path, pack_id: str) -> list[dict[str, Any]]:
         if const_text and find_subsection(const_text, did) is not None:
             subsections.append(did)
 
+    # User conf files to delete with the pack — only those present on disk.
+    conf_files = [f".governance/conf/{did}.conf" for did in directive_ids
+                  if (root / ".governance" / "conf" / f"{did}.conf").is_file()]
+
     return [{
         "id": pack_id,
         "action": "remove",
@@ -182,6 +202,7 @@ def _plan_remove(root: Path, pack_id: str) -> list[dict[str, Any]]:
         "directive_dirs": [f".governance/packs/{pack_id}/directives/{did}" for did in directive_ids],
         "directives": directives,
         "constitution_subsections": subsections,
+        "conf_files": conf_files,
     }]
 
 

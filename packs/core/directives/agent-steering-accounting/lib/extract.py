@@ -56,13 +56,17 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-# classifier.py sits next to this file; the relative import works under
-# `python3 extract.py …` because the parent dir is on sys.path.
+# classifier.py / conf.py sit next to this file; the relative import works
+# under `python3 extract.py …` because the parent dir is on sys.path.
 try:
     from classifier import Candidate, classify_candidates  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from classifier import Candidate, classify_candidates  # type: ignore
+
+# sys.path now includes this file's directory (either it already did, or the
+# fallback above inserted it), so conf imports cleanly with a single statement.
+import conf  # type: ignore
 
 
 INTERRUPT_PHRASE_RE = re.compile(r"^\[Request interrupted by user\b")
@@ -70,8 +74,10 @@ INTERRUPT_PHRASE_RE = re.compile(r"^\[Request interrupted by user\b")
 # Heuristic guards on tier-2 candidate messages. We only ask the classifier
 # about user messages that *could* be redirects — skip empty bodies and
 # obvious tool-result wrappers. Long messages are clipped before classification.
+# CANDIDATE_MAX_LEN is the same per-repo scalar the classifier honors, read from
+# `.governance/conf/agent-steering-accounting.conf` so both modules agree.
 CANDIDATE_MIN_LEN = 2
-CANDIDATE_MAX_LEN = 2000
+CANDIDATE_MAX_LEN = conf.get_int("CANDIDATE_MAX_LEN", 2000)
 
 
 @dataclass

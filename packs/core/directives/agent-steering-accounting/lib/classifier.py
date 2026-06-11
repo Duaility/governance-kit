@@ -29,15 +29,18 @@ from pathlib import Path
 
 import re
 
-CANDIDATE_MAX_LEN = 2000
+import conf
+
+# Max candidate length and the lexical-fallback trigger list are tunable per
+# repo via `.governance/conf/agent-steering-accounting.conf` (overlay) layered
+# over the directive's defaults.conf. Env `GOVERNANCE_CANDIDATE_MAX_LEN` wins
+# for the scalar. Resolved once at import — the hook and run.sh invoke from the
+# repo root, and each eval runs a fresh process.
+CANDIDATE_MAX_LEN = conf.get_int("CANDIDATE_MAX_LEN", 2000)
 
 # High-precision regex used as a silent fallback when the CLI is unreachable.
 # The classifier path subsumes this under normal operation.
-LEXICAL_FALLBACK_RE = re.compile(
-    r"^(no|stop|wait|actually|instead|don't|hold on|back up|undo|revert|"
-    r"that's wrong|you're wrong)\b",
-    re.IGNORECASE,
-)
+LEXICAL_FALLBACK_RE = conf.lexical_fallback_re()
 
 
 @dataclass

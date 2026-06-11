@@ -39,7 +39,7 @@ rm -f NOTES.md
 stage_all
 commit_quiet "docs: drop notes"
 
-# ── sub-check: reachable (opt-in via .governance/reachability.conf) ──
+# ── sub-check: reachable (opt-in via .governance/conf/internal-doc-links.conf) ──
 
 # pass — no config file → reachable is a no-op even with an orphan present
 mkdir -p docs
@@ -54,8 +54,8 @@ EVAL_LABEL="$EVAL_ID reachable-noop-no-config" expect_pass "$CHECK"
 
 # Configure: root docs/index.md; exclude the uppercase baseline root docs so the
 # reachable requirement scopes to the docs/ subtree under test.
-mkdir -p .governance
-cat > .governance/reachability.conf <<'EOF'
+mkdir -p .governance/conf
+cat > .governance/conf/internal-doc-links.conf <<'EOF'
 # entry points
 root docs/index.md
 exclude [A-Z]*.md
@@ -112,7 +112,7 @@ cat > docs/lonely.md <<'EOF'
 
 Unlinked again.
 EOF
-cat > .governance/reachability.conf <<'EOF'
+cat > .governance/conf/internal-doc-links.conf <<'EOF'
 root docs/index.md
 exclude [A-Z]*.md
 exclude docs/lonely.md

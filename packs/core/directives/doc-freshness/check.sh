@@ -2,22 +2,22 @@
 # Directive: Freshness-tracked docs carry a recent `<!-- last-verified: YYYY-MM-DD -->`
 # marker. Mechanical version of the harness-engineering "doc-gardening" practice.
 #
-# Config: .governance/freshness.conf
-#   One path per line, relative to repo root. Blank lines and lines starting with
-#   # are ignored. If this file is missing or empty, the directive is a no-op — users
-#   explicitly opt docs into freshness tracking.
+# Config: .governance/conf/doc-freshness.conf
+#   Rule lines are one path per line, relative to repo root. Blank lines and
+#   lines starting with # are ignored. If this file is missing or empty, the
+#   directive is a no-op — users explicitly opt docs into freshness tracking.
 #
-# Default staleness window: 90 days. Override with GOVERNANCE_FRESHNESS_DAYS.
+# Default staleness window: 90 days. Override with a `FRESHNESS_DAYS=` line in
+# the conf, or the GOVERNANCE_FRESHNESS_DAYS env var (env wins).
 set -u
 source "$(dirname "$0")/../../../../../lib.sh"
 directive_start "doc-freshness"
 require_git
 
 ROOT="$(git rev-parse --show-toplevel)"
-CONF="$ROOT/.governance/freshness.conf"
-MAX_DAYS="${GOVERNANCE_FRESHNESS_DAYS:-90}"
+MAX_DAYS="$(conf_get doc-freshness FRESHNESS_DAYS 90)"
 
-if [[ ! -f "$CONF" ]]; then
+if ! conf_file doc-freshness >/dev/null; then
     # Nothing opted in. Pass.
     directive_end
 fi
@@ -33,16 +33,14 @@ iso_to_epoch() {
     return 1
 }
 
-while IFS= read -r raw; do
-    # Strip comments and whitespace.
-    entry="${raw%%#*}"
-    entry="${entry#"${entry%%[![:space:]]*}"}"
-    entry="${entry%"${entry##*[![:space:]]}"}"
+# conf_rule_lines yields the trimmed, comment-free path lines and skips any
+# `KEY=value` scalar settings (e.g. FRESHNESS_DAYS).
+while IFS= read -r entry; do
     [[ -z "$entry" ]] && continue
 
     path="$ROOT/$entry"
     if [[ ! -f "$path" ]]; then
-        violation "$entry listed in freshness.conf but does not exist"
+        violation "$entry listed in doc-freshness config but does not exist"
         continue
     fi
 
@@ -74,6 +72,6 @@ while IFS= read -r raw; do
         days=$((age / 86400))
         violation "$entry last verified $stamp ($days days ago, max: $MAX_DAYS)"
     fi
-done < "$CONF"
+done < <(conf_rule_lines doc-freshness)
 
 directive_end
