@@ -1,0 +1,156 @@
+{
+  "skill_name": "governance",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I just published a new governance-kit release. Pull whatever's new into this repo.",
+      "expected_output": "Following UPDATE_FLOW.md Steps 1–8 under the repo-pinned model: the skill runs `kitverb.py kit-resolve` first — it reads the recorded pin (`kit_version: \"0.1\"`), resolves the target as the latest published `kit/vX.Y.Z` tag (provenance `published-tag`), fetches that tree into `~/.governance/cache/kits/`, and classifies `direction: forward`. The skill then runs the **fetched target's own** `kitverb.py kit-plan --diff` to resolve the managed-file inventory (`run.sh`, `lib.sh`, `enable-governance.sh`, `governance.yml`) with per-file diffs, shows the diffs (diff-before-exec), asks for explicit `yes`, and executes the apply as one `kitverb.py kit-apply` call against that same fetched engine — writing the stamped files, regenerating the hook dispatcher, rewriting `install.yaml.kit_version`, and smoke-testing. After the apply it records the pin via `kitverb.py kit-pin --kit-ref … --kit-sha …` (backfilling `kit_ref`/`kit_sha`, which this pre-#177 fixture lacks), then commits one atomic commit with subject `chore(governance): kit update 0.1 → <target>`. Pack updates are NOT chained because `--with-packs` was not requested.",
+      "files": ["files/stale-repo/"],
+      "assertions": [
+        "The skill resolved the target via `kitverb.py kit-resolve` and the report's `Resolved:` row names the provenance (`published-tag`)",
+        "The recorded pin `kit_version: \"0.1\"` was read as the current version and `direction` was `forward`",
+        "The apply was delegated to the FETCHED target tree's own `kitverb.py` (kit-plan/kit-apply run from the cache dir), not the locally installed skill copy",
+        "The skill printed a per-file diff for each kit-runtime file BEFORE writing (diff-before-exec)",
+        "The skill asked for an explicit `yes` to execute (no silent acceptance)",
+        "`.governance/install.yaml` was rewritten with the new `kit_version`, and `kit_ref`/`kit_sha` were recorded via `kit-pin` (backfilled — the fixture had neither)",
+        "The hook dispatcher was regenerated (or explicitly noted unchanged)",
+        "Exactly one new commit was created with subject matching `chore(governance): kit update 0.1 → <target>` (with `(#N)` issue anchor)",
+        "Pack updates were NOT chained because `--with-packs` was not requested; the report says so",
+        "The skill did not push — the report's `Next:` reads `git push`"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Run governance kit update — I want to make sure we're synced.",
+      "expected_output": "Following UPDATE_FLOW.md Steps 1–2: `kit-resolve` resolves the latest published `kit/vX.Y.Z` tag and finds it equal to the repo's recorded pin (`kit_version: \"0.4.0\"`, `kit_ref`/`kit_sha` already present) → `direction: same`. The skill short-circuits the file apply, reports `kit: up-to-date`, and records the pin via `kit-pin` only if it changed (here it did not). No diffs, no file writes, no commit. The `Resolved:` row names the `published-tag` provenance — because the default target is now the published kit, \"up-to-date\" means current with the published release, not merely with the installed skill.",
+      "files": ["files/up-to-date-repo/"],
+      "expected_output_note": "This fixture is already pinned (post-#177). If the latest published tag is newer than 0.4.0 the correct behavior is a forward update, not up-to-date; the assertions below grade the up-to-date branch as specified by the resolution provenance.",
+      "assertions": [
+        "The skill resolved the target via `kit-resolve` and the `Resolved:` row names the `published-tag` provenance (not 'installed skill')",
+        "The skill reported `kit: up-to-date` (direction `same` — target equals the recorded pin)",
+        "No files were modified — runtime files, manifest, hook dispatchers, and lockfile are byte-identical to the fixture",
+        "No commit was created (the pin was already present and unchanged, so `kit-pin` was a no-op)",
+        "The skill did NOT walk the file inventory or print per-file diffs (the direction short-circuit precedes Step 3)",
+        "The report mentions that `--with-packs` was not requested (so pack-update chaining did not run)"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Update the kit in this repo.",
+      "expected_output": "Following UPDATE_FLOW.md Step 1's marker-reconstruction fallback: `kit-resolve`/`kit-plan` find `.governance/install.yaml` missing and reconstruct the pin by scanning kit-owned files for the `kit-version=<v>` marker token. The fixture's runtime stubs carry only the bare `# governance-kit:managed` marker (no `kit-version=`), so reconstruction yields nothing — the plan returns `delta: no-recoverable-pin` (`manifest_source: absent`). The skill refuses with the recovery path `governance uninstall` + `governance init` — without either the manifest or a versioned marker there is no recoverable pin.",
+      "files": ["files/no-manifest-repo/"],
+      "assertions": [
+        "No files were created, deleted, or modified",
+        "The plan returned `delta: no-recoverable-pin` after attempting marker reconstruction (scanning `kit-version=` in runtime files) — not an immediate refusal on missing manifest",
+        "The skill explained that reconstruction failed because the runtime files carry only the bare marker (no `kit-version=` token)",
+        "The skill named the recovery path: `governance uninstall` followed by `governance init`",
+        "The skill did NOT fall back to a heuristic that would invent a `kit_version`"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Pull the new kit version into this repo.",
+      "expected_output": "Following UPDATE_FLOW.md Step 2's downgrade rule under the repo-pinned model: `kit-resolve` reads `kit_version: \"9.9\"`, resolves the latest published `kit/vX.Y.Z` tag (some version below 9.9), and classifies `direction: downgrade`. Because `--allow-downgrade` was not passed, `kit-resolve` REFUSES and the refusal names the flag. The skill stops and tells the user that the repo is pinned to a kit newer than anything published, and that rolling backward needs the explicit `--allow-downgrade` flag. It does NOT silently downgrade.",
+      "files": ["files/future-kit-repo/"],
+      "assertions": [
+        "No files were created, deleted, or modified",
+        "The skill refused because the resolved target is older than the repo's recorded `kit_version` (\"9.9\") — a downgrade",
+        "The refusal explicitly names the `--allow-downgrade` flag as the way to proceed",
+        "The skill did NOT auto-downgrade",
+        "The recovery path is to re-run with `--allow-downgrade` (not 'upgrade the kit on PATH' — version selection is now the manifest pin, not the installed skill)"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Sync the kit-runtime files in this repo to the latest version.",
+      "expected_output": "Following UPDATE_FLOW.md Step 2's pre-tracking-install case: `kit-resolve` resolves the published-tag target and the plan sees `kit_version` is absent from `install.yaml` → `delta: pre-tracking`. The skill offers to record the target version — consent is expressed by passing `--record-pre-tracking` to the delegated `kit-apply` (without it `kit-apply` refuses). It proceeds through the normal flow. Because the runtime stubs lack the line-2 ownership marker, every file surfaces as `Skipped (unmanaged)` in Step 4 and the user is asked per-file `keep` / `apply` / `overwrite-with-backup`; the choices go to `kit-apply` as `--decisions`. After the apply the manifest carries the new `kit_version` and the pin is recorded via `kit-pin`.",
+      "files": ["files/pre-tracking-repo/"],
+      "assertions": [
+        "The skill detected that `kit_version` is absent from `install.yaml` and named it a pre-tracking install",
+        "The skill offered to record the resolved target version as part of the run (consent via `--record-pre-tracking`)",
+        "Each runtime file (`run.sh`, `lib.sh`) was surfaced as `Skipped (unmanaged)` because the line-2 marker is absent",
+        "For each unmanaged file, the skill asked per-file `keep` / `apply anyway` / `overwrite-with-backup` — no silent overwrite",
+        "If the user accepts any change, `.governance/install.yaml` was rewritten with the new `kit_version` and the `kit_ref`/`kit_sha` pin was recorded",
+        "Exactly one commit was created (or zero if the user declined every prompt and there was nothing to record)"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Update the kit in this repo.",
+      "expected_output": "Following UPDATE_FLOW.md Step 1's marker-reconstruction fallback: with `.governance/install.yaml` missing, the plan scans kit-owned files (`.governance/run.sh`, `.governance/lib.sh`) for the `kit-version=<v>` token, finds `kit-version=0.1` in both, and reconstructs the pin as `\"0.1\"` (the min) — `manifest_source: reconstructed`, `direction: forward`. The skill resolves the published-tag target, delegates `kit-plan`/`kit-apply` to the fetched engine (passing `--owner`/`--repo` so the fresh manifest can be written), shows per-file diffs, asks for `yes`, applies (re-stamping each marker, regenerating hooks, writing a fresh `install.yaml`), records the pin via `kit-pin`, and commits `chore(governance): kit update 0.1 → <target>`. The `Assumptions:` line records that the manifest was reconstructed from markers.",
+      "files": ["files/reconstructable-repo/"],
+      "assertions": [
+        "The plan attempted marker reconstruction before any user prompt and reported `manifest_source: reconstructed` with `installed_kit_version: 0.1`",
+        "`reconstructed_from` named at least `.governance/run.sh` and `.governance/lib.sh`",
+        "The apply was delegated to the fetched target tree's engine with `--owner`/`--repo` (the fresh manifest needs the repo identity)",
+        "Each rewritten runtime file was re-stamped with the new `kit-version=<target>` marker",
+        "A fresh `.governance/install.yaml` was written with the new `kit_version` and the `kit_ref`/`kit_sha` pin recorded",
+        "Exactly one new commit was created with subject `chore(governance): kit update 0.1 → <target>` (with `(#N)` issue anchor)",
+        "The `Assumptions:` line names the manifest reconstruction explicitly",
+        "The skill did NOT route to `governance uninstall` + `governance init` (that is the no-recoverable-pin case, eval 3)"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Pin this repo to governance-kit 0.6.0 exactly — not whatever the latest is.",
+      "expected_output": "Following UPDATE_FLOW.md with `--to 0.6.0`: `kit-resolve` resolves the exact `kit/v0.6.0` tag (provenance `explicit`), fetches it, and — since 0.4.0 ≥ the recorded `0.1` — classifies `direction: forward`. 0.4.0 is at the delegation floor (0.4.0), so it ships the engine. The skill delegates `kit-plan`/`kit-apply` to the fetched 0.4.0 tree, applies the stamped files, records `kit_ref: gh:…@kit/v0.4.0` + the resolved `kit_sha` via `kit-pin`, and commits. The `Resolved:` row reads `0.4.0 via explicit (--to)`.",
+      "files": ["files/stale-repo/"],
+      "assertions": [
+        "The skill passed `--to 0.6.0` to `kit-resolve` and resolved exactly that version (provenance `explicit`), not the latest published tag",
+        "The fetched 0.6.0 tree's own engine performed the apply",
+        "`kit_ref` was recorded as `gh:duaility/governance-kit/kit@kit/v0.6.0` and `kit_sha` as the resolved 40-hex commit",
+        "The report's `Resolved:` row names the explicit (--to) provenance",
+        "One atomic commit was created; the skill did not push"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "We need to roll this repo back to governance-kit 0.4.0 — it's currently on a newer kit. Use --allow-downgrade.",
+      "expected_output": "Following UPDATE_FLOW.md's downgrade path: `kit-resolve --to 0.4.0 --allow-downgrade` resolves 0.4.0, sees it is older than the recorded `9.9` → `direction: downgrade`, and (because the flag is set) proceeds. The downgrade is driven by the **newer local engine** applying the **fetched older** 0.4.0 assets + hook generator: `kit-resolve` names the local `engine_path` plus the fetched tree's `assets_root`/`hooks_lib`, and the skill runs `kit-plan`/`kit-apply` with `--assets-root … --stamp-version 0.4.0 --hooks-lib … --allow-downgrade`. Files are stamped `kit-version=0.4.0`, the manifest records `kit_version: \"0.4.0\"` and the 0.4.0 pin, and the report's `Assumptions:` notes the `--allow-downgrade` roll-back.",
+      "files": ["files/future-kit-repo/"],
+      "assertions": [
+        "The skill passed `--allow-downgrade` and `kit-resolve` permitted the downgrade (it would refuse without the flag)",
+        "The apply ran the LOCAL engine against the FETCHED older tree's assets (`--assets-root`) and hook generator (`--hooks-lib`), stamping `--stamp-version 0.4.0` — the newer-engine / older-assets model",
+        "Runtime files were stamped `kit-version=0.4.0` and the manifest now records `kit_version: \"0.4.0\"` plus the 0.4.0 `kit_ref`/`kit_sha`",
+        "The report's `Assumptions:` names the `--allow-downgrade` roll-back",
+        "One atomic commit; no push"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "I'm offline on a plane. Run governance kit update anyway.",
+      "expected_output": "Following UPDATE_FLOW.md's offline fallback: the skill passes `--offline` to `kit-resolve` (or `kit-resolve` degrades after a failed `git ls-remote`). With no network, resolution falls back through the repo's cached pin (`kit_ref`/`kit_sha` → a cached tree under `~/.governance/cache/kits/`) and then the installed skill, reporting which in the `Resolved:` row and an `Assumptions:` note. Since the cached pin equals the recorded `0.4.0`, this is `up-to-date`: no file writes, exit 0, never an error just because the network was unavailable.",
+      "files": ["files/up-to-date-repo/"],
+      "assertions": [
+        "The skill resolved offline without erroring — it did NOT fail the verb because the network was unavailable",
+        "The `Resolved:` row names the fallback provenance (`cache` if the pinned tree is cached, else `installed-skill`) and an `Assumptions:` note explains the offline fallback",
+        "Because the resolved target equals the recorded pin, the run was a clean `up-to-date` no-op (exit 0, no commit)",
+        "The skill pointed the user at refreshing the skill / re-running online to pick up a newer published release"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "Pin this repo to governance-kit 0.3.5.",
+      "expected_output": "Following UPDATE_FLOW.md's delegation floor: `kit-resolve --to 0.3.5` resolves 0.3.5, but 0.3.5 is below the delegation floor (`0.4.0`) — it ships no `kitverb.py` engine to delegate to. `kit-resolve` REFUSES (`floor_ok: false`), naming the floor and the legacy skill-reinstall path (`npx skills add Duaility/governance-kit#kit/v0.3.5 --global --skill governance --agent claude-code`, then run kit update from that skill). The skill surfaces the refusal and stops; nothing is fetched-and-applied.",
+      "files": ["files/stale-repo/"],
+      "assertions": [
+        "The skill refused because the target 0.3.5 is below the delegation floor (0.4.0)",
+        "The refusal names the floor (0.4.0) and explains 0.3.5 ships no engine to delegate to",
+        "The recovery path names the legacy `npx skills add …#kit/v0.3.5` reinstall route",
+        "No files were created, deleted, or modified"
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "My installed governance skill is stuck on an old version, but I want this repo on the latest published kit. Run kit update.",
+      "expected_output": "Following UPDATE_FLOW.md's delegation contract (the version-skew case): even though the locally installed skill is on an older kit than the target, `kit-resolve` resolves the latest published `kit/vX.Y.Z` tag, fetches that tree, and the apply runs the **fetched target's own** `kitverb.py` — so the files written are exactly what the target version would write, byte-identical to running with a matching installed skill. The installed skill's version is no longer the ceiling; it is just the bootstrapper that resolves and delegates. The repo lands on the target version with its pin recorded.",
+      "files": ["files/stale-repo/"],
+      "assertions": [
+        "The skill resolved the latest published tag as the target, NOT the (older) installed skill's version — the installed skill is not the ceiling",
+        "The apply was delegated to the FETCHED target tree's engine, so the result is byte-identical to a matching-skill run (markers stamped with the target version, written by the target's own code)",
+        "The repo's `kit_version` and `kit_ref`/`kit_sha` reflect the resolved target, not the installed skill",
+        "The skill did not require the user to refresh `npx skills` first to select the version — version selection happened through the manifest pin / resolution"
+      ]
+    }
+  ]
+}

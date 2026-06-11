@@ -3,7 +3,7 @@
 #
 # Evals are behavioral (prompt + expected_output + assertions) and are graded
 # by an LLM, so this script does not execute them. It walks the verb folders
-# under governance/evals/<verb>/evals.json and reports per-verb case counts,
+# under kit/evals/<verb>/evals.json and reports per-verb case counts,
 # assertion counts, and whether the referenced fixture directories exist and
 # contain more than a placeholder README.
 #
@@ -143,7 +143,7 @@ emit_md() {
     printf '\n## How to run the evals\n\n'
     printf 'Evals are LLM-graded behavioral checks, not unit tests. For each case in '
     printf 'a verb'\''s `evals.json`:\n\n'
-    printf '1. Copy the fixture under `governance/evals/<verb>/files/<fixture>/` into a fresh temp dir and `git init` it.\n'
+    printf '1. Copy the fixture under `kit/evals/<verb>/files/<fixture>/` into a fresh temp dir and `git init` it.\n'
     printf '2. Start a Claude Code session scoped to that dir with the `governance` skill installed.\n'
     printf '3. Paste the `prompt` field verbatim.\n'
     printf '4. Compare the resulting state against `expected_output` and each item in `assertions`.\n\n'

@@ -77,11 +77,11 @@ link_re_extract='\[[^]]*\]\([^)]+\)'
 while IFS= read -r file; do
     [[ -z "$file" ]] && continue
     is_link_noise_file "$file" && continue
-    # Skip immutable historical ledgers (receipts, plans). They are append-only
+    # Skip immutable append-only ledgers (receipts, plans, COSTS.md). They are
     # records of a past repo state — doc-integrity forbids editing them, so a
     # link that rots when a file later moves can never be repaired. Gating on
     # their links would be an unfixable failure, so they are out of scope.
-    case "$file" in receipts/*|plans/*) continue ;; esac
+    case "$file" in receipts/*|plans/*|COSTS.md) continue ;; esac
     while IFS=: read -r line_no match; do
         [[ -z "$line_no" || -z "$match" ]] && continue
         target="$(parse_target "$match")"

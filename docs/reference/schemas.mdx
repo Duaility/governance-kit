@@ -17,7 +17,7 @@ generated_at: 2026-04-29T16:45:34Z
 owner: acme                      # GitHub owner (lowercased)
 repo: widgets
 kit_version: "0.4.0"             # the kit that installed / last updated this repo
-kit_ref: gh:duaility/governance-kit/governance@kit/v0.4.0
+kit_ref: gh:duaility/governance-kit/kit@kit/v0.4.0
 kit_sha: 1f3c…                   # resolved 40-char SHA
 hook_strategy: githooks          # githooks | husky | pre-commit
 constitution: true               # CONSTITUTION.md written by init
@@ -45,9 +45,9 @@ packs:
   - id: governance-kit/core      # <owner>/<name>, matches the directory
     version: "0.4.0"             # pack.yaml's self-declared version (informational)
     source: gh                   # gh | local — the discriminator
-    ref: gh:duaility/governance-kit/governance/assets/packs/core@core/v0.4.0
+    ref: gh:duaility/governance-kit/kit/assets/packs/core@core/v0.4.0
     sha: e9d339cf…               # 40-char commit SHA — the trust unit
-    subpath: governance/assets/packs/core
+    subpath: kit/assets/packs/core
     min_governance_kit: "0.3.0"
     installed_at: 2026-06-09T13:00:00Z
     directives:                  # sorted list of directive ids the pack contributes

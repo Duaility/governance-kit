@@ -19,11 +19,11 @@ See the **Compliance** section of [CONSTITUTION.md](CONSTITUTION.md) for the ful
 
 `governance-kit` ships Claude Code / Codex skills that together implement **governance-driven development** — a workflow where every directive in a `CONSTITUTION.md` has a matching executable test, and the two evolve as one commit.
 
-The user-facing entry point is the unified [`governance`](governance/SKILL.md) skill. **The skill is an installer; the kit is the product** (issue #194): it owns three lifecycle verbs — `install`, `update`, `uninstall` — and is a thin **router** for everything else (`pack {search,create,add,update,remove,list}`, `directive {add,modify,remove}`, `reset`), which executes from the kit version each repo pins in `install.yaml`, not from the machine copy. The skill is the single writer for every governance-kit lifecycle operation.
+The user-facing entry point is the unified [`governance`](skill/SKILL.md) skill. **The skill is an installer; the kit is the product** (issues #194, #198): the published skill is the thin shim at [skill/](skill/) — three lifecycle verbs (`install`, `update`, `uninstall`) plus a delegate rule; everything else (`pack {search,create,add,update,remove,list}`, `directive {add,modify,remove}`, `reset`, all routed flow docs and assets) lives in the kit at [kit/](kit/) and executes from the kit version each repo pins in `install.yaml`. `skill/SKILL.md` is source; `skill/assets/` is derived from `kit/` by [scripts/build-skill.sh](scripts/build-skill.sh) (re-run by `release.sh`; drift fails CI). The skill is the single writer for every governance-kit lifecycle operation.
 
 | Skill | Purpose |
 |---|---|
-| [governance](governance/SKILL.md) | **User-facing entry point.** Installer (`install`, `update`, `uninstall`); router for `pack *`, `directive *`, `reset`. |
+| [governance](skill/SKILL.md) | **User-facing entry point** (published thin shim). Installer (`install`, `update`, `uninstall`); delegates `pack *`, `directive *`, `reset` to the repo-pinned kit. |
 
 ## How governance works here
 
@@ -44,8 +44,10 @@ governance-kit/
 ├── CONSTITUTION.md              # Directives + rationale. Edit alongside the tests.
 ├── README.md                    # Short public overview.
 ├── AGENTS.md                    # You are here.
-├── governance/                  # Unified lifecycle skill — verb entry point.
-│   ├── SKILL.md
+├── skill/                       # Published thin shim — what `npx skills` installs.
+│   ├── SKILL.md                 # SOURCE: lifecycle verbs + delegate-to-kit rule.
+│   └── assets/                  # DERIVED by scripts/build-skill.sh (kit.yaml + packs/lib).
+├── kit/                         # The kit artifact (tagged kit/vX.Y.Z) — the product.
 │   ├── assets/                  # Templates copied into target repos.
 │   │   ├── CONSTITUTION.template.md
 │   │   ├── AGENTS.snippet.md
@@ -89,13 +91,13 @@ governance-kit/
 
 ### Modifying the governance skill
 
-Each skill is a self-contained directory with a `SKILL.md` (frontmatter + instructions), `assets/` (files copied to target repos), `references/` (deep-dive docs loaded on demand), and `evals/` (behavioral tests).
+The published skill is `skill/`: a `SKILL.md` (source) plus a derived copy of the kit's engine lib. Everything else — every flow doc (including the lifecycle flows), templates, references, evals, the apply engines — lives in the kit at `kit/` and never ships with the skill; the skill reads them from the fetched/pinned kit tree at run time. Edit kit content under `kit/`, then run `bash scripts/build-skill.sh` to refresh the derived `skill/assets/`; the `skill-build-sync` dogfood directive fails CI when it drifts.
 
-When editing a skill's behavior, keep the `description:` frontmatter field tight — it's what determines whether the skill auto-triggers. Too generic and it fires on everything; too specific and users have to name the skill by hand.
+When editing `skill/SKILL.md`, keep the `description:` frontmatter field tight — it's what determines whether the skill auto-triggers. Too generic and it fires on everything; too specific and users have to name the skill by hand. Never put an unquoted `: ` (colon-space) inside the description — it breaks YAML frontmatter parsing and `npx skills` discovery (issue #196).
 
 ### Adding or changing a governance directive
 
-Do not edit [CONSTITUTION.md](CONSTITUTION.md) by hand. Invoke the `governance` skill's `directive *` verbs — they enforce the cardinal rule (test + constitution + evolution-log entry all land together). See [governance/references/DIRECTIVE_AMEND_FLOW.md](governance/references/DIRECTIVE_AMEND_FLOW.md).
+Do not edit [CONSTITUTION.md](CONSTITUTION.md) by hand. Invoke the `governance` skill's `directive *` verbs — they enforce the cardinal rule (test + constitution + evolution-log entry all land together). See [kit/references/DIRECTIVE_AMEND_FLOW.md](kit/references/DIRECTIVE_AMEND_FLOW.md).
 
 ### Adding a new directive to the catalog
 
@@ -118,7 +120,7 @@ snippet, metadata, and eval all live together under `directives/<directive-id>/`
      overlay `.governance/conf/<owner>/<pack>/<id>.conf` at install. `defaults.conf` (optional)
      — a pack-owned live default list for a list-valued directive, refreshed on
      `pack update`. Read both via the `lib.sh` helpers (`conf_get`, `conf_list`).
-     See [governance/references/PACK_AUTHORING.md](governance/references/PACK_AUTHORING.md).
+     See [kit/references/PACK_AUTHORING.md](kit/references/PACK_AUTHORING.md).
    - `evals/test.sh` — pass + fail fixtures. Run `bash scripts/test-packs.sh`
      to confirm.
    - Optional sibling folders for directives that need external code:
@@ -130,13 +132,13 @@ snippet, metadata, and eval all live together under `directives/<directive-id>/`
      `git mv` away from relocating.
 2. If the directive should be part of `minimal` / `standard` / `strict`,
    add its id to the relevant preset block in the pack's `pack.yaml`.
-3. Document it in [governance/references/DIRECTIVES_CATALOG.md](governance/references/DIRECTIVES_CATALOG.md).
+3. Document it in [kit/references/DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md).
 4. For authoring an entirely new pack, see
-   [governance/references/PACK_AUTHORING.md](governance/references/PACK_AUTHORING.md).
+   [kit/references/PACK_AUTHORING.md](kit/references/PACK_AUTHORING.md).
 
 ### Versioning & releases
 
-Version lines are written **only** by [`scripts/release.sh`](scripts/release.sh), in `chore(release)` commits — feature and fix PRs never touch `governance/assets/kit.yaml`, any bundled pack's `packs/<concern>/pack.yaml` `version`, `SKILL.md` frontmatter, `.governance/install.yaml`'s `kit_version`, or any `kit-version=` marker. The kit (framework) and each bundled pack version on **independent** semver axes. Full policy, the tag scheme (`kit/vX.Y.Z`, per-pack `<pack>/vX.Y.Z`, cut lazily), and the release procedure: [governance/references/VERSIONING.md](governance/references/VERSIONING.md) and [governance/references/RELEASE_FLOW.md](governance/references/RELEASE_FLOW.md).
+Version lines are written **only** by [`scripts/release.sh`](scripts/release.sh), in `chore(release)` commits — feature and fix PRs never touch `kit/assets/kit.yaml`, any bundled pack's `packs/<concern>/pack.yaml` `version`, `SKILL.md` frontmatter, `.governance/install.yaml`'s `kit_version`, or any `kit-version=` marker. The kit (framework) and each bundled pack version on **independent** semver axes. Full policy, the tag scheme (`kit/vX.Y.Z`, per-pack `<pack>/vX.Y.Z`, cut lazily), and the release procedure: [kit/references/VERSIONING.md](kit/references/VERSIONING.md) and [kit/references/RELEASE_FLOW.md](kit/references/RELEASE_FLOW.md).
 
 ### Commit messages
 
@@ -147,18 +149,18 @@ Conventional Commits are enforced. Prefixes: `feat`, `fix`, `chore`, `docs`, `re
 This repo's skills are made available to local agent runtimes via symlinks:
 
 ```sh
-ln -s $(pwd)/governance ~/.claude/skills/governance
-ln -s $(pwd)/governance ~/.codex/skills/governance
+ln -s $(pwd)/skill ~/.claude/skills/governance
+ln -s $(pwd)/skill ~/.codex/skills/governance
 ```
 
 Edits to source files flow to both runtimes live.
 
 ## Further reading
 
-- [governance/references/PHILOSOPHY.md](governance/references/PHILOSOPHY.md) — the stance behind GDD: rules over prompts, receipts over plans, ledgers over transcripts.
+- [kit/references/PHILOSOPHY.md](kit/references/PHILOSOPHY.md) — the stance behind GDD: rules over prompts, receipts over plans, ledgers over transcripts.
 - [CONSTITUTION.md](CONSTITUTION.md) — the live directive set and amendment process.
-- [governance/references/DIRECTIVES_CATALOG.md](governance/references/DIRECTIVES_CATALOG.md) — every ready-made directive and its check.
-- [governance/references/PACK_AUTHORING.md](governance/references/PACK_AUTHORING.md) — writing a third-party pack.
-- [governance/references/NATIVE_TESTS.md](governance/references/NATIVE_TESTS.md) — porting bash directives to pytest / jest / go test, husky / pre-commit.com snippets.
-- [governance/references/VERSIONING.md](governance/references/VERSIONING.md) — the two version axes (kit vs pack), the semver policy, the tag scheme, and the release procedure.
+- [kit/references/DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md) — every ready-made directive and its check.
+- [kit/references/PACK_AUTHORING.md](kit/references/PACK_AUTHORING.md) — writing a third-party pack.
+- [kit/references/NATIVE_TESTS.md](kit/references/NATIVE_TESTS.md) — porting bash directives to pytest / jest / go test, husky / pre-commit.com snippets.
+- [kit/references/VERSIONING.md](kit/references/VERSIONING.md) — the two version axes (kit vs pack), the semver policy, the tag scheme, and the release procedure.
 - [README.md](README.md) — the public-facing overview.

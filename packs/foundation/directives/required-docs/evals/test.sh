@@ -2,8 +2,8 @@
 set -u
 EVAL_ID="required-docs"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
-[[ -f "$ROOT/governance/assets/packs/lib/eval-lib.sh" ]] || { echo "eval: ROOT misresolved to $ROOT — refusing to run with broken eval-lib.sh path" >&2; exit 1; }
-source "$ROOT/governance/assets/packs/lib/eval-lib.sh"
+[[ -f "$ROOT/kit/assets/packs/lib/eval-lib.sh" ]] || { echo "eval: ROOT misresolved to $ROOT — refusing to run with broken eval-lib.sh path" >&2; exit 1; }
+source "$ROOT/kit/assets/packs/lib/eval-lib.sh"
 PACK_DIR="$ROOT/packs/foundation"
 CHECK=".governance/packs/governance-kit/foundation/directives/$EVAL_ID/check.sh"
 
@@ -52,7 +52,7 @@ cat > README.md <<'EOF'
 # Fixture repo
 
 Minimal seed for the governance pack eval harness. Every eval under
-governance/assets/packs/\*/evals/\*/test.sh spins up a copy of
+kit/assets/packs/\*/evals/\*/test.sh spins up a copy of
 this tree, installs exactly one directive under test, and then mutates the
 parts of the fixture the directive cares about — pass then fail assertions
 run through the same harness.

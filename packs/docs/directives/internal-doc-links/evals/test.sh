@@ -2,8 +2,8 @@
 set -u
 EVAL_ID="internal-doc-links"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
-[[ -f "$ROOT/governance/assets/packs/lib/eval-lib.sh" ]] || { echo "eval: ROOT misresolved to $ROOT — refusing to run with broken eval-lib.sh path" >&2; exit 1; }
-source "$ROOT/governance/assets/packs/lib/eval-lib.sh"
+[[ -f "$ROOT/kit/assets/packs/lib/eval-lib.sh" ]] || { echo "eval: ROOT misresolved to $ROOT — refusing to run with broken eval-lib.sh path" >&2; exit 1; }
+source "$ROOT/kit/assets/packs/lib/eval-lib.sh"
 PACK_DIR="$ROOT/packs/docs"
 CHECK=".governance/packs/governance-kit/docs/directives/$EVAL_ID/check.sh"
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test-hooks-sh.sh — direct tests for governance/assets/packs/lib/hooks.sh.
+# scripts/test-hooks-sh.sh — direct tests for kit/assets/packs/lib/hooks.sh.
 # Covers:
 #   - hook_has_marker: marker detection on line 2
 #   - collision_check: lists unmarked existing hooks
@@ -12,7 +12,7 @@
 set -eu
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-HOOKS_LIB="$ROOT/governance/assets/packs/lib/hooks.sh"
+HOOKS_LIB="$ROOT/kit/assets/packs/lib/hooks.sh"
 
 # shellcheck disable=SC1090
 source "$HOOKS_LIB"

@@ -17,9 +17,9 @@
 set -eu
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PV="$ROOT/governance/assets/packs/lib/packverb.py"
-INSTALL_LIB="$ROOT/governance/assets/packs/lib/install.sh"
-PACKS_LIB="$ROOT/governance/assets/packs/lib/packs.sh"
+PV="$ROOT/kit/assets/packs/lib/packverb.py"
+INSTALL_LIB="$ROOT/kit/assets/packs/lib/install.sh"
+PACKS_LIB="$ROOT/kit/assets/packs/lib/packs.sh"
 
 # shellcheck disable=SC1090
 source "$PACKS_LIB"

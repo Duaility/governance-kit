@@ -10,7 +10,7 @@
 # optional `config.conf` / `defaults.conf` / `evals/`). This file carries only
 # pack-level identity and the presets that select directives by id. Presets are
 # per-pack; `governance init` unions each pack's preset across the installed
-# packs (see governance/references/INIT_FLOW.md).
+# packs (see kit/references/INIT_FLOW.md).
 
 id: governance-kit/foundation
 name: Foundation governance directives

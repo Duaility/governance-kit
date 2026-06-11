@@ -20,7 +20,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PACK_LIB = ROOT / "governance" / "assets" / "packs" / "lib"
+PACK_LIB = ROOT / "kit" / "assets" / "packs" / "lib"
 PACKVERB = PACK_LIB / "packverb.py"
 
 
@@ -89,7 +89,7 @@ def _make_repo(tmp: Path, *, drifted: bool) -> Path:
     (g / "install.yaml").write_text(INSTALL_YAML)
     (g / "packs.lock").write_text(LOCK)
     for fn in ("run.sh", "lib.sh"):
-        src = ROOT / "governance" / "assets" / "dot-governance" / fn
+        src = ROOT / "kit" / "assets" / "dot-governance" / fn
         if src.is_file():
             (g / fn).write_text(src.read_text())
     ddir = g / "packs" / "acme" / "widgets" / "directives" / "no-console-log"
@@ -230,7 +230,7 @@ def _make_installed_repo(tmp: Path, *, manifest: bool = True, marked_hooks: bool
             "agents_md_snippet: true\nagents_md_created: false\n" + seeded_line + "collisions: []\n")
         (g / "packs.lock").write_text(LOCK)
     for fn in ("run.sh", "lib.sh"):
-        src = ROOT / "governance" / "assets" / "dot-governance" / fn
+        src = ROOT / "kit" / "assets" / "dot-governance" / fn
         if src.is_file():
             (g / fn).write_text(src.read_text())
     (root / "CONSTITUTION.md").write_text(CONST)

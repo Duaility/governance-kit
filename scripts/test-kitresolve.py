@@ -21,7 +21,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PACK_LIB = ROOT / "governance" / "assets" / "packs" / "lib"
+PACK_LIB = ROOT / "kit" / "assets" / "packs" / "lib"
 KITVERB_PATH = PACK_LIB / "kitverb.py"
 
 
@@ -115,7 +115,7 @@ def make_assets(tmp: Path, version: str, tag: str) -> Path:
 
 def test_build_kit_ref_canonical_shape() -> None:
     assert KITRESOLVE.build_kit_ref("duaility/governance-kit", "0.4.0") == \
-        "gh:duaility/governance-kit/governance@kit/v0.4.0"
+        "gh:duaility/governance-kit/kit@kit/v0.4.0"
 
 
 def test_direction_forward_same_downgrade_unknown() -> None:
@@ -127,7 +127,7 @@ def test_direction_forward_same_downgrade_unknown() -> None:
 
 def test_cached_kit_path_none_when_not_cached() -> None:
     assert KITRESOLVE.cached_kit_path(
-        "gh:duaility/governance-kit/governance@kit/v9.9.9", "0" * 40) is None
+        "gh:duaility/governance-kit/kit@kit/v9.9.9", "0" * 40) is None
     assert KITRESOLVE.cached_kit_path("not-a-ref", "0" * 40) is None
 
 
@@ -135,7 +135,7 @@ def test_set_manifest_pin_inserts_then_updates_idempotently() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "install.yaml"
         path.write_text(BASE_MANIFEST + f'kit_version: "{KIT_VERSION}"\n')
-        ref = "gh:duaility/governance-kit/governance@kit/v0.4.0"
+        ref = "gh:duaility/governance-kit/kit@kit/v0.4.0"
         KITRESOLVE.set_manifest_pin(path, ref, "a" * 40)
         text = path.read_text()
         assert f"kit_ref: {ref}\n" in text
@@ -152,7 +152,7 @@ def test_set_manifest_pin_inserts_then_updates_idempotently() -> None:
 def test_kit_pin_command_writes_pin() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = make_repo(tmp, manifest=BASE_MANIFEST + f'kit_version: "{KIT_VERSION}"\n')
-        ref = "gh:duaility/governance-kit/governance@kit/v0.4.0"
+        ref = "gh:duaility/governance-kit/kit@kit/v0.4.0"
         result = subprocess.run(
             [sys.executable, str(KITVERB_PATH), "kit-pin", str(root),
              "--kit-ref", ref, "--kit-sha", "c" * 40],
@@ -170,7 +170,7 @@ def test_kit_pin_command_errors_without_manifest() -> None:
         (root / ".governance").mkdir()
         result = subprocess.run(
             [sys.executable, str(KITVERB_PATH), "kit-pin", str(root),
-             "--kit-ref", "gh:x/y/governance@kit/v0.4.0", "--kit-sha", "d" * 40],
+             "--kit-ref", "gh:x/y/kit@kit/v0.4.0", "--kit-sha", "d" * 40],
             cwd=ROOT, check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         )
         assert result.returncode == 1
@@ -238,10 +238,10 @@ def test_apply_assets_root_forward_copies_alt_tree() -> None:
 def make_cached_kit(home: Path, owner: str, repo: str, version: str, sha: str) -> str:
     """Lay a fake kit tree into the `kits/` cache; return its ref."""
     slug = f"{owner.lower()}__{repo.lower()}"
-    kit_dir = Path(home) / "kits" / f"{slug}@{sha}" / "governance"
+    kit_dir = Path(home) / "kits" / f"{slug}@{sha}" / "kit"
     (kit_dir / "assets" / "packs" / "lib").mkdir(parents=True)
     (kit_dir / "assets" / "kit.yaml").write_text(f'version: "{version}"\n')
-    return f"gh:{owner}/{repo}/governance@kit/v{version}"
+    return f"gh:{owner}/{repo}/kit@kit/v{version}"
 
 
 def kit_resolve(root: Path, *flags: str, home: Path) -> tuple[int, dict]:
@@ -286,7 +286,7 @@ def test_resolve_offline_cache_downgrade_gate() -> None:
         assert rc == 0 and report["result"] == "ok", report
         assert report["delegate"] is True
         assert report["engine_path"] == str(KITVERB_PATH)              # local newer engine
-        assert report["assets_root"].endswith("/governance/assets")    # fetched older tree
+        assert report["assets_root"].endswith("/kit/assets")    # fetched older tree
 
 
 def test_resolve_offline_to_mismatch_refused() -> None:
@@ -346,7 +346,7 @@ def test_current_cache_hit_returns_pinned_tree() -> None:
         assert report["version"] == "0.4.0"
         # Engine + flow-doc roots point inside the cached pinned tree, not the skill.
         assert f"{sha}" in report["lib_dir"] and report["lib_dir"].endswith("/assets/packs/lib")
-        assert report["references_dir"].endswith("/governance/references")
+        assert report["references_dir"].endswith("/kit/references")
         assert report["assumptions"] == []
 
 
@@ -369,7 +369,7 @@ def test_current_offline_uncached_pin_falls_back_to_installed_skill() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         home = Path(tmp) / "home"
         sha = "b" * 40
-        ref = "gh:duaility/governance-kit/governance@kit/v0.4.0"
+        ref = "gh:duaility/governance-kit/kit@kit/v0.4.0"
         manifest = BASE_MANIFEST + f'kit_version: "0.4.0"\nkit_ref: {ref}\nkit_sha: {sha}\n'
         root = make_repo(Path(tmp) / "repo", manifest=manifest)
         rc, report = kit_current(root, "--offline", home=home)

@@ -15,7 +15,7 @@ while IFS=: read -r file line_no match; do
     [[ -z "$file" ]] && continue
     # Skip matches in this directive file itself (it mentions TODO).
     [[ "$file" == .governance/packs/governance-kit/commits/directives/no-orphan-todos/* ]] && continue
-    [[ "$file" == governance/assets/packs/*/directives/no-orphan-todos/* ]] && continue
+    [[ "$file" == kit/assets/packs/*/directives/no-orphan-todos/* ]] && continue
     # Skip matches inside the constitution, which documents the directive.
     [[ "$file" == CONSTITUTION.md ]] && continue
     # Accept waiver: `# governance: allow-no-orphan-todos <reason>`
@@ -28,7 +28,7 @@ while IFS=: read -r file line_no match; do
 # `--word-regexp` is portable across GNU and BSD git-grep; `\b` is not.
 done < <(git grep -nwE '(TODO|FIXME)' -- \
     ':!.governance/packs/governance-kit/commits/directives/no-orphan-todos/**' \
-    ':!governance/assets/packs/*/directives/no-orphan-todos/**' \
+    ':!kit/assets/packs/*/directives/no-orphan-todos/**' \
     ':!CONSTITUTION.md' 2>/dev/null || true)
 
 directive_end
