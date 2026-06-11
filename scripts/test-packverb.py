@@ -78,7 +78,7 @@ def test_catalog_search_ref_includes_source_path() -> None:
 def test_packverb_validate_pack_public_command() -> None:
     result = run_packverb(
         "validate-pack",
-        str(ROOT / "packs" / "core"),
+        str(ROOT / "packs" / "security"),
     )
     assert result.returncode == 0, result.stderr
 

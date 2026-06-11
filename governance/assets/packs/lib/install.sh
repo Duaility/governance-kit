@@ -150,9 +150,12 @@ install_directive_assets() {
 
 seed_directive_conf() {
     # Seed a directive's user-tunable config from its shipped `config.conf`
-    # template into `.governance/conf/<directive-id>.conf`. This is augment-only:
-    # an existing dest is left untouched — user edits are sacred, and `pack
-    # update` / `reset` never call this on already-installed directives.
+    # template into `.governance/conf/<owner>/<pack>/<directive-id>.conf`. The
+    # path is pack-qualified so homonym directives from different packs get
+    # independent overlays — matching how `conf_file` resolves it at runtime.
+    # This is augment-only: an existing dest is left untouched — user edits are
+    # sacred, and `pack update` / `reset` never call this on already-installed
+    # directives.
     #
     # The shipped template also lives inside the installed directive folder
     # (it is an ordinary folder file, copied by copy_tree_without_evals), so
@@ -162,12 +165,15 @@ seed_directive_conf() {
     # when the directive ships no template or the dest already exists.
     local pack_dir="$1" directive_id="$2" target_repo="$3"
     local tpl="$pack_dir/directives/$directive_id/config.conf"
-    local dest="$target_repo/.governance/conf/$directive_id.conf"
+    local pack_id
+    pack_id="$(pack_field "$pack_dir" id)"
+    local rel=".governance/conf/$pack_id/$directive_id.conf"
+    local dest="$target_repo/$rel"
     [[ -f "$tpl" ]] || return 0
     [[ -e "$dest" ]] && return 0
     mkdir -p "$(dirname "$dest")"
     cp "$tpl" "$dest"
-    printf '.governance/conf/%s.conf\n' "$directive_id"
+    printf '%s\n' "$rel"
 }
 
 build_hook_spec_from_installed_directives() {

@@ -148,9 +148,10 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
         for pack in packs:
             for did in sorted(pack.get("directives") or []):
                 tpl = Path(pack["pack_dir"]) / "directives" / did / "config.conf"
-                dest = root / ".governance" / "conf" / f"{did}.conf"
+                rel = f".governance/conf/{pack['id']}/{did}.conf"
+                dest = root / rel
                 if tpl.is_file() and not dest.exists():
-                    would_seed_conf.append(f".governance/conf/{did}.conf")
+                    would_seed_conf.append(rel)
         report.update(result="dry-run",
                       directives_installed=[d["dest"] for d in directive_inventory(packs)],
                       conf_seeded=sorted(set(would_seed_conf)),

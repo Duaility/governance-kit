@@ -1,0 +1,26 @@
+# governance-kit docs pack
+#
+# Documentation-graph health: internal doc links resolve, and the documents
+# that must move together stay fresh relative to the code they describe.
+#
+# Directive metadata lives inside each directive's folder under
+# `directives/<id>/`. Presets are per-pack and unioned at init.
+
+id: governance-kit/docs
+name: Documentation governance directives
+version: "0.1.0"
+min_governance_kit: "0.3"
+description: Doc-graph health — internal link integrity and doc freshness.
+author: governance-kit
+
+presets:
+  minimal:
+    directives:
+      - internal-doc-links
+  standard:
+    extends: minimal
+    directives:
+      - doc-freshness
+  strict:
+    extends: standard
+    directives: []

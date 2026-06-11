@@ -1,0 +1,26 @@
+# governance-kit commits pack
+#
+# Commit-message and in-source marker hygiene: Conventional Commit subjects,
+# no orphaned TODO/FIXME markers, and no governance waivers without a
+# justification. Nothing in this pack belongs to `minimal` — these are the
+# rules a repo opts into once it is past bootstrap.
+#
+# Directive metadata lives inside each directive's folder under
+# `directives/<id>/`. Presets are per-pack and unioned at init.
+
+id: governance-kit/commits
+name: Commit hygiene governance directives
+version: "0.1.0"
+min_governance_kit: "0.3"
+description: Commit-message format and in-source marker hygiene.
+author: governance-kit
+
+presets:
+  standard:
+    directives:
+      - commit-message-format
+  strict:
+    extends: standard
+    directives:
+      - no-orphan-todos
+      - no-unjustified-suppressions

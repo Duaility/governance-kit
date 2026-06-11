@@ -11,13 +11,14 @@ scheme) is in [VERSIONING.md](VERSIONING.md).
 **Version lines are written only by `scripts/release.sh`, only in
 `chore(release)` commits.** Feature and fix PRs never touch `kit.yaml`,
 `pack.yaml` `version`, `SKILL.md` frontmatter, `install.yaml` `kit_version`, or
-any `kit-version=` marker. This is what lets the `version-consistency` directive
+any `kit-version=` marker. This is what lets the `kit-version-sync` directive
 treat any out-of-band edit to those fields as drift.
 
 ## When to cut which axis
 
 - **`core`** — a directive-content change has merged (new/changed/removed
-  directive, preset edit, `check.sh` fix). Bumps `packs/core/pack.yaml`.
+  directive, preset edit, `check.sh` fix). Bumps the affected bundled pack's
+  `packs/<concern>/pack.yaml` `version`.
 - **`kit`** — a framework change has merged (runtime files, hook generators, a
   verb/flag, a schema or marker-format change). Bumps `governance/assets/kit.yaml`
   and re-stamps every derived kit-version copy.

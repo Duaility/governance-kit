@@ -139,7 +139,7 @@ def _resolve_pack(root: Path, ref: str, with_diff: bool, from_sha: str | None) -
                 _bytes(installed / name) != _bytes(src / name)
                 for name in ("config.conf", "defaults.conf")
             )
-            user_conf = f".governance/conf/{did}.conf"
+            user_conf = f".governance/conf/{pack_id}/{did}.conf"
             d["user_conf"] = user_conf
             d["user_conf_present"] = (root / user_conf).is_file()
         if with_diff:
@@ -190,8 +190,8 @@ def _plan_remove(root: Path, pack_id: str) -> list[dict[str, Any]]:
             subsections.append(did)
 
     # User conf files to delete with the pack — only those present on disk.
-    conf_files = [f".governance/conf/{did}.conf" for did in directive_ids
-                  if (root / ".governance" / "conf" / f"{did}.conf").is_file()]
+    conf_files = [f".governance/conf/{pack_id}/{did}.conf" for did in directive_ids
+                  if (root / ".governance" / "conf" / pack_id / f"{did}.conf").is_file()]
 
     return [{
         "id": pack_id,

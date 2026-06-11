@@ -1,0 +1,26 @@
+# governance-kit hygiene pack
+#
+# Working-tree cleanliness. `repo-hygiene` is mandatory (`always_install:
+# true`): every governed repo gets it regardless of preset, so the working
+# tree never accumulates the noise the other directives assume away.
+#
+# Directive metadata lives inside each directive's folder under
+# `directives/<id>/`. Presets are per-pack and unioned at init.
+
+id: governance-kit/hygiene
+name: Working-tree hygiene governance directives
+version: "0.1.0"
+min_governance_kit: "0.3"
+description: Working-tree cleanliness (repo-hygiene, always installed).
+author: governance-kit
+
+presets:
+  minimal:
+    directives:
+      - repo-hygiene
+  standard:
+    extends: minimal
+    directives: []
+  strict:
+    extends: standard
+    directives: []

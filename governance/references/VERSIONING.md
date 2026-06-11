@@ -7,14 +7,14 @@ pin against, and the release procedure.
 
 > Mechanics live in [`scripts/release.sh`](../../scripts/release.sh) and
 > [RELEASE_FLOW.md](RELEASE_FLOW.md). Drift between the stamps below is caught by
-> the `version-consistency` directive — these are not honour-system fields.
+> the `kit-version-sync` directive — these are not honour-system fields.
 
 ## The two semantic axes
 
 | Axis | Question it answers | Source of truth | Derived copies (never hand-edit) |
 |---|---|---|---|
 | **Kit** | What version of the *framework* is this? (run.sh, lib.sh, hook generators, the `governance` skill, schemas) | [`governance/assets/kit.yaml`](../assets/kit.yaml) `version` | `governance/SKILL.md` frontmatter `version`; `.governance/install.yaml` `kit_version`; the `# governance-kit:managed kit-version=<v>` markers stamped into every managed runtime file |
-| **Pack** | What version of this *directive content* is this? | each pack's `pack.yaml` `version` (the bundled one: [`packs/core/pack.yaml`](../../packs/core/pack.yaml)) | the consumer's `.governance/packs.lock` entry, written at `pack add`/`pack update` time |
+| **Pack** | What version of this *directive content* is this? | each pack's `pack.yaml` `version` (the bundled concern packs live under [`packs/`](../../packs), e.g. [`packs/security/pack.yaml`](../../packs/security/pack.yaml)) | the consumer's `.governance/packs.lock` entry, written at `pack add`/`pack update` time |
 
 The axes move **independently**. A pack can ship a patch (a `check.sh` bug fix)
 on a stable kit — the `core` 0.3.1 → 0.3.2 → 0.3.3 sequence did exactly that
@@ -24,15 +24,15 @@ without the kit moving off 0.3. This is the Helm model (`Chart.version` vs
 ### The axis contract
 
 A pack declares the **floor** kit it needs via `min_governance_kit`. The
-invariant the kit's own core pack must satisfy:
+invariant every bundled `governance-kit/*` pack must satisfy:
 
 ```
-core.min_governance_kit  ≤  kit.yaml.version
+pack.min_governance_kit  ≤  kit.yaml.version
 ```
 
 `packctl validate-pack` already refuses any pack whose `min_governance_kit` is
-newer than the installed `KIT_VERSION`. The `version-consistency` directive
-additionally enforces the equation above for the bundled core pack, and that all
+newer than the installed `KIT_VERSION`. The `kit-version-sync` directive
+additionally enforces the equation above for the bundled packs, and that all
 derived kit-version copies equal `kit.yaml`.
 
 ## SemVer policy
@@ -74,15 +74,17 @@ Go-submodule / Lerna convention):
 
 ```
 kit/vX.Y.Z      # a kit (framework) release
-core/vX.Y.Z     # a governance-kit/core pack release
+core/vX.Y.Z     # a bundled-pack release
 ```
 
-Community packs live in their own repos and tag plain `vX.Y.Z`.
+The bundled `governance-kit/*` concern packs each carry their own `pack.yaml`
+`version` and step independently (all start at `0.1.0`). Community packs live in
+their own repos and tag plain `vX.Y.Z`.
 
 Consumers then pin a **readable, immutable** ref instead of an opaque SHA:
 
 ```sh
-governance pack add gh:duaility/governance-kit/packs/core@core/v0.3.4
+governance pack add gh:duaility/governance-kit/packs/security@<tag>
 ```
 
 A tag resolves to a SHA at `pack add`/`pack update` time and is recorded in the
@@ -99,7 +101,7 @@ statement of which kit it runs and the machine honours it rather than deciding.
 `kit update` resolves the latest published `kit/vX.Y.Z` tag by default, or an
 exact version with `--to X.Y.Z`; `--allow-downgrade` is required to move
 backward. This pin is **content state, not a derived version line** — it is
-written by `init` / `kit update`, never by `release.sh`, and `version-consistency`
+written by `init` / `kit update`, never by `release.sh`, and `kit-version-sync`
 still validates only `kit_version` against the managed-file markers. Delegated
 apply requires the target to ship the `kitverb.py` engine, first present in
 `kit/v0.4.0`; that is the delegation floor.

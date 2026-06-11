@@ -55,17 +55,18 @@ governance-kit/
 │   │   ├── amend/               # Templates for `directive *` (directive.template.sh, directive-section.template.md).
 │   │   ├── catalog.community.json   # Advisory index of known community packs (read by `governance pack search`).
 │   │   ├── catalog.schema.json      # JSON Schema for catalog entries.
-│   │   └── packs/               # Kit-bundled packs — today: `governance-kit/core` plus the shared `lib/`.
-│   │       └── core/
-│   │           ├── pack.yaml                 # pack id + presets
-│   │           └── directives/
-│   │               └── <directive-id>/       # self-contained directive folder
-│   │                   ├── directive.yaml    # per-directive metadata
-│   │                   ├── check.sh          # executable test
-│   │                   ├── constitution.md   # Directive subsection
-│   │                   ├── config.conf       # optional: seeds the user overlay
-│   │                   ├── defaults.conf     # optional: pack-owned live default list
-│   │                   └── evals/test.sh     # pass/fail fixtures
+│   │   └── packs/lib/           # Shared pack tooling (packs.sh, install.sh, hooks.sh, …).
+├── packs/                       # Kit-bundled concern packs (source of truth).
+│   └── <concern>/               # foundation, security, docs, commits, hygiene, audit, integrity
+│       ├── pack.yaml            # pack id + presets
+│       └── directives/
+│           └── <directive-id>/  # self-contained directive folder
+│               ├── directive.yaml    # per-directive metadata
+│               ├── check.sh          # executable test
+│               ├── constitution.md   # Directive subsection
+│               ├── config.conf       # optional: seeds the user overlay
+│               ├── defaults.conf     # optional: pack-owned live default list
+│               └── evals/test.sh     # pass/fail fixtures
 │   ├── references/              # INIT_FLOW.md, UNINSTALL_FLOW.md, RESET_FLOW.md,
 │   │                            #   DIRECTIVE_AMEND_FLOW.md,
 │   │                            #   VERBS.md, DIRECTIVE_VERBS.md, PACK_VERBS.md,
@@ -78,7 +79,7 @@ governance-kit/
 │   ├── lib.sh
 │   ├── install.yaml             # init choices + side-effect ledger
 │   ├── packs.lock               # pack pin state (id, version, source, sha)
-│   ├── conf/<directive-id>.conf # user-owned per-directive config overlays
+│   ├── conf/<owner>/<pack>/<directive-id>.conf # user-owned per-directive config overlays (pack-qualified)
 │   └── packs/<owner>/<name>/directives/<id>/check.sh  # every directive lives in some pack
 └── .github/workflows/
     └── governance.yml
@@ -98,9 +99,9 @@ Do not edit [CONSTITUTION.md](CONSTITUTION.md) by hand. Invoke the `governance` 
 
 ### Adding a new directive to the catalog
 
-Directives live inside **packs**, each at its own pack root. Today the kit
-ships exactly one bundled pack — `governance-kit/core`, at
-`governance/assets/packs/core/`. Community packs are authored in their own
+Directives live inside **packs**, each at its own pack root. The kit ships seven
+bundled concern packs — `governance-kit/{foundation,security,docs,commits,hygiene,audit,integrity}`,
+each at `packs/<concern>/`. Community packs are authored in their own
 repos and consumed by target repos via `governance pack add gh:<owner>/<repo>`;
 they are not bundled here. Each directive is a self-contained folder — test,
 snippet, metadata, and eval all live together under `directives/<directive-id>/`.
@@ -109,12 +110,12 @@ snippet, metadata, and eval all live together under `directives/<directive-id>/`
    - `directive.yaml` — scalar fields `category`, `recommended`, `summary`,
      `surface` (`repo-state`|`change-set`), `hook`
      (`pre-commit`|`commit-msg`|`prepare-commit-msg`|`post-commit`|`pre-push`|`none`), optional
-     `always_install` (reserved to `governance-kit/core`).
+     `always_install` (reserved to the bundled `governance-kit/*` packs).
    - `check.sh` — the bash test.
    - `constitution.md` — the Directive subsection (Directive / Rationale /
      Enforced by / Exceptions).
    - `config.conf` (optional) — an all-comment template that seeds the user
-     overlay `.governance/conf/<id>.conf` at install. `defaults.conf` (optional)
+     overlay `.governance/conf/<owner>/<pack>/<id>.conf` at install. `defaults.conf` (optional)
      — a pack-owned live default list for a list-valued directive, refreshed on
      `pack update`. Read both via the `lib.sh` helpers (`conf_get`, `conf_list`).
      See [governance/references/PACK_AUTHORING.md](governance/references/PACK_AUTHORING.md).
@@ -135,7 +136,7 @@ snippet, metadata, and eval all live together under `directives/<directive-id>/`
 
 ### Versioning & releases
 
-Version lines are written **only** by [`scripts/release.sh`](scripts/release.sh), in `chore(release)` commits — feature and fix PRs never touch `governance/assets/kit.yaml`, `packs/core/pack.yaml`'s `version`, `SKILL.md` frontmatter, `.governance/install.yaml`'s `kit_version`, or any `kit-version=` marker. The kit (framework) and the core pack version on **independent** semver axes. Full policy, the tag scheme (`kit/vX.Y.Z`, `core/vX.Y.Z`), and the release procedure: [governance/references/VERSIONING.md](governance/references/VERSIONING.md) and [governance/references/RELEASE_FLOW.md](governance/references/RELEASE_FLOW.md).
+Version lines are written **only** by [`scripts/release.sh`](scripts/release.sh), in `chore(release)` commits — feature and fix PRs never touch `governance/assets/kit.yaml`, any bundled pack's `packs/<concern>/pack.yaml` `version`, `SKILL.md` frontmatter, `.governance/install.yaml`'s `kit_version`, or any `kit-version=` marker. The kit (framework) and the bundled packs version on **independent** semver axes. Full policy, the tag scheme (`kit/vX.Y.Z`, `core/vX.Y.Z`), and the release procedure: [governance/references/VERSIONING.md](governance/references/VERSIONING.md) and [governance/references/RELEASE_FLOW.md](governance/references/RELEASE_FLOW.md).
 
 ### Commit messages
 

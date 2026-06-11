@@ -1,0 +1,33 @@
+# governance-kit audit pack
+#
+# The GDD agent audit chain: issue → receipt → commit → cost → steering. Each
+# link is a separate directive; breaking any link fails the next push. The
+# chain bundles into `standard`. `agent-steering-accounting` is mandatory
+# (`always_install: true`): in this kit's model every commit is agent-authored,
+# so durable provenance includes every human correction event alongside
+# token-spend. STEERING.md captures verbatim operator text — repos that need
+# redaction layer that on top via the directive's classifier hook rather than
+# by skipping the directive.
+#
+# Directive metadata lives inside each directive's folder under
+# `directives/<id>/`. Presets are per-pack and unioned at init.
+
+id: governance-kit/audit
+name: Agent audit-chain governance directives
+version: "0.1.0"
+min_governance_kit: "0.3"
+description: The GDD agent audit chain — issue → receipt → commit → cost → steering.
+author: governance-kit
+
+presets:
+  standard:
+    directives:
+      - issue-templates
+      - issues-tracked
+      - receipt-per-issue
+      - commit-issue-receipt-match
+      - agent-token-accounting
+      - agent-steering-accounting
+  strict:
+    extends: standard
+    directives: []

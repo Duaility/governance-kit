@@ -1,0 +1,28 @@
+# governance-kit integrity pack
+#
+# Append-only record protection and anti-gaming for the audit chain's own
+# artifacts. `doc-integrity` is mandatory (`always_install: true`): the chain's
+# receipts and ledgers (COSTS.md / STEERING.md), the resolved-issues log, and
+# the constitution's evolution log are only trustworthy as a record if they are
+# append-only, so the integrity engine that freezes their history ships on by
+# default. `toolchain-config-protection` guards the configuration files that
+# could otherwise be edited to defang the governance toolchain itself.
+#
+# Directive metadata lives inside each directive's folder under
+# `directives/<id>/`. Presets are per-pack and unioned at init.
+
+id: governance-kit/integrity
+name: Record-integrity governance directives
+version: "0.1.0"
+min_governance_kit: "0.3"
+description: Append-only record protection and toolchain-config anti-gaming.
+author: governance-kit
+
+presets:
+  standard:
+    directives:
+      - toolchain-config-protection
+      - doc-integrity
+  strict:
+    extends: standard
+    directives: []

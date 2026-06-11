@@ -216,9 +216,9 @@ def test_add_installs_directive_lock_and_hooks() -> None:
         assert report["seeded_assets"] == ["WIDGETS.md"]
         assert "WIDGETS.md" in (root / ".governance/install.yaml").read_text()
         # per-directive user conf seeded from config.conf; reported, not ledgered
-        conf = root / ".governance/conf/no-console-log.conf"
+        conf = root / ".governance/conf/acme/widgets/no-console-log.conf"
         assert conf.is_file()
-        assert report["conf_seeded"] == [".governance/conf/no-console-log.conf"]
+        assert report["conf_seeded"] == [".governance/conf/acme/widgets/no-console-log.conf"]
         assert "no-console-log.conf" not in (root / ".governance/install.yaml").read_text()
         # lock upserted
         lock = (root / ".governance/packs.lock").read_text()
@@ -237,7 +237,7 @@ def test_update_does_not_reseed_user_conf() -> None:
         # initial add seeds the conf
         _capture(lambda: packapply.cmd_pack_apply(
             _ns(mode="add", root=str(root), target="gh:acme/widgets")))
-        conf = root / ".governance/conf/no-console-log.conf"
+        conf = root / ".governance/conf/acme/widgets/no-console-log.conf"
         conf.write_text("USER=tweak\n")  # the user customizes it
         # commit the install + customization so the tree is clean for update
         git(root, "add", "-A")
@@ -252,7 +252,7 @@ def test_update_does_not_reseed_user_conf() -> None:
         plan = packplan.compute_pack_plan(root, "update", None, with_diff=False)
         d = plan["packs"][0]["directives"][0]
         assert d["status"] == "update" and d["config_drift"] is True, d
-        assert d["user_conf"] == ".governance/conf/no-console-log.conf"
+        assert d["user_conf"] == ".governance/conf/acme/widgets/no-console-log.conf"
         assert d["user_conf_present"] is True
 
         # apply update: conf untouched, not re-seeded
@@ -341,7 +341,7 @@ def test_remove_deletes_folder_strips_subsection_prunes_lock() -> None:
         root = _make_repo(Path(tmp) / "repo", constitution=REMOVE_CONST, lock=REMOVE_LOCK,
                           installed_directive=".governance/packs/acme/widgets/directives/no-console-log")
         # a user conf exists (committed) for the directive being removed
-        conf = root / ".governance/conf/no-console-log.conf"
+        conf = root / ".governance/conf/acme/widgets/no-console-log.conf"
         conf.parent.mkdir(parents=True, exist_ok=True)
         conf.write_text("USER=tweak\n")
         git(root, "add", "-A")
@@ -355,7 +355,7 @@ def test_remove_deletes_folder_strips_subsection_prunes_lock() -> None:
         assert report["constitution_stripped"] == ["no-console-log"]
         # the directive's user conf is removed with the pack; empty dir pruned
         assert not conf.exists()
-        assert ".governance/conf/no-console-log.conf" in report["removed"]
+        assert ".governance/conf/acme/widgets/no-console-log.conf" in report["removed"]
         assert not (root / ".governance/conf").exists()
 
 

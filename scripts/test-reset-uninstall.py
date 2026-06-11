@@ -126,7 +126,7 @@ def test_reset_restores_drifted_directive_and_subsection() -> None:
         root = _make_repo(Path(tmp) / "repo", drifted=True)
         # a user overlay exists; reset restores the pinned folder but must never
         # touch the user-owned .governance/conf/.
-        conf = root / ".governance/conf/no-console-log.conf"
+        conf = root / ".governance/conf/acme/widgets/no-console-log.conf"
         conf.parent.mkdir(parents=True, exist_ok=True)
         conf.write_text("USER=tweak\n")
         git(root, "add", "-A")
