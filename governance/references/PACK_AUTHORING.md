@@ -33,7 +33,7 @@ A directive that needs tuning ships two optional files in its folder and reads t
 
 The effective config is `defaults.conf` layered with the overlay (seeded once to the pack-qualified `.governance/conf/<owner>/<pack>/<id>.conf`): a bare line **adds** an item, `!<item>` **removes** a default (gitignore-style negation), `KEY=value` **overrides** a scalar (read with `conf_get`; env `GOVERNANCE_<KEY>` still wins). Helpers: `conf_file`, `conf_get`, `conf_rule_lines`, and `conf_list <id> "$(dirname "$0")/defaults.conf"` resolve the qualified overlay path from the directive's installed location automatically. A directive that declares capabilities must list `.governance/conf/**` under `reads:`.
 
-Kit-bundled packs are the seven concern packs `governance-kit/{foundation,security,docs,commits,hygiene,audit,integrity}`, each under `packs/<concern>/`; the shared loader/install lib lives at `governance/assets/packs/lib/`. Out-of-tree community packs live in their own repos and are pulled in via `governance pack add gh:<owner>/<repo>`.
+Kit-bundled packs are the seven concern packs `governance-kit/{foundation,security,docs,commits,process,audit,integrity}`, each under `packs/<concern>/`; the shared loader/install lib lives at `governance/assets/packs/lib/`. Out-of-tree community packs live in their own repos and are pulled in via `governance pack add gh:<owner>/<repo>`.
 
 ### Directive identity (homonyms)
 

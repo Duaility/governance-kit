@@ -1,0 +1,31 @@
+# governance-kit process pack
+#
+# Issue → receipt → commit traceability. Every unit of work is born as a
+# tracked issue, lands a receipt that crosswalks its checklist to evidence, and
+# is referenced by the commit that closes it. Each link is a separate directive;
+# breaking any link fails the next push. The chain bundles into `standard`.
+#
+# This pack is the work-tracking half of what used to live in `audit`: `audit`
+# now carries only the agent accounting ledgers (token + steering), while the
+# issue/receipt discipline lives here so each pack maps to a single concern.
+#
+# Directive metadata lives inside each directive's folder under
+# `directives/<id>/`. Presets are per-pack and unioned at init.
+
+id: governance-kit/process
+name: Work-tracking governance directives
+version: "0.1.0"
+min_governance_kit: "0.3"
+description: Issue → receipt → commit traceability for every unit of work.
+author: governance-kit
+
+presets:
+  standard:
+    directives:
+      - issue-templates
+      - issues-tracked
+      - receipt-per-issue
+      - commit-issue-receipt-match
+  strict:
+    extends: standard
+    directives: []

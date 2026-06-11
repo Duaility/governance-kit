@@ -53,7 +53,7 @@ If you're trusting agents to ship code, you need to see exactly what they were t
 - **Token cost** (`COSTS.md`). Every agent-authored commit carries token + cost trailers (`Token-Input`, `Token-Output`, `Cost-USD`, …) and a matching row in the ledger. Survives squash-merges via a stable `Cost-Key`. Every change has a price tag.
 - **Human steering** (`STEERING.md`). Every commit carries summary trailers (`Steer-Count`, `Steer-Types`, `Steer-Tiers`) tallying the rows it added to the ledger — one row per detected human-steering event (interrupt or redirect). See at a glance which commits ran on autopilot and which needed your hand on the wheel.
 
-These compose into a chain — **issue → receipt → commit → cost** — and breaking any link fails the next push. Directive provenance, the chain, and token cost all ship in the [`governance-kit/audit`](#whats-bundled) pack and land in the `standard` preset. Steering accounting (`agent-steering-accounting`) ships in the same pack and is `always_install: true` — mandatory in every install (it records human correction text verbatim — redact via the directive's classifier hook rather than skipping it).
+These compose into a chain — **issue → receipt → commit → cost** — and breaking any link fails the next push. The issue → receipt → commit traceability ships in the [`governance-kit/process`](#whats-bundled) pack; token cost and steering ship in [`governance-kit/audit`](#whats-bundled); both land in the `standard` preset. Steering accounting (`agent-steering-accounting`) is `always_install: true` — mandatory in every install (it records human correction text verbatim — redact via the directive's classifier hook rather than skipping it).
 
 ## Quickstart
 
@@ -147,6 +147,7 @@ Seven concern-scoped packs ship in-tree and install with `governance init`:
 |---|---|---|
 | `governance-kit/foundation` | `required-docs` | Baseline root-level docs and hook scaffolding exist. |
 | `governance-kit/foundation` | `kit-version-sync` | The kit-version pin agrees with every managed-file stamp. |
+| `governance-kit/foundation` | `repo-hygiene` | No merge markers, oversized files, build artefacts, debug statements, or overlong source files. |
 | `governance-kit/security` | `secrets-hygiene` | No plaintext secrets in tracked files; `.env` is gitignored and untracked. |
 | `governance-kit/security` | `token-permissions` | GitHub Actions workflows declare a least-privilege `permissions:` block. |
 | `governance-kit/security` | `pinned-dependencies` | Third-party actions are pinned to a full commit SHA. |
@@ -155,11 +156,10 @@ Seven concern-scoped packs ship in-tree and install with `governance init`:
 | `governance-kit/commits` | `commit-message-format` | Commit messages match `<type>(scope)?: subject (#123)` — Conventional Commits prefix plus a trailing GitHub issue reference. |
 | `governance-kit/commits` | `no-orphan-todos` | Every `TODO` / `FIXME` references an issue. |
 | `governance-kit/commits` | `no-unjustified-suppressions` | Every lint / type-checker suppression references an issue. |
-| `governance-kit/hygiene` | `repo-hygiene` | No merge markers, oversized files, build artefacts, debug statements, or overlong source files. |
 | `governance-kit/integrity` | `toolchain-config-protection` | Lint / format / CI / hook config changes need a waiver reason. |
 | `governance-kit/integrity` | `doc-integrity` | System-of-record documents stay append-only. |
 
-The `governance-kit/audit` pack ships the agent audit chain — see [What's bundled](#whats-bundled) below.
+The `governance-kit/process` and `governance-kit/audit` packs ship the issue → receipt → commit traceability chain and the agent accounting ledgers — see [What's bundled](#whats-bundled) below.
 
 Full catalog: [governance/references/DIRECTIVES_CATALOG.md](governance/references/DIRECTIVES_CATALOG.md).
 
@@ -168,7 +168,7 @@ Full catalog: [governance/references/DIRECTIVES_CATALOG.md](governance/reference
 governance-kit has **two layers**, versioned independently on separate axes (the Helm `Chart.version` vs `appVersion` model — see [VERSIONING.md](governance/references/VERSIONING.md)):
 
 - **The kit** — the framework: the `governance` skill, the runtime (`run.sh`, `lib.sh`), the hook generators, and the schemas. Released under `kit/vX.Y.Z`.
-- **Packs** — the directive *content*: the seven `governance-kit/*` concern packs (`foundation`, `security`, `docs`, `commits`, `hygiene`, `audit`, `integrity`) ship with the kit; community packs live in their own repos. Each pack versions independently on its own `pack.yaml version`.
+- **Packs** — the directive *content*: the seven `governance-kit/*` concern packs (`foundation`, `security`, `docs`, `commits`, `process`, `audit`, `integrity`) ship with the kit; community packs live in their own repos. Each pack versions independently on its own `pack.yaml version`.
 
 `.governance/packs.lock` is the source of truth for **which** packs and versions a repo runs. The directive code itself is **vendored into `.governance/packs/<owner>/<name>/` and committed** — so the checks that enforce your repo are reviewable in your own diffs, and a pack bump shows the real `check.sh` change, not just a SHA. (The lock pins a SHA for integrity; committing the tree adds in-diff auditability — the `go mod vendor` / committed-Helm-`charts/` choice, justified because governance is a trust tool.)
 
@@ -244,7 +244,7 @@ governance pack create <name>                          # scaffold a repo-local p
 
 ## What's bundled
 
-The kit ships seven concern-scoped packs — `governance-kit/{foundation,security,docs,commits,hygiene,audit,integrity}`. Everything below comes with `governance init` at the chosen preset.
+The kit ships seven concern-scoped packs — `governance-kit/{foundation,security,docs,commits,process,audit,integrity}`. Everything below comes with `governance init` at the chosen preset.
 
 ### General-purpose directives
 
@@ -252,10 +252,10 @@ The kit ships seven concern-scoped packs — `governance-kit/{foundation,securit
 |---|---|---|---|
 | `foundation` | `required-docs` | `README.md`, `LICENSE`, `SECURITY.md`, `ARCHITECTURE.md` exist with non-empty bodies. | minimal |
 | `foundation` | `kit-version-sync` | The single kit-version pin agrees with every managed-file stamp. | standard |
+| `foundation` | `repo-hygiene` | `.gitignore` exists; tracked files stay under the size limit. | minimal |
 | `security` | `secrets-hygiene` | No high-confidence secret patterns (AWS keys, GitHub tokens, Stripe live keys, etc.) committed to the tree. | minimal |
 | `security` | `token-permissions` | `.github/workflows/*.yml` declare a least-privilege `permissions:` block. | minimal |
 | `security` | `pinned-dependencies` | Third-party actions are pinned to a full commit SHA. | minimal |
-| `hygiene` | `repo-hygiene` | `.gitignore` exists; tracked files stay under the size limit. | minimal |
 | `docs` | `internal-doc-links` | Internal markdown links resolve (`resolve`); opt-in, every doc is reachable from a root (`reachable`). | minimal |
 | `docs` | `doc-freshness` | Docs in `.governance/conf/governance-kit/docs/doc-freshness.conf` carry an in-window `<!-- last-verified: YYYY-MM-DD -->` marker. | standard |
 | `commits` | `commit-message-format` | Conventional Commits with an issue suffix (`<type>(scope)?: <subject> (#N)`). | standard |
@@ -265,14 +265,14 @@ The kit ships seven concern-scoped packs — `governance-kit/{foundation,securit
 
 ### The agent audit chain
 
-The chain — **issue → receipt → commit → cost** — turned into mechanical directives in the `governance-kit/audit` and `governance-kit/integrity` packs. Bundled into `standard` because every commit in this kit's mental model is agent-authored.
+The chain — **issue → receipt → commit → cost** — turned into mechanical directives across the `governance-kit/process` (traceability), `governance-kit/audit` (accounting), and `governance-kit/integrity` (record protection) packs. Bundled into `standard` because every commit in this kit's mental model is agent-authored.
 
 | Pack | Directive | What it enforces | Preset |
 |---|---|---|---|
-| `audit` | `issue-templates` | `.github/ISSUE_TEMPLATE/` carries `config.yml` (blank issues off), `proposal.yml`, `bug.yml` with the required handoff fields. | standard |
-| `audit` | `issues-tracked` | `QUALITY.md` exists at repo root with `## Open` and `## Resolved` sections. | standard |
-| `audit` | `receipt-per-issue` | Every `receipts/*.md` has a unique `issue-<N>` filename token, the four required sections, and each `- [x]` checklist item crosswalks into `## What changed` or `## Verification`. | standard |
-| `audit` | `commit-issue-receipt-match` | Every non-merge commit's issue anchor (`(#N)` or `Issue: #N`) matches an `issue-<N>` token on a touched receipt. | standard |
+| `process` | `issue-templates` | `.github/ISSUE_TEMPLATE/` carries `config.yml` (blank issues off), `proposal.yml`, `bug.yml` with the required handoff fields. | standard |
+| `process` | `issues-tracked` | `QUALITY.md` exists at repo root with `## Open` and `## Resolved` sections. | standard |
+| `process` | `receipt-per-issue` | Every `receipts/*.md` has a unique `issue-<N>` filename token, the four required sections, and each `- [x]` checklist item crosswalks into `## What changed` or `## Verification`. | standard |
+| `process` | `commit-issue-receipt-match` | Every non-merge commit's issue anchor (`(#N)` or `Issue: #N`) matches an `issue-<N>` token on a touched receipt. | standard |
 | `integrity` | `doc-integrity` | **`always_install: true` — mandatory in every install.** Makes system-of-record documents append-only (standard rules ship in the directive's `defaults.conf`, layered with the `.governance/conf/governance-kit/integrity/doc-integrity.conf` overlay): receipts immutable once on the trunk, `COSTS.md`/`STEERING.md` ledgers append-only, and frozen sections (`QUALITY.md` Resolved, the Evolution Log) keep their baseline lines verbatim. Branch-authored content stays editable until it merges. | standard |
 | `audit` | `agent-token-accounting` | Every commit carries token + cost trailers and a matching `COSTS.md` row keyed by `Cost-Key`. | standard |
 | `audit` | `agent-steering-accounting` | Every commit stamps `Steer-Count` / `Steer-Types` / `Steer-Tiers` and appends rows to append-only `STEERING.md`. **`always_install: true` — mandatory in every install.** Records human correction text verbatim — redact via the directive's classifier hook rather than skipping it. | standard |

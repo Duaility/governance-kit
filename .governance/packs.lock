@@ -16,6 +16,7 @@ packs:
   installed_at: 2026-06-11 00:00:00+00:00
   directives:
   - kit-version-sync
+  - repo-hygiene
   - required-docs
 - id: governance-kit/security
   version: 0.1.0
@@ -50,16 +51,6 @@ packs:
   installed_at: 2026-06-11 00:00:00+00:00
   directives:
   - commit-message-format
-- id: governance-kit/hygiene
-  version: 0.1.0
-  source: gh
-  ref: gh:duaility/governance-kit/packs/hygiene@main
-  sha: fd38a10012088c278a5ff614f8921bd6b35440d7
-  subpath: packs/hygiene
-  min_governance_kit: '0.3'
-  installed_at: 2026-06-11 00:00:00+00:00
-  directives:
-  - repo-hygiene
 - id: governance-kit/audit
   version: 0.1.0
   source: gh
@@ -71,6 +62,15 @@ packs:
   directives:
   - agent-steering-accounting
   - agent-token-accounting
+- id: governance-kit/process
+  version: 0.1.0
+  source: gh
+  ref: gh:duaility/governance-kit/packs/process@main
+  sha: fd38a10012088c278a5ff614f8921bd6b35440d7
+  subpath: packs/process
+  min_governance_kit: '0.3'
+  installed_at: 2026-06-11 00:00:00+00:00
+  directives:
   - commit-issue-receipt-match
   - issue-templates
   - issues-tracked

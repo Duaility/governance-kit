@@ -12,12 +12,12 @@ The 8-step recipe `governance init` runs. Dispatched from
 
 Directives are grouped into **packs** — self-contained directories that bundle directives, their constitution snippets, and hook declarations. Seven concern-scoped packs ship in-tree today, under `packs/<concern>/` (source-of-truth in this monorepo; consumers fetch via `gh:duaility/governance-kit/packs/<concern>@<rev>`):
 
-- **`governance-kit/foundation`** — `required-docs`, `kit-version-sync`.
+- **`governance-kit/foundation`** — `required-docs`, `kit-version-sync`, `repo-hygiene`.
 - **`governance-kit/security`** — `secrets-hygiene`, `token-permissions`, `pinned-dependencies`.
 - **`governance-kit/docs`** — `internal-doc-links`, `doc-freshness`.
 - **`governance-kit/commits`** — `commit-message-format`, `no-orphan-todos`, `no-unjustified-suppressions`.
-- **`governance-kit/hygiene`** — `repo-hygiene`.
-- **`governance-kit/audit`** — the agent audit chain (`receipt-per-issue` → `commit-issue-receipt-match` → `issue-templates` → `issues-tracked` → `agent-token-accounting`) plus `agent-steering-accounting`.
+- **`governance-kit/process`** — the issue → receipt → commit traceability chain (`issue-templates` → `issues-tracked` → `receipt-per-issue` → `commit-issue-receipt-match`).
+- **`governance-kit/audit`** — the agent accounting ledgers (`agent-token-accounting`, `agent-steering-accounting`).
 - **`governance-kit/integrity`** — `doc-integrity`, `toolchain-config-protection`.
 
 `governance init` unions each pack's chosen preset across all bundled packs (see Step 3).

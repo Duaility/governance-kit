@@ -22,15 +22,17 @@ The skill is a self-contained directory with frontmatter
 Each pack is a directory. Seven concern-scoped packs ship in-tree under
 `packs/<concern>/`:
 
-- `governance-kit/foundation` — `required-docs`, `kit-version-sync`.
+- `governance-kit/foundation` — `required-docs`, `kit-version-sync`,
+  `repo-hygiene`.
 - `governance-kit/security` — `secrets-hygiene`, `token-permissions`,
   `pinned-dependencies`.
 - `governance-kit/docs` — `internal-doc-links`, `doc-freshness`.
 - `governance-kit/commits` — `commit-message-format`, `no-orphan-todos`,
   `no-unjustified-suppressions`.
-- `governance-kit/hygiene` — `repo-hygiene`.
-- `governance-kit/audit` — the agent audit chain: `issue-templates`,
-  `issues-tracked`, `receipt-per-issue`, `commit-issue-receipt-match`,
+- `governance-kit/process` — the issue → receipt → commit traceability chain:
+  `issue-templates`, `issues-tracked`, `receipt-per-issue`,
+  `commit-issue-receipt-match`.
+- `governance-kit/audit` — the agent accounting ledgers:
   `agent-token-accounting`, `agent-steering-accounting`.
 - `governance-kit/integrity` — `doc-integrity`, `toolchain-config-protection`.
 

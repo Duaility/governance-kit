@@ -57,7 +57,7 @@ governance-kit/
 │   │   ├── catalog.schema.json      # JSON Schema for catalog entries.
 │   │   └── packs/lib/           # Shared pack tooling (packs.sh, install.sh, hooks.sh, …).
 ├── packs/                       # Kit-bundled concern packs (source of truth).
-│   └── <concern>/               # foundation, security, docs, commits, hygiene, audit, integrity
+│   └── <concern>/               # foundation, security, docs, commits, process, audit, integrity
 │       ├── pack.yaml            # pack id + presets
 │       └── directives/
 │           └── <directive-id>/  # self-contained directive folder
@@ -100,7 +100,7 @@ Do not edit [CONSTITUTION.md](CONSTITUTION.md) by hand. Invoke the `governance` 
 ### Adding a new directive to the catalog
 
 Directives live inside **packs**, each at its own pack root. The kit ships seven
-bundled concern packs — `governance-kit/{foundation,security,docs,commits,hygiene,audit,integrity}`,
+bundled concern packs — `governance-kit/{foundation,security,docs,commits,process,audit,integrity}`,
 each at `packs/<concern>/`. Community packs are authored in their own
 repos and consumed by target repos via `governance pack add gh:<owner>/<repo>`;
 they are not bundled here. Each directive is a self-contained folder — test,

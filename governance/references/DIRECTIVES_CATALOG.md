@@ -8,12 +8,12 @@ Seven concern-scoped packs ship in-tree, each at `packs/<concern>/`:
 
 | Pack | Location | Concern | Default? |
 |---|---|---|---|
-| `governance-kit/foundation` | `packs/foundation/` | Repo scaffolding + kit coherence. | Always present (bundled). |
+| `governance-kit/foundation` | `packs/foundation/` | Repo scaffolding, working-tree hygiene + kit coherence. | Always present (bundled). |
 | `governance-kit/security`   | `packs/security/`   | Supply-chain and credential hygiene. | Always present (bundled). |
 | `governance-kit/docs`       | `packs/docs/`       | Documentation-graph health. | Always present (bundled). |
 | `governance-kit/commits`    | `packs/commits/`    | Commit-message & in-source marker hygiene. | Always present (bundled). |
-| `governance-kit/hygiene`    | `packs/hygiene/`    | Working-tree cleanliness (`always_install`). | Always present (bundled). |
-| `governance-kit/audit`      | `packs/audit/`      | The GDD agent audit chain. | Always present (bundled). |
+| `governance-kit/process`    | `packs/process/`    | Issue → receipt → commit traceability. | Always present (bundled). |
+| `governance-kit/audit`      | `packs/audit/`      | Agent accounting ledgers (token + steering). | Always present (bundled). |
 | `governance-kit/integrity`  | `packs/integrity/`  | Append-only record protection + anti-gaming. | Always present (bundled). |
 
 Presets are **per-pack** and unioned at init: each pack ships `minimal`/`standard`/`strict` blocks covering its slice, and `governance init` unions the chosen preset across all seven (see [the preset table](#presets-per-pack-unioned-at-init)). Community packs live in their own repos and install via `governance pack add gh:<owner>/<repo>`. For authoring a **third-party pack**, see [PACK_AUTHORING.md](PACK_AUTHORING.md).
@@ -26,12 +26,13 @@ Several directives are **consolidated** — one directive rolling up multiple su
 
 ## `governance-kit/foundation`
 
-Repo scaffolding and kit coherence — the documents a governed repo needs, and the single kit-version pin agreeing with every managed-file stamp.
+Repo scaffolding, working-tree hygiene, and kit coherence — the documents a governed repo needs, a clean working tree, and the single kit-version pin agreeing with every managed-file stamp.
 
 | Directive | Standards | What it checks |
 |---|---|---|
 | `required-docs` | — | Rolled-up presence check for repo-root docs and local-hook scaffolding. Sub-checks (all enabled): `constitution` (`CONSTITUTION.md` ≥ 10 lines); `agents` (`AGENTS.md` at repo root, 30–250 lines, ≥ 3 internal links, **and a link to `CONSTITUTION.md`**); `readme` (`README.md`/`.rst` with heading + ≥ 30 words); `license` (`LICENSE`/variants, non-empty); `security` (`SECURITY.md` with contact); `architecture` (`ARCHITECTURE.md` ≥ 20 lines); `ci-workflow` (≥ 1 non-governance workflow); `env-example` (every key in local `.env` is declared in `.env.example`); `hooks` (`.githooks/pre-commit` tracked + executable, `core.hooksPath=.githooks`; no-ops on non-`githooks` strategies). Scalars configurable via `.governance/conf/governance-kit/foundation/required-docs.conf`. To carve out a sub-check, use `governance directive modify`. |
 | `kit-version-sync` | — | The kit version agrees across the install: every managed-file `# governance-kit:managed kit-version=<v>` marker equals `.governance/install.yaml`'s `kit_version`. Managed set derived from the manifest (`tests_dir`'s `run.sh`/`lib.sh`, `ci_workflow`, `enable_governance_script`, `.githooks/*`). No-op when the manifest or its `kit_version` is absent. Repair path: `governance kit update`. (Renamed from `version-consistency`; waiver token `allow-kit-version-sync`.) |
+| `repo-hygiene` | — | **`always_install: true`.** Rolled-up hygiene greps. Sub-checks: `merge-markers` (no `<<<<<<<` / `=======` / `>>>>>>>` at line start); `large-files` (no tracked file > 5 MB, override via `GOVERNANCE_MAX_FILE_SIZE_MB`); `build-artifacts` (denylist: `*.pyc`, `__pycache__/`, `*.class`, `*.o`, `node_modules/`, `dist/`, `build/`, `target/`, `out/`, `.DS_Store`, `Thumbs.db`, editor swap files); `debug-statements` (no `console.log` / `debugger` / `breakpoint()` / `import pdb` / `dbg!` / `fmt.Println` in non-test source; line-level waiver `# governance: allow-repo-hygiene <reason>`); `file-size-limit` (no source file > 500 lines, override via `GOVERNANCE_FILE_SIZE_LIMIT`; file-level waiver `governance: allow-repo-hygiene file-size-limit <reason>` in the first 10 lines). Scalars configurable via `.governance/conf/governance-kit/foundation/repo-hygiene.conf`. |
 
 ## `governance-kit/security`
 
@@ -62,17 +63,9 @@ Commit-message and in-source marker hygiene — the rules a repo opts into past 
 | `no-orphan-todos` | — | Every `TODO` / `FIXME` on a line references `#123` or `ABC-123`. |
 | `no-unjustified-suppressions` | — | Every lint / type-checker suppression — `eslint-disable*`, `@ts-ignore`, `@ts-expect-error`, `# noqa`, `# type: ignore`, `# pylint: disable`, `# pyright: ignore`, `#[allow(...)]`, `nolint`, `@SuppressWarnings` — references `#123` or `ABC-123` on the same line. Markdown is not scanned. Line waiver: `governance: allow-no-unjustified-suppressions <reason>`. |
 
-## `governance-kit/hygiene`
+## `governance-kit/process`
 
-Working-tree cleanliness. `repo-hygiene` is `always_install: true` — it bypasses the menu and installs in every repo.
-
-| Directive | Standards | What it checks |
-|---|---|---|
-| `repo-hygiene` | — | **`always_install: true`.** Rolled-up hygiene greps. Sub-checks: `merge-markers` (no `<<<<<<<` / `=======` / `>>>>>>>` at line start); `large-files` (no tracked file > 5 MB, override via `GOVERNANCE_MAX_FILE_SIZE_MB`); `build-artifacts` (denylist: `*.pyc`, `__pycache__/`, `*.class`, `*.o`, `node_modules/`, `dist/`, `build/`, `target/`, `out/`, `.DS_Store`, `Thumbs.db`, editor swap files); `debug-statements` (no `console.log` / `debugger` / `breakpoint()` / `import pdb` / `dbg!` / `fmt.Println` in non-test source; line-level waiver `# governance: allow-repo-hygiene <reason>`); `file-size-limit` (no source file > 500 lines, override via `GOVERNANCE_FILE_SIZE_LIMIT`; file-level waiver `governance: allow-repo-hygiene file-size-limit <reason>` in the first 10 lines). Scalars configurable via `.governance/conf/governance-kit/hygiene/repo-hygiene.conf`. |
-
-## `governance-kit/audit`
-
-The GDD agent audit chain, for repos where every tree-change is produced through an agent runtime (Codex, Claude Code, Cursor, …). The directives form a chain: issue creation uses a durable template, issues are tracked, every issue has exactly one receipt, every commit matches its receipt, and every commit carries its cost and steering footprint. Breaking any link makes the chain non-auditable — the `standard` preset bundles the full chain.
+Issue → receipt → commit traceability, for repos where every tree-change is produced through an agent runtime (Codex, Claude Code, Cursor, …). The directives form a chain: issue creation uses a durable template, issues are tracked, every issue has exactly one receipt, and every commit matches its receipt. Breaking any link makes the work non-traceable — the `standard` preset bundles the full chain.
 
 | Directive | Standards | What it checks |
 |---|---|---|
@@ -80,12 +73,19 @@ The GDD agent audit chain, for repos where every tree-change is produced through
 | `commit-issue-receipt-match` | — | Each commit's anchor — trailing `(#N)` in the subject or any `Issue: #N` body trailer — matches an `issue-<N>` token on a `receipts/*.md` it touches. `commit-msg` hook (Mode A) + CI merge-base→HEAD walk (Mode B). Per-commit waiver: `governance: allow-commit-issue-receipt-match <reason>`. |
 | `issue-templates` | — | `.github/ISSUE_TEMPLATE/` contains proposal + bug issue forms plus config; blank issues disabled; proposal requires Context / Decision / Scope / Acceptance criteria / Validation / Open questions; bug requires the core defect-report fields. Ships the templates under `install-assets/`. |
 | `issues-tracked` | — | `QUALITY.md` exists at repo root with `Open` and `Resolved` sections. Ships `install-assets/QUALITY.md`. |
+
+## `governance-kit/audit`
+
+The agent accounting ledgers, for repos where every tree-change is produced through an agent runtime (Codex, Claude Code, Cursor, …): every commit carries its token cost and human-steering footprint. Both bundle into `standard`; `agent-steering-accounting` is mandatory.
+
+| Directive | Standards | What it checks |
+|---|---|---|
 | `agent-token-accounting` | — | Every non-merge, non-revert commit carries the full trailer set (`Agent`, `Issue`, `Session`, `Token-Input`, `Token-Output`, `Token-Total`, `Cost-Key`, `Cost-USD`), satisfies `Total = Input + Output`, and has exactly one matching append-only row in `COSTS.md`. Price overrides via `rate <model> …` rows in `.governance/conf/governance-kit/audit/agent-token-accounting.conf`. See [AGENT_TOKEN_ACCOUNTING.md](AGENT_TOKEN_ACCOUNTING.md). |
 | `agent-steering-accounting` | — | **`always_install: true`.** Every non-merge, non-revert commit stamps the summary triple (`Steer-Count`, `Steer-Types`, `Steer-Tiers`); the numbers tally rows newly added to append-only `STEERING.md`. Detects human-steering events (interrupts → `tier: structural`; corrections → `tier: classifier`, regex `tier: lexical` fallback). Knobs in `.governance/conf/governance-kit/audit/agent-steering-accounting.conf`. Privacy caveat — `user-reason` cells contain verbatim operator text; redact via the classifier hook rather than skipping the directive. See [AGENT_STEERING_ACCOUNTING.md](AGENT_STEERING_ACCOUNTING.md). |
 
 ## `governance-kit/integrity`
 
-Append-only record protection and anti-gaming for the audit chain's own artifacts.
+Append-only record protection and anti-gaming for the process and audit packs' own artifacts (receipts, `COSTS.md`, `STEERING.md`, the constitution's Evolution Log).
 
 | Directive | Standards | What it checks |
 |---|---|---|
@@ -104,7 +104,7 @@ Each pack declares only the preset tiers it contributes to; `governance init` un
 | `standard` | *minimal* + `kit-version-sync`, `doc-freshness`, `commit-message-format`, `issue-templates`, `issues-tracked`, `receipt-per-issue`, `commit-issue-receipt-match`, `agent-token-accounting`, `agent-steering-accounting`, `toolchain-config-protection`, `doc-integrity` |
 | `strict`   | *standard* + `no-orphan-todos`, `no-unjustified-suppressions` |
 
-`repo-hygiene`, `doc-integrity`, and `agent-steering-accounting` are `always_install: true` — they install regardless of preset selection. `always_install: true` is reserved to the `governance-kit/*` bundled packs. The agent audit chain is mandatory in this kit's model because every commit is agent-authored.
+`repo-hygiene`, `doc-integrity`, and `agent-steering-accounting` are `always_install: true` — they install regardless of preset selection. `always_install: true` is reserved to the `governance-kit/*` bundled packs. Agent accounting is mandatory in this kit's model because every commit is agent-authored.
 
 ---
 
