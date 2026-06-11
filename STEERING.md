@@ -107,3 +107,6 @@ silent fallback for when the runtime CLI is unreachable).
 | steer-98f2568a589-1781149706-2 | 98f2568a-5890-4018-b9a7-8f73e1015126 | #184 | correction | classifier | Proposes merging doc-reachability with no-broken-internal-doc-links instead of separate | feat(core): add harness-engineering directives and consolidate doc-link checks … |
 | steer-964ef924112-1781157301-1 | 964ef924-1120-46d6-88d3-46dd2fb93d5b | #186 | interrupt | structural |  | feat(packs): first-class per-directive configuration (#186)Replace the ad-hoc m… |
 | steer-964ef924112-1781157301-2 | 964ef924-1120-46d6-88d3-46dd2fb93d5b | #186 | interrupt | structural |  | feat(packs): first-class per-directive configuration (#186)Replace the ad-hoc m… |
+| steer-964ef924112-1781159459-1 | 964ef924-1120-46d6-88d3-46dd2fb93d5b |  | correction | classifier | Corrected agent to the wrong directive; meant the STEERING.md one |  |
+| steer-964ef924112-1781159459-2 | 964ef924-1120-46d6-88d3-46dd2fb93d5b |  | interrupt | structural |  |  |
+| steer-964ef924112-1781159459-3 | 964ef924-1120-46d6-88d3-46dd2fb93d5b |  | correction | classifier | Objected to editing .governance files; expects pack update to pull changes |  |

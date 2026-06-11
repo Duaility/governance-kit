@@ -13,6 +13,7 @@ a uniform layered model.
 - [x] reported under a new `conf_seeded` key
 - [x] move their default lists into `defaults.conf`
 - [x] `agent-token-accounting`'s `lib/rates.py` merges `rate` rows
+- [x] agent-steering-accounting lexical triggers
 - [x] Dogfood
 - [x] Docs
 
@@ -50,6 +51,16 @@ a single-spaced `!` line matches a column-aligned default), `KEY=value`
   `agent-token-accounting`'s `lib/rates.py` merges `rate` rows from its conf over the
   built-in table (malformed row blocks the commit). Each gets a `config.conf`.
   Deleted `governance/assets/{integrity,freshness}.conf`.
+- **agent-steering-accounting** (`packs/core/directives/agent-steering-accounting/`):
+  extracted its two hardcoded classifier knobs — agent-steering-accounting lexical triggers
+  (the CLI-down `LEXICAL_FALLBACK_RE` phrase list → pack-owned `defaults.conf`) and the
+  `CANDIDATE_MAX_LEN` scalar (deduped across `lib/classifier.py` and `lib/extract.py`).
+  New stdlib-only `lib/conf.py` mirrors the bash `conf_list`/`conf_get` layering in Python
+  so both modules read the same overlay (`!phrase` drops a default, bare line adds,
+  `CANDIDATE_MAX_LEN=<int>` / env `GOVERNANCE_CANDIDATE_MAX_LEN` overrides the scalar;
+  a non-integer raises). The ledger contract enums and `check.sh` are untouched — knobs
+  shape only the best-effort stamping path. Seeding/drift/removal ride the generic
+  machinery (no engine change). Eval gains three conf cases.
 - **Dogfood**: removed `.governance/{integrity,freshness}.conf` (rules now ship in
   the consumed-tree `defaults.conf`), dual-edited the consumed core tree and lib.sh,
   updated the affected `CONSTITUTION.md` Directive subsections + appended an
@@ -71,6 +82,13 @@ a single-spaced `!` line matches a column-aligned default), `KEY=value`
   the same change; migrated directives read only `.governance/conf/<id>.conf`.
 - **No version bumps.** Release-only policy; ships as a `feat`, versions on the
   next `chore(release)`.
+- **agent-steering-accounting scope: knobs, not contract.** Extracted only the
+  two genuinely user-tunable surfaces (lexical-fallback phrases, `CANDIDATE_MAX_LEN`).
+  The `CLASSIFIER_PROMPT` is left fixed (tuning it changes classification semantics),
+  and the `type`/`tier` enums are deliberately *not* configurable — they are the ledger
+  accounting schema, and making them tunable would let a repo break its own audit
+  contract. The lexical list is only the CLI-down fallback, so the parity value is
+  modest, but it closes the same `pack update` clobber gap the token price table had.
 
 ## Out of scope
 

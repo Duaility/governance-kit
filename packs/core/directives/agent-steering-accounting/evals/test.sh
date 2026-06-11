@@ -358,4 +358,71 @@ git add STEERING.md
 git commit --quiet --no-verify -F /tmp/msg-squash-trailing-zero
 EVAL_LABEL="$EVAL_ID squash-merge-trailing-zero-block" expect_pass "$CHECK"
 
+# ──────────────────────────────────────────────────────────────
+# Case 18 — conf overlay drives the lexical fallback list + the
+# CANDIDATE_MAX_LEN scalar. The classifier's CLI-down fallback phrases
+# live in the pack-owned defaults.conf, layered with the user overlay
+# `.governance/conf/agent-steering-accounting.conf` (bare line adds,
+# `!phrase` drops a default, KEY=value overrides a scalar). Verifies the
+# Python conf loader mirrors the bash conf_list/conf_get semantics.
+# ──────────────────────────────────────────────────────────────
+eval_assertions=$(( eval_assertions + 1 ))
+CONF_LIB=".governance/packs/governance-kit/core/directives/$EVAL_ID/lib"
+mkdir -p .governance/conf
+printf 'scratch that\n!back up\nCANDIDATE_MAX_LEN=4000\n' \
+    > .governance/conf/agent-steering-accounting.conf
+if python3 - "$CONF_LIB" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+import conf
+phrases = conf.effective_list()
+assert "scratch that" in phrases, "overlay add missing"
+assert "back up" not in phrases, "!back up not dropped"
+assert "no" in phrases, "default 'no' lost"
+assert conf.get_int("CANDIDATE_MAX_LEN", 2000) == 4000, "scalar override ignored"
+rx = conf.lexical_fallback_re()
+assert rx.match("scratch that idea"), "added phrase does not match"
+assert not rx.match("back up please"), "dropped phrase still matches"
+PY
+then
+    printf '    ✓ %s conf-overlay — defaults+overlay drive triggers and CANDIDATE_MAX_LEN\n' "$EVAL_ID"
+else
+    printf '    ✗ %s conf-overlay — loader did not honor the overlay\n' "$EVAL_ID"
+    eval_failures=$(( eval_failures + 1 ))
+fi
+# Env wins over the overlay for the scalar.
+eval_assertions=$(( eval_assertions + 1 ))
+if GOVERNANCE_CANDIDATE_MAX_LEN=7777 python3 - "$CONF_LIB" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+import conf
+assert conf.get_int("CANDIDATE_MAX_LEN", 2000) == 7777, "env did not win"
+PY
+then
+    printf '    ✓ %s conf-env — GOVERNANCE_CANDIDATE_MAX_LEN overrides the overlay\n' "$EVAL_ID"
+else
+    printf '    ✗ %s conf-env — env did not override the overlay scalar\n' "$EVAL_ID"
+    eval_failures=$(( eval_failures + 1 ))
+fi
+# Malformed scalar fails loud rather than silently reverting.
+eval_assertions=$(( eval_assertions + 1 ))
+printf 'CANDIDATE_MAX_LEN=lots\n' > .governance/conf/agent-steering-accounting.conf
+if python3 - "$CONF_LIB" <<'PY' 2>/dev/null
+import sys
+sys.path.insert(0, sys.argv[1])
+import conf
+try:
+    conf.get_int("CANDIDATE_MAX_LEN", 2000)
+except ValueError:
+    sys.exit(0)
+sys.exit(1)
+PY
+then
+    printf '    ✓ %s conf-malformed — non-integer scalar raises\n' "$EVAL_ID"
+else
+    printf '    ✗ %s conf-malformed — bad scalar did not raise\n' "$EVAL_ID"
+    eval_failures=$(( eval_failures + 1 ))
+fi
+rm -f .governance/conf/agent-steering-accounting.conf
+
 eval_done

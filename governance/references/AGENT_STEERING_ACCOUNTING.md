@@ -171,11 +171,42 @@ The regex fallback (used silently when the CLI is unreachable) matches:
 ```
 
 (case-insensitive, on the user message). High-precision, high-FN — covers
-the obvious cases until the CLI is reachable again.
+the obvious cases until the CLI is reachable again. This is the *default*
+phrase list and is tunable per repo — see **Configuration** below.
 
 There is no env-var gate inside the directive — installation is the gate.
 Repos that don't want correction-tier rows simply don't install the
-directive.
+directive. (The config knobs below *tune* detection; they are not feature
+gates and cannot turn the directive off.)
+
+## Configuration
+
+Two classifier knobs are tunable per repo, via the same layered-overlay model
+every configurable directive uses: a pack-owned `defaults.conf` ships in the
+directive folder (live defaults, refreshed by `governance pack update`, never
+hand-edited), and the user-owned overlay
+`.governance/conf/agent-steering-accounting.conf` holds only your deltas (seeded
+once from the directive's `config.conf` at install, never clobbered by an
+update). `lib/conf.py` mirrors the bash `conf_list` / `conf_get` helpers so the
+Python classifier and extractor read the same effective values.
+
+- **Lexical-fallback trigger phrases** — the redirect-trigger list shown above,
+  used only on the silent `lexical` path when the runtime CLI is unreachable.
+  In the overlay, a bare line **adds** a phrase, `!phrase` **drops** one of the
+  defaults (gitignore-style negation), matching is case-insensitive and anchored
+  at the start of the user message on a word boundary, and multi-word phrases
+  match verbatim. Clearing the whole list disables the lexical fallback (it
+  never matches) rather than matching everything.
+- **`CANDIDATE_MAX_LEN`** — the maximum user-message length (chars) still
+  considered a classification candidate; longer messages are clipped before the
+  CLI call. Default `2000`. Set `CANDIDATE_MAX_LEN=<int>` in the overlay, or the
+  env var `GOVERNANCE_CANDIDATE_MAX_LEN` (which wins). A non-integer value fails
+  loudly rather than silently reverting.
+
+Neither knob touches `check.sh`: they shape only *which events the stamping path
+records*, never the directive's pass/fail verdict. The ledger contract enums
+(`type` ∈ `interrupt`/`correction`, `tier` ∈ `structural`/`classifier`/`lexical`)
+are the accounting schema, not configuration, and stay fixed.
 
 ## Privacy
 
