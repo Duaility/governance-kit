@@ -22,6 +22,11 @@
 #     - has_waiver matches `governance: allow-<id>` on the given line
 #     - has_file_waiver matches `governance: allow-<id> <sub-check>` in
 #       the first 10 lines, scoped to both directive id and sub-check
+#     - conf_file resolves .governance/conf/<id>.conf (present/absent)
+#     - conf_get precedence: env GOVERNANCE_<KEY> > conf line > default
+#     - conf_rule_lines strips comments/blanks/KEY= and trims the rest
+#     - conf_list layers defaults.conf with the overlay (+add / !remove),
+#       normalizing whitespace for ! removal
 
 set -eu
 
@@ -441,6 +446,115 @@ set +e
 exit_code=$?
 set -e
 assert_eq "waiver is scoped to the named directive id" 0 "$exit_code"
+
+# ---- lib.sh: conf_file / conf_get / conf_rule_lines -----------------------
+
+printf '── lib.sh: conf_file / conf_get / conf_rule_lines ──────\n'
+conf_repo="$WORK/conf-repo"
+mkdir -p "$conf_repo/.governance/conf"
+git -C "$conf_repo" init -q
+cat > "$conf_repo/.governance/conf/sample.conf" <<'EOF'
+# a comment line
+FRESHNESS_DAYS=30
+EMPTY=
+frozen-files receipts/*.md
+  append-only COSTS.md   # trailing comment
+NOTAKEY here
+EOF
+
+# conf_file: present → prints path, exit 0
+output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_file sample)
+exit_code=$?
+assert_eq "conf_file present → exit 0" 0 "$exit_code"
+assert_contains "conf_file prints the conf path" ".governance/conf/sample.conf" "$output"
+
+# conf_file: absent → exit 1, no output
+set +e
+output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_file missing)
+exit_code=$?
+set -e
+assert_eq "conf_file absent → exit 1" 1 "$exit_code"
+assert_eq "conf_file absent → no output" "" "$output"
+
+# conf_get: value from conf
+output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_get sample FRESHNESS_DAYS 90)
+assert_eq "conf_get reads value from conf" "30" "$output"
+
+# conf_get: env overrides conf
+output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; GOVERNANCE_FRESHNESS_DAYS=7 conf_get sample FRESHNESS_DAYS 90)
+assert_eq "conf_get env beats conf" "7" "$output"
+
+# conf_get: missing key → default
+output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_get sample MISSING 90)
+assert_eq "conf_get missing key → default" "90" "$output"
+
+# conf_get: no conf at all → default
+output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_get nopack MISSING 90)
+assert_eq "conf_get no conf → default" "90" "$output"
+
+# conf_rule_lines: comments / blanks / KEY= lines stripped, rest trimmed
+output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_rule_lines sample)
+expected=$'frozen-files receipts/*.md\nappend-only COSTS.md\nNOTAKEY here'
+assert_eq "conf_rule_lines yields trimmed rule lines only" "$expected" "$output"
+
+# conf_rule_lines: no conf → empty, exit 0
+set +e
+output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_rule_lines nopack)
+exit_code=$?
+set -e
+assert_eq "conf_rule_lines no conf → exit 0" 0 "$exit_code"
+assert_eq "conf_rule_lines no conf → empty" "" "$output"
+
+# ---- lib.sh: conf_list (defaults + overlay layering) ----------------------
+
+printf '── lib.sh: conf_list ───────────────────────────────────\n'
+list_repo="$WORK/list-repo"
+mkdir -p "$list_repo/.governance/conf"
+git -C "$list_repo" init -q
+cat > "$list_repo/defaults.conf" <<'EOF'
+# pack-owned defaults
+feat
+fix
+chore
+style
+EOF
+
+# No overlay → effective list is the defaults verbatim.
+output=$(cd "$list_repo"; set +u; source "$LIB_SH"; conf_list cmf ./defaults.conf | tr '\n' ' ')
+assert_eq "conf_list no overlay → defaults" "feat fix chore style " "$output"
+
+# Overlay adds and removes (gitignore-style ! negation).
+cat > "$list_repo/.governance/conf/cmf.conf" <<'EOF'
+# my overlay
+!style
+wip
+EOF
+output=$(cd "$list_repo"; set +u; source "$LIB_SH"; conf_list cmf ./defaults.conf | tr '\n' ' ')
+assert_eq "conf_list overlay removes default + adds new" "feat fix chore wip " "$output"
+
+# Whitespace-normalized removal: a single-spaced ! line matches a column-aligned
+# default, and additions append while preserving default alignment.
+cat > "$list_repo/defaults.conf" <<'EOF'
+frozen-files    receipts/*.md
+append-only      COSTS.md
+frozen-section  QUALITY.md         Resolved
+EOF
+cat > "$list_repo/.governance/conf/cmf.conf" <<'EOF'
+!frozen-section QUALITY.md Resolved
+append-only docs/DECISIONS.md
+EOF
+output=$(cd "$list_repo"; set +u; source "$LIB_SH"; conf_list cmf ./defaults.conf)
+expected=$'frozen-files    receipts/*.md\nappend-only      COSTS.md\nappend-only docs/DECISIONS.md'
+assert_eq "conf_list normalizes whitespace for ! removal" "$expected" "$output"
+
+# Removing every default → empty effective list.
+cat > "$list_repo/.governance/conf/cmf.conf" <<'EOF'
+!frozen-files receipts/*.md
+!append-only COSTS.md
+!frozen-section QUALITY.md Resolved
+EOF
+output=$(cd "$list_repo"; set +u; source "$LIB_SH"; conf_list cmf ./defaults.conf)
+assert_eq "conf_list can empty the list" "" "$output"
 
 # ---- summary --------------------------------------------------------------
 

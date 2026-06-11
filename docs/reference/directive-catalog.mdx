@@ -38,13 +38,13 @@ Everything below ships in the kit's one bundled pack, `governance-kit/core`. Com
 ## System of record
 
 ### internal-doc-links
-`minimal` · Rolled-up health of the internal markdown link graph. **`resolve`** (always on): every relative-path link target in a tracked `.md` resolves to a real file. **`reachable`** (opt-in via `.governance/reachability.conf`): every tracked doc is reachable by following internal links from a declared root — a no-op until you write the config. `resolve` proves your links point somewhere real; `reachable` proves your docs are on the map.
+`minimal` · Rolled-up health of the internal markdown link graph. **`resolve`** (always on): every relative-path link target in a tracked `.md` resolves to a real file. **`reachable`** (opt-in via `.governance/conf/internal-doc-links.conf`): every tracked doc is reachable by following internal links from a declared root — a no-op until you write the config. `resolve` proves your links point somewhere real; `reachable` proves your docs are on the map.
 
 ### doc-freshness
-`standard` · Docs opted into `.governance/freshness.conf` carry a `<!-- last-verified: YYYY-MM-DD -->` marker dated within the last 90 days. A periodic "someone re-read this" checkpoint for runbooks and onboarding docs.
+`standard` · Docs opted into `.governance/conf/doc-freshness.conf` carry a `<!-- last-verified: YYYY-MM-DD -->` marker dated within the last 90 days. A periodic "someone re-read this" checkpoint for runbooks and onboarding docs.
 
 ### doc-integrity
-`always installed` · System-of-record documents are tamper-evident against the trunk baseline, per `.governance/integrity.conf`: `frozen-files` (receipts immutable once merged), `append-only` (`COSTS.md`, `STEERING.md`), `frozen-section` (`QUALITY.md` Resolved, the Evolution Log). Branch content stays editable until it merges.
+`always installed` · System-of-record documents are tamper-evident against the trunk baseline. Standard rules ship in the directive's `defaults.conf`, layered with the `.governance/conf/doc-integrity.conf` overlay: `frozen-files` (receipts immutable once merged), `append-only` (`COSTS.md`, `STEERING.md`), `frozen-section` (`QUALITY.md` Resolved, the Evolution Log). Branch content stays editable until it merges.
 
 ## Commit hygiene
 
@@ -76,7 +76,7 @@ See [The audit chain & ledgers](/concepts/audit-chain) for how these compose.
 `standard` · Every `receipts/*.md` carries a unique `issue-<N>` filename token and the four required sections, and every checked checklist item crosswalks into `## What changed` or `## Verification`. Receipts **added in the change set** must also carry a `## Decisions` section and at least one fenced, re-runnable command in `## Verification`; pre-existing receipts are grandfathered.
 
 ### toolchain-config-protection
-`standard` · A commit that touches linter / formatter / type-checker / CI / git-hook config must carry a `governance: allow-toolchain-config <reason>` body line. Stops the "edit the rule, not the code" move (loosen eslint, relax a ruff `select`, weaken a workflow's `permissions`) from passing silently in a green build. Protected paths default to a multi-ecosystem list, overridable via `.governance/protected-config.conf`.
+`standard` · A commit that touches linter / formatter / type-checker / CI / git-hook config must carry a `governance: allow-toolchain-config <reason>` body line. Stops the "edit the rule, not the code" move (loosen eslint, relax a ruff `select`, weaken a workflow's `permissions`) from passing silently in a green build. Protected paths default to a multi-ecosystem list in the directive's `defaults.conf`, customizable via the `.governance/conf/toolchain-config-protection.conf` overlay (bare line adds, `!<pattern>` drops a default).
 
 ### commit-issue-receipt-match
 `standard` · Every non-merge commit's issue anchor matches an `issue-<N>` token on a receipt the commit touches — the link that makes "which issue was this for?" mechanical.

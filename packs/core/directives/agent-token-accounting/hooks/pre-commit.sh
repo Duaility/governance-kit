@@ -227,7 +227,8 @@ if ! COST_USD="$(python3 "$LIB/rates.py" cost "$MODEL" "$TOKEN_INPUT" "$TOKEN_CA
     fi
     printf '%s✗ agent-token-accounting: model %q is not priced.%s\n' \
         "$_r" "$MODEL" "$_rst" >&2
-    printf '    add an entry (usually a family-prefix row) to lib/rates.py\n' >&2
+    printf '    add a `rate %q <base> <cache_create> <cache_read> <output>` row to\n' "$MODEL" >&2
+    printf '    .governance/conf/agent-token-accounting.conf (per-MTok USD),\n' >&2
     printf '    or set SKIP_GOVERNANCE=1 for a one-off bypass.\n' >&2
     unset _r _rst
     exit 1

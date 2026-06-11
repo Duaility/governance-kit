@@ -12,12 +12,14 @@ the apply in one call:
 
   * **add / update** — copy each approved directive folder via install.sh
     `install_directive_folder` (+ `install_directive_assets`), record any seeded
-    files in `install.yaml`'s `install_assets_seeded`, regenerate the hook
-    dispatchers, and upsert the lockfile pin last (so a crash never leaves the
-    lock claiming directives that aren't installed).
-  * **remove** — delete each directive folder, strip its CONSTITUTION.md
-    subsection via docsurgery, drop the now-empty pack root, regenerate hooks,
-    and prune the lock entry first.
+    files in `install.yaml`'s `install_assets_seeded`, seed each freshly-added
+    directive's user conf from its shipped `config.conf` (never on update —
+    user-owned conf is untouchable), regenerate the hook dispatchers, and upsert
+    the lockfile pin last (so a crash never leaves the lock claiming directives
+    that aren't installed).
+  * **remove** — delete each directive folder and its user conf, strip its
+    CONSTITUTION.md subsection via docsurgery, drop the now-empty pack root,
+    regenerate hooks, and prune the lock entry first.
 
 Per-directive `--decisions {<id>: skip}` holds individual directives back
 (default: install/keep all approved). `--dry-run` resolves every action and
@@ -140,11 +142,20 @@ def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str
             installed_dids.append(did)
             report["added" if d["status"] == "add" else "updated"].append(d["dest"])
             seeded.extend(r for r in _install_asset_rels(pack_dir, did) if not (root / r).exists())
+            # Per-directive user conf is seeded only on a fresh add — never on
+            # update, where an existing `.governance/conf/<id>.conf` is
+            # user-owned and a deleted one must not be resurrected.
+            # seed_directive_conf is augment-only as a second guard.
+            conf_tpl = pack_dir / "directives" / did / "config.conf"
+            conf_dest = root / ".governance" / "conf" / f"{did}.conf"
+            if d["status"] == "add" and conf_tpl.is_file() and not conf_dest.exists():
+                report["conf_seeded"].append(f".governance/conf/{did}.conf")
             if dry_run:
                 continue
-            res = bash_lib(
-                'install_directive_folder "$1" "$2" "$3"; install_directive_assets "$1" "$2" "$3"',
-                str(pack_dir), did, str(root))
+            cmd = 'install_directive_folder "$1" "$2" "$3"; install_directive_assets "$1" "$2" "$3"'
+            if d["status"] == "add":
+                cmd += '; seed_directive_conf "$1" "$2" "$3"'
+            res = bash_lib(cmd, str(pack_dir), did, str(root))
             if res.returncode != 0:
                 report.update(result="error",
                               reason=f"install of {pack['id']}/{did} failed: {res.stderr.strip()}",
@@ -185,6 +196,17 @@ def _apply_remove(root: Path, plan: dict[str, Any], report: dict[str, Any], dry_
         report["removed"].append(dest)
         if not dry_run:
             shutil.rmtree(root / dest, ignore_errors=True)
+    # Drop each removed directive's user conf — the pack is leaving, so its
+    # `.governance/conf/<id>.conf` has no owner. The plan lists only those that
+    # currently exist on disk.
+    for conf_rel in pack.get("conf_files", []):
+        report["removed"].append(conf_rel)
+        if not dry_run:
+            (root / conf_rel).unlink(missing_ok=True)
+    if not dry_run:
+        conf_dir = root / ".governance" / "conf"
+        if conf_dir.is_dir() and not any(conf_dir.iterdir()):
+            conf_dir.rmdir()
     for did in pack["constitution_subsections"]:
         report["constitution_stripped"].append(did)
         if not dry_run and constitution.is_file():
@@ -224,7 +246,7 @@ def cmd_pack_apply(args: argparse.Namespace) -> int:
     report: dict[str, Any] = {
         "result": None, "mode": args.mode, "target": args.target,
         "added": [], "updated": [], "removed": [], "skipped": [], "held_back": [],
-        "constitution_stripped": [], "seeded_assets": [], "lock": [],
+        "constitution_stripped": [], "seeded_assets": [], "conf_seeded": [], "lock": [],
         "hook_dispatcher": "unchanged", "smoke_test": None, "assumptions": [],
     }
     try:

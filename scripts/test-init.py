@@ -79,6 +79,7 @@ def _write_source_pack(base: Path, pack_id: str = "acme/widgets", did: str = "no
         f"- **Enforced by**: `.governance/packs/{pack_id}/directives/{did}/check.sh`\n")
     (ddir / "evals" / "test.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
     (ddir / "install-assets" / "WIDGETS.md").write_text("# Widgets\n")
+    (ddir / "config.conf").write_text("# overlay template\n# KEY=value\n")
     (ddir / "check.sh").chmod(0o755)
     (ddir / "evals" / "test.sh").chmod(0o755)
     return pack
@@ -124,9 +125,10 @@ def test_init_apply_assembles_full_install() -> None:
         root = _fresh_repo(Path(tmp) / "repo")
         rc, report = init_apply_cli(root, _decisions(src))
         assert rc == 0 and report["result"] == "applied", report
-        # directive installed minus evals
+        # directive installed minus evals; config.conf (overlay template) ships
         dest = root / ".governance/packs/acme/widgets/directives/no-console-log"
         assert (dest / "check.sh").is_file() and not (dest / "evals").exists()
+        assert (dest / "config.conf").is_file()
         # CONSTITUTION assembled
         const = (root / "CONSTITUTION.md").read_text()
         assert "Ship receipts, not promises." in const and "### no-console-log" in const
@@ -146,6 +148,13 @@ def test_init_apply_assembles_full_install() -> None:
         assert (root / "WIDGETS.md").is_file() and "WIDGETS.md" in report["seeded_assets"]
         assert (root / "AGENTS.md").is_file() and report["agents_md"] == "stub created"
         assert "WIDGETS.md" in (root / ".governance/install.yaml").read_text()
+        # per-directive user conf seeded from config.conf; reported, not ledgered
+        conf = root / ".governance/conf/no-console-log.conf"
+        assert conf.is_file() and ".governance/conf/no-console-log.conf" in report["conf_seeded"]
+        assert "no-console-log.conf" not in (root / ".governance/install.yaml").read_text()
+        # the deleted hardcoded special case must not resurface
+        assert not (root / ".governance/integrity.conf").exists()
+        assert not (root / ".governance/freshness.conf").exists()
 
 
 def test_init_apply_refuses_existing_install() -> None:

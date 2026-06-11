@@ -124,12 +124,21 @@ def test_reset_restores_drifted_directive_and_subsection() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         src = _write_pinned_source(Path(tmp) / "src")
         root = _make_repo(Path(tmp) / "repo", drifted=True)
+        # a user overlay exists; reset restores the pinned folder but must never
+        # touch the user-owned .governance/conf/.
+        conf = root / ".governance/conf/no-console-log.conf"
+        conf.parent.mkdir(parents=True, exist_ok=True)
+        conf.write_text("USER=tweak\n")
+        git(root, "add", "-A")
+        git(root, "commit", "-qm", "seed user conf")
         resetplan.fetch_ref = lambda ref, cache_dir=None: {
             "sha": "e" * 40, "pack_dir": str(src), "cache_dir": str(src.parent), "id": "acme/widgets"}
         rc, report = _capture(lambda: resetapply.cmd_reset_apply(
             _ns(scope="all", root=str(root), date="2026-06-10", author="srikanth")))
         assert rc == 0 and report["result"] == "applied", report
         assert report["restored"] == ["no-console-log"]
+        # the user overlay is left exactly as it was
+        assert conf.read_text() == "USER=tweak\n"
         # folder restored to pristine
         assert (root / ".governance/packs/acme/widgets/directives/no-console-log/check.sh").read_text() == PRISTINE_CHECK
         # CONSTITUTION subsection restored

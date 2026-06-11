@@ -70,8 +70,7 @@ Before touching anything, run these in parallel:
 - Check for each artifact in the uninstall matrix (see [UNINSTALL_MATRIX.md](UNINSTALL_MATRIX.md)):
   - `CONSTITUTION.md`
   - `.governance/run.sh`, `.governance/lib.sh`, every `.governance/packs/<pack-id>/directives/<id>/`
-  - `.governance/freshness.conf`
-  - `.governance/integrity.conf`
+  - `.governance/conf/` (per-directive user overlays)
   - `.github/workflows/governance.yml`
   - `.governance/install.yaml`
   - `.governance/packs.lock`

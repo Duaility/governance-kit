@@ -96,7 +96,7 @@ This directive (and `doc-integrity`) is `always_install: true` — the audit mod
 
 ## doc-integrity: the record cannot be quietly rewritten
 
-An audit trail you can edit is not an audit trail. `doc-integrity` makes the system-of-record documents tamper-evident, driven by `.governance/integrity.conf` with three rule shapes:
+An audit trail you can edit is not an audit trail. `doc-integrity` makes the system-of-record documents tamper-evident, driven by standard rules in its `defaults.conf` (layered with the `.governance/conf/doc-integrity.conf` overlay) with three rule shapes:
 
 | Rule | Semantics |
 |---|---|

@@ -6,8 +6,9 @@
 #
 # To carve out a sub-check for your repo, use `governance directive modify` to
 # amend this script (or `governance directive remove` to drop the directive
-# entirely). Threshold tunables — GOVERNANCE_MAX_FILE_SIZE_MB and
-# GOVERNANCE_FILE_SIZE_LIMIT — remain available below.
+# entirely). Threshold tunables — MAX_FILE_SIZE_MB and FILE_SIZE_LIMIT — are set
+# in `.governance/conf/repo-hygiene.conf` (or the matching GOVERNANCE_* env vars,
+# which win), and applied below.
 set -u
 source "$(dirname "$0")/../../../../../lib.sh"
 directive_start "repo-hygiene"
@@ -26,7 +27,7 @@ done < <(git grep -InE '^(<<<<<<< |=======$|>>>>>>> )' -- \
     ':!**/evals/**' 2>/dev/null || true)
 
 # ── large-files ─────────────────────────────────────────────────
-_LIMIT_MB="${GOVERNANCE_MAX_FILE_SIZE_MB:-5}"
+_LIMIT_MB="$(conf_get repo-hygiene MAX_FILE_SIZE_MB 5)"
 _LIMIT_BYTES=$((_LIMIT_MB * 1024 * 1024))
 _file_size() {
     stat -f%z "$1" 2>/dev/null && return 0
@@ -95,7 +96,7 @@ for entry in "${_dbg[@]}"; do
 done
 
 # ── file-size-limit ─────────────────────────────────────────────
-_LIMIT="${GOVERNANCE_FILE_SIZE_LIMIT:-500}"
+_LIMIT="$(conf_get repo-hygiene FILE_SIZE_LIMIT 500)"
 _exts=(
     "*.py" "*.js" "*.jsx" "*.ts" "*.tsx" "*.mjs" "*.cjs"
     "*.go" "*.rs" "*.rb" "*.java" "*.kt" "*.scala"

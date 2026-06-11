@@ -49,20 +49,32 @@ governance: allow-toolchain-config
 EOF
 EVAL_LABEL="$EVAL_ID bare-waiver" expect_fail "$CHECK" "$msg"
 
-# pass — config-driven pattern list narrows protection (only Makefile protected)
+# ── overlay layering on the pack-owned default pattern list ──
 git reset --quiet HEAD .github/workflows/ci.yml && rm -rf .github
-mkdir -p .governance
-printf 'Makefile\n' > .governance/protected-config.conf
-echo '{ "compilerOptions": {} }' > tsconfig.json
-git add .governance/protected-config.conf tsconfig.json
-printf 'chore: edit tsconfig under custom config list (#4)\n' > "$msg"
-EVAL_LABEL="$EVAL_ID conf-narrows" expect_pass "$CHECK" "$msg"
+mkdir -p .governance/conf
 
-# fail — same custom list still protects the Makefile
+# pass — overlay drops the tsconfig default with `!`, so editing it no longer
+# needs a waiver. (.governance/conf is untracked, so it doesn't count as a
+# touched file itself.)
+printf '!tsconfig.json\n' > .governance/conf/toolchain-config-protection.conf
+echo '{ "compilerOptions": {} }' > tsconfig.json
+git add tsconfig.json
+printf 'chore: edit tsconfig after dropping its default (#4)\n' > "$msg"
+EVAL_LABEL="$EVAL_ID overlay-removes-default" expect_pass "$CHECK" "$msg"
+
+# fail — a still-default pattern (Makefile) stays protected
 printf 'all:\n\techo hi\n' > Makefile
 git add Makefile
 printf 'build: change Makefile (#5)\n' > "$msg"
-EVAL_LABEL="$EVAL_ID conf-still-protects" expect_fail "$CHECK" "$msg"
+EVAL_LABEL="$EVAL_ID default-still-protects" expect_fail "$CHECK" "$msg"
+git reset --quiet HEAD Makefile && rm -f Makefile
+
+# fail — overlay ADDS a custom pattern, which is then protected
+printf '+app.config.json\n' > .governance/conf/toolchain-config-protection.conf
+echo '{ "feature": true }' > app.config.json
+git add app.config.json
+printf 'chore: edit custom protected config (#6)\n' > "$msg"
+EVAL_LABEL="$EVAL_ID overlay-adds-pattern" expect_fail "$CHECK" "$msg"
 
 rm -f "$msg"
 eval_done

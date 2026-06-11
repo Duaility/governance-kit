@@ -71,8 +71,8 @@ never hand-executes `rm` / `cp` / CONSTITUTION edits / hook regen.
 
 The apply enforces in code every gate that was prose: refuse when the lockfile is
 missing (reset is lockfile-driven), when the scope resolves to nothing, on a
-dirty tree without `--force`. It leaves `.governance/freshness.conf` untouched
-(that file holds opt-in doc paths, not per-directive state). Exit 0
+dirty tree without `--force`. It leaves `.governance/conf/` untouched
+(user-owned per-directive configuration, not pinned per-directive state). Exit 0
 applied/no-op/dry-run, 2 refused, 1 error.
 
 ---
@@ -162,7 +162,8 @@ subsections (under `--drop-handauthored`), regenerates the hook dispatcher (a
 restore can change which hooks are needed), appends one Evolution Log entry per
 pack (`- <date> — @<author> — Reset directives from \`<pack-id>\` to pinned
 \`<sha>\` (...)`), and smoke-tests without aborting on failure. It refuses a dirty
-tree without `--force` and leaves `.governance/freshness.conf` untouched.
+tree without `--force` and leaves `.governance/conf/` untouched (a dropped
+directive's overlay is removed under `--drop-handauthored`, mirroring `pack remove`).
 `--dry-run` resolves everything and writes nothing.
 
 ### Step 6 — Stage and commit
@@ -206,7 +207,7 @@ Print:
 - `Dropped:` list of hand-authored `<id>` (only under `--drop-handauthored`)
 - `Preserved:` list of hand-authored `<id>` (default behavior)
 - `Skipped:` list of `<id>` already byte-identical to pinned
-- `Cleared:` `freshness.conf` entries removed
+- `Cleared:` a dropped directive's `.governance/conf/<id>.conf` overlay removed (under `--drop-handauthored`)
 - `Hook dispatcher:` `regenerated` | `unchanged`
 - `Smoke test:` `pass` | `fail (exit <code>): <first failing directive>`
 - `Committed:` `<short-sha> <conventional-commit subject>` (or `would-commit:` under `--dry-run`)

@@ -382,8 +382,8 @@ def validate(path: str | Path) -> list[str]:
             # bug, not a grandfathered legacy row.
             violations.append(
                 f"COSTS.md — row '{cost_key}' names model '{model}' but "
-                f"has empty cost_usd (add a matching entry to lib/rates.py "
-                f"or backfill the cell)"
+                f"has empty cost_usd (add a `rate {model} ...` row to "
+                f".governance/conf/agent-token-accounting.conf or backfill the cell)"
             )
 
         cost_keys[cost_key] = cost_keys.get(cost_key, 0) + 1

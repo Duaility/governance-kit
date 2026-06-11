@@ -24,6 +24,16 @@ require_git                            # remove if the directive does not touch 
 #       [[ -z "$f" ]] && continue
 #       # compute metric and call violation if bad
 #   done < <(git ls-files -- '<pathspec>' 2>/dev/null || true)
+#
+# (d) Configurable. Ship a `config.conf` (overlay template) next to this file;
+#     read user tuning through the lib.sh helpers (env GOVERNANCE_<KEY> wins):
+#   LIMIT="$(conf_get <directive-name> LIMIT 500)"         # scalar override
+#   # For a list-valued check, ship a pack-owned `defaults.conf` too:
+#   while IFS= read -r item; do
+#       [[ -z "$item" ]] && continue
+#       # apply $item
+#   done < <(conf_list <directive-name> "$(dirname "$0")/defaults.conf")
+#   # overlay syntax: bare line adds, !item drops a default, KEY=value sets a scalar
 # ──────────────────────────────────────────────────────────────
 
 directive_end

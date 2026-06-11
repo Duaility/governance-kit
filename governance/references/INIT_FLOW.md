@@ -42,8 +42,8 @@ elicitation — pack/preset/directive selection (Step 3), principle inference (S
   Engine: `initplan.py` (also owns the pure CONSTITUTION assembly).
 - **Apply.** `packverb init-apply <root> --decisions <json> [--dry-run] [--force]`
   consumes the operator's serialized decisions and assembles the whole install in
-  one call: install each directive folder + its `install-assets/`, seed
-  `freshness.conf`/`integrity.conf`, assemble + write CONSTITUTION.md (template +
+  one call: install each directive folder + its `install-assets/`, seed each
+  directive's user-config overlay from its `config.conf`, assemble + write CONSTITUTION.md (template +
   operator principles + each directive's `constitution.md` subsection, the example
   replaced), create the AGENTS.md stub when asked, stamp the runtime
   (`run.sh`/`lib.sh`) and CI workflow, generate the hook dispatchers (+ for
@@ -199,9 +199,11 @@ packverb init-apply "$repo_root" --decisions decisions.json
 ```
 
 `init-apply` installs each directive folder (minus `evals/`) + its
-`install-assets/`, seeds `freshness.conf` (when `doc-freshness` is installed) and
-`integrity.conf` (when `doc-integrity` is — it is `always_install`, on by default,
-each rule a no-op until its document exists), assembles + writes CONSTITUTION.md,
+`install-assets/`, and for any directive shipping a `config.conf` seeds the
+user-config overlay `.governance/conf/<id>.conf` from it (augment-only — an
+existing file is preserved). For `doc-integrity` (`always_install`, on by
+default) the standard rules ship active in its `defaults.conf`, each a no-op
+until its document exists. It then assembles + writes CONSTITUTION.md,
 stamps the runtime + CI workflow, generates the hooks (+ `core.hooksPath` /
 `enable-governance.sh` for `githooks`), and writes the `install.yaml` v3 receipt +
 `packs.lock` v2 pin. The receipt's `--install-asset`/`--agents-md-*` ledger and the
@@ -339,7 +341,7 @@ Goal: make the install commit pass every installed directive on the first try, w
    | `workflows-hardened` (tag-pinned actions, missing `permissions:`) | SHA-pin every action and add an explicit `permissions:` block; re-stage the workflow file. |
    | `required-docs` (missing `LICENSE`, `SECURITY.md`, etc.) | Stub the missing file with a one-line placeholder the operator will flesh out. If they explicitly opted out of `required-docs`, this won't fire. |
    | `issue-templates` (missing `.github/ISSUE_TEMPLATE/*.md`) | Generate the templates the directive expects; the directive's `install-assets/` carries the canonical shape. |
-   | `internal-doc-links` (`resolve` sub-check) | Fix the broken link; do not waive. The `reachable` sub-check stays off unless the repo opts in via `.governance/reachability.conf`. |
+   | `internal-doc-links` (`resolve` sub-check) | Fix the broken link; do not waive. The `reachable` sub-check stays off unless the repo opts in via `.governance/conf/internal-doc-links.conf`. |
    | `commit-message-format`, `commit-issue-receipt-match`, `receipt-per-issue` | The bootstrap receipt + Step 9's commit subject together satisfy these. |
 
    If a finding can't be inline-fixed (rotating a credential, removing a load-bearing legacy artefact), **pause init and surface it to the operator** — do not paper over it with a broader waiver.

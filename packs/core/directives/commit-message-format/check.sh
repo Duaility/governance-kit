@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Directive: Commit messages follow Conventional Commits and end with a GitHub issue suffix.
 #   <type>(<optional-scope>)!?: <subject> (#123)
-# Allowed types: feat, fix, chore, docs, refactor, test, perf, build, ci, revert, style.
-# Extend via GOVERNANCE_CC_EXTRA_TYPES="foo bar baz".
+# Default allowed types ship in the sibling `defaults.conf` (feat, fix, chore,
+# docs, refactor, test, perf, build, ci, revert, style). Customize per repo via
+# the overlay `.governance/conf/commit-message-format.conf`: add a type on its
+# own line, or `!<type>` to disallow a default.
 #
 # Usage modes:
 #   Mode A — commit-msg hook: `bash check.sh <path-to-msg-file>`
@@ -15,9 +17,8 @@ source "$(dirname "$0")/../../../../../lib.sh"
 directive_start "commit-message-format"
 require_git
 
-DEFAULT_TYPES="feat fix chore docs refactor test perf build ci revert style"
-EXTRA_TYPES="${GOVERNANCE_CC_EXTRA_TYPES:-}"
-ALL_TYPES="$DEFAULT_TYPES $EXTRA_TYPES"
+# Effective type list = defaults.conf layered with the user overlay.
+ALL_TYPES="$(conf_list commit-message-format "$(dirname "$0")/defaults.conf" | tr '\n' ' ')"
 # Build an alternation for the regex.
 types_alt=$(echo "$ALL_TYPES" | tr -s ' ' '|' | sed 's/^|//;s/|$//')
 # Conventional Commits header regex (first line only) plus a required GitHub issue suffix.

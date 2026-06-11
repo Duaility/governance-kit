@@ -98,3 +98,134 @@ has_file_waiver() {
     head -n 10 "$file" 2>/dev/null \
         | grep -q "governance: allow-${directive} ${subcheck}"
 }
+
+# ── Per-directive configuration ────────────────────────────────────────────
+# A directive's user-tunable config lives at `.governance/conf/<id>.conf`,
+# seeded once from the directive's shipped `config.conf` template at install
+# time and never overwritten by `pack update` / `reset` / `kit update`. The
+# format is line-based: `KEY=value` lines (KEY is `[A-Z_]+`) are scalar
+# settings; every other non-comment, non-blank line is a directive-defined
+# rule line. Blank lines and `#` comments are ignored.
+#
+# These helpers resolve the repo root themselves, so they work identically in
+# a commit-msg hook (Mode A) and under run.sh / CI (Mode B).
+
+# conf_file <directive-id>
+# Print the path to the directive's user conf and return 0 if it exists;
+# return 1 (printing nothing) otherwise. Conf-driven directives typically
+# treat a missing conf as "nothing opted in" and no-op.
+conf_file() {
+    local id="$1" root
+    root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+    local f="$root/.governance/conf/$id.conf"
+    [[ -f "$f" ]] || return 1
+    printf '%s\n' "$f"
+}
+
+# conf_get <directive-id> <KEY> [<default>]
+# Resolve a scalar setting. Precedence: environment `GOVERNANCE_<KEY>` (when
+# set and non-empty) > first `^KEY=` line in the conf > default. Always prints
+# a value (the default if nothing else matches) and returns 0.
+conf_get() {
+    local id="$1" key="$2" default="${3:-}"
+    local env_name="GOVERNANCE_${key}"
+    if [[ -n "${!env_name:-}" ]]; then
+        printf '%s\n' "${!env_name}"
+        return 0
+    fi
+    local f line
+    if f="$(conf_file "$id")"; then
+        line="$(grep -E "^${key}=" "$f" 2>/dev/null | head -n 1)"
+        if [[ -n "$line" ]]; then
+            printf '%s\n' "${line#*=}"
+            return 0
+        fi
+    fi
+    printf '%s\n' "$default"
+}
+
+# conf_rule_lines <directive-id>
+# Emit the directive-defined rule lines from the conf: trimmed, with `#`
+# comments and blank lines stripped, and `KEY=value` scalar lines skipped.
+# Emits nothing (returns 0) when no conf exists.
+conf_rule_lines() {
+    local f raw entry
+    f="$(conf_file "$1")" || return 0
+    while IFS= read -r raw || [[ -n "$raw" ]]; do
+        entry="${raw%%#*}"
+        entry="${entry#"${entry%%[![:space:]]*}"}"
+        entry="${entry%"${entry##*[![:space:]]}"}"
+        [[ -z "$entry" ]] && continue
+        [[ "$entry" =~ ^[A-Z_]+= ]] && continue
+        printf '%s\n' "$entry"
+    done < "$f"
+}
+
+# conf_list <directive-id> <defaults-file>
+# Emit the effective list for a directive whose default items ship in
+# <defaults-file> (a pack-owned `defaults.conf`, one item per line), with the
+# user overlay (`.governance/conf/<id>.conf`) layered on top:
+#   bare line   → adds an item
+#   !item       → removes the matching default item (gitignore-style negation)
+#   KEY=value   → ignored here (read scalars with conf_get)
+# Default items keep their order; additions follow. A `!` that matches no
+# default is a harmless no-op. Comments and blank lines are stripped from both.
+_conf_trim() {  # echo the argument with surrounding whitespace removed
+    local s="$1"
+    s="${s#"${s%%[![:space:]]*}"}"
+    s="${s%"${s##*[![:space:]]}"}"
+    printf '%s' "$s"
+}
+_conf_norm() {  # trim + collapse internal whitespace runs to one space
+    local parts
+    # shellcheck disable=SC2206
+    read -ra parts <<< "$1"
+    printf '%s' "${parts[*]}"
+}
+conf_list() {
+    local id="$1" defaults="$2" overlay line item key
+    local removed=$'\n' emitted=$'\n'
+    local adds=()
+
+    # Membership tests compare whitespace-normalized keys so a `!frozen-section
+    # QUALITY.md Resolved` overlay line matches a column-aligned default.
+    if overlay="$(conf_file "$id")"; then
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            line="$(_conf_trim "${line%%#*}")"
+            [[ -z "$line" ]] && continue
+            [[ "$line" =~ ^[A-Z_]+= ]] && continue
+            if [[ "${line:0:1}" == '!' ]]; then
+                item="$(_conf_norm "${line:1}")"
+                [[ -n "$item" ]] && removed+="$item"$'\n'
+            else
+                # An explicit leading '+' is an optional "add" marker; strip it.
+                [[ "${line:0:1}" == '+' ]] && line="$(_conf_trim "${line:1}")"
+                [[ -n "$line" ]] && adds+=("$line")
+            fi
+        done < "$overlay"
+    fi
+
+    # Defaults in declared order, minus anything the overlay removed.
+    if [[ -f "$defaults" ]]; then
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            line="$(_conf_trim "${line%%#*}")"
+            [[ -z "$line" ]] && continue
+            [[ "$line" =~ ^[A-Z_]+= ]] && continue
+            key="$(_conf_norm "$line")"
+            case "$removed" in *$'\n'"$key"$'\n'*) continue ;; esac
+            case "$emitted" in *$'\n'"$key"$'\n'*) continue ;; esac
+            emitted+="$key"$'\n'
+            printf '%s\n' "$line"
+        done < "$defaults"
+    fi
+
+    # Overlay additions (skipping ones already emitted or explicitly removed).
+    # `${adds[@]+...}` keeps an empty array safe under `set -u` on bash 3.2.
+    for line in ${adds[@]+"${adds[@]}"}; do
+        key="$(_conf_norm "$line")"
+        case "$removed" in *$'\n'"$key"$'\n'*) continue ;; esac
+        case "$emitted" in *$'\n'"$key"$'\n'*) continue ;; esac
+        emitted+="$key"$'\n'
+        printf '%s\n' "$line"
+    done
+}

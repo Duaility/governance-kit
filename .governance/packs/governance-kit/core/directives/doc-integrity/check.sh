@@ -3,10 +3,10 @@
 # the default branch it is evidence of what was true then, and a later change set
 # may only ADD to it, never rewrite or erase what is already there.
 #
-# What is protected is declared in `.governance/integrity.conf`, one rule per
-# line (blank lines and `#` comments ignored). If the file is missing or empty,
-# the directive is a no-op — repos opt documents in explicitly, like
-# doc-freshness. Each rule is `<mode> <path> [arg]`:
+# What is protected ships as standard rules in the sibling `defaults.conf`,
+# layered with the user overlay `.governance/conf/doc-integrity.conf` (bare lines
+# add rules, `!<rule>` drops a default). If the effective rule set is empty the
+# directive is a no-op. Each rule is `<mode> <path> [arg]`:
 #
 #   frozen-files    <glob>             Every file matching <glob> that exists at
 #                                      the baseline is immutable; new files may be
@@ -49,9 +49,12 @@ require_git
 
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT" || exit 1
-CONF="$ROOT/.governance/integrity.conf"
 
-if [[ ! -f "$CONF" ]]; then
+# Effective rule set = pack-owned defaults.conf layered with the user overlay
+# (.governance/conf/doc-integrity.conf): bare lines add rules, `!<rule>` drops a
+# default. Empty effective set → nothing to protect, no-op.
+RULES="$(conf_list doc-integrity "$(dirname "$0")/defaults.conf")"
+if [[ -z "$RULES" ]]; then
     directive_end   # nothing opted in
 fi
 
@@ -204,11 +207,8 @@ check_frozen_section() {
     done < <(base_blob "$file" | extract_section "$heading")
 }
 
-# ── Walk the config.
-while IFS= read -r raw; do
-    line="${raw%%#*}"                                   # strip trailing comment
-    line="${line#"${line%%[![:space:]]*}"}"             # ltrim
-    line="${line%"${line##*[![:space:]]}"}"             # rtrim
+# ── Walk the effective rule set (defaults + overlay; comments already stripped).
+while IFS= read -r line; do
     [[ -z "$line" ]] && continue
     read -r mode target rest <<<"$line"
     case "$mode" in
@@ -216,13 +216,13 @@ while IFS= read -r raw; do
         append-only)    check_append_only "$target" ;;
         frozen-section)
             if [[ -z "$rest" ]]; then
-                violation "integrity.conf: frozen-section rule for '$target' is missing a heading argument"
+                violation "doc-integrity config: frozen-section rule for '$target' is missing a heading argument"
             else
                 check_frozen_section "$target" "$rest"
             fi
             ;;
-        *) violation "integrity.conf: unknown mode '$mode' (expected frozen-files | append-only | frozen-section)" ;;
+        *) violation "doc-integrity config: unknown mode '$mode' (expected frozen-files | append-only | frozen-section)" ;;
     esac
-done < "$CONF"
+done <<< "$RULES"
 
 directive_end

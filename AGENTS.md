@@ -63,6 +63,8 @@ governance-kit/
 │   │                   ├── directive.yaml    # per-directive metadata
 │   │                   ├── check.sh          # executable test
 │   │                   ├── constitution.md   # Directive subsection
+│   │                   ├── config.conf       # optional: seeds the user overlay
+│   │                   ├── defaults.conf     # optional: pack-owned live default list
 │   │                   └── evals/test.sh     # pass/fail fixtures
 │   ├── references/              # INIT_FLOW.md, UNINSTALL_FLOW.md, RESET_FLOW.md,
 │   │                            #   DIRECTIVE_AMEND_FLOW.md,
@@ -76,6 +78,7 @@ governance-kit/
 │   ├── lib.sh
 │   ├── install.yaml             # init choices + side-effect ledger
 │   ├── packs.lock               # pack pin state (id, version, source, sha)
+│   ├── conf/<directive-id>.conf # user-owned per-directive config overlays
 │   └── packs/<owner>/<name>/directives/<id>/check.sh  # every directive lives in some pack
 └── .github/workflows/
     └── governance.yml
@@ -110,6 +113,11 @@ snippet, metadata, and eval all live together under `directives/<directive-id>/`
    - `check.sh` — the bash test.
    - `constitution.md` — the Directive subsection (Directive / Rationale /
      Enforced by / Exceptions).
+   - `config.conf` (optional) — an all-comment template that seeds the user
+     overlay `.governance/conf/<id>.conf` at install. `defaults.conf` (optional)
+     — a pack-owned live default list for a list-valued directive, refreshed on
+     `pack update`. Read both via the `lib.sh` helpers (`conf_get`, `conf_list`).
+     See [governance/references/PACK_AUTHORING.md](governance/references/PACK_AUTHORING.md).
    - `evals/test.sh` — pass + fail fixtures. Run `bash scripts/test-packs.sh`
      to confirm.
    - Optional sibling folders for directives that need external code:

@@ -88,6 +88,7 @@ def _write_source_pack(base: Path, pack_id: str = "acme/widgets") -> Path:
     )
     (ddir / "evals" / "test.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
     (ddir / "install-assets" / "WIDGETS.md").write_text("# Widgets doc\n")
+    (ddir / "config.conf").write_text("# overlay template\n# KEY=value\n")
     (ddir / "check.sh").chmod(0o755)
     (ddir / "evals" / "test.sh").chmod(0o755)
     return pack
@@ -214,11 +215,55 @@ def test_add_installs_directive_lock_and_hooks() -> None:
         assert (root / "WIDGETS.md").is_file()
         assert report["seeded_assets"] == ["WIDGETS.md"]
         assert "WIDGETS.md" in (root / ".governance/install.yaml").read_text()
+        # per-directive user conf seeded from config.conf; reported, not ledgered
+        conf = root / ".governance/conf/no-console-log.conf"
+        assert conf.is_file()
+        assert report["conf_seeded"] == [".governance/conf/no-console-log.conf"]
+        assert "no-console-log.conf" not in (root / ".governance/install.yaml").read_text()
         # lock upserted
         lock = (root / ".governance/packs.lock").read_text()
         assert "acme/widgets" in lock and "a" * 40 in lock
         assert report["hook_dispatcher"] == "regenerated"
         assert (root / ".githooks/pre-commit").is_file()
+
+
+def test_update_does_not_reseed_user_conf() -> None:
+    """A second apply (update) must never overwrite or resurrect the user conf,
+    and the plan flags config-template drift when defaults/config.conf change."""
+    with tempfile.TemporaryDirectory() as tmp:
+        src = _write_source_pack(Path(tmp) / "src")
+        root = _make_repo(Path(tmp) / "repo")
+        packplan.fetch_ref = _stub_fetch(src, "acme/widgets", "a" * 40)
+        # initial add seeds the conf
+        _capture(lambda: packapply.cmd_pack_apply(
+            _ns(mode="add", root=str(root), target="gh:acme/widgets")))
+        conf = root / ".governance/conf/no-console-log.conf"
+        conf.write_text("USER=tweak\n")  # the user customizes it
+        # commit the install + customization so the tree is clean for update
+        git(root, "add", "-A")
+        git(root, "commit", "-qm", "install + customize")
+
+        # the upstream ships a new config.conf at a new sha
+        (src / "directives" / "no-console-log" / "config.conf").write_text(
+            "# overlay template v2\n# KEY=value\n# NEWKEY=\n")
+        packplan.fetch_ref = _stub_fetch(src, "acme/widgets", "f" * 40)
+
+        # plan: the directive is an update and flags config drift
+        plan = packplan.compute_pack_plan(root, "update", None, with_diff=False)
+        d = plan["packs"][0]["directives"][0]
+        assert d["status"] == "update" and d["config_drift"] is True, d
+        assert d["user_conf"] == ".governance/conf/no-console-log.conf"
+        assert d["user_conf_present"] is True
+
+        # apply update: conf untouched, not re-seeded
+        rc, report = _capture(lambda: packapply.cmd_pack_apply(
+            _ns(mode="update", root=str(root), target=None)))
+        assert rc == 0 and report["result"] == "applied", report
+        assert conf.read_text() == "USER=tweak\n"
+        assert report["conf_seeded"] == []
+        # the shipped overlay template was refreshed in the installed tree
+        installed_tpl = root / ".governance/packs/acme/widgets/directives/no-console-log/config.conf"
+        assert "v2" in installed_tpl.read_text()
 
 
 def test_add_dry_run_writes_nothing() -> None:
@@ -295,6 +340,12 @@ def test_remove_deletes_folder_strips_subsection_prunes_lock() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = _make_repo(Path(tmp) / "repo", constitution=REMOVE_CONST, lock=REMOVE_LOCK,
                           installed_directive=".governance/packs/acme/widgets/directives/no-console-log")
+        # a user conf exists (committed) for the directive being removed
+        conf = root / ".governance/conf/no-console-log.conf"
+        conf.parent.mkdir(parents=True, exist_ok=True)
+        conf.write_text("USER=tweak\n")
+        git(root, "add", "-A")
+        git(root, "commit", "-qm", "seed user conf")
         rc, report = pack_apply_cli(root, "remove", "acme/widgets")
         assert rc == 0 and report["result"] == "applied", report
         assert not (root / ".governance/packs/acme/widgets").exists()
@@ -302,6 +353,10 @@ def test_remove_deletes_folder_strips_subsection_prunes_lock() -> None:
         assert "### no-console-log" not in const and "### required-docs" in const
         assert "acme/widgets" not in (root / ".governance/packs.lock").read_text()
         assert report["constitution_stripped"] == ["no-console-log"]
+        # the directive's user conf is removed with the pack; empty dir pruned
+        assert not conf.exists()
+        assert ".governance/conf/no-console-log.conf" in report["removed"]
+        assert not (root / ".governance/conf").exists()
 
 
 def test_remove_refuses_core() -> None:

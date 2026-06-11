@@ -217,4 +217,38 @@ EVAL_LABEL="$EVAL_ID mode-b-on-main-valid" expect_pass "$CHECK"
 git commit --allow-empty --quiet --no-verify -m "chore: trailerless squash (#17)"
 EVAL_LABEL="$EVAL_ID mode-b-on-main-missing-agent" expect_fail "$CHECK"
 
+# ──────────────────────────────────────────────────────────────
+# Case 12 — rates.py honors the user price-override conf
+# (.governance/conf/agent-token-accounting.conf). Overrides merge
+# over the built-in RATES; a malformed row blocks pricing.
+# ──────────────────────────────────────────────────────────────
+RATES_PY=".governance/packs/governance-kit/core/directives/$EVAL_ID/lib/rates.py"
+mkdir -p .governance/conf
+rate_assert() {  # <label> <expected-cost> <model> <inp> <cc> <cr> <out>
+    local label="$1" want="$2"; shift 2
+    local got rc
+    got="$(python3 "$RATES_PY" cost "$@" 2>/dev/null)"; rc=$?
+    if [[ $rc -eq 0 && "$got" == "$want" ]]; then
+        printf '    ✓ %s\n' "$label"
+    else
+        printf '    ✗ %s — want %s got %q (rc=%s)\n' "$label" "$want" "$got" "$rc" >&2
+        eval_failures=$(( eval_failures + 1 ))
+    fi
+}
+# Override an existing model (base 1 / output 1): 1M in + 1M out = $2.0000.
+printf 'rate claude-sonnet-4-5 1 1 0.1 1\n' > .governance/conf/agent-token-accounting.conf
+rate_assert "$EVAL_ID conf overrides a built-in price" 2.0000 claude-sonnet-4-5 1000000 0 0 1000000
+# Add a brand-new model (base 2): 1M in = $2.0000.
+printf 'rate my-model 2 2 0.2 8\n' >> .governance/conf/agent-token-accounting.conf
+rate_assert "$EVAL_ID conf adds a new model" 2.0000 my-model 1000000 0 0 0
+# Malformed row → non-zero exit so the commit blocks.
+printf 'rate broken 1 2\n' > .governance/conf/agent-token-accounting.conf
+if python3 "$RATES_PY" cost claude-sonnet-4-5 1 0 0 0 >/dev/null 2>&1; then
+    printf '    ✗ %s malformed conf should block pricing\n' "$EVAL_ID" >&2
+    eval_failures=$(( eval_failures + 1 ))
+else
+    printf '    ✓ %s malformed conf blocks pricing\n' "$EVAL_ID"
+fi
+rm -f .governance/conf/agent-token-accounting.conf
+
 eval_done
