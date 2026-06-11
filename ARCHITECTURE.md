@@ -19,15 +19,25 @@ The skill is a self-contained directory with frontmatter
 
 ## Directive packs
 
-Each pack is a directory. One pack ships in-tree:
+Each pack is a directory. Seven concern-scoped packs ship in-tree under
+`packs/<concern>/`:
 
-- `governance-kit/core` at `governance/assets/packs/core/` — kit-bundled,
-  always selected. Bundles general-purpose directives plus the agent
-  audit chain (`receipt-per-issue`, `commit-issue-receipt-match`,
-  `issue-templates`, `issues-tracked`, `agent-token-accounting`) and the
-  opt-in `agent-steering-accounting`. Also houses the shared pack `lib/`
-  (`packs.sh`, `install.sh`, `hooks.sh`, `packctl.py`, `packverb.py`,
-  `eval-lib.sh`).
+- `governance-kit/foundation` — `required-docs`, `kit-version-sync`,
+  `repo-hygiene`.
+- `governance-kit/security` — `secrets-hygiene`, `token-permissions`,
+  `pinned-dependencies`.
+- `governance-kit/docs` — `internal-doc-links`, `doc-freshness`.
+- `governance-kit/commits` — `commit-message-format`, `no-orphan-todos`,
+  `no-unjustified-suppressions`.
+- `governance-kit/audit` — a trustworthy record of agent work: issue → receipt
+  → commit traceability (`issue-templates`, `issues-tracked`,
+  `receipt-per-issue`, `commit-issue-receipt-match`), cost + steering accounting
+  (`agent-token-accounting`, `agent-steering-accounting`), and the tamper
+  protection that keeps those records honest (`doc-integrity`,
+  `toolchain-config-protection`).
+
+The shared pack `lib/` (`packs.sh`, `install.sh`, `hooks.sh`, `packctl.py`,
+`packverb.py`, `eval-lib.sh`) lives at `governance/assets/packs/lib/`.
 
 Community packs live in their own repos and are consumed via
 `governance pack add gh:<owner>/<repo>`. The advisory catalog at
@@ -53,8 +63,8 @@ Every pack has:
 1. Author writes `directives/<id>/` folder and registers it in the pack's
    `pack.yaml` preset.
 2. `scripts/test-packs.sh` validates the pack structure, exercises
-   every eval, and installs `core.standard` into a disposable repo to
-   confirm the bootstrap contract still holds.
+   every eval, and installs the bundled packs' `standard` preset into a
+   disposable repo to confirm the bootstrap contract still holds.
 3. `governance init` copies the directive folder into
    `.governance/packs/<owner>/<name>/directives/<id>/` in the target repo, records
    the install receipt in `.governance/install.yaml`, and pins each pack in
@@ -71,8 +81,9 @@ Every pack has:
 - Directive folders are self-contained. Relocating a directive is one `git mv`.
 - The hook generator reads `directive.yaml` at install time — it does not
   import any pack-wide registry.
-- `always_install: true` is reserved to the `core` pack.
+- `always_install: true` is reserved to the bundled `governance-kit/*` packs.
 - Generated files carry ownership markers; `governance uninstall` is
   allowed to remove only files it can identify as its own.
 - The fresh-repo contract in `scripts/test-packs.sh` proves that a
-  new repo bootstrapped with `core.standard` runs green end-to-end.
+  new repo bootstrapped with the bundled packs' `standard` preset runs
+  green end-to-end.

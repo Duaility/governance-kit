@@ -19,7 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PACK_LIB = ROOT / "governance" / "assets" / "packs" / "lib"
 PACKCTL_PATH = PACK_LIB / "packctl.py"
-CORE_PACK = ROOT / "packs" / "core"
+PACKS_ROOT = ROOT / "packs"
 
 
 def load_packctl():
@@ -57,10 +57,13 @@ def make_pack(tmp: Path, *, pack_yaml: str, directives: dict[str, dict] | None =
 
 # ---- positive: shipped packs validate cleanly ------------------------------
 
-def test_validate_pack_dir_passes_on_shipped_core_pack() -> None:
+def test_validate_pack_dir_passes_on_all_shipped_packs() -> None:
     pkt = load_packctl()
-    errors = pkt.validate_pack_dir(CORE_PACK)
-    assert errors == [], "\n".join(errors)
+    pack_dirs = sorted(m.parent for m in PACKS_ROOT.glob("*/pack.yaml"))
+    assert pack_dirs, "no bundled packs found under packs/"
+    for pack in pack_dirs:
+        errors = pkt.validate_pack_dir(pack)
+        assert errors == [], f"{pack}:\n" + "\n".join(errors)
 
 
 # ---- pack-level fields -----------------------------------------------------
@@ -189,13 +192,13 @@ def test_validate_pack_dir_flags_preset_referencing_unknown_directive() -> None:
 
 # ---- directive metadata ----------------------------------------------------
 
-def test_validate_pack_dir_rejects_always_install_outside_core() -> None:
+def test_validate_pack_dir_rejects_always_install_outside_bundled() -> None:
     pkt = load_packctl()
     with tempfile.TemporaryDirectory() as tmp:
         pack = make_pack(
             Path(tmp),
             pack_yaml=textwrap.dedent("""\
-                id: not-core
+                id: acme/widgets
                 name: D
                 version: "0.1"
                 min_governance_kit: "0.1"
@@ -214,14 +217,14 @@ def test_validate_pack_dir_rejects_always_install_outside_core() -> None:
                         always_install: true
                     """),
                     "check_sh": "#!/usr/bin/env bash\nexit 0\n",
-                    "constitution_md": "ref .governance/packs/not-core/directives/demo/check.sh",
+                    "constitution_md": "ref .governance/packs/acme/widgets/directives/demo/check.sh",
                 },
             },
         )
-        renamed = pack.parent / "not-core"
+        renamed = pack.parent / "widgets"
         pack.rename(renamed)
         errors = pkt.validate_pack_dir(renamed)
-        assert any("always_install: true is reserved to the governance-kit/core pack" in e for e in errors)
+        assert any("always_install: true is reserved to the governance-kit/* bundled packs" in e for e in errors)
 
 
 def test_validate_pack_dir_flags_unknown_hook_value() -> None:

@@ -13,7 +13,7 @@
         "`.governance/packs/<owner>/<name>/directives/` contains at least one directive folder per enabled category, each with a `directive.yaml` and `check.sh`",
         "`.governance/lib.sh` exists and defines `directive_start`, `violation`, `directive_end`, `has_waiver`",
         "`.governance/install.yaml` exists with `version: \"3\"`, the surveyed `owner:` and `repo:` fields, and a `hook_strategy:` value",
-        "`.governance/packs.lock` exists with `version: \"2\"` and an entry for `governance-kit/core` (`source: gh`, ref `gh:duaility/governance-kit/packs/core@<v>`, real 40-char SHA pin, subpath `packs/core`) listing every installed core directive id",
+        "`.governance/packs.lock` exists with `version: \"2\"` and an entry for each bundled `governance-kit/*` concern pack (`source: gh`, ref `gh:duaility/governance-kit/packs/<concern>@<v>`, real 40-char SHA pin, subpath `packs/<concern>`) listing every installed directive id",
         "`.githooks/pre-commit` exists, is executable, carries the line-2 `governance-kit:managed` ownership marker, and honors `SKIP_GOVERNANCE=1` (when the repo uses the default `.githooks/` hook strategy)",
         "`.githooks/commit-msg` exists and rejects messages that don't match Conventional Commits when the relevant directive was enabled under the default hook strategy",
         "`CONSTITUTION.md` exists at the repo root with at least Compliance, Principles, Directives, and Evolution Log sections",
@@ -39,14 +39,14 @@
     {
       "id": 3,
       "prompt": "Run governance init for this repo. It's a Go service — keep the rule set tight, no stylistic stuff, and make sure security rules are included.",
-      "expected_output": "The Security category directives from `governance-kit/core` (e.g. `secrets-hygiene`, `workflows-hardened`) are enabled. Go-relevant directives are chosen over Python/JS-specific ones. Stylistic directives are NOT enabled. The skill's summary explains which categories were included and which were deliberately dropped.",
+      "expected_output": "The Security directives from `governance-kit/security` (e.g. `secrets-hygiene`, `token-permissions`, `pinned-dependencies`) are enabled. Go-relevant directives are chosen over Python/JS-specific ones. Stylistic directives are NOT enabled. The skill's summary explains which categories were included and which were deliberately dropped.",
       "files": ["files/go-service-repo/"],
       "assertions": [
-        "A directive folder for a secrets / key-material check exists under `.governance/packs/governance-kit/core/directives/` (e.g. `secrets-hygiene/check.sh`)",
-        "A workflow-hardening directive exists under `.governance/packs/governance-kit/core/directives/` or was explicitly skipped with a reason",
+        "A directive folder for a secrets / key-material check exists under `.governance/packs/governance-kit/security/directives/` (e.g. `secrets-hygiene/check.sh`)",
+        "Workflow-hardening directives (`token-permissions`, `pinned-dependencies`) exist under `.governance/packs/governance-kit/security/directives/` or were explicitly skipped with a reason",
         "No directive folders targeting Python-only or JS-only patterns (e.g., `no-pdb`, `no-console-log`) were installed",
         "The skill's summary explicitly names the Security category (or equivalent preset-derived directive set) as enabled and stylistic directives as deliberately excluded",
-        "`.governance/packs.lock` has a `governance-kit/core` entry whose `directives:` list reflects the Security-leaning selection",
+        "`.governance/packs.lock` has a `governance-kit/security` entry whose `directives:` list reflects the Security-leaning selection",
         "`bash .governance/run.sh` exits 0 on the seeded clean Go repo"
       ]
     },

@@ -1,0 +1,33 @@
+# governance-kit security pack
+#
+# Supply-chain and credential hygiene. The reference cut for the
+# concern-scoped pack model (#192): `workflows-hardened` is split into the two
+# OpenSSF Scorecard checks it fused — `token-permissions` (workflows declare a
+# least-privilege `permissions:` block) and `pinned-dependencies` (third-party
+# actions pinned to a full commit SHA) — and `secrets-hygiene` moves here
+# unchanged in behaviour. Directives in this pack carry a `standards:` list in
+# their `directive.yaml` so DIRECTIVES_CATALOG.md can show standard coverage
+# and gaps; the empty cells are the security roadmap.
+#
+# Directive metadata lives inside each directive's folder under
+# `directives/<id>/`. Presets are per-pack and unioned at init.
+
+id: governance-kit/security
+name: Security governance directives
+version: "0.1.0"
+min_governance_kit: "0.3"
+description: Supply-chain and credential hygiene (secrets, token-permissions, pinned-dependencies).
+author: governance-kit
+
+presets:
+  minimal:
+    directives:
+      - secrets-hygiene
+      - token-permissions
+      - pinned-dependencies
+  standard:
+    extends: minimal
+    directives: []
+  strict:
+    extends: standard
+    directives: []

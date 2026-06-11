@@ -1,6 +1,6 @@
 # Authoring a governance pack
 
-A **pack** is a self-contained bundle of governance directives that `governance-bootstrap` can discover, offer, and install into a target repo. This doc covers the layout, manifest schema, and conventions for writing one — whether you ship it in-tree under `governance/assets/packs/` (kit-bundled) or distribute it out-of-tree as a community pack hosted in its own repo.
+A **pack** is a self-contained bundle of governance directives that `governance-bootstrap` can discover, offer, and install into a target repo. This doc covers the layout, manifest schema, and conventions for writing one — whether you ship it in-tree under `packs/` (kit-bundled) or distribute it out-of-tree as a community pack hosted in its own repo.
 
 Read [DIRECTIVES_CATALOG.md](DIRECTIVES_CATALOG.md) first for what each existing directive does and what the surface distinction means.
 
@@ -16,7 +16,7 @@ Directives are **atoms**. Each directive is a self-contained folder that owns it
         ├── directive.yaml          # per-directive metadata (category, summary, hook, …)
         ├── check.sh           # the executable test
         ├── constitution.md    # Directive subsection (Directive / Rationale / Enforced by / Exceptions)
-        ├── config.conf        # optional: seeds the user overlay .governance/conf/<id>.conf
+        ├── config.conf        # optional: seeds the overlay .governance/conf/<owner>/<pack>/<id>.conf
         ├── defaults.conf      # optional: pack-owned live default list (refreshed on update)
         └── evals/
             └── test.sh        # pass + fail fixtures using eval-lib.sh
@@ -28,12 +28,16 @@ Adding, moving, deleting, or shipping a directive to another pack is a single `g
 
 A directive that needs tuning ships two optional files in its folder and reads them through the `lib.sh` helpers:
 
-- **`config.conf`** — an all-comment template documenting the overlay syntax. At install (`init`, `pack add`, `directive add`) it seeds the user-owned overlay `.governance/conf/<id>.conf` (augment-only — an existing file is never overwritten). No lifecycle verb rewrites the overlay afterward.
+- **`config.conf`** — an all-comment template documenting the overlay syntax. At install (`init`, `pack add`, `directive add`) it seeds the user-owned overlay `.governance/conf/<owner>/<pack>/<id>.conf` (augment-only — an existing file is never overwritten). No lifecycle verb rewrites the overlay afterward.
 - **`defaults.conf`** — the pack-owned **live default list** for a list-valued directive (commit types, protected patterns, integrity rules). It stays in the directive folder and is refreshed by `pack update` / `reset`, so consumers keep receiving improved defaults.
 
-The effective config is `defaults.conf` layered with the overlay: a bare line **adds** an item, `!<item>` **removes** a default (gitignore-style negation), `KEY=value` **overrides** a scalar (read with `conf_get`; env `GOVERNANCE_<KEY>` still wins). Helpers: `conf_file`, `conf_get`, `conf_rule_lines`, and `conf_list <id> "$(dirname "$0")/defaults.conf"`. A directive that declares capabilities must list `.governance/conf/**` under `reads:`.
+The effective config is `defaults.conf` layered with the overlay (seeded once to the pack-qualified `.governance/conf/<owner>/<pack>/<id>.conf`): a bare line **adds** an item, `!<item>` **removes** a default (gitignore-style negation), `KEY=value` **overrides** a scalar (read with `conf_get`; env `GOVERNANCE_<KEY>` still wins). Helpers: `conf_file`, `conf_get`, `conf_rule_lines`, and `conf_list <id> "$(dirname "$0")/defaults.conf"` resolve the qualified overlay path from the directive's installed location automatically. A directive that declares capabilities must list `.governance/conf/**` under `reads:`.
 
-Kit-bundled packs (today: `governance-kit/core`) live under `governance/assets/packs/<pack>/`. Out-of-tree community packs live in their own repos and are pulled in via `governance pack add gh:<owner>/<repo>`.
+Kit-bundled packs are the five concern packs `governance-kit/{foundation,security,docs,commits,audit}`, each under `packs/<concern>/`; the shared loader/install lib lives at `governance/assets/packs/lib/`. Out-of-tree community packs live in their own repos and are pulled in via `governance pack add gh:<owner>/<repo>`.
+
+### Directive identity (homonyms)
+
+A directive's identity is `<owner>/<pack>/<id>`. The short id is a *given name*, not a global claim: once a second pack exists, two packs may ship same-named directives that check different things — **they coexist and both run**. A cross-pack short-id collision is an informational notice (surfaced by `governance pack add`), not an error. To suppress another pack's directive, declare `replaces: <owner>/<pack>/<id>` (already 3-segment qualified) in your directive's `directive.yaml` — never rely on name coincidence or install order. Waiver tokens stay flat: `allow-<id>` waives the concern (every homonym of that id).
 
 ## `pack.yaml` schema
 
@@ -43,7 +47,7 @@ Kit-bundled packs (today: `governance-kit/core`) live under `governance/assets/p
 
 | Field | Required | Notes |
 |---|---|---|
-| `id` | yes | Pack id. Scoped form `<author>/<slug>` (e.g. `governance-kit/core`, `acme/widgets`) — the slug half must match the directory name. The scoped form prevents collisions across the community catalog. |
+| `id` | yes | Pack id. Scoped form `<author>/<slug>` (e.g. `governance-kit/security`, `acme/widgets`) — the slug half must match the directory name. The scoped form prevents collisions across the community catalog. |
 | `name` | yes | Human label shown in the pack-selection screen. |
 | `version` | yes | SemVer-ish string, e.g. `"0.1"`. Stamped into hook ownership markers. |
 | `min_governance_kit` | yes | Minimum `governance-kit` version the pack depends on. Validated against the kit's built-in `KIT_VERSION` constant (`governance/assets/packs/lib/packctl.py`). Packs declaring a minimum newer than the installed kit are rejected at install. |
@@ -79,7 +83,10 @@ recommended: true | false
 summary: <one-line menu description>
 surface: repo-state | change-set
 hook: pre-commit | commit-msg | prepare-commit-msg | post-commit | pre-push | none
-always_install: true            # optional; reserved to core
+standards:                      # optional; advisory standard-coverage metadata
+  - "OpenSSF Scorecard: Token-Permissions"
+  - "CWE-798"
+always_install: true            # optional; reserved to governance-kit/* bundled packs
 requires_hook_strategy: githooks # optional; githooks | husky | pre-commit
 reads:                          # optional capability declaration
   - .github/workflows/**
@@ -94,7 +101,8 @@ writes: []                      # optional; most directives are read-only
 | `summary` | Shown next to the id in the multi-select picker. Keep it to one line. |
 | `surface` | `repo-state` for directives that inspect the tree at rest; `change-set` for directives that inspect a specific commit or diff. Documented for the authoring guardrail (see DIRECTIVES_CATALOG.md). |
 | `hook` | Hook kind the directive wants to run in. Drives dispatcher generation. Use `none` only if the directive runs exclusively in CI. |
-| `always_install` | Reserved to `governance-kit/core`. Skips the menu. If you need an unconditionally installed directive in a third-party pack, file an issue first — the guarantee only holds for `governance-kit/core`. |
+| `standards` | Optional advisory list of external standards the directive implements (e.g. `"OpenSSF Scorecard: Token-Permissions"`, `"CWE-798"`). Rendered as a Standards column in DIRECTIVES_CATALOG.md so coverage and gaps are visible. Not validated and never affects pass/fail. |
+| `always_install` | Reserved to the `governance-kit/*` bundled packs. Skips the menu. If you need an unconditionally installed directive in a third-party pack, file an issue first — the guarantee only holds for the bundled packs. |
 | `requires_hook_strategy` | Optional environment filter. Use this for directives whose check is only meaningful under one hook strategy — e.g. a directive asserting `.githooks/` scaffolding would declare `requires_hook_strategy: githooks` so it is skipped for husky/pre-commit.com repos. |
 | `reads` / `writes` | Optional capability declaration. List of path globs the directive's `check.sh` inspects (`reads`) or mutates (`writes`) relative to the target repo root. Most directives declare a short `reads:` list and an empty `writes:` — governance directives are overwhelmingly read-only. The schema is validated at install time (each entry must be a non-empty string); semantic enforcement (refusing install when a directive reaches outside its declared bounds) is scheduled for the `governance pack add` verb. Declare capabilities now so community packs are forward-compatible. |
 
@@ -190,7 +198,7 @@ Directives with external dependencies (Python libraries, per-runtime helpers, ho
 At activation the bootstrap skill:
 
 1. Discovers every `pack.yaml` under its asset tree (and optional external paths).
-2. Offers pack selection (`governance-kit/core` is pre-selected and locked).
+2. Offers pack selection (`the five bundled `governance-kit/*` packs are pre-selected and locked).
 3. Offers a preset (`minimal` / `standard` / `strict`) and per-category multi-selects for the remaining directives.
 4. Computes `always_install ∪ preset_rules ∪ user_selections` across the selected packs.
 5. Applies environment filters such as `requires_hook_strategy`.
@@ -215,4 +223,4 @@ From the `governance-kit` root:
 bash scripts/test-packs.sh
 ```
 
-This walks every pack, validates each directive folder, bootstraps `governance-kit/governance-kit/core.standard` into a fresh repo and runs its installed governance suite, runs every `directives/<directive>/evals/test.sh`, and smoke-tests hook generation for the union of all directives. Every directive must have at least one pass and one fail fixture; test-packs fails if an eval is missing.
+This walks every pack, validates each directive folder, bootstraps the unioned `standard` preset into a fresh repo and runs its installed governance suite, runs every `directives/<directive>/evals/test.sh`, and smoke-tests hook generation for the union of all directives. Every directive must have at least one pass and one fail fixture; test-packs fails if an eval is missing.

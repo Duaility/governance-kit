@@ -149,8 +149,8 @@ def test_init_apply_assembles_full_install() -> None:
         assert (root / "AGENTS.md").is_file() and report["agents_md"] == "stub created"
         assert "WIDGETS.md" in (root / ".governance/install.yaml").read_text()
         # per-directive user conf seeded from config.conf; reported, not ledgered
-        conf = root / ".governance/conf/no-console-log.conf"
-        assert conf.is_file() and ".governance/conf/no-console-log.conf" in report["conf_seeded"]
+        conf = root / ".governance/conf/acme/widgets/no-console-log.conf"
+        assert conf.is_file() and ".governance/conf/acme/widgets/no-console-log.conf" in report["conf_seeded"]
         assert "no-console-log.conf" not in (root / ".governance/install.yaml").read_text()
         # the deleted hardcoded special case must not resurface
         assert not (root / ".governance/integrity.conf").exists()

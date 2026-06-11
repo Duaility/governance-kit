@@ -299,8 +299,11 @@ def validate_pack_dir(pack_dir: Path) -> list[str]:
             errors.append(
                 f"{pack_dir}/{directive_id}: unknown requires_hook_strategy value {hook_strategy!r}"
             )
-        if directive.get("always_install") is True and pack_id != "governance-kit/core":
-            errors.append(f"{pack_dir}/{directive_id}: always_install: true is reserved to the governance-kit/core pack")
+        if directive.get("always_install") is True and not pack_id.startswith("governance-kit/"):
+            errors.append(
+                f"{pack_dir}/{directive_id}: always_install: true is reserved to the "
+                "governance-kit/* bundled packs"
+            )
         # Fork-not-patch amendments (#114 phase 5). A directive in a `local`
         # pack can declare `replaces: <pack-id>/<directive-id>` to suppress
         # the upstream version at runtime — see DIRECTIVE_AMEND_FLOW.md.
@@ -366,16 +369,29 @@ def cmd_validate_pack(args: argparse.Namespace) -> int:
 
 
 def cmd_validate_pack_set(args: argparse.Namespace) -> int:
+    # A bare directive id is a *given name*, not a global claim. Once a second
+    # pack exists, two packs may legitimately ship same-named directives that
+    # check different things — they coexist and both run (suppression is only
+    # ever explicit, via `replaces:`). So a cross-pack short-id collision is an
+    # informational notice (printed to stderr, surfaced by `governance pack
+    # add`), not a hard error. Only genuine per-pack validation problems fail.
     seen: dict[str, Path] = {}
     errors: list[str] = []
+    notices: list[str] = []
     for pack_arg in args.pack_dirs:
         pack_dir = Path(pack_arg)
         errors.extend(validate_pack_dir(pack_dir))
         for directive_id in directives_for_pack(pack_dir):
             if directive_id in seen:
-                errors.append(f"duplicate directive id {directive_id!r}: {seen[directive_id]} and {pack_dir}")
+                notices.append(
+                    f"notice: directive id {directive_id!r} appears in more than one pack "
+                    f"({seen[directive_id]} and {pack_dir}); both will run — "
+                    f"use `replaces:` to suppress one explicitly"
+                )
             else:
                 seen[directive_id] = pack_dir
+    if notices:
+        print("\n".join(notices), file=sys.stderr)
     if errors:
         print("\n".join(errors))
         return 1

@@ -248,6 +248,12 @@ install_directive() {
     if [[ -d "$dest/runtimes" ]]; then
         chmod +x "$dest/runtimes/"*.sh 2>/dev/null || true
     fi
+    # Pack-qualified user-conf path for this directive, matching how conf_file
+    # (lib.sh) resolves it from the installed check.sh location. Evals that
+    # exercise a directive's overlay write to "$EVAL_CONF"; its parent dir is
+    # pre-created so a bare `> "$EVAL_CONF"` just works.
+    EVAL_CONF=".governance/conf/$pack_id/$directive_id.conf"
+    mkdir -p ".governance/conf/$pack_id"
 }
 
 stage_all() {

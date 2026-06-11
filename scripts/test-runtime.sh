@@ -187,7 +187,7 @@ output="$(bash "$WORK/r5/.governance/run.sh" no-such-directive 2>&1)"
 exit_code=$?
 set -e
 assert_eq "filter exits 1 when no directive matches" 1 "$exit_code"
-assert_contains "filter prints clear miss notice" "no directive named" "$output"
+assert_contains "filter prints clear miss notice" "no directive matching" "$output"
 
 # ---- lib.sh: directive_start / directive_end --------------------------------
 

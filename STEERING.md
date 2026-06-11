@@ -110,3 +110,5 @@ silent fallback for when the runtime CLI is unreachable).
 | steer-964ef924112-1781159459-1 | 964ef924-1120-46d6-88d3-46dd2fb93d5b |  | correction | classifier | Corrected agent to the wrong directive; meant the STEERING.md one |  |
 | steer-964ef924112-1781159459-2 | 964ef924-1120-46d6-88d3-46dd2fb93d5b |  | interrupt | structural |  |  |
 | steer-964ef924112-1781159459-3 | 964ef924-1120-46d6-88d3-46dd2fb93d5b |  | correction | classifier | Objected to editing .governance files; expects pack update to pull changes |  |
+| steer-b50945514f7-1781179502-1 | b5094551-4f76-4ce0-9836-284d02d2d0ac | #192 | correction | classifier | Pushed back on 7 tags as too burdensome, asked for alternatives | refactor(packs): rebalance concern packs into a flat distribution (#192)Reshape… |
+| steer-b50945514f7-1781179502-2 | b5094551-4f76-4ce0-9836-284d02d2d0ac | #192 | interrupt | structural |  | refactor(packs): rebalance concern packs into a flat distribution (#192)Reshape… |

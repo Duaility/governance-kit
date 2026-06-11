@@ -279,7 +279,7 @@ EOF
 *.log
 EOF
 
-    mkdir -p .github/workflows .governance/packs/governance-kit/core/directives
+    mkdir -p .github/workflows .governance
     cat > .github/workflows/ci.yml <<'EOF'
 name: CI
 on: [push, pull_request]
@@ -297,57 +297,60 @@ EOF
     cp "$ROOT/governance/assets/dot-governance/lib.sh" .governance/lib.sh
     chmod +x .governance/run.sh
 
-    core_pack="$PACKS_ROOT/core"
-    selected=()
-    while IFS= read -r rid; do
-        [[ -n "$rid" ]] && selected+=("$rid")
-    done < <(preset_resolve "$core_pack" standard)
-    while IFS= read -r rid; do
-        [[ -n "$rid" ]] && selected+=("$rid")
-    done < <(always_install_directives "$core_pack")
+    # Install the unioned `standard` preset (+ every always_install directive)
+    # across all bundled concern packs — exactly what `governance init` does
+    # after the core→concern decomposition (#192). Each pack contributes its
+    # slice; the union reproduces the old single-core standard set. One
+    # packs.lock entry per pack records its installed directives.
+    fixture_sha="abcdef0123456789abcdef0123456789abcdef01"
+    while IFS=$'\t' read -r pack_id pack_dir; do
+        [[ -z "$pack_id" ]] && continue
+        selected=()
+        while IFS= read -r rid; do
+            [[ -n "$rid" ]] && selected+=("$rid")
+        done < <(preset_resolve "$pack_dir" standard)
+        while IFS= read -r rid; do
+            [[ -n "$rid" ]] && selected+=("$rid")
+        done < <(always_install_directives "$pack_dir")
 
-    installed_pairs=()
-    seen_directives=" "
-    for rid in "${selected[@]}"; do
-        case "$seen_directives" in
-            *" $rid "*) continue ;;
-        esac
-        seen_directives="$seen_directives$rid "
-        if ! directive_supports_hook_strategy "$core_pack" "$rid" "githooks"; then
-            continue
-        fi
-        install_directive_folder "$core_pack" "$rid" "$fresh_tmp"
-        install_directive_assets "$core_pack" "$rid" "$fresh_tmp"
-        installed_pairs+=("$core_pack" "$rid")
-    done
+        pack_dids=()
+        pack_seen=" "
+        for rid in ${selected[@]+"${selected[@]}"}; do
+            case "$pack_seen" in
+                *" $rid "*) continue ;;
+            esac
+            pack_seen="$pack_seen$rid "
+            if ! directive_supports_hook_strategy "$pack_dir" "$rid" "githooks"; then
+                continue
+            fi
+            install_directive_folder "$pack_dir" "$rid" "$fresh_tmp"
+            install_directive_assets "$pack_dir" "$rid" "$fresh_tmp"
+            pack_dids+=("$rid")
+        done
+        [[ ${#pack_dids[@]} -eq 0 ]] && continue
+
+        pack_version="$(pack_field "$pack_dir" version)"
+        slug="${pack_id#*/}"
+        lock_args=(
+            lock-add "$fresh_tmp/.governance/packs.lock"
+            "$pack_id"
+            --source gh
+            --version "$pack_version"
+            --ref "gh:duaility/governance-kit/packs/$slug@v$pack_version"
+            --sha "$fixture_sha"
+            --subpath "packs/$slug"
+        )
+        for rid in "${pack_dids[@]}"; do
+            lock_args+=(--directive "$rid")
+        done
+        uv run --quiet --isolated --with PyYAML python \
+            "$ROOT/governance/assets/packs/lib/packverb.py" "${lock_args[@]}" >/dev/null
+    done < <(list_packs_all)
 
     write_installed_manifest "$fresh_tmp" \
         --owner acme --repo widgets \
         --hook-strategy githooks \
         --agents-md-snippet
-
-    # Pack pin state lives in packs.lock, not install.yaml — record the core
-    # pack and every installed directive so the schema is realistic.
-    # Post-#117 (phase 2 of #114): governance-kit/core is recorded with
-    # source: gh pinned at the kit's monorepo subpath.
-    core_version="$(pack_field "$core_pack" version)"
-    fixture_sha="abcdef0123456789abcdef0123456789abcdef01"
-    lock_args=(
-        lock-add "$fresh_tmp/.governance/packs.lock"
-        governance-kit/core
-        --source gh
-        --version "$core_version"
-        --ref "gh:duaility/governance-kit/packs/core@v$core_version"
-        --sha "$fixture_sha"
-        --subpath "packs/core"
-    )
-    i=0
-    while (( i < ${#installed_pairs[@]} )); do
-        lock_args+=(--directive "${installed_pairs[i+1]}")
-        i=$(( i + 2 ))
-    done
-    uv run --quiet --isolated --with PyYAML python \
-        "$ROOT/governance/assets/packs/lib/packverb.py" "${lock_args[@]}" >/dev/null
 
     hook_spec="$fresh_tmp/hook-spec.tsv"
     build_hook_spec_from_installed_directives "$fresh_tmp" "$hook_spec"
@@ -368,9 +371,9 @@ EOF
 )
 fresh_status=$?
 if [[ $fresh_status -eq 0 ]]; then
-    printf '  ✓ core.standard installs into a fresh repo and runs green\n'
+    printf '  ✓ unioned standard preset installs into a fresh repo and runs green\n'
 else
-    printf '  ✗ core.standard fresh-repo contract failed\n'
+    printf '  ✗ unioned standard fresh-repo contract failed\n'
     fail=1
 fi
 rm -rf "$fresh_tmp"

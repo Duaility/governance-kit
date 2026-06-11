@@ -147,9 +147,9 @@ def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str
             # user-owned and a deleted one must not be resurrected.
             # seed_directive_conf is augment-only as a second guard.
             conf_tpl = pack_dir / "directives" / did / "config.conf"
-            conf_dest = root / ".governance" / "conf" / f"{did}.conf"
+            conf_dest = root / ".governance" / "conf" / pack["id"] / f"{did}.conf"
             if d["status"] == "add" and conf_tpl.is_file() and not conf_dest.exists():
-                report["conf_seeded"].append(f".governance/conf/{did}.conf")
+                report["conf_seeded"].append(f".governance/conf/{pack['id']}/{did}.conf")
             if dry_run:
                 continue
             cmd = 'install_directive_folder "$1" "$2" "$3"; install_directive_assets "$1" "$2" "$3"'
@@ -197,16 +197,21 @@ def _apply_remove(root: Path, plan: dict[str, Any], report: dict[str, Any], dry_
         if not dry_run:
             shutil.rmtree(root / dest, ignore_errors=True)
     # Drop each removed directive's user conf — the pack is leaving, so its
-    # `.governance/conf/<id>.conf` has no owner. The plan lists only those that
-    # currently exist on disk.
+    # pack-qualified `.governance/conf/<owner>/<pack>/<id>.conf` has no owner.
+    # The plan lists only those that currently exist on disk.
+    conf_dir = root / ".governance" / "conf"
     for conf_rel in pack.get("conf_files", []):
         report["removed"].append(conf_rel)
         if not dry_run:
-            (root / conf_rel).unlink(missing_ok=True)
-    if not dry_run:
-        conf_dir = root / ".governance" / "conf"
-        if conf_dir.is_dir() and not any(conf_dir.iterdir()):
-            conf_dir.rmdir()
+            target = root / conf_rel
+            target.unlink(missing_ok=True)
+            # Prune now-empty pack-qualified parent dirs up to .governance/conf.
+            parent = target.parent
+            while parent != conf_dir and parent.is_dir() and not any(parent.iterdir()):
+                parent.rmdir()
+                parent = parent.parent
+    if not dry_run and conf_dir.is_dir() and not any(conf_dir.iterdir()):
+        conf_dir.rmdir()
     for did in pack["constitution_subsections"]:
         report["constitution_stripped"].append(did)
         if not dry_run and constitution.is_file():

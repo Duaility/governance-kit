@@ -100,24 +100,56 @@ has_file_waiver() {
 }
 
 # ── Per-directive configuration ────────────────────────────────────────────
-# A directive's user-tunable config lives at `.governance/conf/<id>.conf`,
-# seeded once from the directive's shipped `config.conf` template at install
-# time and never overwritten by `pack update` / `reset` / `kit update`. The
-# format is line-based: `KEY=value` lines (KEY is `[A-Z_]+`) are scalar
+# A directive's user-tunable config lives at
+# `.governance/conf/<owner>/<pack>/<id>.conf`, seeded once from the directive's
+# shipped `config.conf` template at install time and never overwritten by
+# `pack update` / `reset` / `kit update`. The path is pack-qualified so two
+# packs shipping a same-named directive (homonyms) get independent overlays.
+# The format is line-based: `KEY=value` lines (KEY is `[A-Z_]+`) are scalar
 # settings; every other non-comment, non-blank line is a directive-defined
 # rule line. Blank lines and `#` comments are ignored.
 #
 # These helpers resolve the repo root themselves, so they work identically in
 # a commit-msg hook (Mode A) and under run.sh / CI (Mode B).
 
+# _conf_pack_qualifier
+# Derive the installed pack qualifier `<owner>/<pack>` from the running
+# check.sh path (`.governance/packs/<owner>/<pack>/directives/<id>/check.sh`,
+# which is `$0` whether the check is invoked by run.sh or a generated hook).
+# Prints `<owner>/<pack>` or nothing when `$0` isn't an installed check.sh
+# (e.g. a unit test that sources lib.sh and calls a conf helper directly).
+_conf_pack_qualifier() {
+    # Match an absolute (/abs/.governance/packs/…) or relative
+    # (.governance/packs/…) check.sh path — run.sh passes absolute, the eval
+    # harness and some hooks pass relative.
+    local src="${0:-}" after owner pack
+    case "$src" in
+        *.governance/packs/*/directives/*)
+            after="${src##*.governance/packs/}"   # <owner>/<pack>/directives/<id>/...
+            owner="${after%%/*}"; after="${after#*/}"
+            pack="${after%%/*}"
+            [[ -n "$owner" && -n "$pack" ]] && printf '%s/%s' "$owner" "$pack"
+            ;;
+    esac
+}
+
 # conf_file <directive-id>
 # Print the path to the directive's user conf and return 0 if it exists;
 # return 1 (printing nothing) otherwise. Conf-driven directives typically
-# treat a missing conf as "nothing opted in" and no-op.
+# treat a missing conf as "nothing opted in" and no-op. When the caller is an
+# installed check.sh the path is pack-qualified
+# (`.governance/conf/<owner>/<pack>/<id>.conf`); otherwise it falls back to the
+# bare `.governance/conf/<id>.conf` for direct-invocation contexts.
 conf_file() {
-    local id="$1" root
+    local id="$1" root pack_q
     root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
-    local f="$root/.governance/conf/$id.conf"
+    pack_q="$(_conf_pack_qualifier)"
+    local f
+    if [[ -n "$pack_q" ]]; then
+        f="$root/.governance/conf/$pack_q/$id.conf"
+    else
+        f="$root/.governance/conf/$id.conf"
+    fi
     [[ -f "$f" ]] || return 1
     printf '%s\n' "$f"
 }

@@ -243,18 +243,19 @@ printf '── seed_directive_conf ───────────────
 target_conf="$WORK/target-conf"
 mkdir -p "$target_conf"
 
-# First install seeds .governance/conf/<id>.conf from config.conf and echoes
-# the seeded relative path.
+# First install seeds the pack-qualified .governance/conf/<owner>/<pack>/<id>.conf
+# from config.conf and echoes the seeded relative path.
+qconf=".governance/conf/acme/fixture-pack/demo.conf"
 seeded_path="$(seed_directive_conf "$WORK/fixture-pack" "demo" "$target_conf")"
-assert_file_exists "seeds .governance/conf/<id>.conf" "$target_conf/.governance/conf/demo.conf"
-assert_eq "echoes the seeded relative path" ".governance/conf/demo.conf" "$seeded_path"
+assert_file_exists "seeds pack-qualified conf" "$target_conf/$qconf"
+assert_eq "echoes the seeded relative path" "$qconf" "$seeded_path"
 
 # Second call is augment-only: a user-edited conf is preserved and nothing is
 # echoed (no seed happened).
-echo "USER=tweak" > "$target_conf/.governance/conf/demo.conf"
+echo "USER=tweak" > "$target_conf/$qconf"
 seeded_again="$(seed_directive_conf "$WORK/fixture-pack" "demo" "$target_conf")"
 assert_eq "skips existing conf (no re-seed)" "" "$seeded_again"
-assert_eq "preserves user-edited conf" "USER=tweak" "$(cat "$target_conf/.governance/conf/demo.conf")"
+assert_eq "preserves user-edited conf" "USER=tweak" "$(cat "$target_conf/$qconf")"
 
 # A directive that ships no config.conf is a silent no-op.
 rm -f "$WORK/fixture-pack/directives/demo/config.conf"
@@ -262,7 +263,7 @@ target_conf2="$WORK/target-conf2"
 mkdir -p "$target_conf2"
 noconf_out="$(seed_directive_conf "$WORK/fixture-pack" "demo" "$target_conf2")"
 assert_eq "no config.conf → no echo" "" "$noconf_out"
-assert_file_absent "no config.conf → no conf seeded" "$target_conf2/.governance/conf/demo.conf"
+assert_file_absent "no config.conf → no conf seeded" "$target_conf2/$qconf"
 
 # ---- directive_supports_hook_strategy -------------------------------------
 

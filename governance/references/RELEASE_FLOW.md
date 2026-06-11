@@ -11,13 +11,18 @@ scheme) is in [VERSIONING.md](VERSIONING.md).
 **Version lines are written only by `scripts/release.sh`, only in
 `chore(release)` commits.** Feature and fix PRs never touch `kit.yaml`,
 `pack.yaml` `version`, `SKILL.md` frontmatter, `install.yaml` `kit_version`, or
-any `kit-version=` marker. This is what lets the `version-consistency` directive
+any `kit-version=` marker. This is what lets the `kit-version-sync` directive
 treat any out-of-band edit to those fields as drift.
 
 ## When to cut which axis
 
-- **`core`** — a directive-content change has merged (new/changed/removed
-  directive, preset edit, `check.sh` fix). Bumps `packs/core/pack.yaml`.
+- **`<pack>`** (a concern-pack name: `foundation`, `security`, `docs`,
+  `commits`, `audit`) — a directive-content change has
+  merged in that pack (new/changed/removed directive, preset edit, `check.sh`
+  fix). Bumps that pack's `packs/<pack>/pack.yaml` `version` and cuts a
+  `<pack>/vX.Y.Z` tag. Tag **lazily** — one invocation per pack whose subtree
+  actually changed; the packs that did not change keep their existing tags. (The
+  retired `core` axis is gone — `release.sh core …` errors.)
 - **`kit`** — a framework change has merged (runtime files, hook generators, a
   verb/flag, a schema or marker-format change). Bumps `governance/assets/kit.yaml`
   and re-stamps every derived kit-version copy.
@@ -27,7 +32,7 @@ Pick the semver level from the [policy table](VERSIONING.md#semver-policy).
 ## The flow
 
 ```sh
-bash scripts/release.sh <kit|core> <X.Y.Z> [--dry-run] [--push]
+bash scripts/release.sh <kit|PACK> <X.Y.Z> [--dry-run] [--push]
 ```
 
 1. **Preview first.** `--dry-run` runs from any branch/state and prints the plan
@@ -45,12 +50,15 @@ bash scripts/release.sh <kit|core> <X.Y.Z> [--dry-run] [--push]
    leading marker, minus generator code, test data, eval fixtures, and docs).
    Reuses `stamp_managed_marker` from `governance/assets/packs/lib/install.sh`.
 5. **Regenerate the CHANGELOG section.** Conventional Commits since the last
-   `<axis>/v*` tag, grouped Added / Fixed / Changed, prepended above the first
-   existing `## [` entry. The first tagged release on an axis emits a minimal
-   section (the curated historical entries already cover pre-tag changes).
+   `<axis>/v*` tag — **path-scoped to the axis's own subtree** (`packs/<pack>`
+   for a pack release, everything outside `packs/` for the kit), so a pack's
+   changelog lists only its own commits — grouped Added / Fixed / Changed,
+   prepended above the first existing `## [` entry. The first tagged release on
+   an axis emits a minimal section (the curated historical entries already cover
+   pre-tag changes).
 6. **Commit + tag.** `chore(release): <axis> v<old> → v<new>`, made through the
    hook path so accounting trailers attach, then an annotated tag
-   `kit/vX.Y.Z` / `core/vX.Y.Z`. A release commit is mechanical — it has no
+   `kit/vX.Y.Z` / `<pack>/vX.Y.Z`. A release commit is mechanical — it has no
    feature issue and touches no receipt — so `release.sh` writes in-body
    `governance: allow-commit-message-format` and `allow-commit-issue-receipt-match`
    waivers; the accounting directives still apply and are stamped normally.

@@ -6,27 +6,64 @@ packs:
   directives:
   - kit-version-consistency
   - pre-commit-test-gate
-- id: governance-kit/core
-  version: 0.4.0
+- id: governance-kit/foundation
+  version: 0.1.0
   source: gh
-  ref: gh:duaility/governance-kit/packs/core@main
+  ref: gh:duaility/governance-kit/packs/foundation@main
   sha: fd38a10012088c278a5ff614f8921bd6b35440d7
-  subpath: packs/core
+  subpath: packs/foundation
   min_governance_kit: '0.3'
-  installed_at: 2026-06-09 00:00:00+00:00
+  installed_at: 2026-06-11 00:00:00+00:00
+  directives:
+  - kit-version-sync
+  - repo-hygiene
+  - required-docs
+- id: governance-kit/security
+  version: 0.1.0
+  source: gh
+  ref: gh:duaility/governance-kit/packs/security@main
+  sha: fd38a10012088c278a5ff614f8921bd6b35440d7
+  subpath: packs/security
+  min_governance_kit: '0.3'
+  installed_at: 2026-06-11 00:00:00+00:00
+  directives:
+  - pinned-dependencies
+  - secrets-hygiene
+  - token-permissions
+- id: governance-kit/docs
+  version: 0.1.0
+  source: gh
+  ref: gh:duaility/governance-kit/packs/docs@main
+  sha: fd38a10012088c278a5ff614f8921bd6b35440d7
+  subpath: packs/docs
+  min_governance_kit: '0.3'
+  installed_at: 2026-06-11 00:00:00+00:00
+  directives:
+  - doc-freshness
+  - no-broken-internal-doc-links
+- id: governance-kit/commits
+  version: 0.1.0
+  source: gh
+  ref: gh:duaility/governance-kit/packs/commits@main
+  sha: fd38a10012088c278a5ff614f8921bd6b35440d7
+  subpath: packs/commits
+  min_governance_kit: '0.3'
+  installed_at: 2026-06-11 00:00:00+00:00
+  directives:
+  - commit-message-format
+- id: governance-kit/audit
+  version: 0.1.0
+  source: gh
+  ref: gh:duaility/governance-kit/packs/audit@main
+  sha: fd38a10012088c278a5ff614f8921bd6b35440d7
+  subpath: packs/audit
+  min_governance_kit: '0.3'
+  installed_at: 2026-06-11 00:00:00+00:00
   directives:
   - agent-steering-accounting
   - agent-token-accounting
   - commit-issue-receipt-match
-  - commit-message-format
-  - doc-freshness
   - doc-integrity
   - issue-templates
   - issues-tracked
-  - no-broken-internal-doc-links
   - receipt-per-issue
-  - repo-hygiene
-  - required-docs
-  - secrets-hygiene
-  - version-consistency
-  - workflows-hardened

@@ -22,7 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PACK_LIB = ROOT / "governance" / "assets" / "packs" / "lib"
 PACKCTL_PATH = PACK_LIB / "packctl.py"
-CORE_PACK = ROOT / "packs" / "core"
+BUNDLED_PACK = ROOT / "packs" / "audit"
 
 
 def load_packctl():
@@ -211,10 +211,10 @@ def test_resolve_preset_raises_keyerror_for_unknown_preset() -> None:
 
 def test_directives_for_pack_returns_sorted_directive_ids() -> None:
     pkt = load_packctl()
-    listed = pkt.directives_for_pack(CORE_PACK)
+    listed = pkt.directives_for_pack(BUNDLED_PACK)
     assert listed == sorted(listed)
-    # Sanity: a known core directive is in the list.
-    assert "secrets-hygiene" in listed
+    # Sanity: a known directive is in the list.
+    assert "agent-token-accounting" in listed
 
 
 def test_directives_for_pack_skips_folders_without_directive_yaml() -> None:
@@ -246,32 +246,32 @@ def test_cli_kit_version_prints_constant() -> None:
     assert result.stdout.strip() == pkt.KIT_VERSION
 
 
-def test_cli_directives_for_lists_known_core_directives() -> None:
-    result = run_packctl("directives-for", str(CORE_PACK))
+def test_cli_directives_for_lists_known_directives() -> None:
+    result = run_packctl("directives-for", str(BUNDLED_PACK))
     assert result.returncode == 0, result.stderr
     listed = [line for line in result.stdout.splitlines() if line]
-    assert "secrets-hygiene" in listed
-    assert "required-docs" in listed
+    assert "agent-token-accounting" in listed
+    assert "agent-steering-accounting" in listed
 
 
 def test_cli_pack_field_prints_id_and_version() -> None:
-    res_id = run_packctl("pack-field", str(CORE_PACK), "id")
-    res_version = run_packctl("pack-field", str(CORE_PACK), "version")
+    res_id = run_packctl("pack-field", str(BUNDLED_PACK), "id")
+    res_version = run_packctl("pack-field", str(BUNDLED_PACK), "version")
     assert res_id.returncode == 0
     assert res_version.returncode == 0
-    assert res_id.stdout.strip() == "governance-kit/core"
+    assert res_id.stdout.strip() == "governance-kit/audit"
     # Version is a string scalar.
     assert res_version.stdout.strip() != ""
 
 
 def test_cli_directive_field_returns_blank_for_unknown_field() -> None:
-    result = run_packctl("directive-field", str(CORE_PACK), "secrets-hygiene", "no-such-key")
+    result = run_packctl("directive-field", str(BUNDLED_PACK), "agent-token-accounting", "no-such-key")
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == ""
 
 
 def test_cli_preset_resolve_returns_nonzero_for_unknown_preset() -> None:
-    result = run_packctl("preset-resolve", str(CORE_PACK), "no-such-preset")
+    result = run_packctl("preset-resolve", str(BUNDLED_PACK), "no-such-preset")
     assert result.returncode != 0
 
 
@@ -315,14 +315,14 @@ def test_cli_union_preset_unions_across_packs_no_fallback() -> None:
         result = run_packctl(
             "union-preset",
             "minimal",
-            str(CORE_PACK),
+            str(BUNDLED_PACK),
             str(second),
         )
         assert result.returncode == 0, result.stderr
         out_ids = [line for line in result.stdout.splitlines() if line]
         expected: list[str] = []
         seen: set[str] = set()
-        for pack in (CORE_PACK, second):
+        for pack in (BUNDLED_PACK, second):
             try:
                 for did in pkt.resolve_preset(pack, "minimal"):
                     if did not in seen:
@@ -335,27 +335,27 @@ def test_cli_union_preset_unions_across_packs_no_fallback() -> None:
 
 def test_cli_always_install_lists_only_always_install_directives() -> None:
     pkt = load_packctl()
-    result = run_packctl("always-install-directives", str(CORE_PACK))
+    result = run_packctl("always-install-directives", str(BUNDLED_PACK))
     assert result.returncode == 0, result.stderr
     listed = [line for line in result.stdout.splitlines() if line]
     # Cross-check: every listed directive's manifest declares always_install: true.
     for did in listed:
-        manifest = pkt.directive_manifest(CORE_PACK, did)
+        manifest = pkt.directive_manifest(BUNDLED_PACK, did)
         assert manifest.get("always_install") is True
-    # Cross-check: every always_install directive in core appears.
+    # Cross-check: every always_install directive in the pack appears.
     expected = sorted(
-        did for did in pkt.directives_for_pack(CORE_PACK)
-        if pkt.directive_manifest(CORE_PACK, did).get("always_install") is True
+        did for did in pkt.directives_for_pack(BUNDLED_PACK)
+        if pkt.directive_manifest(BUNDLED_PACK, did).get("always_install") is True
     )
     assert sorted(listed) == expected
 
 
-def test_cli_validate_pack_set_flags_duplicate_directive_ids_across_packs() -> None:
+def test_cli_validate_pack_set_reports_cross_pack_dupe_as_notice() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         pack_a = make_pack(
             Path(tmp) / "a",
             pack_yaml=textwrap.dedent("""\
-                id: pack-a
+                id: acme/pack-a
                 name: A
                 version: "0.1"
                 min_governance_kit: "0.1"
@@ -373,14 +373,14 @@ def test_cli_validate_pack_set_flags_duplicate_directive_ids_across_packs() -> N
                         hook: none
                     """),
                     "check_sh": "#!/usr/bin/env bash\nexit 0\n",
-                    "constitution_md": "ref .governance/packs/pack-a/directives/shared/check.sh",
+                    "constitution_md": "ref .governance/packs/acme/pack-a/directives/shared/check.sh",
                 },
             },
         )
         pack_b = make_pack(
             Path(tmp) / "b",
             pack_yaml=textwrap.dedent("""\
-                id: pack-b
+                id: acme/pack-b
                 name: B
                 version: "0.1"
                 min_governance_kit: "0.1"
@@ -398,7 +398,7 @@ def test_cli_validate_pack_set_flags_duplicate_directive_ids_across_packs() -> N
                         hook: none
                     """),
                     "check_sh": "#!/usr/bin/env bash\nexit 0\n",
-                    "constitution_md": "ref .governance/packs/pack-b/directives/shared/check.sh",
+                    "constitution_md": "ref .governance/packs/acme/pack-b/directives/shared/check.sh",
                 },
             },
         )
@@ -410,8 +410,12 @@ def test_cli_validate_pack_set_flags_duplicate_directive_ids_across_packs() -> N
             str(pack_a.parent / "pack-a"),
             str(pack_b.parent / "pack-b"),
         )
-        assert result.returncode != 0
-        assert "duplicate directive id 'shared'" in result.stdout
+        # A cross-pack short-id collision is no longer a hard error: homonyms
+        # coexist and both run (suppression is explicit via `replaces:`). The
+        # condition surfaces as an informational notice on stderr, exit 0.
+        assert result.returncode == 0, result.stdout
+        assert "more than one pack" in result.stderr
+        assert "shared" in result.stderr
 
 
 if __name__ == "__main__":
