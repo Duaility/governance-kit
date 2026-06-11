@@ -1,8 +1,10 @@
-<!-- last-verified: 2026-04-29 -->
+<!-- last-verified: 2026-06-11 -->
 
 # governance directive * — verb flows
 
 Authoritative flow for the hand-authored directive verbs: `governance directive add`, `governance directive modify`, `governance directive remove`.
+
+> **Routed verb — runs from the repo-pinned kit (issue #194).** The thin `governance` skill does not run `directive *` from its own machine copy. Resolve the kit the repo pins via `kit-current` (see [`../SKILL.md`](../SKILL.md) "Step R — Resolve the pinned kit") first, then run every engine and read every template from the resolved kit's `<lib_dir>` / `<assets_dir>`. See [DIRECTIVE_AMEND_FLOW.md](DIRECTIVE_AMEND_FLOW.md) for the full flow. When `kit-current` falls back to the installed skill, those paths are this machine copy.
 
 ## The atomic triple
 

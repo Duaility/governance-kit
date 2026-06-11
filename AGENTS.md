@@ -19,11 +19,11 @@ See the **Compliance** section of [CONSTITUTION.md](CONSTITUTION.md) for the ful
 
 `governance-kit` ships Claude Code / Codex skills that together implement **governance-driven development** — a workflow where every directive in a `CONSTITUTION.md` has a matching executable test, and the two evolve as one commit.
 
-The user-facing entry point is the unified [`governance`](governance/SKILL.md) skill. It exposes four verb families — `init`, `uninstall`, `pack {search,add,update,remove,list}`, `directive {add,modify,remove}` — and is the single writer for every governance-kit lifecycle operation.
+The user-facing entry point is the unified [`governance`](governance/SKILL.md) skill. **The skill is an installer; the kit is the product** (issue #194): it owns three lifecycle verbs — `install`, `update`, `uninstall` — and is a thin **router** for everything else (`pack {search,create,add,update,remove,list}`, `directive {add,modify,remove}`, `reset`), which executes from the kit version each repo pins in `install.yaml`, not from the machine copy. The skill is the single writer for every governance-kit lifecycle operation.
 
 | Skill | Purpose |
 |---|---|
-| [governance](governance/SKILL.md) | **User-facing entry point.** Unified verb surface: `init`, `uninstall`, `pack *`, `directive *`. |
+| [governance](governance/SKILL.md) | **User-facing entry point.** Installer (`install`, `update`, `uninstall`); router for `pack *`, `directive *`, `reset`. |
 
 ## How governance works here
 

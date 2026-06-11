@@ -3,8 +3,8 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "We're starting a new Python + TypeScript monorepo and I want to lock in some non-negotiables before the team grows. Run governance init for this repo and pick a sensible default set of rules — I'll tell you what to drop.",
-      "expected_output": "Following INIT_FLOW.md Steps 1–8: a `.governance/` directory with a runner and per-pack directive folders under `.governance/packs/<owner>/<name>/directives/`, tracked hooks installed via `.githooks/` (or an explicitly preserved existing hook framework when one exists), a CONSTITUTION.md seeded from the template, a GitHub Actions workflow at `.github/workflows/governance.yml`, the install state pair (`.governance/install.yaml` v3 + `.governance/packs.lock` v2), an AGENTS.md directive block bounded by the paired markers, and a short report listing pack(s), preset, hook strategy, directives installed, directives skipped, hook collisions, and assumptions. The skill should have surfaced a preset choice before acting — it should not have silently chosen the directive set.",
+      "prompt": "We're starting a new Python + TypeScript monorepo and I want to lock in some non-negotiables before the team grows. Run governance install for this repo and pick a sensible default set of rules — I'll tell you what to drop.",
+      "expected_output": "Following INIT_FLOW.md Steps 0–9: Step 0 resolves and fetches the released kit (the latest `kit/vX.Y.Z` tag, recorded as `kit_provenance: published-tag` — or `installed-skill` offline) and runs the assembly engines from that tree; then a `.governance/` directory with a runner and per-pack directive folders under `.governance/packs/<owner>/<name>/directives/`, tracked hooks installed via `.githooks/` (or an explicitly preserved existing hook framework when one exists), a CONSTITUTION.md seeded from the template, a GitHub Actions workflow at `.github/workflows/governance.yml`, the install state pair (`.governance/install.yaml` v3 + `.governance/packs.lock` v2), an AGENTS.md directive block bounded by the paired markers, and a short report listing the resolved kit, pack(s), preset, hook strategy, directives installed, directives skipped, hook collisions, and assumptions. The skill should have surfaced a preset choice before acting — it should not have silently chosen the directive set.",
       "files": ["files/empty-polyglot-repo/"],
       "assertions": [
         "The skill detected both Python and TypeScript/JS before proposing directives (visible in its summary or in which directives it enabled)",
@@ -12,7 +12,7 @@
         "`.governance/run.sh` exists and is executable",
         "`.governance/packs/<owner>/<name>/directives/` contains at least one directive folder per enabled category, each with a `directive.yaml` and `check.sh`",
         "`.governance/lib.sh` exists and defines `directive_start`, `violation`, `directive_end`, `has_waiver`",
-        "`.governance/install.yaml` exists with `version: \"3\"`, the surveyed `owner:` and `repo:` fields, and a `hook_strategy:` value",
+        "`.governance/install.yaml` exists with `version: \"3\"`, the surveyed `owner:` and `repo:` fields, a `hook_strategy:` value, and a `kit_provenance:` recording how the kit was resolved (`published-tag`/`explicit`/`installed-skill`)",
         "`.governance/packs.lock` exists with `version: \"2\"` and an entry for each bundled `governance-kit/*` concern pack (`source: gh`, ref `gh:duaility/governance-kit/packs/<concern>@<v>`, real 40-char SHA pin, subpath `packs/<concern>`) listing every installed directive id",
         "`.githooks/pre-commit` exists, is executable, carries the line-2 `governance-kit:managed` ownership marker, and honors `SKIP_GOVERNANCE=1` (when the repo uses the default `.githooks/` hook strategy)",
         "`.githooks/commit-msg` exists and rejects messages that don't match Conventional Commits when the relevant directive was enabled under the default hook strategy",

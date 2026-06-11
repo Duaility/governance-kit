@@ -320,6 +320,65 @@ def test_resolve_offline_no_pin_falls_back_to_installed_skill() -> None:
         assert any("installed skill" in a for a in report["assumptions"])
 
 
+def kit_current(root: Path, *flags: str, home: Path) -> tuple[int, dict]:
+    env = {**GIT_CLEAN_ENV, "GOVERNANCE_KIT_HOME": str(home)}
+    result = subprocess.run(
+        [sys.executable, str(KITVERB_PATH), "kit-current", str(root), *flags],
+        cwd=ROOT, check=False, text=True, env=env,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    assert result.stdout.strip(), f"kit-current printed nothing: {result.stderr}"
+    return result.returncode, json.loads(result.stdout)
+
+
+def test_current_cache_hit_returns_pinned_tree() -> None:
+    # The common path: the repo's pinned (ref, sha) is already in the cache, so
+    # the verb router resolves it with no network and points at its lib/refs.
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        sha = "a" * 40
+        ref = make_cached_kit(home, "duaility", "governance-kit", "0.4.0", sha)
+        manifest = BASE_MANIFEST + f'kit_version: "0.4.0"\nkit_ref: {ref}\nkit_sha: {sha}\n'
+        root = make_repo(Path(tmp) / "repo", manifest=manifest)
+        rc, report = kit_current(root, "--offline", home=home)
+        assert rc == 0 and report["result"] == "ok", report
+        assert report["provenance"] == "cache"
+        assert report["version"] == "0.4.0"
+        # Engine + flow-doc roots point inside the cached pinned tree, not the skill.
+        assert f"{sha}" in report["lib_dir"] and report["lib_dir"].endswith("/assets/packs/lib")
+        assert report["references_dir"].endswith("/governance/references")
+        assert report["assumptions"] == []
+
+
+def test_current_no_pin_falls_back_to_installed_skill() -> None:
+    # A pre-#177 repo with no recorded pin → run from the installed skill, noting it.
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        root = make_repo(Path(tmp) / "repo", manifest=BASE_MANIFEST + 'kit_version: "0.4.0"\n')
+        rc, report = kit_current(root, "--offline", home=home)
+        assert rc == 0 and report["result"] == "ok", report
+        assert report["provenance"] == "installed-skill"
+        assert report["version"] == KIT_VERSION
+        assert report["lib_dir"] == str(PACK_LIB)
+        assert any("no recorded kit pin" in a for a in report["assumptions"])
+
+
+def test_current_offline_uncached_pin_falls_back_to_installed_skill() -> None:
+    # Pin recorded but its tree isn't cached and --offline forbids fetching →
+    # degrade to the installed skill rather than block the verb.
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        sha = "b" * 40
+        ref = "gh:duaility/governance-kit/governance@kit/v0.4.0"
+        manifest = BASE_MANIFEST + f'kit_version: "0.4.0"\nkit_ref: {ref}\nkit_sha: {sha}\n'
+        root = make_repo(Path(tmp) / "repo", manifest=manifest)
+        rc, report = kit_current(root, "--offline", home=home)
+        assert rc == 0 and report["result"] == "ok", report
+        assert report["provenance"] == "installed-skill"
+        assert report["lib_dir"] == str(PACK_LIB)
+        assert any("uncached" in a for a in report["assumptions"])
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):
