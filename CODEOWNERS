@@ -1,0 +1,4 @@
+# Default reviewer for every change. Pairs with the `main` branch-protection
+# ruleset's required-review rule. Refine with path-specific owners as the
+# maintainer set grows.
+* @srikanth235

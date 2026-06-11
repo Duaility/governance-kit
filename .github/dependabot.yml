@@ -1,0 +1,26 @@
+# Dependabot keeps the SHA-pinned GitHub Actions and the docs-site npm
+# dependencies current, with an auditable PR per bump. Grouped weekly so the
+# update churn lands in one reviewable PR per ecosystem instead of many.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      docs-site:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: build

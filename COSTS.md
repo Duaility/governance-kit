@@ -280,3 +280,4 @@ Schema:
 | claude-code-964ef924-112-1781159786 | claude-code | 964ef924-1120-46d6-88d3-46dd2fb93d5b | #186 | claude-opus-4-8 | 55985 | 723900 | 27624082 | 219560 | 999445 | 24.1053 |  |
 | claude-code-2210fdfa-283-1781162031 | claude-code | 2210fdfa-2833-4165-aafb-a1d00f764ac2 | #186 | claude-opus-4-8 | 5744 | 22058 | 32008 | 520 | 28322 | 0.1956 |  |
 | claude-code-964ef924-112-1781162130 | claude-code | 964ef924-1120-46d6-88d3-46dd2fb93d5b | #186 | claude-opus-4-8 | 17659 | 569132 | 4517922 | 18617 | 605408 | 6.3698 |  |
+| claude-code-defe3aa5-6ba-1781163360 | claude-code | defe3aa5-6ba2-4e45-977e-c4a5126bb758 | #188 | claude-opus-4-8 | 5744 | 25406 | 32008 | 670 | 31820 | 0.2203 | ci: harden CI supply-chain hygiene (#188) -m Layer GitHub-native supply-chain hy |
