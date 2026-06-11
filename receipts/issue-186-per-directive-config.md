@@ -60,7 +60,9 @@ a single-spaced `!` line matches a column-aligned default), `KEY=value`
   `CANDIDATE_MAX_LEN=<int>` / env `GOVERNANCE_CANDIDATE_MAX_LEN` overrides the scalar;
   a non-integer raises). The ledger contract enums and `check.sh` are untouched — knobs
   shape only the best-effort stamping path. Seeding/drift/removal ride the generic
-  machinery (no engine change). Eval gains three conf cases.
+  machinery (no engine change). Eval gains three conf cases. Follow-up: CodeQL
+  flagged a redundant `import conf` in the extractor's except branch — import
+  `conf` once after the try/except instead (no behavior change).
 - **Dogfood**: removed `.governance/{integrity,freshness}.conf` (rules now ship in
   the consumed-tree `defaults.conf`), dual-edited the consumed core tree and lib.sh,
   updated the affected `CONSTITUTION.md` Directive subsections + appended an

@@ -59,12 +59,14 @@ from pathlib import Path
 # classifier.py / conf.py sit next to this file; the relative import works
 # under `python3 extract.py …` because the parent dir is on sys.path.
 try:
-    import conf  # type: ignore
     from classifier import Candidate, classify_candidates  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    import conf  # type: ignore
     from classifier import Candidate, classify_candidates  # type: ignore
+
+# sys.path now includes this file's directory (either it already did, or the
+# fallback above inserted it), so conf imports cleanly with a single statement.
+import conf  # type: ignore
 
 
 INTERRUPT_PHRASE_RE = re.compile(r"^\[Request interrupted by user\b")

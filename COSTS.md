@@ -278,3 +278,5 @@ Schema:
 | claude-code-8ebf1b73-084-1781157302 | claude-code | 8ebf1b73-084a-43ef-99f6-c9856a50f250 | #186 | claude-opus-4-8 | 5744 | 22918 | 32008 | 1514 | 30176 | 0.2258 | feat(packs): first-class per-directive configuration (#186)Replace the ad-hoc mi |
 | claude-code-964ef924-112-1781157464 | claude-code | 964ef924-1120-46d6-88d3-46dd2fb93d5b | #186 | claude-opus-4-8 | 56628 | 1137515 | 181879614 | 541412 | 1735555 | 111.8677 | feat(packs): first-class per-directive configuration (#186)Replace the ad-hoc mi |
 | claude-code-964ef924-112-1781159786 | claude-code | 964ef924-1120-46d6-88d3-46dd2fb93d5b | #186 | claude-opus-4-8 | 55985 | 723900 | 27624082 | 219560 | 999445 | 24.1053 |  |
+| claude-code-2210fdfa-283-1781162031 | claude-code | 2210fdfa-2833-4165-aafb-a1d00f764ac2 | #186 | claude-opus-4-8 | 5744 | 22058 | 32008 | 520 | 28322 | 0.1956 |  |
+| claude-code-964ef924-112-1781162130 | claude-code | 964ef924-1120-46d6-88d3-46dd2fb93d5b | #186 | claude-opus-4-8 | 17659 | 569132 | 4517922 | 18617 | 605408 | 6.3698 |  |
