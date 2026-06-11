@@ -157,6 +157,26 @@ def test_init_apply_assembles_full_install() -> None:
         assert not (root / ".governance/freshness.conf").exists()
 
 
+def test_init_apply_records_kit_provenance_when_supplied() -> None:
+    # issue #194: when the flow's kit-resolve step threads `kit_provenance`, the
+    # manifest records how `init` resolved the kit it installed from. Absent by
+    # default (pre-#194 decisions) so existing fixtures are unaffected.
+    with tempfile.TemporaryDirectory() as tmp:
+        src = _write_source_pack(Path(tmp) / "src")
+        root = _fresh_repo(Path(tmp) / "repo")
+        d = _decisions(src)
+        d["kit_provenance"] = "published-tag"
+        rc, report = init_apply_cli(root, d)
+        assert rc == 0 and report["result"] == "applied", report
+        assert "kit_provenance: published-tag" in (root / ".governance/install.yaml").read_text()
+
+    with tempfile.TemporaryDirectory() as tmp:
+        src = _write_source_pack(Path(tmp) / "src")
+        root = _fresh_repo(Path(tmp) / "repo")
+        rc, report = init_apply_cli(root, _decisions(src))
+        assert rc == 0 and "kit_provenance" not in (root / ".governance/install.yaml").read_text()
+
+
 def test_init_apply_refuses_existing_install() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         src = _write_source_pack(Path(tmp) / "src")

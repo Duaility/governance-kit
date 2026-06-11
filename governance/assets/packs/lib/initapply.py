@@ -84,6 +84,12 @@ def _write_manifest(root: Path, decisions: dict[str, Any], seeded: list[str], re
     argv += ["--kit-ref", kit_ref]
     if kit_sha:
         argv += ["--kit-sha", kit_sha]
+    # Provenance of the kit `init` ran from (issue #194): `published-tag` /
+    # `explicit` / `installed-skill`. Threaded from the flow's kit-resolve step;
+    # omitted on pre-#194 callers (the field is then simply absent).
+    kit_provenance = decisions.get("kit_provenance")
+    if kit_provenance:
+        argv += ["--kit-provenance", kit_provenance]
     if (root / "AGENTS.md").is_file():
         argv.append("--agents-md-snippet")
     if report.get("agents_md") == "stub created":

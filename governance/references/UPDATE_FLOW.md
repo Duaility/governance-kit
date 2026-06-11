@@ -1,8 +1,9 @@
-# `governance kit update` — activation flow
+# `governance update` — activation flow
 
-Re-syncs the kit-runtime files installed at `governance init` to a kit version
+Re-syncs the kit-runtime files installed at `governance install` to a kit version
 the repo's manifest pins — the **repo-pinned model** (issue #177). Dispatched
-from [`../SKILL.md`](../SKILL.md).
+from [`../SKILL.md`](../SKILL.md). (Verb name: `governance update`; `kit update`
+remains a recognized alias, and the engine subcommands keep their `kit-*` names.)
 
 ## The repo-pinned model (read this first)
 

@@ -1,9 +1,17 @@
-# `governance init` — activation flow
+# `governance install` — activation flow
 
-The 8-step recipe `governance init` runs. Dispatched from
+The recipe `governance install` runs (alias: `governance init`). Dispatched from
 [`../SKILL.md`](../SKILL.md).
 
-`init` sets up governance-driven development in the current repository:
+**Installs from the released kit, not the machine copy (issue #194).** `install`
+is a lifecycle verb the *thin skill* owns, but its first act is to resolve and
+fetch the kit it will install from — the latest published `kit/vX.Y.Z` tag — and
+run every assembly engine from *that* tree (Step 0). This is the same
+resolve-and-delegate model `update` uses: the released artifact, not whatever
+`npx skills` last put on the machine, is what reaches repo state. Offline, it
+falls back to the installed skill and records that provenance.
+
+`install` sets up governance-driven development in the current repository:
 
 1. A `CONSTITUTION.md` at the repo root — the evolving source of truth for directives, guidelines, and directives.
 2. Machine-enforced tests under `.governance/` — every directive in the constitution has a corresponding test.
@@ -75,6 +83,47 @@ findings) and Step 9 (commit) remain the operator's.
 
 Run these steps in order. Do not skip steps unless noted.
 
+### Step 0 — Resolve and fetch the kit to install from
+
+Before assembling anything, resolve which kit this install runs from. `install`
+is the one place unreleased content used to reach repo state — it ran wholesale
+from whatever skill `npx skills` last installed (main HEAD). This step closes
+that skew by fetching the released tag and running every later engine from it
+(issue #194, milestone 1).
+
+Run the resolver from the **installed skill** (this is bootstrap — the repo is
+not yet pinned):
+
+```sh
+uv run --quiet --isolated --with PyYAML python \
+    governance/assets/packs/lib/kitverb.py kit-resolve "<root>" [--to X.Y.Z]
+```
+
+`kit-resolve` resolves the target (default: the latest published `kit/vX.Y.Z`
+tag; `--to X.Y.Z` pins an exact version), fetches that tree into
+`~/.governance/cache/kits/<owner>__<repo>@<sha>/`, gates the delegation floor,
+and reports the tree to run from. A fresh repo has no recorded pin, so
+`direction` is `unknown` and no downgrade gate applies. Consume its JSON:
+
+| Field | Use in `install` |
+|---|---|
+| `result` | `ok` / `refused`. On `refused` (only the `< 0.4.0` floor can fire here), surface `reason` + `recovery` and stop. |
+| `provenance` | `published-tag` / `explicit` (`--to`) / `installed-skill` (offline fallback). Thread into `decisions.kit_provenance` (Step 3) and name it in the summary. |
+| `kit_ref` / `kit_sha` | The pin to thread into `decisions` (Step 3) and record in `install.yaml`. Absent on the offline `installed-skill` fallback (init records the ref it constructs and backfills the sha on first `update`). |
+| `hooks_lib` | The fetched kit's `assets/packs/lib` — call this `<lib_dir>`. **Every engine invocation in Steps 2–7 runs from `<lib_dir>`**, not from `governance/assets/packs/lib/`. |
+| `assets_root` | The fetched kit's `assets/` — call this `<assets_dir>`. The source for `CONSTITUTION.template.md`, `dot-governance/`, `governance.yml`, the bundled `packs/`, etc. |
+
+**Offline / upstream unreachable.** `kit-resolve` falls back to the installed
+skill and reports `provenance: installed-skill` with an `assumptions` note;
+`<lib_dir>` / `<assets_dir>` then point at the machine copy. Proceed — record
+`kit_provenance: installed-skill` so the receipt shows the install ran from the
+local skill, and surface the note in the summary's `Assumptions:` line.
+
+For the rest of this flow, **`<lib_dir>` is the resolved kit's lib** and
+`<assets_dir>` is its `assets/`. Where older revisions of this doc wrote
+`governance/assets/packs/lib/…` or `../assets/…`, read `<lib_dir>/…` and
+`<assets_dir>/…`.
+
 ### Step 1 — Survey the repository
 
 Before touching anything, run these in parallel:
@@ -105,12 +154,13 @@ Record findings for use at Step 6.
 
 ### Step 2 — Discover directive packs
 
-Source the loader and enumerate packs from the kit's pack root
-(today: `packs/`, which holds the five bundled `governance-kit/*` concern packs):
+Source the loader **from the resolved kit's lib** (`<lib_dir>`, Step 0) and
+enumerate packs from that kit's bundled pack root (`<assets_dir>/packs`, which
+holds the five bundled `governance-kit/*` concern packs):
 
 ```sh
-source governance/assets/packs/lib/packs.sh
-list_packs packs
+source "<lib_dir>/packs.sh"
+list_packs "<assets_dir>/packs"
 ```
 
 The loader is a bash wrapper around
@@ -124,7 +174,7 @@ Every `<root>/<pack-dir>/pack.yaml` is a pack. Pack ids are scoped (`<author>/<s
 - declared presets (`minimal`, `standard`, `strict`, plus any pack-specific ones — from `pack.yaml`)
 - directive list; for each directive read `category`, `recommended`, `summary`, `surface`, `hook`, `always_install` from `directives/<directive-id>/directive.yaml`. The check script is at `directives/<directive-id>/check.sh` and the Directive snippet at `directives/<directive-id>/constitution.md` — paths are implied by the folder shape, not declared.
 
-Pack manifests are validated against the built-in `KIT_VERSION` constant in `governance/assets/packs/lib/packctl.py`. Packs whose `min_governance_kit` is newer than `KIT_VERSION` are rejected during discovery with a clear error.
+Pack manifests are validated against the built-in `KIT_VERSION` constant in the resolved kit's `<lib_dir>/packctl.py`. Packs whose `min_governance_kit` is newer than `KIT_VERSION` are rejected during discovery with a clear error.
 
 No env var or CLI flag controls pack selection in v1 — discovery is in-tree only.
 
@@ -193,16 +243,27 @@ Do not accept a repo-exists proxy for a change-set obligation unless you explici
 
 This is where the elicitation ends and the mechanical assembly begins. Resolve
 the GitHub `<owner>/<repo>` identity (Step 1), locate each selected pack's source
-dir (the kit-bundled `packs/<concern>/` or a fetched cache dir for community packs —
-resolve its pinned SHA with `packverb fetch <ref>` so the lock entry records a
-real pin), and serialize the `decisions` object: `owner`/`repo`, `hook_strategy`,
-the inferred `principles[]`, `seed_agents_stub`, and `packs[]` (each with `id`,
-`version`, `source`, `ref`/`sha`/`subpath`, the resolved `pack_dir`, and the final
-`directives[]` install list). Then hand the whole assembly to `init-apply`:
+dir (the resolved kit's bundled `<assets_dir>/packs/<concern>/` or a fetched cache
+dir for community packs — resolve its pinned SHA with `<lib_dir>/packverb.py fetch
+<ref>` so the lock entry records a real pin), and serialize the `decisions`
+object: `owner`/`repo`, `hook_strategy`, the inferred `principles[]`,
+`seed_agents_stub`, the kit pin from Step 0 (`kit_ref`, `kit_sha`,
+`kit_provenance`), and `packs[]` (each with `id`, `version`, `source`,
+`ref`/`sha`/`subpath`, the resolved `pack_dir`, and the final `directives[]`
+install list). Then hand the whole assembly to the **resolved kit's**
+`init-apply`:
 
 ```sh
-packverb init-apply "$repo_root" --decisions decisions.json
+"<lib_dir>/packverb.py" init-apply "$repo_root" --decisions decisions.json
 ```
+
+`init-apply` runs from `<lib_dir>` so the engine that writes version X's files
+*is* version X's code — the same delegation contract `update` uses, now extended
+to install. The `kit_ref` / `kit_sha` / `kit_provenance` threaded through
+`decisions` are written into `install.yaml`, recording which kit this repo runs
+and how the install resolved it (issue #194). (When Step 0 fell back to the
+installed skill, `<lib_dir>` is the machine copy and `kit_provenance` is
+`installed-skill`.)
 
 `init-apply` installs each directive folder (minus `evals/`) + its
 `install-assets/`, and for any directive shipping a `config.conf` seeds the
@@ -264,14 +325,15 @@ the pin `governance kit update` reads to detect drift, mirrored by
 `install.yaml.kit_version`.
 
 `init-apply` also records the **content-addressed kit pin** in the manifest
-(issue #177): `kit_ref` (a `gh:duaility/governance-kit/governance@kit/vX.Y.Z`
-ref, constructed from the installing kit's `KIT_VERSION` — no network) and
-`kit_sha` when the flow pre-resolved it via `git ls-remote` and threaded it
-through `--decisions` (omitted when offline; backfilled on the first
-`kit update`). This is what makes the repo's manifest the authoritative
-statement of which kit it runs — `kit update` fetches that ref and delegates
-apply to its engine. See [INSTALL_SCHEMA.md](INSTALL_SCHEMA.md) and
-[UPDATE_FLOW.md](UPDATE_FLOW.md).
+(issue #177): `kit_ref` and `kit_sha` come straight from Step 0's `kit-resolve`
+(the fetched `kit/vX.Y.Z` tag and the commit it resolved to), threaded through
+`--decisions`. On the offline `installed-skill` fallback `kit_sha` is omitted and
+backfilled on the first `update`. Alongside the pin, `kit_provenance`
+(`published-tag` / `explicit` / `installed-skill`, also from Step 0) records *how*
+the install resolved its kit (issue #194). Together these make the repo's
+manifest the authoritative statement of which kit it runs and how it got there —
+`update` fetches that ref and delegates apply to its engine. See
+[INSTALL_SCHEMA.md](INSTALL_SCHEMA.md) and [UPDATE_FLOW.md](UPDATE_FLOW.md).
 
 `init` only installs the bash runner. Governance is a meta-layer that sits on top of the project's code — coupling the directive suite to the project's own test runner (pytest / jest / go test) inverts the dependency. Bash works in any repo, in any CI, without install steps. Users who want governance failures to surface alongside their normal test report can add native test wrappers post-init by following [NATIVE_TESTS.md](NATIVE_TESTS.md) — that is an opt-in enhancement, not part of bootstrap.
 
@@ -383,6 +445,7 @@ Print a concise summary:
 - Any pre-existing hook collisions encountered and how they were resolved.
 - **Findings resolved in Step 8** — every inline fix and every per-file/per-line waiver added, with the reason recorded against it.
 - **Findings escalated** — anything Step 8 could not inline-fix and surfaced to the operator (with the action they need to take).
+- **Resolved kit** (Step 0): the target version and how it resolved (`published-tag` / `explicit` / `installed-skill`).
 - **Detected runtime** at commit time: `claude-code`, `codex`, or `none`. If `none`, mention the body waiver that was applied.
 - **Install commit SHA** that just landed.
 - How to run locally: `bash .governance/run.sh`.
@@ -392,8 +455,9 @@ Print a concise summary:
 
 ## Required final output
 
-Every successful `init` run should leave the user with a summary that includes:
+Every successful `install` run should leave the user with a summary that includes:
 
+- `Resolved kit:` `<version> via published-tag | explicit (--to) | installed-skill` (Step 0). On the `installed-skill` fallback, append the offline note.
 - `Packs:` the list of selected packs.
 - `Preset:` chosen preset and whether it was explicit or assumed.
 - `Hook strategy:` `.githooks/`, husky, or `pre-commit`.

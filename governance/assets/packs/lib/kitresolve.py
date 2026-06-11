@@ -10,6 +10,12 @@ owns everything that reaches the network or writes the pin (issue #177):
   * `kit-resolve` — resolve a target (published tag / `--to` / cache / installed
     skill), fetch it, gate the floor + direction, and name the engine the shim
     delegates `kit-plan`/`kit-apply` to;
+  * `kit-current` — resolve the kit a repo is *already pinned to* (its
+    `kit_ref`/`kit_sha`), for the non-lifecycle verb router (issue #194): return
+    the cached/fetched tree's `lib_dir`/`references_dir` so `pack *` / `directive
+    *` / `reset` run their engine and read their flow doc from the pinned kit,
+    not the installed skill. No version selection, no gates (`kit-resolve` owns
+    those); offline / uncached / unpinned degrade to the installed skill;
   * `kit-pin` — record `kit_ref`/`kit_sha` in install.yaml after a successful
     apply, so the manifest is the authoritative statement of which kit runs;
   * `fetch-kit` — a debug wrapper over `fetch_kit_ref`.
@@ -315,6 +321,119 @@ def cmd_kit_pin(args: argparse.Namespace) -> int:
     result["result"] = "pinned"
     print(json.dumps(result, indent=2))
     return 0
+
+
+def _skill_tree() -> dict[str, str]:
+    """Paths into the locally-installed skill (the machine working copy).
+
+    The offline / unpinned fallback for `kit-current`: when a repo has no
+    recorded pin or its pinned tree is uncached and unreachable, non-lifecycle
+    verbs degrade to running from the skill `npx skills` put on the machine.
+    `KIT_ASSETS` is `<skill>/governance/assets`, so the skill root is its parent.
+    """
+    skill_root = KIT_ASSETS.parent
+    return {
+        "kit_dir": str(skill_root),
+        "lib_dir": str(KIT_ASSETS / "packs" / "lib"),
+        "references_dir": str(skill_root / "references"),
+        "assets_dir": str(KIT_ASSETS),
+        "version": KIT_VERSION,
+    }
+
+
+def _kit_tree(kit_dir: str, version: str | None) -> dict[str, str]:
+    """Paths into a fetched/cached kit tree rooted at `kit_dir`."""
+    base = Path(kit_dir)
+    return {
+        "kit_dir": str(base),
+        "lib_dir": str(base / "assets" / "packs" / "lib"),
+        "references_dir": str(base / "references"),
+        "assets_dir": str(base / "assets"),
+        "version": version,
+    }
+
+
+def cmd_kit_current(args: argparse.Namespace) -> int:
+    """Resolve the kit a repo is **already pinned to** — the verb-routing brain.
+
+    The non-lifecycle counterpart of `kit-resolve` (issue #194, milestone 2).
+    `pack *` / `directive *` / `reset` never bump the kit; they execute from the
+    kit the repo's `install.yaml` pins (`kit_ref` / `kit_sha`). This reads that
+    pin, returns the cached tree — fetching it once into `~/.governance/cache/
+    kits/` when absent — and degrades to the installed skill when there is no
+    recorded pin or the pinned tree is uncached and unreachable (`--offline`, or
+    the fetch fails). It reports the `lib_dir` / `references_dir` the skill's
+    router runs the verb's engine and reads its flow doc from. Writes nothing.
+
+    Distinct from `kit-resolve`, which resolves a *new target* to move the repo
+    to (latest tag / `--to`) and gates floor + direction. `kit-current` resolves
+    the *existing* pin verbatim — no version selection, no gates.
+    """
+    root = Path(args.root).resolve()
+    manifest_path = root / ".governance" / "install.yaml"
+    manifest = load_yaml(manifest_path) if manifest_path.is_file() else {}
+    kit_ref = scalar(manifest.get("kit_ref"))
+    kit_sha = scalar(manifest.get("kit_sha"))
+
+    report: dict[str, Any] = {
+        "result": "ok",
+        "provenance": None,
+        "kit_ref": kit_ref or None,
+        "kit_sha": kit_sha or None,
+        "version": None,
+        "kit_dir": None,
+        "lib_dir": None,
+        "references_dir": None,
+        "assets_dir": None,
+        "assumptions": [],
+    }
+
+    def finish(provenance: str, tree: dict[str, str]) -> int:
+        report.update(provenance=provenance, version=tree["version"],
+                      kit_dir=tree["kit_dir"], lib_dir=tree["lib_dir"],
+                      references_dir=tree["references_dir"], assets_dir=tree["assets_dir"])
+        print(json.dumps(report, indent=2))
+        return 0
+
+    # No recorded pin (pre-#177 repo, or pin not yet backfilled) → installed skill.
+    if not (kit_ref and kit_sha):
+        report["assumptions"].append(
+            "no recorded kit pin in install.yaml — running the installed skill "
+            f"(kit {KIT_VERSION}); run `governance update` to record kit_ref/kit_sha"
+        )
+        return finish("installed-skill", _skill_tree())
+
+    # Cache hit on the exact (ref, sha) pair — the common, network-free path.
+    cached = cached_kit_path(kit_ref, kit_sha)
+    if cached:
+        return finish("cache", _kit_tree(cached["kit_dir"], cached["version"]))
+
+    # Uncached. Fetch the pinned ref once unless forced offline.
+    if not args.offline:
+        try:
+            fetched = fetch_kit_ref(kit_ref)
+        except (SystemExit, subprocess.CalledProcessError, OSError) as exc:
+            report["assumptions"].append(
+                f"pinned kit {kit_ref}@{kit_sha[:12]} is uncached and could not be "
+                f"fetched ({exc}); fell back to the installed skill (kit {KIT_VERSION})"
+            )
+            return finish("installed-skill", _skill_tree())
+        if fetched["sha"] != kit_sha:
+            # The pinned tag resolved to a different commit than recorded — a
+            # moved release tag. Surface it; release tags are meant to be immutable.
+            report["assumptions"].append(
+                f"pinned {kit_ref} now resolves to {fetched['sha'][:12]}, not the "
+                f"recorded {kit_sha[:12]} — release tag appears to have moved"
+            )
+        report["kit_sha"] = fetched["sha"]
+        return finish("fetch", _kit_tree(fetched["kit_dir"], fetched["version"]))
+
+    # Offline and uncached → installed skill.
+    report["assumptions"].append(
+        f"pinned kit {kit_ref}@{kit_sha[:12]} is uncached and --offline was set; "
+        f"fell back to the installed skill (kit {KIT_VERSION})"
+    )
+    return finish("installed-skill", _skill_tree())
 
 
 def cmd_fetch_kit(args: argparse.Namespace) -> int:

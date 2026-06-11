@@ -3,6 +3,16 @@
 The recovery flow for a repo whose installed directives have drifted
 from their pinned source. Dispatched from [`../SKILL.md`](../SKILL.md).
 
+> **Routed verb — runs from the repo-pinned kit (issue #194).** The thin
+> `governance` skill does not run `reset` from its own machine copy. Before
+> Step 1, resolve the kit the repo pins via `kit-current` (see [`../SKILL.md`](../SKILL.md)
+> "Step R — Resolve the pinned kit"), then run every `packverb.py` / engine
+> invocation below from the resolved kit's `<lib_dir>` and read this flow from
+> its `<references_dir>`. Where this doc writes `governance/assets/packs/lib/…`,
+> read `<lib_dir>/…`. When `kit-current` falls back to the installed skill (no
+> recorded pin, or offline + uncached), `<lib_dir>` is this machine copy and the
+> verb still works — surface that as an assumption.
+
 `reset` is the inverse of `directive {add,modify,remove}` and
 hand-edits to installed directive folders. For every directive that
 was installed from a pack, `reset` restores the directive folder and

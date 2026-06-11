@@ -1,8 +1,10 @@
-<!-- last-verified: 2026-06-10 -->
+<!-- last-verified: 2026-06-11 -->
 
 # governance pack * — verb flows
 
-Authoritative flow for the `governance pack {search,create,add,update,remove,list}` verbs. The unified `governance` skill dispatches to these flows; the supporting helpers live in `governance/assets/packs/lib/packverb.py` (and reuse pack/directive manifest loaders from `packctl.py`).
+Authoritative flow for the `governance pack {search,create,add,update,remove,list}` verbs. The unified `governance` skill dispatches to these flows; the supporting helpers live in the resolved kit's `packverb.py` (and reuse pack/directive manifest loaders from `packctl.py`).
+
+> **Routed verb — runs from the repo-pinned kit (issue #194).** The thin `governance` skill does not run `pack *` from its own machine copy. Before the first step, resolve the kit the repo pins via `kit-current` (see [`../SKILL.md`](../SKILL.md) "Step R — Resolve the pinned kit"), then run every `packverb.py` invocation below from the resolved kit's `<lib_dir>` and read its `catalog.community.json` / bundled `packs/` from `<assets_dir>`, reading this flow from `<references_dir>`. Where this doc writes `governance/assets/packs/lib/…` or `governance/assets/…`, read `<lib_dir>/…` / `<assets_dir>/…`. When `kit-current` falls back to the installed skill (no recorded pin, or offline + uncached), those are this machine copy and the verb still works — surface that as an assumption.
 
 ## Pack identity
 

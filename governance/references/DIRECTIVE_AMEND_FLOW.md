@@ -3,6 +3,16 @@
 The atomic-triple recipe the `directive *` verbs run. Dispatched from
 [`../SKILL.md`](../SKILL.md) via [DIRECTIVE_VERBS.md](DIRECTIVE_VERBS.md).
 
+> **Routed verb — runs from the repo-pinned kit (issue #194).** The thin
+> `governance` skill does not run `directive *` from its own machine copy.
+> Before Step 1, resolve the kit the repo pins via `kit-current` (see
+> [`../SKILL.md`](../SKILL.md) "Step R — Resolve the pinned kit"), then run every
+> `packverb.py` / engine invocation and read every template (`assets/amend/…`)
+> from the resolved kit's `<lib_dir>` / `<assets_dir>`, reading this flow from
+> its `<references_dir>`. Where this doc writes `../assets/…` or
+> `governance/assets/packs/lib/…`, read `<assets_dir>/…` / `<lib_dir>/…`. When
+> `kit-current` falls back to the installed skill, those are this machine copy.
+
 Governance-driven development's cardinal directive: *the constitution and the enforcing tests evolve together, in one commit.* These verbs make obeying that directive cheap and make breaking it harder than following it.
 
 > The recovery hatch when an amendment causes problems is `governance reset` — it restores a pack-sourced directive (or all of them) to the pinned pack version in one commit. See [RESET_FLOW.md](RESET_FLOW.md). Reset is **only** available for pack-sourced directives; hand-authored directives have no pristine source and must be removed with `directive remove` instead.

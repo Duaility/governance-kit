@@ -440,7 +440,13 @@ def main(argv: list[str]) -> int:
     # module stays focused and under the file-size budget). Lazy-imported here
     # because kitresolve imports this module at top level — a top-level import
     # the other way would be a cycle. Issue #177.
-    from kitresolve import cmd_fetch_kit, cmd_kit_pin, cmd_kit_resolve
+    from kitresolve import cmd_fetch_kit, cmd_kit_current, cmd_kit_pin, cmd_kit_resolve
+
+    p = sub.add_parser("kit-current")
+    p.add_argument("root")
+    p.add_argument("--offline", action="store_true",
+                   help="skip the network; resolve from cache or the installed skill")
+    p.set_defaults(func=cmd_kit_current)
 
     p = sub.add_parser("kit-resolve")
     p.add_argument("root")
