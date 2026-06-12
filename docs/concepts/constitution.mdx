@@ -46,7 +46,7 @@ summary: One-line description shown in the menu
 surface: repo-state        # or: change-set
 hook: pre-commit           # pre-commit | commit-msg | prepare-commit-msg
                            #   | post-commit | pre-push | none (CI-only)
-always_install: true       # optional; reserved to governance-kit/core
+always_install: true       # optional; reserved to the bundled governance-kit/* packs
 requires_hook_strategy: githooks   # optional environment filter
 reads:                     # optional capability declaration (path globs)
   - .github/workflows/**
@@ -119,7 +119,7 @@ Amendment rights follow the owning pack's provenance (from `.governance/packs.lo
 | Owning pack source | `directive add/modify` | `directive remove` |
 |---|---|---|
 | `gh` (community) | Refused — use `pack update` / `pack remove` | Refused — use `pack remove` |
-| kit core | Refused — kit-managed | Allowed — the repo opts out |
+| bundled (`governance-kit/*`) | Refused — pack-managed | Allowed — the repo opts out |
 | `local` (repo-local) | **Allowed** — this is what `directive *` is for | Allowed |
 
 Hand-authored rules live in a **repo-local pack** (created automatically on first `directive add`, or explicitly with `pack create`). Pack-sourced directives that have drifted — edited by hand, corrupted — are restored with [`governance reset`](/reference/verbs), which puts them back to the *pinned* SHA without touching hand-authored ones.

@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "name": "governance-kit",
-  "description": "Governance-driven development: declare the repo state you want in a versioned CONSTITUTION.md, ship every rule with an executable test, and let agents converge on it.",
+  "name": "Governance Kit",
+  "description": "Governance Kit is the governance layer for AI coding agents: every rule ships with an executable test, every commit is checked, and every agent-authored change leaves a git-native audit trail.",
   "theme": "mint",
   "icons": {
     "library": "lucide"
@@ -34,44 +34,67 @@
       }
     ]
   },
-  "redirects": [],
+  "redirects": [
+    {
+      "source": "/guide/getting-started",
+      "destination": "/guide/quickstart"
+    }
+  ],
   "navigation": {
     "languages": [
       {
         "language": "en",
         "tabs": [
           {
-            "tab": "Guide",
+            "tab": "Documentation",
             "groups": [
               {
                 "group": "Get started",
                 "pages": [
                   "index",
                   "guide/introduction",
-                  "guide/getting-started",
+                  "guide/quickstart",
+                  "guide/installation",
                   "guide/mental-models"
                 ]
-              }
-            ]
-          },
-          {
-            "tab": "Inner workings",
-            "groups": [
+              },
               {
-                "group": "How it works",
+                "group": "The constitution",
                 "pages": [
                   "concepts/constitution",
-                  "concepts/packs",
-                  "concepts/runtime",
-                  "concepts/audit-chain",
-                  "concepts/versioning"
+                  "concepts/runtime"
                 ]
-              }
-            ]
-          },
-          {
-            "tab": "Reference",
-            "groups": [
+              },
+              {
+                "group": "Packs",
+                "pages": [
+                  "concepts/packs"
+                ]
+              },
+              {
+                "group": "The audit chain",
+                "pages": [
+                  "concepts/audit-chain"
+                ]
+              },
+              {
+                "group": "The sweep lane",
+                "pages": [
+                  "concepts/sweep-lane"
+                ]
+              },
+              {
+                "group": "Integrations",
+                "pages": [
+                  "reference/native-tests"
+                ]
+              },
+              {
+                "group": "Configuration",
+                "pages": [
+                  "guide/configuration"
+                ]
+              },
               {
                 "group": "Reference",
                 "pages": [
@@ -79,8 +102,20 @@
                   "reference/directive-catalog",
                   "reference/schemas",
                   "reference/authoring-directives",
-                  "reference/authoring-packs",
-                  "reference/native-tests"
+                  "reference/authoring-packs"
+                ]
+              },
+              {
+                "group": "Architecture",
+                "pages": [
+                  "concepts/versioning",
+                  "concepts/limitations"
+                ]
+              },
+              {
+                "group": "Help",
+                "pages": [
+                  "guide/troubleshooting"
                 ]
               }
             ]

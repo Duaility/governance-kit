@@ -1,9 +1,9 @@
 ---
-title: 'Getting started'
-summary: 'Install the skill into your agent, bootstrap a repo with governance init, and watch a governance gate fire.'
+title: 'Quickstart'
+summary: 'Install the skill into your agent, bootstrap a repo with governance init, and watch a governance gate fire — in about 60 seconds.'
 ---
 
-# Getting started
+# Quickstart
 
 Three steps: install the skill into your agent, bootstrap a repo, make a bad commit to watch the gate fire.
 
@@ -16,33 +16,11 @@ Three steps: install the skill into your agent, bootstrap a repo, make a bad com
 
 ## 1. Install the skill
 
-<CodeGroup>
-
-```sh All agents (user-wide)
-npx skills add Duaility/governance-kit -g
-```
-
-```sh One agent
-npx skills add Duaility/governance-kit -a claude-code
-```
-
-```sh Project-scoped
+```sh
 npx skills add Duaility/governance-kit
 ```
 
-</CodeGroup>
-
-`npx skills` auto-detects the skill and symlinks it into every skills-compatible runtime on your machine (`~/.claude/skills/`, `~/.codex/skills/`, …).
-
-<Accordion title="Manual install (no npx, or for hacking on the kit)" icon="wrench">
-```sh
-git clone https://github.com/Duaility/governance-kit
-cd governance-kit
-ln -s "$(pwd)/governance" ~/.claude/skills/governance   # Claude Code
-ln -s "$(pwd)/governance" ~/.codex/skills/governance    # Codex
-```
-Edits in the clone flow to every linked runtime live.
-</Accordion>
+`npx skills` auto-detects the skill and symlinks it into every skills-compatible runtime on your machine. Scope flags, manual install, and what actually lands on disk: [Installation](/guide/installation).
 
 ## 2. Bootstrap a repo
 
@@ -60,7 +38,7 @@ claude
     Detect existing governance artifacts and the hook situation (`.husky/`, `.pre-commit-config.yaml`, or none). Existing installs get an augment-or-overwrite question.
   </Step>
   <Step title="Choose packs and a preset">
-    Pick packs (the `governance-kit/core` pack is always included) and a preset — `minimal`, `standard`, or `strict` — or a custom directive selection.
+    Pick from the bundled `governance-kit/*` concern packs and a preset — `minimal`, `standard`, or `strict` — or a custom directive selection.
   </Step>
   <Step title="Write the surface">
     `CONSTITUTION.md`, the `.governance/` runtime, git hook dispatchers, and a CI workflow (`.github/workflows/governance.yml`).
@@ -77,9 +55,9 @@ claude
 
 | Preset | What you get |
 |---|---|
-| `minimal` | Foundation + security: required docs, secrets hygiene, repo hygiene, hardened workflows, no broken doc links. |
-| `standard` | `minimal` + commit discipline + the full [agent audit chain](/concepts/audit-chain): receipts, issue anchors, token and steering accounting, doc integrity. |
-| `strict` | `standard` + `no-orphan-todos`. |
+| `minimal` | Foundation + security + doc links: required docs, repo hygiene, secrets hygiene, hardened workflows, resolving internal links. |
+| `standard` | `minimal` + commit discipline, kit-version sync, doc freshness, and the full [agent audit chain](/concepts/audit-chain): receipts, issue anchors, token and steering accounting, doc integrity. |
+| `strict` | `standard` + TODO and suppression discipline, plus the opt-in [sweep lane](/concepts/sweep-lane) (`governance-kit/architecture`). |
 
 `standard` is the intended default for agent-heavy repos — it is the preset that turns on the issue → receipt → commit → cost chain.
 

@@ -19,7 +19,7 @@ Three kinds, distinguished by provenance:
 
 | Kind | Where it's authored | Lockfile `source` | Example |
 |---|---|---|---|
-| **Core** | Bundled with the kit | `gh` | `governance-kit/core` — installs with `init`, always selected |
+| **Bundled** | Ships with the kit | `gh` | `governance-kit/{foundation,security,docs,commits,audit,architecture}` — the concern packs offered at `init` |
 | **Community** | Its own GitHub repo | `gh` | `acme/soc2-pack` — installed via `pack add gh:acme/soc2-pack@v1.2.0` |
 | **Repo-local** | Your repo, by hand or via `directive add` | `local` | `<your-org>/<your-repo>` — no upstream, skipped by `pack update` |
 
@@ -34,7 +34,7 @@ gh:<owner>/<repo>[/<subpath>][@<rev>]
 ```
 
 - `subpath` points at the directory containing `pack.yaml` (monorepo support).
-- `rev` is a branch, tag, or 40-char SHA. **Pin tags, not branches** — `@main` silently tracks the moving tip on every update; `@core/v0.4.0` is an immutable, reviewable pin. Whatever you pin, it is resolved to a commit SHA at add time.
+- `rev` is a branch, tag, or 40-char SHA. **Pin tags, not branches** — `@main` silently tracks the moving tip on every update; an immutable tag like `@commits/v0.2.0` is a reviewable pin. Whatever you pin, it is resolved to a commit SHA at add time.
 
 Fetched packs land in a SHA-addressed, immutable shared cache (`~/.governance/cache/packs/<pack>@<sha>/`); hitting a cached SHA skips the network entirely.
 
@@ -99,9 +99,9 @@ Both are plan/apply with per-directive diffs and explicit confirmation.
 A pack's `pack.yaml` declares named presets — `minimal`, `standard`, `strict` — each listing directive ids (with `extends:` for union). At `init`, the install set is computed as:
 
 ```
-install = always_install(core) ∪ preset_selection ∪ user_selections
+install = always_install(bundled) ∪ preset_selection ∪ user_selections
 ```
 
-across all selected packs, with cross-pack directive-id collisions rejected (the directive namespace is flat). `always_install: true` is reserved to `governance-kit/core` — used for the two directives the audit model depends on unconditionally (`doc-integrity`, `agent-steering-accounting`).
+across all selected packs, with cross-pack directive-id collisions rejected (the directive namespace is flat). `always_install: true` is reserved to the bundled `governance-kit/*` packs — used for the two directives the audit model depends on unconditionally (`doc-integrity`, `agent-steering-accounting`).
 
 Next: [The runtime](/concepts/runtime) — what actually happens when you type `git commit`.

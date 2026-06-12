@@ -1,0 +1,64 @@
+---
+title: 'Troubleshooting'
+summary: 'The common failure shapes and their repair paths — hooks not firing, drifted checks, version-marker mismatches, blocked commits, and local-vs-CI differences.'
+---
+
+# Troubleshooting
+
+Most governance failures are the product working: a directive naming a real gap, with the fix in the message. This page covers the rest — the operational snags.
+
+## Hooks don't fire on a fresh clone
+
+`git config core.hooksPath` is per-clone and doesn't travel with the repo. On the default `githooks` strategy, `init` commits a setup script for exactly this:
+
+```sh
+./scripts/enable-governance.sh   # one-time per clone — sets core.hooksPath=.githooks
+```
+
+Worktrees inherit the config; new clones need the one-liner. CI is unaffected either way — it runs `run.sh` directly.
+
+## A check was hand-edited (or corrupted)
+
+Pack-sourced directive code that has drifted from its pin is restored — not re-downloaded blind, but reset to the exact pinned SHA:
+
+```sh
+governance reset --directive <id>    # one directive
+governance reset --pack <id>         # a whole pack
+```
+
+`reset` shows diffs before writing and never touches hand-authored directives. See [update vs. reset](/concepts/packs#update-vs-reset).
+
+## Version-marker mismatch
+
+A failure naming kit-version markers means a half-applied update or a hand-edited runtime file: some `# governance-kit:managed kit-version=` stamps disagree with `install.yaml`'s pin. The repair path is the verb that owns those files:
+
+```sh
+governance kit update
+```
+
+## A commit is blocked and I disagree with the rule
+
+In order of preference:
+
+1. **Waive it, visibly** — `# governance: allow-<directive-id> <reason>` next to the offending line (or in the commit body, for commit-level directives). Auditable in `git blame`.
+2. **Change the rule** — `governance directive modify <id>` lands the loosened check, the updated rationale, and the evolution-log entry as one commit.
+3. **Skip locally, fix on the branch** — `SKIP_GOVERNANCE=1 git commit ...` for a hotfix. CI will still enforce on the PR; nothing merges non-compliant.
+
+## Local hook passed, CI failed anyway
+
+Commit-policing directives run in two modes: the hook validates the *pending* commit; CI **walks every commit** between the merge base and `HEAD`. A commit created with `--no-verify` earlier on the branch passes locally (the hook never saw it) but fails the CI walker. Repair: amend or rebase the offending commit, or add the commit-level waiver the directive's message names.
+
+## Audit-chain failures, decoded
+
+| Failure | What it means | Fix |
+|---|---|---|
+| `commit-issue-receipt-match` | The commit's `(#N)` anchor doesn't match a receipt it touches | Create/touch `receipts/issue-<N>-*.md` in the same commit |
+| `receipt-per-issue` | A checked box doesn't crosswalk | Restate the claim under `## What changed` or `## Verification` |
+| `agent-token-accounting` | Trailers and the receipt's cost rows disagree | Commit through the hook path so the populator stamps them — don't hand-write trailers |
+| `doc-integrity` | A trunk-frozen record was edited | Revert the edit, or carry the directive's path-scoped waiver in the commit body if the change is legitimate |
+
+## Still stuck
+
+- Run the suite directly for full output: `bash .governance/run.sh <directive-id>`.
+- Check the directive's own rationale and Exceptions field in `CONSTITUTION.md` — the exception surface is documented per rule.
+- File a bug: [github.com/Duaility/governance-kit/issues](https://github.com/Duaility/governance-kit/issues).
