@@ -3,8 +3,8 @@ generated_at: 2026-04-30T00:00:00Z
 owner: duaility
 repo: governance-kit
 kit_version: "0.7.1"
-kit_ref: gh:duaility/governance-kit/kit@kit/v0.6.0
-kit_sha: adf959096dff0855c4743141d6c004453619277f
+kit_ref: gh:duaility/governance-kit/kit@kit/v0.7.1
+kit_sha: 260cd4d73a3a0ab6d9c2285d1cfe01c77231b675
 hook_strategy: githooks
 constitution: true
 ci_workflow: .github/workflows/governance.yml
@@ -13,10 +13,12 @@ agents_md_snippet: true
 agents_md_created: false
 enable_governance_script: scripts/enable-governance.sh
 install_assets_seeded:
+  - .github/ISSUE_TEMPLATE/bug.yml
   - .github/ISSUE_TEMPLATE/config.yml
   - .github/ISSUE_TEMPLATE/proposal.yml
-  - .github/ISSUE_TEMPLATE/bug.yml
-  - QUALITY.md
   - COSTS.md
+  - QUALITY.md
   - STEERING.md
+  - .github/workflows/governance-sweep.yml
+  - .governance/sweep.py
 collisions: []
