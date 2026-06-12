@@ -302,3 +302,5 @@ Schema:
 | claude-code-d65d79d1-5a5-1781241126 | claude-code | d65d79d1-5a5c-4279-a04f-db029519c5d1 | #200 | claude-opus-4-8 | 0 | 0 | 0 | 0 | 0 | 0.0000 | chore(release): docs v0.1.0 → v0.2.0 -m governance: allow-commit-message-format  |
 | claude-code-d65d79d1-5a5-1781241214 | claude-code | d65d79d1-5a5c-4279-a04f-db029519c5d1 | #200 | claude-opus-4-8 | 0 | 0 | 0 | 0 | 0 | 0.0000 | chore(release): commits v0.1.0 → v0.2.0 -m governance: allow-commit-message-form |
 | claude-code-d65d79d1-5a5-1781241295 | claude-code | d65d79d1-5a5c-4279-a04f-db029519c5d1 | #200 | claude-opus-4-8 | 0 | 0 | 0 | 0 | 0 | 0.0000 | chore(release): commits v0.1.0 → v0.2.0 -m governance: allow-commit-message-form |
+| claude-code-d65d79d1-5a5-1781241374 | claude-code | d65d79d1-5a5c-4279-a04f-db029519c5d1 | #200 | claude-opus-4-8 | 0 | 0 | 0 | 0 | 0 | 0.0000 | chore(release): audit v0.1.0 → v0.2.0 -m governance: allow-commit-message-format |
+| claude-code-d65d79d1-5a5-1781241455 | claude-code | d65d79d1-5a5c-4279-a04f-db029519c5d1 | #200 | claude-opus-4-8 | 0 | 0 | 0 | 0 | 0 | 0.0000 | chore(release): audit v0.1.0 → v0.2.0 -m governance: allow-commit-message-format |
