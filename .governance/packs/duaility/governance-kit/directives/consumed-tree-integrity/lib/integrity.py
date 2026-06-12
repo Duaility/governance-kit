@@ -38,7 +38,6 @@ check.sh reports the crash). Stdlib only — the repo's python carries no `yaml`
 
 from __future__ import annotations
 
-import os
 import re
 import subprocess
 import sys
