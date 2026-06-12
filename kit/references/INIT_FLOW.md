@@ -498,4 +498,3 @@ Every successful `install` run should leave the user with a summary that include
 - [DIRECTIVES_CATALOG.md](DIRECTIVES_CATALOG.md) — full list of ready-made directives with descriptions, and the template for adding new ones. Notes pack membership per directive.
 - [PACK_AUTHORING.md](PACK_AUTHORING.md) — how to write a third-party pack.
 - [NATIVE_TESTS.md](NATIVE_TESTS.md) — how to port bash directives to pytest / jest / go test, and husky / pre-commit-framework snippets.
-- [AGENT_TOKEN_ACCOUNTING.md](AGENT_TOKEN_ACCOUNTING.md) — wiring instructions for the `agent-token-accounting` directive shipped by the `governance-kit/audit` pack.

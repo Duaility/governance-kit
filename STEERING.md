@@ -120,3 +120,4 @@ silent fallback for when the runtime CLI is unreachable).
 | steer-99732b99119-1781199468-6 | 99732b99-1198-47ff-a225-3d3fcbdd32d9 | #198 | correction | classifier | Questions packing packs/lib into skill; wants separate kit structure | feat(skill): publish thin installer skill; kit artifact moves to kit/ (#198) -m… |
 | steer-99732b99119-1781236304-1 | 99732b99-1198-47ff-a225-3d3fcbdd32d9 | #198 | correction | classifier | Rejected bundling kit code in skill; dogfood should follow normal consumer path | feat(skill): drop kit bundle from shim; source-only bootstrap (#198)Review rewo… |
 | steer-99732b99119-1781236304-2 | 99732b99-1198-47ff-a225-3d3fcbdd32d9 | #198 | interrupt | structural |  | feat(skill): drop kit bundle from shim; source-only bootstrap (#198)Review rewo… |
+| steer-99732b99119-1781237453-1 | 99732b99-1198-47ff-a225-3d3fcbdd32d9 | #198 | interrupt | structural |  | refactor(docs): relocate agent-accounting deep-dives into directive folders (#1… |

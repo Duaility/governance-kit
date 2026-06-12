@@ -20,6 +20,7 @@ downstream-consumer path — no special case.
 - [x] Offline refuse-with-guidance
 - [x] Version axes decoupled
 - [x] scripts/test-bootstrap.py locks the cache contract
+- [x] Per-directive deep-dives relocated out of kit/references
 - [x] Path sweep + tests + dogfood green
 
 ## What changed
@@ -97,6 +98,24 @@ downstream-consumer path — no special case.
   `kit@` ref form; eval 11's version-skew case rewritten (the shim has no kit
   version to be "stuck on"). SKILL.md frontmatter re-verified with gray-matter
   (guarding the #196 colon-space regression class).
+
+- **Per-directive deep-dives relocated out of kit/references.** Same-spirit
+  `kit/references/` cleanup: `AGENT_TOKEN_ACCOUNTING.md` and
+  `AGENT_STEERING_ACCOUNTING.md` were the only 2 of 19 directives with a
+  write-up in the kit's shared flow-doc tree — an asymmetry, and the
+  consumer-facing `COSTS.template.md` linked one at a `kit/references/…` path
+  that exists in no installed repo (consumers receive only `.governance/`).
+  Both move into their directive folders as `README.md`
+  (`packs/audit/directives/<id>/README.md` + the dual-edited consumed tree),
+  so the deep-dive ships and travels with the directive like its
+  `lib/`/`hooks/`/`runtimes/` already do. The redundant kit-side pointers
+  (`DIRECTIVES_CATALOG.md` rows, an `INIT_FLOW.md` further-reading bullet) are
+  dropped — the README is discoverable beside `check.sh`; `COSTS.template.md`
+  repoints to the consumer-resolvable directive path; the six install-note
+  pointers (both `constitution.md`s, both consumed copies, both root
+  subsections) are de-staled and standardized (one had read
+  `governance-bootstrap/references/…`); stale `governance-kit/core` pack ids
+  inside the docs corrected to `audit`.
 
 ## Out of scope
 

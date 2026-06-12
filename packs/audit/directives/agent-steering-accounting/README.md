@@ -11,7 +11,7 @@ false positives whenever an agent read this directive's own source. The
 directive's install step is the only gate; there are no internal env-var
 toggles for tiers.
 
-This is the human-side counterpart to [`agent-token-accounting`](AGENT_TOKEN_ACCOUNTING.md).
+This is the human-side counterpart to [`agent-token-accounting`](../agent-token-accounting/README.md).
 That directive captures *machine* cost (token consumption, dollars). This one
 captures *steering* cost (where the agent's instructions or directives drifted
 from operator intent and the operator had to correct it). Both ledgers live at
@@ -225,7 +225,7 @@ by tier:
 
 **Do not install this directive on a public repo without thinking through
 what those messages could leak.** The directive is opt-in only — it ships in
-`governance-kit/core` but is deliberately excluded from every preset
+`governance-kit/audit` but is deliberately excluded from every preset
 (`minimal`, `standard`, `strict`). Installing the directive commits to
 recording every tier listed above; there are no per-tier opt-outs at runtime.
 For mixed-audience repos, the lowest-leak path is to keep the runtime CLI
@@ -234,17 +234,17 @@ actually runs.
 
 ## Installing
 
-The directive ships as a self-contained folder under the `governance-kit/core`
+The directive ships as a self-contained folder under the `governance-kit/audit`
 pack. Manual install:
 
 ```sh
-cp -r <governance-kit>/kit/assets/packs/core/directives/agent-steering-accounting \
-      .governance/packs/governance-kit/core/directives/
-cp    <governance-kit>/kit/assets/packs/core/directives/agent-steering-accounting/install-assets/STEERING.md \
+cp -r <governance-kit>/packs/audit/directives/agent-steering-accounting \
+      .governance/packs/governance-kit/audit/directives/
+cp    <governance-kit>/packs/audit/directives/agent-steering-accounting/install-assets/STEERING.md \
       STEERING.md
-chmod +x .governance/packs/governance-kit/core/directives/agent-steering-accounting/check.sh \
-         .governance/packs/governance-kit/core/directives/agent-steering-accounting/hooks/*.sh \
-         .governance/packs/governance-kit/core/directives/agent-steering-accounting/runtimes/*.sh
+chmod +x .governance/packs/governance-kit/audit/directives/agent-steering-accounting/check.sh \
+         .governance/packs/governance-kit/audit/directives/agent-steering-accounting/hooks/*.sh \
+         .governance/packs/governance-kit/audit/directives/agent-steering-accounting/runtimes/*.sh
 ```
 
 Then add an `agent-steering-accounting` Directives subsection to
@@ -347,5 +347,5 @@ install step is the only gate.
   different transcript parser; the CLI hook in `_detect_cli` already picks
   up `codex` when present.
 - Cross-session aggregation / dashboards.
-- Inclusion in `governance-kit/core` pack or any default preset.
+- Inclusion in any default preset of the `governance-kit/audit` pack or any default preset.
 - Backfilling historical steering events from old session JSONLs.
