@@ -4,6 +4,7 @@ packs:
   version: '0.1'
   source: local
   directives:
+  - conf-knob-doc-sync
   - consumed-tree-integrity
   - kit-version-consistency
   - pre-commit-test-gate
