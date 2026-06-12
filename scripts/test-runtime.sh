@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # scripts/test-runtime.sh — direct tests for the runtime files shipped to
-# every target repo: governance/assets/dot-governance/run.sh and lib.sh.
+# every target repo: kit/assets/dot-governance/run.sh and lib.sh.
 #
 # These two scripts run on every consumer's machine on every commit. They
 # need their own coverage independent of how this repo dogfoods them.
@@ -37,8 +37,8 @@ set -eu
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_COMMON_DIR
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-RUN_SH="$ROOT/governance/assets/dot-governance/run.sh"
-LIB_SH="$ROOT/governance/assets/dot-governance/lib.sh"
+RUN_SH="$ROOT/kit/assets/dot-governance/run.sh"
+LIB_SH="$ROOT/kit/assets/dot-governance/lib.sh"
 
 PASS=0
 FAIL=0

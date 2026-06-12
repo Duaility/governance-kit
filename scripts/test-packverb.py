@@ -15,7 +15,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PACK_LIB = ROOT / "governance" / "assets" / "packs" / "lib"
+PACK_LIB = ROOT / "kit" / "assets" / "packs" / "lib"
 PACKVERB_PATH = PACK_LIB / "packverb.py"
 
 
@@ -132,7 +132,7 @@ def test_sha_ref_uses_fetch_checkout_path(monkeypatch) -> None:
 
 
 def test_init_flow_does_not_reference_deleted_required_docs_directives() -> None:
-    text = (ROOT / "governance" / "references" / "INIT_FLOW.md").read_text()
+    text = (ROOT / "kit" / "references" / "INIT_FLOW.md").read_text()
     stale = {"hooks-configured", "agents-md-exists"}
     found = sorted(
         directive for directive in stale
@@ -460,7 +460,7 @@ def test_catalog_search_returns_all_when_query_empty() -> None:
 def test_catalog_search_returns_empty_for_empty_catalog() -> None:
     result = run_packverb(
         "catalog-search",
-        str(ROOT / "governance" / "assets" / "catalog.community.json"),
+        str(ROOT / "kit" / "assets" / "catalog.community.json"),
         "",
     )
     assert result.returncode == 0, result.stderr

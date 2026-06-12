@@ -4,11 +4,12 @@
 #   bash scripts/release.sh <kit|PACK> <version> [--dry-run] [--push]
 #
 # governance-kit ships independently-versioned artifacts from one repo (see
-# governance/references/VERSIONING.md):
+# kit/references/VERSIONING.md):
 #
-#   kit    — the framework. Source of truth: governance/assets/kit.yaml `version`.
-#            Re-stamps every derived copy (SKILL.md frontmatter, install.yaml
-#            kit_version, the `kit-version=` managed markers).
+#   kit    — the framework. Source of truth: kit/assets/kit.yaml `version`.
+#            Re-stamps every derived copy (install.yaml kit_version, the
+#            `kit-version=` managed markers). The published skill (skill/)
+#            versions independently and is not touched by kit releases (#198).
 #   <pack> — a bundled concern pack (foundation, security, docs, commits,
 #            audit). Source of truth:
 #            packs/<pack>/pack.yaml `version`. Each pack versions and tags on
@@ -49,7 +50,7 @@ done
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || die "not inside a git repo"
 cd "$ROOT"
 # shellcheck disable=SC1091
-source "governance/assets/packs/lib/install.sh"   # stamp_managed_marker
+source "kit/assets/packs/lib/install.sh"   # stamp_managed_marker
 
 # ── helpers ───────────────────────────────────────────────────────────────
 read_quoted_field() {   # <file> <anchor-regex> → first quoted value on the matching line
@@ -70,7 +71,7 @@ semver_gt() {           # true when $1 > $2
 
 # ── resolve current version + tag ─────────────────────────────────────────
 if [[ "$AXIS" == "kit" ]]; then
-    SRC="governance/assets/kit.yaml";   ANCHOR='^version: "'
+    SRC="kit/assets/kit.yaml";   ANCHOR='^version: "'
 elif [[ -f "packs/$AXIS/pack.yaml" ]]; then
     SRC="packs/$AXIS/pack.yaml";        ANCHOR='^version: "'
 else
@@ -112,9 +113,9 @@ marker_files=()
 if [[ "$AXIS" == "kit" ]]; then
     while IFS= read -r f; do marker_files+=("$f"); done < <(
         git grep -lE '^# governance-kit:managed' -- \
-            ':(exclude)governance/evals/*' \
-            ':(exclude)governance/assets/packs/lib/*' \
-            ':(exclude)governance/references/*' \
+            ':(exclude)kit/evals/*' \
+            ':(exclude)kit/assets/packs/lib/*' \
+            ':(exclude)kit/references/*' \
             ':(exclude)scripts/test-*' 2>/dev/null | sort
     )
 fi
@@ -125,7 +126,7 @@ fi
 # atomically with the bump — committing it apart from the chore(release) commit
 # would leave the suite red. future-kit-repo / stale-repo pin different versions
 # on purpose and are NOT touched.
-UP_TO_DATE_FIXTURE="governance/evals/kit-update/files/up-to-date-repo/.governance/install.yaml"
+UP_TO_DATE_FIXTURE="kit/evals/kit-update/files/up-to-date-repo/.governance/install.yaml"
 
 # ── changelog section ─────────────────────────────────────────────────────
 build_changelog_section() {
@@ -164,7 +165,7 @@ SECTION="$(build_changelog_section)"
 prepend_changelog() {   # insert SECTION above the first existing "## [" entry, or append
     local cl="CHANGELOG.md" tmp; tmp="$(mktemp)"
     if [[ ! -f "$cl" ]]; then
-        { printf '# Changelog\n\nAll notable changes to governance-kit. Kit and per-pack releases are\ntagged `kit/vX.Y.Z` / `<pack>/vX.Y.Z`; see governance/references/VERSIONING.md.\n\n'; printf '%s' "$SECTION"; } > "$cl"
+        { printf '# Changelog\n\nAll notable changes to governance-kit. Kit and per-pack releases are\ntagged `kit/vX.Y.Z` / `<pack>/vX.Y.Z`; see kit/references/VERSIONING.md.\n\n'; printf '%s' "$SECTION"; } > "$cl"
         return
     fi
     # Insert the new release section after the [Unreleased] block — before the
@@ -189,7 +190,6 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
     note "── DRY RUN — no files written ──"
     echo "source bump:   $SRC  $CURRENT → $VERSION"
     if [[ "$AXIS" == "kit" ]]; then
-        echo "frontmatter:   governance/SKILL.md  version → $VERSION"
         echo "manifest:      .governance/install.yaml  kit_version → $VERSION"
         echo "eval fixture:  $UP_TO_DATE_FIXTURE  kit_version → $VERSION"
         echo "markers (${#marker_files[@]}):"
@@ -204,7 +204,6 @@ fi
 # ── apply ─────────────────────────────────────────────────────────────────
 set_quoted_field "$SRC" "$ANCHOR" "$VERSION"
 if [[ "$AXIS" == "kit" ]]; then
-    set_quoted_field "governance/SKILL.md" '^  version: "' "$VERSION"
     set_quoted_field ".governance/install.yaml" '^kit_version: "' "$VERSION"
     set_quoted_field "$UP_TO_DATE_FIXTURE" '^kit_version: "' "$VERSION"
     for f in "${marker_files[@]}"; do

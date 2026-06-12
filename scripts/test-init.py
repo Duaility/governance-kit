@@ -15,7 +15,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PACK_LIB = ROOT / "governance" / "assets" / "packs" / "lib"
+PACK_LIB = ROOT / "kit" / "assets" / "packs" / "lib"
 PACKVERB = PACK_LIB / "packverb.py"
 
 
@@ -49,7 +49,7 @@ def test_collisions_detects_cross_pack_dupe() -> None:
 
 
 def test_assemble_constitution_splices_principles_and_subsections() -> None:
-    template = (ROOT / "governance/assets/CONSTITUTION.template.md").read_text()
+    template = (ROOT / "kit/assets/CONSTITUTION.template.md").read_text()
     out = initplan.assemble_constitution(
         template, ["Ship receipts, not promises."],
         ["### no-console-log\n\n- **Directive**: no console.log.\n"])

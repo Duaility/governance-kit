@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # scripts/test-install-sh.sh — direct tests for the bash helpers in
-# governance/assets/packs/lib/install.sh. The "fresh repo install contract"
+# kit/assets/packs/lib/install.sh. The "fresh repo install contract"
 # block in test-packs.sh exercises the standard happy path; this file covers
 # the matrix that block doesn't:
 #   - copy_tree_without_evals excludes evals/ + install-assets/
@@ -14,8 +14,8 @@
 set -eu
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-INSTALL_LIB="$ROOT/governance/assets/packs/lib/install.sh"
-PACKS_LIB="$ROOT/governance/assets/packs/lib/packs.sh"
+INSTALL_LIB="$ROOT/kit/assets/packs/lib/install.sh"
+PACKS_LIB="$ROOT/kit/assets/packs/lib/packs.sh"
 
 # shellcheck disable=SC1090
 source "$PACKS_LIB"

@@ -29,7 +29,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PACK_LIB = ROOT / "governance" / "assets" / "packs" / "lib"
+PACK_LIB = ROOT / "kit" / "assets" / "packs" / "lib"
 KITVERB_PATH = PACK_LIB / "kitverb.py"
 
 
@@ -442,15 +442,15 @@ def test_upstream_status_unknown_when_no_published_tags() -> None:
 
 
 def test_up_to_date_fixture_pin_tracks_kit_version() -> None:
-    # Drift guard: scripts/release.sh skips governance/evals/*, so a kit bump
+    # Drift guard: scripts/release.sh skips kit/evals/*, so a kit bump
     # that forgets this fixture silently turns eval 2's up-to-date case into a
     # forward update. Keep the pin equal to the kit's KIT_VERSION.
     import yaml  # noqa: PLC0415 - test-only dep, provided by the suite runner.
-    fixture = ROOT / "governance/evals/kit-update/files/up-to-date-repo/.governance/install.yaml"
+    fixture = ROOT / "kit/evals/kit-update/files/up-to-date-repo/.governance/install.yaml"
     pin = yaml.safe_load(fixture.read_text())["kit_version"]
     assert str(pin) == KIT_VERSION, (
         f"up-to-date fixture pins kit_version={pin!r} but the kit is {KIT_VERSION!r} — "
-        "re-pin governance/evals/kit-update/files/up-to-date-repo/ to match a kit release"
+        "re-pin kit/evals/kit-update/files/up-to-date-repo/ to match a kit release"
     )
 
 

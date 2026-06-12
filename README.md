@@ -66,7 +66,7 @@ claude
 > governance init
 ```
 
-`npx skills` auto-detects [governance/SKILL.md](governance/SKILL.md) and symlinks it into every skills-compatible runtime on your machine (`~/.claude/skills/`, `~/.codex/skills/`, `~/.cursor/skills/`, …). `governance init` bootstraps `CONSTITUTION.md`, `.governance/`, a pre-commit hook, and the bundled `governance-kit/*` concern packs.
+`npx skills` auto-detects [skill/SKILL.md](skill/SKILL.md) — the published **thin shim** (installer doc + one stdlib-only fetch script — two files, issue #198) — and symlinks it into every skills-compatible runtime on your machine (`~/.claude/skills/`, `~/.codex/skills/`, `~/.cursor/skills/`, …). The **kit** (rules, packs, templates, every other verb) is fetched from the released `kit/vX.Y.Z` tag at install time and pinned per repo. `governance install` bootstraps `CONSTITUTION.md`, `.governance/`, a pre-commit hook, and the bundled `governance-kit/*` concern packs.
 
 Make a bad commit to see the gate fire:
 
@@ -159,13 +159,13 @@ Seven concern-scoped packs ship in-tree and install with `governance init`:
 
 The `governance-kit/audit` pack ships the trustworthy-record-of-agent-work chain — issue → receipt → commit traceability, cost + steering accounting, and tamper-proof record integrity — see [What's bundled](#whats-bundled) below.
 
-Full catalog: [governance/references/DIRECTIVES_CATALOG.md](governance/references/DIRECTIVES_CATALOG.md).
+Full catalog: [kit/references/DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md).
 
 ## Lifecycle
 
-governance-kit has **two layers**, versioned independently on separate axes (the Helm `Chart.version` vs `appVersion` model — see [VERSIONING.md](governance/references/VERSIONING.md)):
+governance-kit has **two layers**, versioned independently on separate axes (the Helm `Chart.version` vs `appVersion` model — see [VERSIONING.md](kit/references/VERSIONING.md)):
 
-- **The kit** — the framework: the `governance` skill, the runtime (`run.sh`, `lib.sh`), the hook generators, and the schemas. Released under `kit/vX.Y.Z`.
+- **The kit** — the framework: the runtime (`run.sh`, `lib.sh`), the hook generators, the engines, and the schemas. Released under `kit/vX.Y.Z`. (The published `governance` skill is a fetch-only installer that versions independently and carries no kit code.)
 - **Packs** — the directive *content*: the five `governance-kit/*` concern packs (`foundation`, `security`, `docs`, `commits`, `audit`) ship with the kit; community packs live in their own repos. Each pack versions independently on its own `pack.yaml version`.
 
 `.governance/packs.lock` is the source of truth for **which** packs and versions a repo runs. The directive code itself is **vendored into `.governance/packs/<owner>/<name>/` and committed** — so the checks that enforce your repo are reviewable in your own diffs, and a pack bump shows the real `check.sh` change, not just a SHA. (The lock pins a SHA for integrity; committing the tree adds in-diff auditability — the `go mod vendor` / committed-Helm-`charts/` choice, justified because governance is a trust tool.)
@@ -191,8 +191,8 @@ Clone and symlink the skill folder into each runtime you use:
 ```sh
 git clone https://github.com/Duaility/governance-kit
 cd governance-kit
-ln -s "$(pwd)/governance" ~/.claude/skills/governance   # Claude Code
-ln -s "$(pwd)/governance" ~/.codex/skills/governance    # Codex
+ln -s "$(pwd)/skill" ~/.claude/skills/governance   # Claude Code
+ln -s "$(pwd)/skill" ~/.codex/skills/governance    # Codex
 ```
 
 Edits in the clone flow to every linked runtime live — handy when contributing to governance-kit itself.
@@ -202,11 +202,11 @@ Edits in the clone flow to every linked runtime live — handy when contributing
 **Update** — two independent things can move; update each on its own:
 
 ```sh
-npx skills add Duaility/governance-kit                 # refresh the skill on your machine to the latest kit release
+npx skills add Duaility/governance-kit                 # refresh the installer shim itself (rarely needed)
 governance kit update [--with-packs] [--dry-run] [--force]
                                                        # inside a repo: re-sync the runtime files init seeded
                                                        # (run.sh, lib.sh, governance.yml, enable-governance.sh,
-                                                       # hook dispatchers) to the kit version now on PATH
+                                                       # hook dispatchers) to the latest published kit release
 ```
 
 `kit update` is **disjoint** from `pack update`: it touches the framework runtime, never directive content. It diffs each kit-owned file and prompts per-file before writing; managed files carry a `# governance-kit:managed kit-version=<v>` marker that flags them as safe to regenerate. `--with-packs` chains a `pack update` afterward.
@@ -233,9 +233,9 @@ governance pack create <name>                          # scaffold a repo-local p
 ```
 
 - **Bundled packs.** The five `governance-kit/*` concern packs install with `governance init` at your chosen preset (`minimal` / `standard` / `strict`) and update like any other pack: `governance pack update governance-kit/security`.
-- **Pin tags, not branches.** `@main` silently tracks the moving tip on every update; an immutable tag is a reviewable pin. See [VERSIONING.md](governance/references/VERSIONING.md#tag-scheme).
+- **Pin tags, not branches.** `@main` silently tracks the moving tip on every update; an immutable tag is a reviewable pin. See [VERSIONING.md](kit/references/VERSIONING.md#tag-scheme).
 - **`add` / `update` vendor the directive code** into `.governance/packs/<owner>/<name>/` and commit it — directives only (author-side `evals/` and `install-assets/` are stripped). `update` shows the diff before it runs, because that diff is check code that will run on your commits.
-- **Community packs** live in their own repos and install via `governance pack add gh:<owner>/<repo>`. Authoring your own: [PACK_AUTHORING.md](governance/references/PACK_AUTHORING.md). Discovery reads the advisory catalog at [catalog.community.json](governance/assets/catalog.community.json) — currently empty; PRs welcome.
+- **Community packs** live in their own repos and install via `governance pack add gh:<owner>/<repo>`. Authoring your own: [PACK_AUTHORING.md](kit/references/PACK_AUTHORING.md). Discovery reads the advisory catalog at [catalog.community.json](kit/assets/catalog.community.json) — currently empty; PRs welcome.
 
 > [!IMPORTANT]
 > Don't hand-edit `CONSTITUTION.md` or files under `.governance/`. The `directive {add,modify,remove}` and `reset` verbs keep the check, the rationale, and the evolution log in lockstep — hand-edits drift the constitution out of sync with the tests.
@@ -277,7 +277,7 @@ The chain — **issue → receipt → commit → cost** — turned into mechanic
 
 ## Why not just pre-commit / husky / lefthook?
 
-Those tools run hooks. governance-kit runs hooks **and** carries the rationale, the audit trail, and the evolution history alongside the test. A new maintainer can trace any directive back to its commit and its check. The `check.sh` scripts are plain bash — drop them into pre-commit or husky directly if you only want the enforcement half. See [governance/references/NATIVE_TESTS.md](governance/references/NATIVE_TESTS.md).
+Those tools run hooks. governance-kit runs hooks **and** carries the rationale, the audit trail, and the evolution history alongside the test. A new maintainer can trace any directive back to its commit and its check. The `check.sh` scripts are plain bash — drop them into pre-commit or husky directly if you only want the enforcement half. See [kit/references/NATIVE_TESTS.md](kit/references/NATIVE_TESTS.md).
 
 ## Contributing
 
@@ -296,9 +296,9 @@ The kit and the bundled packs version on **independent** axes (the Helm `Chart.v
 **Which axis to cut:**
 
 - **`core`** — when a directive-content change has merged: a new/changed/removed directive, a preset edit, or a `check.sh` fix. Bumps the pack version via [`scripts/release.sh`](scripts/release.sh).
-- **`kit`** — when a framework change has merged: runtime files (`run.sh`, `lib.sh`), hook generators, a verb/flag, or a schema/marker-format change. Bumps `governance/assets/kit.yaml` and re-stamps every derived kit-version copy (`SKILL.md` frontmatter, `install.yaml` `kit_version`, the `kit-version=` markers).
+- **`kit`** — when a framework change has merged: runtime files (`run.sh`, `lib.sh`), hook generators, a verb/flag, or a schema/marker-format change. Bumps `kit/assets/kit.yaml` and re-stamps every derived kit-version copy (`SKILL.md` frontmatter, `install.yaml` `kit_version`, the `kit-version=` markers).
 
-Pick the semver level from the [policy table](governance/references/VERSIONING.md#semver-policy).
+Pick the semver level from the [policy table](kit/references/VERSIONING.md#semver-policy).
 
 ```sh
 bash scripts/release.sh <kit|PACK> <X.Y.Z> --dry-run   # preview the plan from any branch — bump, re-stamps, tag, CHANGELOG
@@ -309,7 +309,7 @@ bash scripts/release.sh <kit|PACK> <X.Y.Z> --push       # cut and push the branc
 
 A real run preflights — it refuses unless you are on `main` with a clean tree, the target is valid semver strictly greater than current, the tag doesn't already exist, and `bash .governance/run.sh` is green. It then bumps the single source of truth, re-derives every stamp (kit axis only), regenerates the `CHANGELOG.md` section from the Conventional Commits since the last matching tag, makes the `chore(release)` commit through the hook path, and creates the prefixed annotated tag (`kit/vX.Y.Z` / `<pack>/vX.Y.Z`). Each pack tags on its own axis and is released lazily — only the pack(s) whose subtree changed get a new tag. Pushing the tag triggers [`release.yml`](.github/workflows/release.yml), which lifts the matching CHANGELOG section into a GitHub Release.
 
-Full procedure and invariants: [RELEASE_FLOW.md](governance/references/RELEASE_FLOW.md). Axes, semver policy, and the tag scheme consumers pin against: [VERSIONING.md](governance/references/VERSIONING.md).
+Full procedure and invariants: [RELEASE_FLOW.md](kit/references/RELEASE_FLOW.md). Axes, semver policy, and the tag scheme consumers pin against: [VERSIONING.md](kit/references/VERSIONING.md).
 
 ## License
 

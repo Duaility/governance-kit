@@ -25,8 +25,8 @@ body:
       description: What did the brainstorming session settle on? Describe the outcome, not the whole transcript.
       placeholder: |
         Add a `governance foo` verb that does Z. Wire it into the skill verb table. Touch:
-        - governance/SKILL.md
-        - governance/references/VERBS.md
+        - skill/SKILL.md
+        - kit/references/VERBS.md
     validations:
       required: true
 

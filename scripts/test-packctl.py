@@ -20,7 +20,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PACK_LIB = ROOT / "governance" / "assets" / "packs" / "lib"
+PACK_LIB = ROOT / "kit" / "assets" / "packs" / "lib"
 PACKCTL_PATH = PACK_LIB / "packctl.py"
 BUNDLED_PACK = ROOT / "packs" / "audit"
 

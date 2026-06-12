@@ -76,7 +76,7 @@ Every directive ships `evals/test.sh` — pass *and* fail fixtures run in a thro
 #!/usr/bin/env bash
 set -u
 EVAL_ID="<directive-id>"
-source "$ROOT/governance/assets/packs/lib/eval-lib.sh"
+source "$ROOT/kit/assets/packs/lib/eval-lib.sh"
 
 fixture_init                          # throwaway git repo
 install_directive "$PACK_DIR" "$EVAL_ID"

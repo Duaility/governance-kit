@@ -13,7 +13,7 @@ The skill is a self-contained directory with frontmatter
   own every mutation to the governance surface:
   `CONSTITUTION.md`, `.governance/`, hooks, the install manifest,
   and the AGENTS.md directive block. The per-verb flows are documented
-  under `governance/references/`: `INIT_FLOW.md` (8 steps),
+  under `kit/references/`: `INIT_FLOW.md` (8 steps),
   `UNINSTALL_FLOW.md` (6 steps), `DIRECTIVE_AMEND_FLOW.md` (atomic-triple),
   and `PACK_VERBS.md` (community-pack lifecycle).
 
@@ -37,11 +37,11 @@ Each pack is a directory. Seven concern-scoped packs ship in-tree under
   `toolchain-config-protection`).
 
 The shared pack `lib/` (`packs.sh`, `install.sh`, `hooks.sh`, `packctl.py`,
-`packverb.py`, `eval-lib.sh`) lives at `governance/assets/packs/lib/`.
+`packverb.py`, `eval-lib.sh`) lives at `kit/assets/packs/lib/`.
 
 Community packs live in their own repos and are consumed via
 `governance pack add gh:<owner>/<repo>`. The advisory catalog at
-`governance/assets/catalog.community.json` is the discoverability layer
+`kit/assets/catalog.community.json` is the discoverability layer
 for `governance pack search`; `governance pack add` works against any
 GitHub ref whether or not it is in the catalog.
 

@@ -3,7 +3,7 @@
 #
 # Two jobs:
 #   1. Smoke-test the loader against every pack in
-#      governance/assets/packs/*. Confirms the manifest parses,
+#      kit/assets/packs/*. Confirms the manifest parses,
 #      each listed directive resolves, every declared preset unrolls, and
 #      referenced script/snippet files exist on disk.
 #   2. Run every packs/*/evals/*/test.sh — pack-author tests that prove
@@ -17,9 +17,9 @@ set -u
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 # Pack source-of-truth root. governance-kit/core lives at $ROOT/packs/core
 # post-#117 (phase 2 of #114); the kit's lib/ helpers stay under
-# governance/assets/packs/lib/ since they're shipped with the skill.
+# kit/assets/packs/lib/ since they're shipped with the skill.
 PACKS_ROOT="$ROOT/packs"
-KIT_LIB_ROOT="$ROOT/governance/assets/packs"
+KIT_LIB_ROOT="$ROOT/kit/assets/packs"
 # Pack-search root. `packs/` hosts the in-tree `core` pack (post-#117).
 # Community packs live in their own repos and are pulled in via
 # `governance pack add gh:<owner>/<repo>`.
@@ -293,8 +293,8 @@ jobs:
       - run: bash .governance/run.sh
 EOF
 
-    cp "$ROOT/governance/assets/dot-governance/run.sh" .governance/run.sh
-    cp "$ROOT/governance/assets/dot-governance/lib.sh" .governance/lib.sh
+    cp "$ROOT/kit/assets/dot-governance/run.sh" .governance/run.sh
+    cp "$ROOT/kit/assets/dot-governance/lib.sh" .governance/lib.sh
     chmod +x .governance/run.sh
 
     # Install the unioned `standard` preset (+ every always_install directive)
@@ -344,7 +344,7 @@ EOF
             lock_args+=(--directive "$rid")
         done
         uv run --quiet --isolated --with PyYAML python \
-            "$ROOT/governance/assets/packs/lib/packverb.py" "${lock_args[@]}" >/dev/null
+            "$ROOT/kit/assets/packs/lib/packverb.py" "${lock_args[@]}" >/dev/null
     done < <(list_packs_all)
 
     write_installed_manifest "$fresh_tmp" \

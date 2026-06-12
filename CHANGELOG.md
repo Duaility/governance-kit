@@ -4,8 +4,8 @@ All notable changes to governance-kit. The repo ships a **kit** (framework) and
 several independently-versioned **concern packs** (directive content), each
 released on its own prefixed tag axis — `kit/vX.Y.Z` and per-pack
 `<pack>/vX.Y.Z` (the legacy `core/vX.Y.Z` axis is retired). See
-[governance/references/VERSIONING.md](governance/references/VERSIONING.md) for the
-semver policy and [RELEASE_FLOW.md](governance/references/RELEASE_FLOW.md) for how
+[kit/references/VERSIONING.md](kit/references/VERSIONING.md) for the
+semver policy and [RELEASE_FLOW.md](kit/references/RELEASE_FLOW.md) for how
 sections below are cut (only ever by `scripts/release.sh`, never by hand).
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).

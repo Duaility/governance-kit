@@ -74,8 +74,8 @@ You can also write directives natively when the logic is easier there (e.g. AST 
 `init` detects husky and pre-commit.com and generates dispatchers for them (Path B). If you're wiring things up later by hand, use the generator — **don't** write a one-line `bash .governance/run.sh` shim:
 
 ```bash
-source governance-kit/governance/assets/packs/lib/install.sh
-source governance-kit/governance/assets/packs/lib/hooks.sh
+source governance-kit/kit/assets/packs/lib/install.sh
+source governance-kit/kit/assets/packs/lib/hooks.sh
 build_hook_spec_from_installed_directives "$PWD" /tmp/governance-hook-spec.tsv
 
 generate_hooks_for_strategy "$PWD" husky      "<version>" /tmp/governance-hook-spec.tsv

@@ -21,7 +21,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PACK_LIB = ROOT / "governance" / "assets" / "packs" / "lib"
+PACK_LIB = ROOT / "kit" / "assets" / "packs" / "lib"
 PACKVERB = PACK_LIB / "packverb.py"
 
 
@@ -102,7 +102,7 @@ def _make_repo(tmp: Path, *, constitution: str | None = None,
     (root / ".governance" / "packs.lock").write_text(lock or 'version: "2"\npacks: []\n')
     # ship run.sh/lib.sh so the smoke test + hook discovery have a runtime
     for fn in ("run.sh", "lib.sh"):
-        src = ROOT / "governance" / "assets" / "dot-governance" / fn
+        src = ROOT / "kit" / "assets" / "dot-governance" / fn
         if src.is_file():
             (root / ".governance" / fn).write_text(src.read_text())
     if constitution is not None:
