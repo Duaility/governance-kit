@@ -312,3 +312,6 @@ Schema:
 | claude-code-f8fc272f-a02-1781257312 | claude-code | f8fc272f-a02e-4291-9c58-e0c88ee4ad21 | #208 | claude-opus-4-8 | 23290 | 597977 | 22333414 | 280787 | 902054 | 22.0402 |  |
 | claude-code-1e667ce3-5a1-1781261123 | claude-code | 1e667ce3-5a1b-4e51-984c-2b8bf26e5e20 | #210 | claude-opus-4-8 | 46913 | 765574 | 74468564 | 342921 | 1155408 | 50.8267 |  |
 | claude-code-1e667ce3-5a1-1781261282 | claude-code | 1e667ce3-5a1b-4e51-984c-2b8bf26e5e20 | #210 | claude-opus-4-8 | 891 | 20702 | 4605941 | 15416 | 37009 | 2.8222 |  |
+| claude-code-8acdd4a1-71c-1781264095 | claude-code | 8acdd4a1-71c4-4383-92c9-50ec253cf5cc | #213 | claude-opus-4-8 | 44902 | 243121 | 4644994 | 70163 | 358186 | 5.8206 | fix(release): exclude docs/ from kit-version marker discovery (#213) |
+| claude-code-8acdd4a1-71c-1781264216 | claude-code | 8acdd4a1-71c4-4383-92c9-50ec253cf5cc | #213 | claude-opus-4-8 | 395 | 5220 | 348563 | 6771 | 12386 | 0.3782 | fix(release): exclude docs/ from kit-version marker discovery (#213) |
+| claude-code-8acdd4a1-71c-1781264324 | claude-code | 8acdd4a1-71c4-4383-92c9-50ec253cf5cc | #213 | claude-opus-4-8 | 6 | 14250 | 270771 | 2391 | 16647 | 0.2843 | fix(release): exclude docs/ from kit-version marker discovery (#213) -m governan |

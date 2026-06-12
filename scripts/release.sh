@@ -107,8 +107,10 @@ fi
 # ── collect the files to re-stamp ─────────────────────────────────────────
 # kit releases re-stamp every derived kit-version copy. core releases only
 # touch the pack manifest. Marker files are auto-discovered from tracked files
-# carrying the leading marker, minus generator code, test data, and eval
-# fixtures (whose markers are deliberately pinned to old versions).
+# carrying the leading marker, minus generator code, test data, eval fixtures
+# (whose markers are deliberately pinned to old versions), and docs — both the
+# kit/references/ flow docs and the docs/ Pages site quote the marker format
+# literally at column 0, so they match the grep but are not managed files.
 marker_files=()
 if [[ "$AXIS" == "kit" ]]; then
     while IFS= read -r f; do marker_files+=("$f"); done < <(
@@ -116,6 +118,7 @@ if [[ "$AXIS" == "kit" ]]; then
             ':(exclude)kit/evals/*' \
             ':(exclude)kit/assets/packs/lib/*' \
             ':(exclude)kit/references/*' \
+            ':(exclude)docs/*' \
             ':(exclude)scripts/test-*' 2>/dev/null | sort
     )
 fi
