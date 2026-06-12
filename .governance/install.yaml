@@ -2,7 +2,7 @@ version: "3"
 generated_at: 2026-04-30T00:00:00Z
 owner: duaility
 repo: governance-kit
-kit_version: "0.5.0"
+kit_version: "0.6.0"
 kit_ref: gh:duaility/governance-kit/governance@kit/v0.4.0
 kit_sha: c2680e0c15f222a26bde6a073ae9a1d541a828f7
 hook_strategy: githooks

@@ -22,6 +22,37 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [kit/v0.6.0] - 2026-06-12
+
+### Added
+- add conf-knob-doc-sync directive (#204) (#205)
+- publish thin installer skill; kit artifact moves to kit/ (#198) (#199)
+- slim governance skill to lifecycle verbs; route the rest via the pinned kit (#194) (#195)
+- decompose core into concern-scoped packs with qualified directive identity (#193)
+- first-class per-directive configuration (#187)
+- add harness-engineering directives and consolidate doc-link checks (#185)
+
+### Fixed
+- pre-waive toolchain-config on kit release commits (#215)
+- pre-waive doc-integrity on chore(release) commits (#214)
+- exclude docs/ from kit-version marker discovery (#213)
+- unparseable description frontmatter broke install discovery (#196) (#197)
+- pass canonical-origin env to docs smoke step (#182) (#183)
+
+### Changed
+- collapse per-directive config to defaults.conf + overlay (#210) (#211)
+- canonicalize conf-knob default docs and fix frozen-section OOM (#208) (#209)
+- move agent-token-accounting rate card into a pack-owned defaults.conf (#206) (#207)
+- move cost + steering accounting into per-issue receipts (#203)
+- rebuild the dogfood story on honest pins, drop hand-vendoring (#202)
+- audit v0.1.0 → v0.2.0
+- commits v0.1.0 → v0.2.0
+- docs v0.1.0 → v0.2.0
+- security v0.1.0 → v0.2.0
+- foundation v0.1.0 → v0.2.0
+- harden CI supply-chain hygiene (#189)
+- add GitHub Pages documentation site (#180) (#181)
+
 ## [audit/v0.2.0] - 2026-06-12
 
 - Initial tagged release on the audit axis. Pre-tag history is in the curated entries below.
