@@ -30,15 +30,21 @@ real steering signal.
 
 Output: one TSV row per detected event on stdout. Columns:
 
-    timestamp_iso \\t type \\t tier \\t user_reason
+    ordinal \\t timestamp_iso \\t type \\t tier \\t user_reason
 
-Empty cells are emitted as the literal string ``-``. The bash caller
-splits on TAB and reads cells.
+``ordinal`` is the event's 1-based position in the session's deterministic
+event stream — its stable transcript coordinate (issue #229). Because the
+extractor always walks the whole transcript and emits events in chronological
+order, event N is always event N; new events take higher ordinals without
+disturbing earlier ones. The pre-commit hook dedups on ``(session, ordinal)``
+identity rather than the old positional "skip the first N". Empty cells are
+emitted as the literal string ``-``. The bash caller splits on TAB and reads
+cells.
 
 Determinism: tier-2 verdicts are cached by message-pair hash in
 ``$GIT_DIR/agent-steering-classify-cache.json`` so re-runs (amend, retry)
-return the same result and the count-based dedup in the pre-commit hook
-stays exact.
+return the same result and the identity dedup in the pre-commit hook stays
+exact.
 
 CLI:
 
@@ -287,11 +293,14 @@ def main(argv: list[str]) -> int:
         tier2=not args.no_tier2,
         cache_path=args.cache,
     )
-    for ev in events:
+    # ordinal is the event's 1-based position in the session's event stream —
+    # stable across re-runs because the timeline is deterministically ordered.
+    for ordinal, ev in enumerate(events, start=1):
         print(
             "\t".join(
                 _emit(x)
                 for x in (
+                    str(ordinal),
                     ev.timestamp,
                     ev.type,
                     ev.tier,

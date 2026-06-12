@@ -146,9 +146,11 @@ fi
 # message-pair hash so re-runs are deterministic.
 CLASSIFIER_CACHE="$(git rev-parse --git-path agent-steering-classify-cache.json)"
 
-# Extractor emits TSV: timestamp\ttype\ttier\tuser_reason
+# Extractor emits TSV: ordinal\ttimestamp\ttype\ttier\tuser_reason
 ALL_EVENTS="$(mktemp)"
-trap 'rm -f "$ALL_EVENTS"' EXIT
+EXISTING_ORD="$(mktemp)"
+NEW_EVENTS="$(mktemp)"
+trap 'rm -f "$ALL_EVENTS" "$EXISTING_ORD" "$NEW_EVENTS"' EXIT
 
 if ! python3 "$LIB/extract.py" "$TRANSCRIPT" --cache "$CLASSIFIER_CACHE" > "$ALL_EVENTS"; then
     # Extractor failure shouldn't block a commit — log and move on.
@@ -158,17 +160,19 @@ fi
 
 TOTAL_EVENTS="$(wc -l < "$ALL_EVENTS" | tr -d ' ')"
 
-# Count steering rows already recorded for this session across every receipt —
-# the dedup boundary.
-EXISTING_ROWS="$(python3 "$LIB/ledger.py" count-by-session "$RECEIPTS_DIR" "$SESSION_ID")"
-
-# New events to append: lines after the first $EXISTING_ROWS. May be zero.
-NEW_EVENTS_COUNT=$(( TOTAL_EVENTS - EXISTING_ROWS ))
-if (( NEW_EVENTS_COUNT < 0 )); then
-    # Defensive — extractor returned fewer events than receipts already
-    # have for this session. Treat as a no-op and let check.sh surface it.
-    NEW_EVENTS_COUNT=0
+# Identity dedup (issue #229): an event is new iff its (session, ordinal) isn't
+# already recorded — not "after the first N rows". The old positional scheme
+# re-appended and misattributed events across branches in the same session; the
+# ordinal makes dedup an identity test and the duplicate detectable post-merge.
+python3 "$LIB/ledger.py" existing-ordinals "$RECEIPTS_DIR" "$SESSION_ID" > "$EXISTING_ORD"
+if [[ -s "$EXISTING_ORD" ]]; then
+    # Keep events whose ordinal (TSV col 1) is not already recorded.
+    awk -F'\t' 'NR==FNR { seen[$1]=1; next } !($1 in seen)' \
+        "$EXISTING_ORD" "$ALL_EVENTS" > "$NEW_EVENTS"
+else
+    cp "$ALL_EVENTS" "$NEW_EVENTS"
 fi
+NEW_EVENTS_COUNT="$(wc -l < "$NEW_EVENTS" | tr -d ' ')"
 
 # ── Attribution gate (issue #201, decision 6) ─────────────────
 # Every accounted event must resolve to an issue — receipts are per-issue, so
@@ -210,23 +214,24 @@ SESSION_SHORT="${SESSION_SHORT//[^A-Za-z0-9]/}"
 if (( NEW_EVENTS_COUNT > 0 )); then
     mkdir -p "$RECEIPTS_DIR"
     idx=0
-    while IFS=$'\t' read -r ts typ tier user_reason; do
+    while IFS=$'\t' read -r ordinal ts typ tier user_reason; do
         idx=$(( idx + 1 ))
         STEER_KEY="steer-${SESSION_SHORT}-${EPOCH}-${idx}"
 
         # `-` is the extractor's empty sentinel; map back to "" for the ledger
-        # (which has its own sanitizer).
+        # (which has its own sanitizer). `ordinal` is always a positive integer.
         [[ "$user_reason" == "-" ]] && user_reason=""
+        [[ "$ts" == "-" ]] && ts=""
 
         if ! python3 "$LIB/ledger.py" append-row \
             "$RECEIPT" \
             "$STEER_KEY" "$SESSION_ID" "$ISSUE" \
             "$typ" "$tier" "$user_reason" \
-            "$SUBJECT"; then
+            "$SUBJECT" "$ordinal" "$ts"; then
             echo "agent-steering-accounting: append-row failed; aborting" >&2
             exit 1
         fi
-    done < <(tail -n "$NEW_EVENTS_COUNT" "$ALL_EVENTS")
+    done < "$NEW_EVENTS"
 
     git add "$RECEIPT"
 fi
@@ -252,7 +257,8 @@ for line in sys.stdin:
     if not body.startswith("|"):
         continue
     cells = [c.strip() for c in body.split("|")[1:-1]]
-    if len(cells) != 7:
+    # 9 = v2 steering row (+ ordinal, timestamp); 7 = legacy v1 (issue #229).
+    if len(cells) not in (7, 9):
         continue
     key = cells[0]
     # Skip the table header ("steer-key" also starts with "steer-").

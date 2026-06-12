@@ -54,7 +54,8 @@ def _steering_rows(path: Path) -> list[list[str]]:
             continue
         if cells[0] in ("steer-key", "") or re.fullmatch(r"-+", cells[0] or ""):
             continue
-        if len(cells) == 7:
+        # 7 = legacy v1 steering row; 9 = v2 (+ ordinal, timestamp — issue #229).
+        if len(cells) in (7, 9):
             out.append(cells)
     return out
 

@@ -83,7 +83,8 @@ for line in sys.stdin:
     if not body.startswith("|"):
         continue
     cells = [c.strip() for c in body.split("|")[1:-1]]
-    if len(cells) != 7:
+    # 9 = v2 steering row (+ ordinal, timestamp); 7 = legacy v1 (issue #229).
+    if len(cells) not in (7, 9):
         continue
     key = cells[0]
     # Skip the table header (its first cell is the literal "steer-key", which
