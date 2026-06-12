@@ -1,0 +1,5 @@
+def send(msg, *, local=False):
+    if local:
+        # local-only fast path that skips the network layer
+        return _deliver_in_process(msg)
+    return _post(REMOTE_URL, msg)

@@ -80,8 +80,10 @@ Each directive folder has a `directive.yaml` with flat scalar keys:
 category: <category-label>
 recommended: true | false
 summary: <one-line menu description>
-surface: repo-state | change-set
+surface: repo-state | change-set | sweep
 hook: pre-commit | commit-msg | prepare-commit-msg | post-commit | pre-push | none
+engine: llm                     # required for (and reserved to) surface: sweep
+model_tier: low | high          # required for surface: sweep — a capability tier, not a model id
 standards:                      # optional; advisory standard-coverage metadata
   - "OpenSSF Scorecard: Token-Permissions"
   - "CWE-798"
@@ -98,8 +100,10 @@ writes: []                      # optional; most directives are read-only
 | `category` | Menu grouping. Canonical values: `Foundation`, `Security`, `SystemOfRecord`, `CommitHygiene`, `Quality`, `AgentDiscipline`. Packs may introduce new categories; the skill renders each category as its own menu screen. |
 | `recommended` | Pre-ticks the directive in the category menu. Presets override this per-preset. |
 | `summary` | Shown next to the id in the multi-select picker. Keep it to one line. |
-| `surface` | `repo-state` for directives that inspect the tree at rest; `change-set` for directives that inspect a specific commit or diff. Documented for the authoring guardrail (see DIRECTIVES_CATALOG.md). |
-| `hook` | Hook kind the directive wants to run in. Drives dispatcher generation. Use `none` only if the directive runs exclusively in CI. |
+| `surface` | `repo-state` for directives that inspect the tree at rest; `change-set` for directives that inspect a specific commit or diff; `sweep` for off-commit-path, LLM-adjudicated directives (issue #142). A `sweep` directive ships `triage.sh` instead of `check.sh`, sets `hook: none`, and is never run by `run.sh` or any git hook — only by the scheduled sweep engine. See [SWEEP_FLOW.md](SWEEP_FLOW.md). |
+| `hook` | Hook kind the directive wants to run in. Drives dispatcher generation. Use `none` only if the directive runs exclusively in CI (or, for `surface: sweep`, off the commit path entirely). |
+| `engine` | Adjudication engine. Omit for grep directives (their `check.sh` is the engine). `llm` is required for — and reserved to — `surface: sweep`. |
+| `model_tier` | Required for `surface: sweep`: the *capability tier* (`low` / `high`) the judge needs, not a model id. Pinning the tier means a model upgrade within it doesn't silently rewrite the directive's verdicts. |
 | `standards` | Optional advisory list of external standards the directive implements (e.g. `"OpenSSF Scorecard: Token-Permissions"`, `"CWE-798"`). Rendered as a Standards column in DIRECTIVES_CATALOG.md so coverage and gaps are visible. Not validated and never affects pass/fail. |
 | `always_install` | Reserved to the `governance-kit/*` bundled packs. Skips the menu. If you need an unconditionally installed directive in a third-party pack, file an issue first — the guarantee only holds for the bundled packs. |
 | `requires_hook_strategy` | Optional environment filter. Use this for directives whose check is only meaningful under one hook strategy — e.g. a directive asserting `.githooks/` scaffolding would declare `requires_hook_strategy: githooks` so it is skipped for husky/pre-commit.com repos. |

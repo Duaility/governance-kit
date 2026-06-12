@@ -82,6 +82,15 @@ Bad fit:
 - These often have sub-checks. Name each sub-check in the violation message so the developer knows *which* part failed.
 - If any sub-check fails, report all of them before exiting — don't bail on the first one. Developers want the full list.
 
+### Semantic / LLM-judged checks (`surface: sweep`)
+
+For invariants about *intent* and *architectural shape* that grep fundamentally cannot reach — "remove the legacy fallback", "don't bifurcate the path" — use the **sweep** surface (issue #142). These run **off the commit path**: never in a hook, never in the PR governance job. A scheduled workflow adjudicates them with a model and files a digest issue; findings re-enter the repo as issue → agent → PR. Full mechanics in [SWEEP_FLOW.md](SWEEP_FLOW.md). Authoring notes:
+
+- Set `surface: sweep`, `hook: none`, `engine: llm`, and a capability `model_tier` (`low` / `high`). Ship `triage.sh` instead of `check.sh`.
+- `triage.sh` is the *cheap grep pre-filter*, not the verdict — it emits `path:line` candidates from the `SWEEP_RANGE`, and the model decides. Bias it toward over-inclusion (the judge rejects false smoke); under-inclusion silently drops real violations.
+- The `constitution.md` Directive + Rationale **is** the judge's rubric — write it for a careful reader, name the legitimate exceptions, and the absence of justification becomes the signal.
+- Because the judge is a black box, **calibration is mandatory**: ship `evals/violating/` + `evals/clean/` fixtures and let `evals/test.sh` fail below a precision/recall floor. No eval, no ship. CI measures the deterministic echo stub; the real model runs on demand. Treat the diff as untrusted data — never let a comment in the code instruct the judge.
+
 ## A concrete anti-pattern
 
 Bad:

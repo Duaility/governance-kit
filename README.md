@@ -141,7 +141,7 @@ This is declarative reconciliation applied to a repository. A directive describe
 
 ### Bundled packs
 
-Seven concern-scoped packs ship in-tree and install with `governance init`:
+Six concern-scoped packs ship in-tree and install with `governance init`:
 
 | Pack | Directive | What it checks |
 |---|---|---|
@@ -161,12 +161,38 @@ The `governance-kit/audit` pack ships the trustworthy-record-of-agent-work chain
 
 Full catalog: [kit/references/DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md).
 
+### The sweep lane
+
+Some rules are about *intent* and architectural shape — "don't add a legacy fallback", "don't bifurcate the code path" — the kind a `git grep` fundamentally cannot reach. Those run on a third directive surface, `sweep`, that **never touches the commit path**. A scheduled workflow sweeps the day's commits, triages each with a cheap grep, adjudicates the candidate hunks with an LLM judge under a request budget, and files **one digest issue**. Findings re-enter through the same door as a human correction — issue → agent → PR — so a false positive can never break a gate, because there is no gate to break. The opt-in `governance-kit/architecture` pack ships the first two pilot directives.
+
+```mermaid
+flowchart TD
+    W[Scheduled workflow<br/>daily cron — off the commit path]
+    P[Pick commit range<br/>resume from last digest]
+    T[Triage with grep<br/>narrow to candidate hunks]
+    J{Adjudicate each hunk<br/>budget-capped, one verdict}
+    E[echo stub<br/>deterministic, for CI]
+    G[github-models<br/>real LLM verdict]
+    D[File one digest issue<br/>dedupe + confidence filter]
+    L([Issue → agent → PR<br/>advisory, never blocks])
+
+    W --> P --> T --> J
+    J -->|"no token — CI / tests"| E
+    J -->|"token — scheduled run"| G
+    E --> D
+    G --> D
+    D --> L
+    D -.->|"next run resumes here"| P
+```
+
+The judge stays advisory until its digest precision earns a promotion, and a directive pins a model *tier* (not a model id) so an upgrade within a tier can't silently rewrite verdicts. Full walkthrough: [SWEEP_FLOW.md](kit/references/SWEEP_FLOW.md).
+
 ## Lifecycle
 
 governance-kit has **two layers**, versioned independently on separate axes (the Helm `Chart.version` vs `appVersion` model — see [VERSIONING.md](kit/references/VERSIONING.md)):
 
 - **The kit** — the framework: the runtime (`run.sh`, `lib.sh`), the hook generators, the engines, and the schemas. Released under `kit/vX.Y.Z`. (The published `governance` skill is a fetch-only installer that versions independently and carries no kit code.)
-- **Packs** — the directive *content*: the five `governance-kit/*` concern packs (`foundation`, `security`, `docs`, `commits`, `audit`) ship with the kit; community packs live in their own repos. Each pack versions independently on its own `pack.yaml version`.
+- **Packs** — the directive *content*: the six `governance-kit/*` concern packs (`foundation`, `security`, `docs`, `commits`, `audit`, `architecture`) ship with the kit; community packs live in their own repos. Each pack versions independently on its own `pack.yaml version`.
 
 `.governance/packs.lock` is the source of truth for **which** packs and versions a repo runs. The directive code itself is **vendored into `.governance/packs/<owner>/<name>/` and committed** — so the checks that enforce your repo are reviewable in your own diffs, and a pack bump shows the real `check.sh` change, not just a SHA. (The lock pins a SHA for integrity; committing the tree adds in-diff auditability — the `go mod vendor` / committed-Helm-`charts/` choice, justified because governance is a trust tool.)
 
@@ -232,7 +258,7 @@ governance pack remove <pack-id>                       # uninstall a pack (commu
 governance pack create <name>                          # scaffold a repo-local pack at .governance/packs/<you>/<name>/
 ```
 
-- **Bundled packs.** The five `governance-kit/*` concern packs install with `governance init` at your chosen preset (`minimal` / `standard` / `strict`) and update like any other pack: `governance pack update governance-kit/security`.
+- **Bundled packs.** The six `governance-kit/*` concern packs install with `governance init` at your chosen preset (`minimal` / `standard` / `strict`) and update like any other pack: `governance pack update governance-kit/security`. (`architecture` is the off-commit-path sweep lane — strict-only; see [The sweep lane](#the-sweep-lane).)
 - **Pin tags, not branches.** `@main` silently tracks the moving tip on every update; an immutable tag is a reviewable pin. See [VERSIONING.md](kit/references/VERSIONING.md#tag-scheme).
 - **`add` / `update` vendor the directive code** into `.governance/packs/<owner>/<name>/` and commit it — directives only (author-side `evals/` and `install-assets/` are stripped). `update` shows the diff before it runs, because that diff is check code that will run on your commits.
 - **Community packs** live in their own repos and install via `governance pack add gh:<owner>/<repo>`. Authoring your own: [PACK_AUTHORING.md](kit/references/PACK_AUTHORING.md). Discovery reads the advisory catalog at [catalog.community.json](kit/assets/catalog.community.json) — currently empty; PRs welcome.
@@ -242,7 +268,7 @@ governance pack create <name>                          # scaffold a repo-local p
 
 ## What's bundled
 
-The kit ships five concern-scoped packs — `governance-kit/{foundation,security,docs,commits,audit}`. Everything below comes with `governance init` at the chosen preset.
+The kit ships six concern-scoped packs — `governance-kit/{foundation,security,docs,commits,audit,architecture}`. Everything below comes with `governance init` at the chosen preset.
 
 ### General-purpose directives
 
@@ -274,6 +300,15 @@ The chain — **issue → receipt → commit → cost** — turned into mechanic
 | `audit` | `agent-steering-accounting` | Every commit stamps `Steer-Count` / `Steer-Types` / `Steer-Tiers` and appends steering rows to the issue's receipt. **`always_install: true` — mandatory in every install.** Records human correction text verbatim — redact via the directive's classifier hook rather than skipping it. | standard |
 | `audit` | `doc-integrity` | **`always_install: true` — mandatory in every install.** Makes system-of-record documents tamper-proof (standard rules ship in the directive's `defaults.conf`, layered with the `.governance/conf/governance-kit/audit/doc-integrity.conf` overlay): receipts immutable once on the trunk (now also carrying the per-issue accounting rows), the legacy `COSTS.md`/`STEERING.md` sealed as frozen-files, and frozen sections (`QUALITY.md` Resolved, the Evolution Log) keep their baseline lines verbatim. Branch-authored content stays editable until it merges. | standard |
 | `audit` | `toolchain-config-protection` | A commit changing lint / format / type-check / CI / hook config carries a `governance: allow-toolchain-config <reason>` body line. | standard |
+
+### Sweep-lane directives
+
+Off-commit-path, LLM-adjudicated directives (issue #142). They never gate a commit — a scheduled judge sweeps merged commits and files a digest issue. Opt-in via `strict`; enabling the pack also installs the scheduled workflow and the vendored engine. See [The sweep lane](#the-sweep-lane) and [SWEEP_FLOW.md](kit/references/SWEEP_FLOW.md).
+
+| Pack | Directive | What it enforces | Preset |
+|---|---|---|---|
+| `architecture` | `no-legacy-fallbacks` | No backward-compat shims or legacy fallback paths in agent-authored changes. | strict |
+| `architecture` | `no-path-bifurcation` | No bifurcated code paths — unify dual dispatch and local-vs-remote special-casing. | strict |
 
 ## Why not just pre-commit / husky / lefthook?
 

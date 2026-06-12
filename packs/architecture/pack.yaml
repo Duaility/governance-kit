@@ -1,0 +1,17 @@
+# Pack identity + presets. Per-directive data lives in directive.yaml.
+
+id: governance-kit/architecture
+name: Architectural-shape governance directives
+version: "0.1.0"
+min_governance_kit: "0.3"
+description: Semantic, LLM-adjudicated directives swept off the commit path (issue #142) — the intent and architectural-shape invariants that grep cannot reach.
+author: governance-kit
+
+# Sweep directives never gate a commit, so they are not in minimal/standard.
+# They are opt-in via the strict preset (or named explicitly). Enabling the pack
+# also installs the scheduled governance-sweep workflow + the vendored engine.
+presets:
+  strict:
+    directives:
+      - no-legacy-fallbacks
+      - no-path-bifurcation
