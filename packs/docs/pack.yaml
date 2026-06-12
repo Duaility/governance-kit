@@ -8,7 +8,7 @@
 
 id: governance-kit/docs
 name: Documentation governance directives
-version: "0.2.0"
+version: "0.2.1"
 min_governance_kit: "0.3"
 description: Doc-graph health — internal link integrity and doc freshness.
 author: governance-kit
