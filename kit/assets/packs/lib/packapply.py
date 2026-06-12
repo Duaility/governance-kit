@@ -14,7 +14,10 @@ the apply in one call:
     `install_directive_folder` (+ `install_directive_assets`), record any seeded
     files in `install.yaml`'s `install_assets_seeded`, seed each freshly-added
     configurable directive's overlay from the generic conf stub (never on
-    update — user-owned conf is untouchable), regenerate the hook dispatchers, and upsert
+    update — user-owned conf is untouchable), upsert each installed directive's
+    CONSTITUTION.md subsection (insert on add, replace on update — the symmetric
+    counterpart to remove's strip, keeping the GDD invariant that every directive
+    has a constitution entry), regenerate the hook dispatchers, and upsert
     the lockfile pin last (so a crash never leaves the lock claiming directives
     that aren't installed).
   * **remove** — delete each directive folder and its user conf, strip its
@@ -120,11 +123,17 @@ def _gate_add_update(plan: dict[str, Any], report: dict[str, Any]) -> int | None
 
 def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str],
                       report: dict[str, Any], dry_run: bool) -> int:
+    from docsurgery import upsert_directive_subsection
+
     manifest_path = root / ".governance" / "install.yaml"
     # Directives actually installed this run (post-decisions), in plan shape, so
     # the sweep-lane seeding below sees only what really landed — a held-back
     # sweep directive must not pull in the workflow + engine.
     applied_for_sweep: list[dict[str, Any]] = []
+    # (directive-id, constitution.md text) for every directive installed this run,
+    # upserted into CONSTITUTION.md after the loop so the live rulebook keeps an
+    # entry for every directive that gained a test — the GDD invariant.
+    constitution_upserts: list[tuple[str, str]] = []
 
     # up-to-date no-op: every pack's SHA already matches (update mode).
     if plan["mode"] == "update" and all(p.get("action") in ("skip",) for p in plan["packs"]):
@@ -159,6 +168,12 @@ def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str
             conf_dest = root / ".governance" / "conf" / pack["id"] / f"{did}.conf"
             if d["status"] == "add" and conf_defaults.is_file() and not conf_dest.exists():
                 report["conf_seeded"].append(f".governance/conf/{pack['id']}/{did}.conf")
+            # Collect the directive's constitution subsection (read from the source
+            # pack, as init does) for the CONSTITUTION.md upsert after the loop —
+            # in both modes, so dry-run can report it.
+            sub = pack_dir / "directives" / did / "constitution.md"
+            if sub.is_file():
+                constitution_upserts.append((did, sub.read_text()))
             if dry_run:
                 continue
             cmd = 'install_directive_folder "$1" "$2" "$3"; install_directive_assets "$1" "$2" "$3"'
@@ -199,6 +214,21 @@ def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str
         if sweep_rels:
             _append_install_assets_seeded(manifest_path, sweep_rels)
             report["seeded_assets"].extend(sweep_rels)
+
+    # CONSTITUTION.md: upsert each installed directive's subsection so the live
+    # rulebook gains (add) or refreshes (update) an entry for every directive that
+    # gained a test — the GDD invariant (every directive ↔ a constitution entry).
+    # init assembles these at bootstrap and `pack remove` strips them; this keeps
+    # add/update symmetric. upsert replaces in place or inserts at the end of
+    # `## Directives`, matching init's placement.
+    constitution = root / "CONSTITUTION.md"
+    if constitution_upserts and constitution.is_file():
+        text = constitution.read_text()
+        for did, subsection in constitution_upserts:
+            text, _action = upsert_directive_subsection(text, did, subsection)
+            report["constitution_upserted"].append(did)
+        if not dry_run:
+            constitution.write_text(text)
 
     return _finish(root, plan, report, dry_run)
 
@@ -274,7 +304,7 @@ def cmd_pack_apply(args: argparse.Namespace) -> int:
     report: dict[str, Any] = {
         "result": None, "mode": args.mode, "target": args.target,
         "added": [], "updated": [], "removed": [], "skipped": [], "held_back": [],
-        "constitution_stripped": [], "seeded_assets": [], "conf_seeded": [], "lock": [],
+        "constitution_stripped": [], "constitution_upserted": [], "seeded_assets": [], "conf_seeded": [], "lock": [],
         "hook_dispatcher": "unchanged", "smoke_test": None, "assumptions": [],
     }
     try:
