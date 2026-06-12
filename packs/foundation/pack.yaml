@@ -14,7 +14,7 @@
 
 id: governance-kit/foundation
 name: Foundation governance directives
-version: "0.1.0"
+version: "0.2.0"
 min_governance_kit: "0.3"
 description: Repo scaffolding (required docs), working-tree hygiene, and kit-version coherence.
 author: governance-kit

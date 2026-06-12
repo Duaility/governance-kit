@@ -121,3 +121,4 @@ silent fallback for when the runtime CLI is unreachable).
 | steer-99732b99119-1781236304-1 | 99732b99-1198-47ff-a225-3d3fcbdd32d9 | #198 | correction | classifier | Rejected bundling kit code in skill; dogfood should follow normal consumer path | feat(skill): drop kit bundle from shim; source-only bootstrap (#198)Review rewo… |
 | steer-99732b99119-1781236304-2 | 99732b99-1198-47ff-a225-3d3fcbdd32d9 | #198 | interrupt | structural |  | feat(skill): drop kit bundle from shim; source-only bootstrap (#198)Review rewo… |
 | steer-99732b99119-1781237453-1 | 99732b99-1198-47ff-a225-3d3fcbdd32d9 | #198 | interrupt | structural |  | refactor(docs): relocate agent-accounting deep-dives into directive folders (#1… |
+| steer-30ab4f9998f-1781240532-1 | 30ab4f99-98f9-43e2-a227-36c3af4f8431 | #200 | correction | classifier | Called dogfood story broken; asked to rethink approach from scratch | chore(release): foundation v0.1.0 → v0.2.0 -m governance: allow-commit-message-… |
