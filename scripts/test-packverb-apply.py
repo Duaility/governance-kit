@@ -374,6 +374,50 @@ def test_add_held_back_sweep_directive_seeds_no_lane() -> None:
         assert report["seeded_assets"] == []
 
 
+# `## Directives` with no `no-console-log` entry → add INSERTs (GDD: init
+# assembles, remove strips, add inserts; missing-file guard covered by add_installs_*).
+_CONST_SKELETON = (
+    "# CONSTITUTION\n\n## Directives\n\n### required-docs\n\n- body\n\n"
+    "## Evolution Log\n\n- 2026-01-01 — seed\n"
+)
+
+
+def test_add_upserts_constitution_subsection() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        src = _write_source_pack(Path(tmp) / "src")
+        root = _make_repo(Path(tmp) / "repo", constitution=_CONST_SKELETON)
+        packplan.fetch_ref = _stub_fetch(src, "acme/widgets", "a" * 40)
+        rc, report = _capture(lambda: packapply.cmd_pack_apply(
+            _ns(mode="add", root=str(root), target="gh:acme/widgets")))
+        assert rc == 0 and report["result"] == "applied", report
+        text = (root / "CONSTITUTION.md").read_text()
+        assert text.count("### no-console-log") == 1
+        assert text.index("### no-console-log") < text.index("## Evolution Log")
+        assert "### required-docs" in text  # existing entry untouched
+        assert report["constitution_upserted"] == ["no-console-log"]
+
+
+def test_update_replaces_constitution_subsection_in_place() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        src = _write_source_pack(Path(tmp) / "src")
+        root = _make_repo(Path(tmp) / "repo", constitution=_CONST_SKELETON)
+        packplan.fetch_ref = _stub_fetch(src, "acme/widgets", "a" * 40)
+        _capture(lambda: packapply.cmd_pack_apply(
+            _ns(mode="add", root=str(root), target="gh:acme/widgets")))
+        git(root, "add", "-A"); git(root, "commit", "-qm", "install")
+        (src / "directives" / "no-console-log" / "constitution.md").write_text(
+            "### no-console-log\n\n- **Directive**: REVISED body.\n"
+            "- **Enforced by**: `.governance/packs/acme/widgets/directives/no-console-log/check.sh`\n")
+        packplan.fetch_ref = _stub_fetch(src, "acme/widgets", "f" * 40)
+        rc, report = _capture(lambda: packapply.cmd_pack_apply(
+            _ns(mode="update", root=str(root), target=None)))
+        assert rc == 0 and report["result"] == "applied", report
+        text = (root / "CONSTITUTION.md").read_text()
+        assert text.count("### no-console-log") == 1  # replaced, not duplicated
+        assert "REVISED body" in text
+        assert report["constitution_upserted"] == ["no-console-log"]
+
+
 # --- pack-apply: remove (offline, via CLI) ----------------------------------
 
 REMOVE_CONST = (
