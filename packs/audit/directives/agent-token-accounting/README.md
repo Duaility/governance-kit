@@ -56,10 +56,10 @@ Cost-USD: 2.7932
   same token counts, so any divergence means someone hand-edited one side.
   Surfacing it as a trailer makes the per-commit dollar figure visible in
   `git log` without having to join against the receipt's `### Costs` table,
-  and it survives squash merges alongside `Cost-Key`. A truly-unpriced model (no entry in
-  `RATES` and no family-prefix match) blocks the commit at the pre-commit
-  hook — the operator adds a `rate <model> ...` row to
-  `.governance/conf/agent-token-accounting.conf` (the user-owned override that
+  and it survives squash merges alongside `Cost-Key`. A truly-unpriced model (no
+  row in the default rate card `defaults.conf` and no family-prefix match) blocks
+  the commit at the pre-commit hook — the operator adds a `rate <model> ...` row
+  to `.governance/conf/agent-token-accounting.conf` (the user-owned override that
   survives `pack update`) or uses `SKIP_GOVERNANCE=1` for a genuine hot-fix.
 
 ## Row schema
@@ -92,16 +92,16 @@ fact:
   Legacy v1/v2 rows and v3 rows predating the cost-mandate (empty
   `model` cell) are grandfathered to empty `cost-usd`.
 
-  `lib/rates.py` keeps **family-prefix fallbacks** (`claude-opus`,
-  `claude-sonnet`, `claude-haiku`, `gpt-5`) seeded from the current
-  rate card alongside version-specific keys. When a new minor release
+  The default rate card `defaults.conf` keeps **family-prefix fallbacks**
+  (`claude-opus`, `claude-sonnet`, `claude-haiku`, `gpt-5`) seeded from the
+  current rate card alongside version-specific rows. When a new minor release
   lands between directive updates (e.g. `gpt-5.5`), longest-prefix lookup
   picks the family row so `cost-usd` stays populated. When even the
   family key misses, the pre-commit hook prints a red `✗ model 'X'
   is not priced` error to stderr and blocks the commit — either add a
   `rate <model> <base_input> <cache_create> <cache_read> <output>` row to
   `.governance/conf/agent-token-accounting.conf` (overrides merge over the
-  built-in `RATES`; a malformed row also blocks the commit) or use
+  pack-owned defaults; a malformed row also blocks the commit) or use
   `SKIP_GOVERNANCE=1` to get past a one-off.
 
 Why both `new-work` and `cost-usd`:
@@ -345,7 +345,8 @@ All paths below are rooted at the installed directive folder
 | Layer | What it checks |
 |---|---|
 | `runtimes/<runtime>.sh` | Transcript discovery + 4-field token sum + model extraction for one specific runtime. Prints 6 space-separated values. |
-| `lib/rates.py` | Model → per-MTok USD rate table (base / cache-create / cache-read / output) + `compute_cost_usd(model, i, cc, cr, o)`. Tolerant model lookup: lowercase, strip date suffix, longest-prefix match with family fallbacks (`claude-opus`, `claude-sonnet`, `claude-haiku`, `gpt-5`). Unknown model → `None` → `rates cost` exits 3 → pre-commit blocks the commit (Cost-USD is mandatory). |
+| `defaults.conf` | Pack-owned default rate card — one `rate <model> <base> <cache_create> <cache_read> <output>` row per model (per-MTok USD), same format as the user overlay. `governance pack update` refreshes it. Sibling of `check.sh`; loaded by `lib/rates.py`. |
+| `lib/rates.py` | Per-MTok USD rate lookup (base / cache-create / cache-read / output) + `compute_cost_usd(model, i, cc, cr, o)`. Loads the rate card from `defaults.conf` and merges the per-repo overlay over it (one shared `rate`-row parser, overrides win). Tolerant model lookup: lowercase, strip date suffix, longest-prefix match with family fallbacks (`claude-opus`, `claude-sonnet`, `claude-haiku`, `gpt-5`). Unknown model → `None` → `rates cost` exits 3 → pre-commit blocks the commit (Cost-USD is mandatory). |
 | `lib/ledger.py` | Stdlib-only Python library that owns the row schema: `LedgerRow` dataclass, `parse`, `sum_by_session`, `append_row` (recomputes `new_work`, looks up `cost_usd` from `rates.py`, writes to the receipt's `## Accounting` → `### Costs` table, creating the stub if absent), `validate`, `find_by_cost_key`. Reads/writes rows across `receipts/*.md` via the shared `lib/receipt_io.py` section/table plumbing. Handles the v3 12-column schema and both legacy shapes (v2: 10 cols, v1: 8 cols). Keeping the schema-sensitive parsing in named-field Python (not `awk -F'\|'`) eliminates the whole class of column-index bugs we ate once already. |
 | `lib/receipt_io.py` | Shared markdown section/table plumbing (locate the `## Accounting` section, read/insert the `### Costs` sub-table, create an accounting-only stub receipt) used by both `lib/ledger.py` and `lib/report.py`. |
 | `lib/report.py` | Aggregates the Accounting sections across `receipts/*.md` for per-issue and grand totals (cost-usd, tokens, and — for the steering directive — steering counts). Run: `python3 <dir>/report.py <receipts_dir> [--json]`. |
@@ -358,8 +359,8 @@ All paths below are rooted at the installed directive folder
 
 - **No authentication** of token counts. A wrapper that fabricates numbers will pass the math check. That's a trust boundary — the directive makes tampering *visible* (git blame on the per-issue receipt), not impossible.
 - **No squash-merge trailer** on the base-branch commit. The durable anchor is the per-issue receipt row, not the merge commit's metadata; keeping the directive to files-in-the-repo avoids a hard coupling to GitHub / GitLab PR tooling.
-- **No invoice reconciliation.** `cost-usd` uses the rate table in the
-  directive's `lib/rates.py` — that's the best we can do from a commit hook
+- **No invoice reconciliation.** `cost-usd` uses the rate card in the
+  directive's `defaults.conf` — that's the best we can do from a commit hook
   without network access. Rates drift, custom enterprise pricing exists,
   and Anthropic's invoice includes promotional credits and per-workspace
   overrides we can't see. Treat `cost-usd` as a commit-time estimate

@@ -281,6 +281,12 @@ rate_assert() {  # <label> <expected-cost> <model> <inp> <cc> <cr> <out>
         eval_failures=$(( eval_failures + 1 ))
     fi
 }
+# With NO overlay, prices come from the pack-owned defaults.conf rate card.
+rm -f $EVAL_CONF
+# Exact default row (sonnet-4-5: base 3 / output 15): 1M in + 1M out = $18.0000.
+rate_assert "$EVAL_ID defaults.conf prices a built-in model" 18.0000 claude-sonnet-4-5 1000000 0 0 1000000
+# Family-prefix fallback from defaults.conf (claude-opus -> 5.00): 1M in = $5.0000.
+rate_assert "$EVAL_ID defaults.conf family fallback resolves" 5.0000 claude-opus-4-99 1000000 0 0 0
 # Override an existing model (base 1 / output 1): 1M in + 1M out = $2.0000.
 printf 'rate claude-sonnet-4-5 1 1 0.1 1\n' > $EVAL_CONF
 rate_assert "$EVAL_ID conf overrides a built-in price" 2.0000 claude-sonnet-4-5 1000000 0 0 1000000
