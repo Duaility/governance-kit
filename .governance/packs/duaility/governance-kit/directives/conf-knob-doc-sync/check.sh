@@ -11,9 +11,10 @@
 # without touching the template silently mis-documents the knob for every
 # consumer. This lint closes that drift channel.
 #
-# A documented default counts when config.conf contains either
-#   <KEY>=<default>            (commented canonical line, postgres-style), or
-#   Default <default> / default of <default>   (prose).
+# A documented default counts only when config.conf carries the canonical,
+# commented assignment line `<KEY>=<default>` (postgres-style). Key and value
+# sit on one token, so the match is exact — two knobs sharing a default value
+# cannot false-pass against each other's text.
 set -u
 source "$(dirname "$0")/../../../../../lib.sh"
 directive_start "conf-knob-doc-sync"
@@ -29,7 +30,7 @@ fi
 
 # Suffix that ends a documented value: end-of-line, a non-numeric char, or a
 # literal '.' that is not the start of more digits — so for default 5,
-# "Default 5." matches while "Default 50" and "Default 5.5" do not.
+# "KEY=5" matches while "KEY=50" and "KEY=5.5" do not.
 _VAL_END='(\.([^0-9]|$)|[^0-9.]|$)'
 
 while IFS= read -r check; do
@@ -54,8 +55,8 @@ while IFS= read -r check; do
         fi
         if [[ -n "$def" ]]; then
             esc="$(printf '%s' "$def" | sed -e 's/[][\.*^$()+?{}|\\/]/\\&/g')"
-            if ! grep -Eq "${key}=${esc}${_VAL_END}|[Dd]efault( of)? ${esc}${_VAL_END}" "$conf"; then
-                violation "$check:$line_no — ${conf} does not document the code default for ${key} (code says ${def})"
+            if ! grep -Eq "(^|[^A-Za-z0-9_])${key}=${esc}${_VAL_END}" "$conf"; then
+                violation "$check:$line_no — ${conf} does not document the code default for ${key} as a commented ${key}=${def} line (code says ${def})"
             fi
         fi
     done < <(grep -nE '^[^#]*conf_get[[:space:]]+[a-z0-9][a-z0-9-]*[[:space:]]+[A-Z_]+' "$check" 2>/dev/null || true)
