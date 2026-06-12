@@ -20,13 +20,13 @@ packs:
   - no-legacy-fallbacks
   - no-path-bifurcation
 - id: governance-kit/audit
-  version: 0.3.0
+  version: 0.4.0
   source: gh
-  ref: gh:duaility/governance-kit/packs/audit@audit/v0.3.0
-  sha: e686117c093fc56d920b2f60aefb10dd6ee2c5c5
+  ref: gh:duaility/governance-kit/packs/audit@audit/v0.4.0
+  sha: ce61f1091a4612be4761adbaa858645a4fc62dd8
   subpath: packs/audit
   min_governance_kit: '0.3'
-  installed_at: '2026-06-12T12:45:05Z'
+  installed_at: '2026-06-12T19:19:19Z'
   directives:
   - agent-steering-accounting
   - agent-token-accounting
