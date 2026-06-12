@@ -13,10 +13,12 @@ agents_md_snippet: true
 agents_md_created: false
 enable_governance_script: scripts/enable-governance.sh
 install_assets_seeded:
+  - .github/ISSUE_TEMPLATE/bug.yml
   - .github/ISSUE_TEMPLATE/config.yml
   - .github/ISSUE_TEMPLATE/proposal.yml
-  - .github/ISSUE_TEMPLATE/bug.yml
-  - QUALITY.md
   - COSTS.md
+  - QUALITY.md
   - STEERING.md
+  - .github/workflows/governance-sweep.yml
+  - .governance/sweep.py
 collisions: []

@@ -1,0 +1,8 @@
+# no-path-bifurcation — Unify the path; don't split into parallel code paths.
+category: ArchitecturalShape
+recommended: false
+summary: "No bifurcated code paths — unify dual dispatch and local-vs-remote special-casing."
+surface: sweep
+hook: none
+engine: llm
+model_tier: high
