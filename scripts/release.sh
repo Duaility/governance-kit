@@ -224,13 +224,22 @@ git add -A
 # has nothing legitimate to flag on it — pre-waiving it is as sound as the other
 # two, and it also neutralizes the macOS frozen-section grep that OOMs on the
 # Evolution Log's huge single-line entries and false-reports a frozen edit.
-# All three are waived in-body; the accounting directives still apply and are
+# These are waived in-body; the accounting directives still apply and are
 # stamped by the runtime populator like any other agent commit.
-git commit \
-    -m "chore(release): ${AXIS} v${CURRENT} → v${VERSION}" \
-    -m "governance: allow-commit-message-format release commits are mechanical version bumps, not tied to a feature issue" \
-    -m "governance: allow-commit-issue-receipt-match release commits carry no receipt" \
+commit_args=(
+    -m "chore(release): ${AXIS} v${CURRENT} → v${VERSION}"
+    -m "governance: allow-commit-message-format release commits are mechanical version bumps, not tied to a feature issue"
+    -m "governance: allow-commit-issue-receipt-match release commits carry no receipt"
     -m "governance: allow-doc-integrity CONSTITUTION.md release commits re-stamp managed files only and never edit CONSTITUTION.md"
+)
+# A kit release re-stamps the kit-version marker on the hook files and the
+# governance workflow, which toolchain-config-protection guards. The re-stamp is
+# a marker-only, no-behavior change, so pre-waive it — but only on the kit axis;
+# a pack release touches just packs/<pack>/pack.yaml and needs no such waiver.
+if [[ "$AXIS" == "kit" ]]; then
+    commit_args+=( -m "governance: allow-toolchain-config release commits only re-stamp the kit-version marker on hook + workflow files; no behavioral change" )
+fi
+git commit "${commit_args[@]}"
 git tag -a "$TAG" -m "${AXIS} release ${VERSION}"
 note "committed + tagged $TAG"
 
