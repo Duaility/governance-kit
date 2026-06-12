@@ -1,0 +1,8 @@
+# consumed-tree-integrity — (dogfood) the vendored `.governance/packs/` tree is
+# an honest materialization of the pins in `.governance/packs.lock`: real sha,
+# real tag, paths exist at the pin, and every directive folder byte-matches.
+category: Foundation
+recommended: true
+summary: Vendored consumed tree byte-matches its lock pins; pins resolve to real tags + shas.
+surface: repo-state
+hook: pre-commit

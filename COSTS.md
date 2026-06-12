@@ -304,3 +304,4 @@ Schema:
 | claude-code-d65d79d1-5a5-1781241295 | claude-code | d65d79d1-5a5c-4279-a04f-db029519c5d1 | #200 | claude-opus-4-8 | 0 | 0 | 0 | 0 | 0 | 0.0000 | chore(release): commits v0.1.0 → v0.2.0 -m governance: allow-commit-message-form |
 | claude-code-d65d79d1-5a5-1781241374 | claude-code | d65d79d1-5a5c-4279-a04f-db029519c5d1 | #200 | claude-opus-4-8 | 0 | 0 | 0 | 0 | 0 | 0.0000 | chore(release): audit v0.1.0 → v0.2.0 -m governance: allow-commit-message-format |
 | claude-code-d65d79d1-5a5-1781241455 | claude-code | d65d79d1-5a5c-4279-a04f-db029519c5d1 | #200 | claude-opus-4-8 | 0 | 0 | 0 | 0 | 0 | 0.0000 | chore(release): audit v0.1.0 → v0.2.0 -m governance: allow-commit-message-format |
+| claude-code-b4be6ed4-c1e-1781243602 | claude-code | b4be6ed4-c1ed-46b7-842c-dd9c875cd0dc | #200 | claude-opus-4-8 | 34854 | 907396 | 70678290 | 600849 | 1543099 | 56.2059 | refactor(dogfood): rebuild on honest pins, drop hand-vendoring (#200) -m Replace |

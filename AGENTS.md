@@ -37,6 +37,16 @@ bash .governance/run.sh
 
 Escape hatches: `SKIP_GOVERNANCE=1 git commit ...` or `git commit --no-verify` skip the local hook for hotfixes. CI re-enforces every directive on every PR — there is no developer-side bypass for CI.
 
+### The two-lane dogfood (issue #200)
+
+Dogfooding has two distinct jobs, and this repo runs each in its own lane. **There is no hand-synced consumed tree** — the dual-edit convention is retired. Do not hand-edit `.governance/packs/` or `.governance/packs.lock`; the `consumed-tree-integrity` directive (in the `duaility/governance-kit` pack) rejects any commit that does.
+
+**Lane 1 — committed state is an honest customer of the *last release*.** `.governance/` is exactly what `governance install` produces for a repo pinned at **real release tags**. The bundled concern packs (`governance-kit/{foundation,security,docs,commits,audit}`) are pinned in [.governance/packs.lock](.governance/packs.lock) at published `<pack>/vX.Y.Z` tags, and the vendored tree under `.governance/packs/` is materialized from those pins. It moves **only** in post-release `governance pack update` PRs — never by hand. So `.governance/` lags `packs/` by one release **by design**: every release thereby exercises the `update` flow. `consumed-tree-integrity` proves the lock's shas are real commits, the refs resolve to real tags, the claimed paths exist at the pin, and every vendored file byte-matches what the pin materializes.
+
+**Lane 2 — HEAD smoke, CI-only, nothing committed.** [scripts/dogfood-smoke.sh](scripts/dogfood-smoke.sh) (run in CI by [dogfood-smoke.yml](.github/workflows/dogfood-smoke.yml)) materializes a consumed tree from the working tree's `packs/` (HEAD) against a throwaway copy of this repo and runs the suite. So "my new/edited directive in `packs/` breaks our own repo" surfaces in the *same* PR, as ephemeral CI output. It runs the lock-enforced `surface: repo-state` directives against HEAD content; `change-set` directives (which inspect the commit under review) are dogfooded by their own evals and the live commit hook, not here.
+
+So: **directive PRs touch `packs/` only.** The committed `.governance/` consumed tree catches up at release time, via the real verb.
+
 ## Repo layout
 
 ```
@@ -135,6 +145,14 @@ snippet, metadata, and eval all live together under `directives/<directive-id>/`
 3. Document it in [kit/references/DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md).
 4. For authoring an entirely new pack, see
    [kit/references/PACK_AUTHORING.md](kit/references/PACK_AUTHORING.md).
+
+Touch `packs/` only. Do **not** also edit the committed consumed tree under
+`.governance/packs/` — that tree is Lane 1 (see "The two-lane dogfood" above),
+materialized from released tags by `governance pack update` in a post-release
+PR, and `consumed-tree-integrity` will reject a hand-edit. Lane 2's HEAD smoke
+([scripts/dogfood-smoke.sh](scripts/dogfood-smoke.sh)) runs your `packs/` change
+against this repo on every PR, so you get the "does it break our own repo?"
+signal without vendoring anything.
 
 ### Versioning & releases
 

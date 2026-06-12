@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Directive: secrets-hygiene — no plaintext secret patterns in tracked files and
-# `.env` is gitignored / untracked. Rolls up: no-secrets, dotenv-gitignored.
+# `.env` is gitignored / untracked. Rolls up: hardcoded-credentials (CWE-798),
+# dotenv-gitignored.
 #
 # To carve out a sub-check for your repo, use `governance directive modify` to
 # amend this script (or `governance directive remove` to drop the directive
 # entirely). Per-occurrence waivers via `# governance: allow-secrets-hygiene
-# <reason>` remain available for the no-secrets sub-check.
+# <reason>` remain available for the hardcoded-credentials sub-check.
 set -u
 source "$(dirname "$0")/../../../../../lib.sh"
 directive_start "secrets-hygiene"
@@ -14,7 +15,7 @@ require_git
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT" || exit 1
 
-# ── no-secrets ──────────────────────────────────────────────────
+# ── hardcoded-credentials (CWE-798) ─────────────────────────────
 _patterns=(
     "AWS access key|AKIA[0-9A-Z]{16}"
     "AWS secret key|aws_secret_access_key[[:space:]]*=[[:space:]]*['\"]?[A-Za-z0-9/+=]{40}"

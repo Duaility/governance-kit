@@ -42,17 +42,17 @@ The single source of truth for which packs, at which versions, from which source
 ```yaml
 version: "2"
 packs:
-  - id: governance-kit/core      # <owner>/<name>, matches the directory
-    version: "0.4.0"             # pack.yaml's self-declared version (informational)
+  - id: governance-kit/audit     # <owner>/<name>, matches the directory
+    version: "0.2.0"             # pack.yaml's self-declared version (informational)
     source: gh                   # gh | local — the discriminator
-    ref: gh:duaility/governance-kit/kit/assets/packs/core@core/v0.4.0
+    ref: gh:duaility/governance-kit/packs/audit@audit/v0.2.0
     sha: e9d339cf…               # 40-char commit SHA — the trust unit
-    subpath: kit/assets/packs/core
+    subpath: packs/audit
     min_governance_kit: "0.3.0"
     installed_at: 2026-06-09T13:00:00Z
     directives:                  # sorted list of directive ids the pack contributes
       - agent-steering-accounting
-      - commit-message-format
+      - doc-integrity
 
   - id: acme/widgets             # repo-local pack: no upstream
     version: "0.1"
