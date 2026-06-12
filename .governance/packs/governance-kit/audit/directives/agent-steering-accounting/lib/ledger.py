@@ -39,10 +39,10 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 
 try:
-    import receipt_io as rio  # type: ignore
+    import receipt_io  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    import receipt_io as rio  # type: ignore
+import receipt_io as rio  # type: ignore
 
 
 COLUMNS = ("steer_key", "session", "issue", "type", "tier", "user_reason", "commit")
