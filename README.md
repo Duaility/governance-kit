@@ -22,9 +22,9 @@ governance-kit treats governance as repo state:
 - **Reconciliation** happens through `.governance/run.sh` and hook dispatchers. A failed directive names the gap and its rationale; the agent fixes the repo, reruns the check, and repeats until reality matches the declared state.
 - **Abstractions** keep humans out of low-level ceremony. You reason about directives, packs, receipts, and ledgers instead of scattered hook scripts, chat transcripts, and one-off agent instructions.
 
-That gives a practical steering surface. Your guidance has to reach the next agent, on the next branch, without you. governance-kit's answer is a **constitution**: a versioned set of directives every agent reads on every commit, plus a `STEERING.md` ledger that captures the per-turn redirects you did not promote into a directive.
+That gives a practical steering surface. Your guidance has to reach the next agent, on the next branch, without you. governance-kit's answer is a **constitution**: a versioned set of directives every agent reads on every commit, plus per-turn redirects you did not promote into a directive, recorded as steering rows on each issue's receipt.
 
-It also gives a practical visibility surface. When agents ship the diffs, you need a readable trail, not a stack of PRs. Every agent-authored commit can leave append-only ledgers — `CONSTITUTION.md` (rules + evolution log), `COSTS.md` (token cost), `STEERING.md` (where you had your hand on the wheel). Git-native. You read the repo's state record, not the chat history.
+It also gives a practical visibility surface. When agents ship the diffs, you need a readable trail, not a stack of PRs. Every agent-authored commit can leave a git-native record — `CONSTITUTION.md` (rules + evolution log) plus the per-issue receipts, which now carry the per-commit token cost and human-steering rows under an `## Accounting` section. You read the repo's state record, not the chat history.
 
 ```mermaid
 flowchart LR
@@ -46,12 +46,12 @@ The stance in one line: **describe the state, continuously check reality, and le
 
 ## Visibility
 
-If you're trusting agents to ship code, you need to see exactly what they were told, what they did against each issue, what it cost, and how much you had to steer them. Four git-native, append-only artifacts:
+If you're trusting agents to ship code, you need to see exactly what they were told, what they did against each issue, what it cost, and how much you had to steer them. Four git-native artifacts:
 
 - **Directive provenance** (`CONSTITUTION.md`). Every line is git-blameable to the commit that introduced it and the test that enforces it. The **Evolution Log** at the bottom of the file carries a dated, human-readable summary of every amendment. Because the CLI verbs require the check, the rationale, and the log entry to land together, policy and enforcement can't silently diverge.
-- **Per-issue receipts** (`receipts/issue-<N>-*.md`). One receipt per issue, with `## Checklist`, `## What changed`, `## Out of scope`, and `## Verification` sections. Every `- [x]` checklist item must crosswalk into `## What changed` or `## Verification` — the trust boundary that prevents silent box-flipping. The receipt is what a reviewer reads instead of the diff.
-- **Token cost** (`COSTS.md`). Every agent-authored commit carries token + cost trailers (`Token-Input`, `Token-Output`, `Cost-USD`, …) and a matching row in the ledger. Survives squash-merges via a stable `Cost-Key`. Every change has a price tag.
-- **Human steering** (`STEERING.md`). Every commit carries summary trailers (`Steer-Count`, `Steer-Types`, `Steer-Tiers`) tallying the rows it added to the ledger — one row per detected human-steering event (interrupt or redirect). See at a glance which commits ran on autopilot and which needed your hand on the wheel.
+- **Per-issue receipts** (`receipts/issue-<N>-*.md`). One receipt per issue, with `## Checklist`, `## What changed`, `## Out of scope`, and `## Verification` sections. Every `- [x]` checklist item must crosswalk into `## What changed` or `## Verification` — the trust boundary that prevents silent box-flipping. The receipt is what a reviewer reads instead of the diff. It also holds the accounting (below).
+- **Token cost** (the receipt's `## Accounting` section). Every agent-authored commit carries token + cost trailers (`Token-Input`, `Token-Output`, `Cost-USD`, …) and a matching cost row under `### Costs` in the issue's receipt (`receipts/issue-<N>.md`), joined by a stable `Cost-Key` that survives squash-merges. Every change has a price tag.
+- **Human steering** (the receipt's `## Accounting` section). Every commit carries summary trailers (`Steer-Count`, `Steer-Types`, `Steer-Tiers`) tallying the rows it appends under `### Steering` in the issue's receipt — one row per detected human-steering event (interrupt or redirect). See at a glance which commits ran on autopilot and which needed your hand on the wheel.
 
 These compose into a chain — **issue → receipt → commit → cost** — and breaking any link fails the next push. The whole chain — traceability, token cost, steering, and the record-integrity that keeps it tamper-proof — ships in the [`governance-kit/audit`](#whats-bundled) pack and lands in the `standard` preset. Steering accounting (`agent-steering-accounting`) is `always_install: true` — mandatory in every install (it records human correction text verbatim — redact via the directive's classifier hook rather than skipping it).
 
@@ -215,7 +215,7 @@ governance kit update [--with-packs] [--dry-run] [--force]
 
 ```sh
 governance uninstall --dry-run                         # preview (the default when state is ambiguous)
-governance uninstall --soft                            # remove kit-owned files; keep pack-seeded docs (QUALITY.md, COSTS.md, …)
+governance uninstall --soft                            # remove kit-owned files; keep pack-seeded docs (like QUALITY.md)
 governance uninstall --hard                            # remove everything kit-owned
 ```
 
@@ -270,9 +270,9 @@ The chain — **issue → receipt → commit → cost** — turned into mechanic
 | `audit` | `issues-tracked` | `QUALITY.md` exists at repo root with `## Open` and `## Resolved` sections. | standard |
 | `audit` | `receipt-per-issue` | Every `receipts/*.md` has a unique `issue-<N>` filename token, the four required sections, and each `- [x]` checklist item crosswalks into `## What changed` or `## Verification`. | standard |
 | `audit` | `commit-issue-receipt-match` | Every non-merge commit's issue anchor (`(#N)` or `Issue: #N`) matches an `issue-<N>` token on a touched receipt. | standard |
-| `audit` | `agent-token-accounting` | Every commit carries token + cost trailers and a matching `COSTS.md` row keyed by `Cost-Key`. | standard |
-| `audit` | `agent-steering-accounting` | Every commit stamps `Steer-Count` / `Steer-Types` / `Steer-Tiers` and appends rows to append-only `STEERING.md`. **`always_install: true` — mandatory in every install.** Records human correction text verbatim — redact via the directive's classifier hook rather than skipping it. | standard |
-| `audit` | `doc-integrity` | **`always_install: true` — mandatory in every install.** Makes system-of-record documents append-only (standard rules ship in the directive's `defaults.conf`, layered with the `.governance/conf/governance-kit/audit/doc-integrity.conf` overlay): receipts immutable once on the trunk, `COSTS.md`/`STEERING.md` ledgers append-only, and frozen sections (`QUALITY.md` Resolved, the Evolution Log) keep their baseline lines verbatim. Branch-authored content stays editable until it merges. | standard |
+| `audit` | `agent-token-accounting` | Every commit carries token + cost trailers and a matching cost row in the issue's receipt (`receipts/issue-<N>.md`) keyed by `Cost-Key`. | standard |
+| `audit` | `agent-steering-accounting` | Every commit stamps `Steer-Count` / `Steer-Types` / `Steer-Tiers` and appends steering rows to the issue's receipt. **`always_install: true` — mandatory in every install.** Records human correction text verbatim — redact via the directive's classifier hook rather than skipping it. | standard |
+| `audit` | `doc-integrity` | **`always_install: true` — mandatory in every install.** Makes system-of-record documents tamper-proof (standard rules ship in the directive's `defaults.conf`, layered with the `.governance/conf/governance-kit/audit/doc-integrity.conf` overlay): receipts immutable once on the trunk (now also carrying the per-issue accounting rows), the legacy `COSTS.md`/`STEERING.md` sealed as frozen-files, and frozen sections (`QUALITY.md` Resolved, the Evolution Log) keep their baseline lines verbatim. Branch-authored content stays editable until it merges. | standard |
 | `audit` | `toolchain-config-protection` | A commit changing lint / format / type-check / CI / hook config carries a `governance: allow-toolchain-config <reason>` body line. | standard |
 
 ## Why not just pre-commit / husky / lefthook?

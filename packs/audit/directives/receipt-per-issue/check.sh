@@ -112,6 +112,19 @@ has_receipt_waiver() {
         | grep -qE 'governance:[[:space:]]*allow-receipt-per-issue[[:space:]]+[^[:space:]]'
 }
 
+# Accounting-only stub: a receipt whose only level-2 (`## `) heading is
+# `## Accounting` — what the agent-token/steering pre-commit hooks create
+# before the agent writes the narrative (issue #201). `### Costs`/`### Steering`
+# are level-3 and don't count. A stub is exempt from the shape rules.
+is_accounting_stub() {
+    local file="$1"
+    [[ -f "$file" ]] || return 1
+    local h2
+    h2="$(grep -E '^##[[:space:]]+' "$file" 2>/dev/null \
+        | sed -E 's/^##[[:space:]]+//; s/[[:space:]]+$//')"
+    [[ "$h2" == "Accounting" ]]
+}
+
 # Build the set of receipts ADDED in the current change set — these owe a
 # `## Decisions` section; pre-existing receipts are grandfathered. The set is
 # the union of two sources so the same argless check covers both hooks:
@@ -164,7 +177,7 @@ for f in "${receipt_files[@]}"; do
         continue
     fi
     base="${f##*/}"
-    if [[ "$base" =~ ^issue-([0-9]+)-[a-z0-9]+(-[a-z0-9]+)*\.md$ ]]; then
+    if [[ "$base" =~ ^issue-([0-9]+)(-[a-z0-9]+(-[a-z0-9]+)*)?\.md$ ]]; then
         num="${BASH_REMATCH[1]}"
         dup_of=""
         for i in "${!seen_nums[@]}"; do
@@ -180,7 +193,18 @@ for f in "${receipt_files[@]}"; do
             seen_files+=("$f")
         fi
     else
-        violation "$f — receipt filename must match 'issue-<N>-<slug>.md' with a kebab-case slug (lowercase letters, digits, hyphens) — e.g. receipts/issue-63-replace-plans.md"
+        violation "$f — receipt filename must match 'issue-<N>.md' or 'issue-<N>-<slug>.md' with a kebab-case slug (lowercase letters, digits, hyphens) — e.g. receipts/issue-63-replace-plans.md"
+    fi
+
+    # Accounting-only stub: the agent-token/steering pre-commit hooks create
+    # receipts/issue-<N>.md carrying just a `## Accounting` section when a
+    # commit's first accounted event fires before the agent has fleshed out
+    # the narrative (issue #201). Such a stub is exempt from the shape /
+    # crosswalk / Decisions / Verification rules until the agent adds a
+    # narrative section; the Accounting tables themselves are validated by the
+    # accounting directives. Filename + duplicate checks above still apply.
+    if is_accounting_stub "$f"; then
+        continue
     fi
 
     has_all_sections=1

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Model → per-MTok USD rate table for cost-usd computation in COSTS.md.
+"""Model → per-MTok USD rate table for cost-usd computation for receipt Costs rows.
 
 Rates are per-million-tokens, split by usage mode:
 

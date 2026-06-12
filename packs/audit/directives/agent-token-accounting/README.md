@@ -16,9 +16,11 @@ Naive anchors all break:
 The layered model that works:
 
 1. **Commit trailers** provide branch-time provenance that reviewers can read.
-2. **`COSTS.md`** is the durable, append-only ledger that survives squash merges.
-3. **`Cost-Key`** is a stable join key that appears in both — neither depends on the commit SHA.
+2. **The per-issue receipt** `receipts/issue-<N>.md` is the durable record that survives squash merges. Cost rows land under its `## Accounting` → `### Costs` sub-table, resolved from the commit's `(#N)` anchor. Homing rows in the receipt — instead of one central `COSTS.md` — keeps the record conflict-free (only the PR branch that owns the issue writes its receipt) and bounded (the file grows with one issue, not the whole repo's history), and it is naturally sealed once the receipt merges (frozen on the trunk by `doc-integrity`).
+3. **`Cost-Key`** is a stable join key that appears in both the trailer and the receipt row — neither depends on the commit SHA.
 4. **The governance directive** cross-checks the two and fails loudly on drift.
+
+The previously-central `COSTS.md` is now sealed legacy history (a `doc-integrity` frozen-file) — it stops receiving writes; existing rows stay put, no migration. New rows go to receipts.
 
 ## Trailer schema
 
@@ -31,7 +33,7 @@ Session: 01HXYZ...thread-id
 Token-Input: 1200
 Token-Output: 450
 Token-Total: 1650
-Cost-Key: codex-01HXYZabcdef-1713800000
+Cost-Key: codex-01HXYZabcdef-1713800000-0
 Cost-USD: 2.7932
 ```
 
@@ -42,25 +44,33 @@ Cost-USD: 2.7932
   deliberately excludes `cache_read`, which is the same bytes re-read each
   turn rather than new effort.
 - `Token-Total` **must equal** `Token-Input + Token-Output`.
-- `Cost-Key` must be unique within `COSTS.md`. Convention: `<agent>-<session-short>-<epoch>`.
+- `Cost-Key` must be globally unique across all `receipts/*.md`. Format:
+  `<agent>-<session-short>-<epoch>-<n>`, where `<n>` is a per-`<prefix>`
+  counter that closes the same-second collision window (mirrors steer-key's
+  `-<idx>` scheme). Treat it as an **opaque join token** — do not parse it; its
+  only job is to anchor the trailer↔row join, and globally-unique keys keep
+  that join correct even though rows are now spread across many receipts.
 - `Cost-USD` is required on every new commit. Stamped automatically from
   `lib/rates.py` using the runtime-reported model; the directive cross-checks
   it against the ledger row's `cost-usd` cell — same `rates.lookup` call,
   same token counts, so any divergence means someone hand-edited one side.
   Surfacing it as a trailer makes the per-commit dollar figure visible in
-  `git log` without having to join against `COSTS.md`, and it survives
-  squash merges alongside `Cost-Key`. A truly-unpriced model (no entry in
+  `git log` without having to join against the receipt's `### Costs` table,
+  and it survives squash merges alongside `Cost-Key`. A truly-unpriced model (no entry in
   `RATES` and no family-prefix match) blocks the commit at the pre-commit
   hook — the operator adds a `rate <model> ...` row to
   `.governance/conf/agent-token-accounting.conf` (the user-owned override that
   survives `pack update`) or uses `SKIP_GOVERNANCE=1` for a genuine hot-fix.
 
-## Ledger schema
+## Row schema
 
-`COSTS.md` is the durable record and is lossless by design — cache traffic
-is tracked in its own columns and the model-priced dollar cost lives next
-to the token counts so billing and cache-hit-rate analyses are recoverable
-without re-deriving rates after the fact:
+Cost rows live in the commit's per-issue receipt — `receipts/issue-<N>.md`,
+under the `## Accounting` → `### Costs` sub-table. The 12-column schema is
+unchanged from the old central `COSTS.md`; only the storage location moved.
+The record is lossless by design — cache traffic is tracked in its own columns
+and the model-priced dollar cost lives next to the token counts so billing and
+cache-hit-rate analyses are recoverable without re-deriving rates after the
+fact:
 
 ```
 | cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | note |
@@ -134,17 +144,22 @@ dispatchers automatically. Manual install is:
 ```sh
 cp -r <governance-kit>/packs/audit/directives/agent-token-accounting \
       .governance/packs/governance-kit/audit/directives/
-cp    <governance-kit>/kit/assets/COSTS.template.md COSTS.md
 chmod +x .governance/packs/governance-kit/audit/directives/agent-token-accounting/check.sh \
          .governance/packs/governance-kit/audit/directives/agent-token-accounting/hooks/*.sh \
          .governance/packs/governance-kit/audit/directives/agent-token-accounting/runtimes/*.sh
 ```
 
-Everything the directive needs — the `lib/` Python (ledger, trailers, rates),
-the hook-side-effect scripts under `hooks/`, and the per-runtime transcript
-readers under `runtimes/` — lives inside the directive folder. Stdlib-only
-Python 3, no `pip install` required. The only runtime dependency is
-`python3` on `$PATH`.
+There is no ledger file to seed at install — rows live in per-issue receipts,
+and the pre-commit hook creates the receipt (an accounting-only stub with just
+a `## Accounting` section) on demand the first time a commit for that issue
+needs one. The directive ships no `COSTS.md` install-asset.
+
+Everything the directive needs — the `lib/` Python (ledger, trailers, rates,
+plus the shared `receipt_io.py` markdown section/table plumbing and the
+`report.py` aggregator), the hook-side-effect scripts under `hooks/`, and the
+per-runtime transcript readers under `runtimes/` — lives inside the directive
+folder. Stdlib-only Python 3, no `pip install` required. The only runtime
+dependency is `python3` on `$PATH`.
 
 Then add an `agent-token-accounting` Directives subsection to `CONSTITUTION.md`
 via the `governance-amend` skill (the directive and the constitutional entry must
@@ -169,9 +184,10 @@ worktree are the ones that actually run.
 
 `git commit` is the only entry point. There is no wrapper script to remember
 or teach — if the commit is agent-authored, the pre-commit hook detects the
-runtime, reads the transcript, appends the ledger row, and hands off to
-`prepare-commit-msg` to stamp the matching trailers. Human commits flow
-through untouched.
+runtime, reads the transcript, resolves the issue from the `(#N)` anchor,
+appends the cost row to that issue's receipt (creating an accounting-only stub
+if the receipt doesn't exist yet), and hands off to `prepare-commit-msg` to
+stamp the matching trailers. Human commits flow through untouched.
 
 ```
 git commit -m "feat: x (#13)"
@@ -186,9 +202,12 @@ pre-commit ──► .governance/packs/<owner>/<repo>/directives/agent-token-acc
       │             — returns `<session_id> <cum_input> <cum_cache_create>
       │             <cum_cache_read> <cum_output> <model>`
       │          4. Subtract prior rows for this session (via lib/ledger.py
-      │             `sum-by-session`) → per-commit delta for all four token fields
-      │          5. Compute Cost-Key, append COSTS.md row (lib/ledger.py
-      │             `append-row`), `git add` it
+      │             `sum-by-session`, scanning the Accounting sections across
+      │             receipts) → per-commit delta for all four token fields
+      │          5. Compute Cost-Key, append the row to
+      │             `receipts/issue-<N>.md` under `## Accounting` → `### Costs`
+      │             (lib/ledger.py `append-row`, creating the stub receipt if
+      │             absent), `git add` the receipt
       │          6. Write handoff env file at
       │             `$(git rev-parse --git-path governance-pending.env)`
       │
@@ -202,14 +221,14 @@ prepare-commit-msg ──► sources the handoff env file (same
                        the handoff file
       │
       ▼
-git snapshots the tree (COSTS.md row is already staged) → commit
+git snapshots the tree (the receipt row is already staged) → commit
 ```
 
 The ordering is load-bearing. `git add` during **pre-commit** lands in the
 tree git is about to snapshot; `git add` during **prepare-commit-msg** lands
 in the *next* commit's index. A CI failure of the form `Cost-Key X should
-have exactly 1 row in COSTS.md, found 0` means something tried to stage
-`COSTS.md` too late in the pipeline.
+have exactly 1 row in receipts, found 0` means something tried to stage
+the receipt too late in the pipeline.
 
 The handoff file path is resolved via `git rev-parse --git-path
 governance-pending.env` on both ends — that's deliberate. In a worktree
@@ -299,15 +318,15 @@ two cache fields if the runtime doesn't expose them; emit the literal
 Until you do that, two opt-in fallbacks let the commit land:
 
 - **Manual env vars** — `AGENT_NAME=<name> AGENT_SESSION_ID=... AGENT_CUM_INPUT=...
-  AGENT_CUM_OUTPUT=... git commit`. Writes a real `COSTS.md` row from
-  the values you supply. `AGENT_CUM_CACHE_CREATE`, `AGENT_CUM_CACHE_READ`,
+  AGENT_CUM_OUTPUT=... git commit`. Writes a real cost row to the issue's
+  receipt from the values you supply. `AGENT_CUM_CACHE_CREATE`, `AGENT_CUM_CACHE_READ`,
   and `AGENT_MODEL` are optional — cache fields default to `0`, model
   defaults to `unknown`. Use when you actually know the numbers (e.g.
   the runtime exposes them in a non-standard place).
 - **Unsupported-runtime waiver** — add
   `governance: allow-agent-token-accounting unsupported-runtime: <reason>`
   to the commit body, with a non-empty reason. `check.sh` then bypasses
-  the trailer + ledger requirement for that commit. **No `COSTS.md` row
+  the trailer + row requirement for that commit. **No receipt row
   is written.** Audit trail: `git log --grep='allow-agent-token-accounting unsupported-runtime'`
   lists every waivered commit. Use when you don't have the numbers and
   authoring a `runtimes/<name>.sh` adapter is not yet possible —
@@ -327,16 +346,18 @@ All paths below are rooted at the installed directive folder
 |---|---|
 | `runtimes/<runtime>.sh` | Transcript discovery + 4-field token sum + model extraction for one specific runtime. Prints 6 space-separated values. |
 | `lib/rates.py` | Model → per-MTok USD rate table (base / cache-create / cache-read / output) + `compute_cost_usd(model, i, cc, cr, o)`. Tolerant model lookup: lowercase, strip date suffix, longest-prefix match with family fallbacks (`claude-opus`, `claude-sonnet`, `claude-haiku`, `gpt-5`). Unknown model → `None` → `rates cost` exits 3 → pre-commit blocks the commit (Cost-USD is mandatory). |
-| `lib/ledger.py` | Stdlib-only Python library that owns the ledger: `LedgerRow` dataclass, `parse`, `sum_by_session`, `append_row` (recomputes `new_work`, looks up `cost_usd` from `rates.py`), `validate`, `find_by_cost_key`. Handles the v3 12-column schema and both legacy shapes (v2: 10 cols, v1: 8 cols). Keeping the schema-sensitive parsing in named-field Python (not `awk -F'\|'`) eliminates the whole class of column-index bugs we ate once already. |
-| `lib/trailers.py` | Splits the commit body into trailer-only paragraphs (one per folded sub-commit on a squash-merge) and cross-checks each (block, `COSTS.md` row) pair anchored by `Cost-Key` — `Token-Input == input + cache_create`, `Token-Output == output`, `Token-Total == Token-Input + Token-Output`, `Token-Total == row.new_work`, and `Cost-USD == row.cost_usd` (so the trailer headline and the ledger headline can't drift). Per-block parsing replaces an earlier global last-wins reading that silently skipped every sub-commit's row except the trailing one's. |
-| `hooks/pre-commit.sh` | Bash glue: runtime detection, issue parsing from parent argv, cost-key generation, handoff env-file write. Shells out to `lib/ledger.py` for `sum-by-session` (per-commit delta) and `append-row` (ledger write + `git add`) — **all before** git snapshots the tree. Wired into `.githooks/pre-commit` by the generator. |
-| `hooks/prepare-commit-msg.sh` | Sources the handoff env file (resolved via `git rev-parse --git-path governance-pending.env` so worktrees work) and stamps all eight trailers. Idempotent on amends (skips if an `Agent:` trailer is already present). Silent no-op if no handoff file exists (human commit, or `--no-verify`). Does not touch `COSTS.md`. |
-| `check.sh` (commit-msg + CI) | Walks `base..HEAD`. Calls `lib/ledger.py validate` for repo-wide shape checks; for each commit with an `Agent:` trailer calls `lib/trailers.py validate-blocks` to walk every trailer block in the body, require the full per-block trailer set, check `Total = Input + Output`, require exactly one matching `Cost-Key` row in `COSTS.md` per block, and verify each row's numbers agree with its block's trailers. When `base..HEAD` is empty (typically on `main` itself post-squash-merge) Mode B falls back to validating HEAD's trailer blocks on their own — squash-merge commits land on `main` via GitHub's server and bypass the local commit-msg hook, so without the HEAD-fallback their per-Cost-Key blocks would go unchecked. Recognises one body-level waiver: `governance: allow-agent-token-accounting unsupported-runtime: <reason>` (any commit, non-empty reason required), which bypasses the trailer + ledger requirement for that commit. No bootstrap accommodation lives in `check.sh` — `governance init`'s Step 8 dry-run + inline-fix path makes the install commit pass on the first try. Runs independently of `COSTS.md` presence so the ledger stays clean even after branch commits are squashed away. |
+| `lib/ledger.py` | Stdlib-only Python library that owns the row schema: `LedgerRow` dataclass, `parse`, `sum_by_session`, `append_row` (recomputes `new_work`, looks up `cost_usd` from `rates.py`, writes to the receipt's `## Accounting` → `### Costs` table, creating the stub if absent), `validate`, `find_by_cost_key`. Reads/writes rows across `receipts/*.md` via the shared `lib/receipt_io.py` section/table plumbing. Handles the v3 12-column schema and both legacy shapes (v2: 10 cols, v1: 8 cols). Keeping the schema-sensitive parsing in named-field Python (not `awk -F'\|'`) eliminates the whole class of column-index bugs we ate once already. |
+| `lib/receipt_io.py` | Shared markdown section/table plumbing (locate the `## Accounting` section, read/insert the `### Costs` sub-table, create an accounting-only stub receipt) used by both `lib/ledger.py` and `lib/report.py`. |
+| `lib/report.py` | Aggregates the Accounting sections across `receipts/*.md` for per-issue and grand totals (cost-usd, tokens, and — for the steering directive — steering counts). Run: `python3 <dir>/report.py <receipts_dir> [--json]`. |
+| `lib/trailers.py` | Splits the commit body into trailer-only paragraphs (one per folded sub-commit on a squash-merge) and cross-checks each (block, receipt row) pair anchored by `Cost-Key` — `Token-Input == input + cache_create`, `Token-Output == output`, `Token-Total == Token-Input + Token-Output`, `Token-Total == row.new_work`, and `Cost-USD == row.cost_usd` (so the trailer headline and the row headline can't drift). Per-block parsing replaces an earlier global last-wins reading that silently skipped every sub-commit's row except the trailing one's. |
+| `hooks/pre-commit.sh` | Bash glue: runtime detection, issue parsing from parent argv, cost-key generation, handoff env-file write. Shells out to `lib/ledger.py` for `sum-by-session` (per-commit delta) and `append-row` (receipt-row write + `git add`) — **all before** git snapshots the tree. Wired into `.githooks/pre-commit` by the generator. |
+| `hooks/prepare-commit-msg.sh` | Sources the handoff env file (resolved via `git rev-parse --git-path governance-pending.env` so worktrees work) and stamps all eight trailers. Idempotent on amends (skips if an `Agent:` trailer is already present). Silent no-op if no handoff file exists (human commit, or `--no-verify`). Does not touch the receipt. |
+| `check.sh` (commit-msg + CI) | Walks `base..HEAD`. Calls `lib/ledger.py validate` for repo-wide shape checks; for each commit with an `Agent:` trailer calls `lib/trailers.py validate-blocks` to walk every trailer block in the body, require the full per-block trailer set, check `Total = Input + Output`, require exactly one matching `Cost-Key` row across `receipts/*.md` per block, and verify each row's numbers agree with its block's trailers. When `base..HEAD` is empty (typically on `main` itself post-squash-merge) Mode B falls back to validating HEAD's trailer blocks on their own — squash-merge commits land on `main` via GitHub's server and bypass the local commit-msg hook, so without the HEAD-fallback their per-Cost-Key blocks would go unchecked. Recognises one body-level waiver: `governance: allow-agent-token-accounting unsupported-runtime: <reason>` (any commit, non-empty reason required), which bypasses the trailer + row requirement for that commit. No bootstrap accommodation lives in `check.sh` — `governance init`'s Step 8 dry-run + inline-fix path makes the install commit pass on the first try. Runs independently of any receipt's presence so the record stays clean even after branch commits are squashed away. |
 
 ## What it doesn't try to do
 
-- **No authentication** of token counts. A wrapper that fabricates numbers will pass the math check. That's a trust boundary — the directive makes tampering *visible* (git blame on `COSTS.md`), not impossible.
-- **No squash-merge trailer** on the base-branch commit. The durable anchor is `COSTS.md`, not the merge commit's metadata; keeping the directive to files-in-the-repo avoids a hard coupling to GitHub / GitLab PR tooling.
+- **No authentication** of token counts. A wrapper that fabricates numbers will pass the math check. That's a trust boundary — the directive makes tampering *visible* (git blame on the per-issue receipt), not impossible.
+- **No squash-merge trailer** on the base-branch commit. The durable anchor is the per-issue receipt row, not the merge commit's metadata; keeping the directive to files-in-the-repo avoids a hard coupling to GitHub / GitLab PR tooling.
 - **No invoice reconciliation.** `cost-usd` uses the rate table in the
   directive's `lib/rates.py` — that's the best we can do from a commit hook
   without network access. Rates drift, custom enterprise pricing exists,

@@ -15,22 +15,24 @@ command -v python3 >/dev/null 2>&1 || {
 fixture_init
 install_directive "$PACK_DIR" "$EVAL_ID"
 
-# Seed COSTS.md so the ledger-shape probe at the top of check.sh has a file to look at.
-cp "$PACK_DIR/directives/$EVAL_ID/install-assets/COSTS.md" COSTS.md
-git add -A .governance COSTS.md
+git add -A .governance
 git commit --quiet --no-verify -m "feat(governance): install directive (#1)"
 
-# Per-fixture helpers.
+# Per-fixture helpers. Cost rows now live in per-issue receipts (issue #201).
 LEDGER_PY="$PWD/.governance/packs/governance-kit/audit/directives/$EVAL_ID/lib/ledger.py"
 SESSION_ID="abcdef0123456789fixture"
 MODEL="claude-sonnet-4-5"
 
+receipt_for() {  # receipt_for <issue e.g. #10>
+    printf 'receipts/issue-%s.md' "${1#\#}"
+}
+
 # claude-sonnet-4-5 RATES: input $3.00, cache-create $3.75, cache-read $0.30, output $15.00 (per M tok).
-# Row helpers compute trailer + cost expectations to match append-row's recomputed values.
 append_priced_row() {
     # append_priced_row <cost-key> <issue> <input> <cache-create> <cache-read> <output>
     local key="$1" issue="$2" inp="$3" cc="$4" cr="$5" out="$6"
-    python3 "$LEDGER_PY" append-row COSTS.md \
+    mkdir -p receipts
+    python3 "$LEDGER_PY" append-row "$(receipt_for "$issue")" \
         "$key" claude-code "$SESSION_ID" "$issue" "$MODEL" \
         "$inp" "$cc" "$cr" "$out" ""
 }
@@ -45,7 +47,7 @@ print(f'{round(cost, 4):.4f}')
 "
 }
 
-# write_block <count> <cost-key> <issue> <input> <cache-create> <cache-read> <output>
+# write_block <cost-key> <issue> <input> <cache-create> <cache-read> <output>
 # Stamps a single matched-row trailer block, derived from row arithmetic.
 write_block() {
     local key="$1" issue="$2" inp="$3" cc="$4" cr="$5" out="$6"
@@ -64,10 +66,10 @@ write_block() {
     printf 'Cost-USD: %s\n'     "$cost"
 }
 
-reset_ledger() {
-    cp "$PACK_DIR/directives/$EVAL_ID/install-assets/COSTS.md" COSTS.md
-    git add COSTS.md
-    git commit --quiet --no-verify -m "chore: reset COSTS" >/dev/null 2>&1 || true
+reset_receipts() {
+    rm -rf receipts
+    git add -A receipts 2>/dev/null || true
+    git commit --quiet --no-verify -m "chore: reset receipts" >/dev/null 2>&1 || true
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -99,12 +101,11 @@ EOF
 EVAL_LABEL="$EVAL_ID no-trailers-fail" expect_fail "$CHECK" /tmp/msg-bare
 
 # ──────────────────────────────────────────────────────────────
-# Case 4 — pass: single well-formed agent commit, row already in COSTS.md
+# Case 4 — pass: single well-formed agent commit, row in the receipt
 # ──────────────────────────────────────────────────────────────
-reset_ledger
+reset_receipts
 KEY1="ck-${SESSION_ID:0:12}-1800000100"
 append_priced_row "$KEY1" "#10" 1000 0 0 500
-git add COSTS.md
 {
     printf 'feat: priced agent commit (#10)\n\n'
     printf 'Body.\n\n'
@@ -113,19 +114,18 @@ git add COSTS.md
 EVAL_LABEL="$EVAL_ID single-block-matched-row" expect_pass "$CHECK" /tmp/msg-single-ok
 
 # ──────────────────────────────────────────────────────────────
-# Case 5 — fail: Cost-Key has no matching row in COSTS.md
+# Case 5 — fail: Cost-Key has no matching row in any receipt
 # ──────────────────────────────────────────────────────────────
 {
     printf 'feat: orphan trailer (#11)\n\n'
     printf 'Body.\n\n'
     write_block "ck-orphan-no-row" "#11" 1000 0 0 500
 } > /tmp/msg-orphan
-EVAL_LABEL="$EVAL_ID cost-key-missing-from-ledger" expect_fail "$CHECK" /tmp/msg-orphan
+EVAL_LABEL="$EVAL_ID cost-key-missing-from-receipts" expect_fail "$CHECK" /tmp/msg-orphan
 
 # ──────────────────────────────────────────────────────────────
-# Case 6 — fail: trailer Token-Total disagrees with row
+# Case 6 — fail: trailer Token-Total disagrees with the receipt row
 # ──────────────────────────────────────────────────────────────
-# Reuse KEY1 from Case 4 but stamp wildly-wrong token counts.
 {
     printf 'feat: token math wrong (#12)\n\n'
     printf 'Body.\n\n'
@@ -141,16 +141,14 @@ EVAL_LABEL="$EVAL_ID cost-key-missing-from-ledger" expect_fail "$CHECK" /tmp/msg
 EVAL_LABEL="$EVAL_ID token-trailer-mismatch-with-row" expect_fail "$CHECK" /tmp/msg-bad-math
 
 # ──────────────────────────────────────────────────────────────
-# Case 7 — pass: squash-merge body with two stacked blocks, both rows present.
-# Issue #136 sibling: the old last-wins parser would only verify the
-# trailing block — this case proves both blocks now round-trip with
-# their rows. Mirrors the wild shape that motivated the fix.
+# Case 7 — pass: squash-merge body with two stacked blocks, both rows
+# present in the same receipt. The old last-wins parser would only verify
+# the trailing block; per-block validation round-trips both.
 # ──────────────────────────────────────────────────────────────
 KEY2="ck-${SESSION_ID:0:12}-1800000200"
 KEY3="ck-${SESSION_ID:0:12}-1800000300"
 append_priced_row "$KEY2" "#13" 2000 0 0 1000
 append_priced_row "$KEY3" "#13" 500 0 0 250
-git add COSTS.md
 {
     printf 'feat: squashed pair (#13)\n\n'
     printf 'Body for sub-commit 1.\n\n'
@@ -163,8 +161,7 @@ EVAL_LABEL="$EVAL_ID squash-merge-both-blocks-verified" expect_pass "$CHECK" /tm
 
 # ──────────────────────────────────────────────────────────────
 # Case 8 — fail: squash body where the trailing block matches its row
-# but an earlier block's row is missing. Under the old last-wins
-# parser this slipped through; per-block validation catches it.
+# but an earlier block's row is missing.
 # ──────────────────────────────────────────────────────────────
 {
     printf 'feat: squashed pair, first row missing (#14)\n\n'
@@ -178,9 +175,7 @@ EVAL_LABEL="$EVAL_ID squash-merge-earlier-row-missing" expect_fail "$CHECK" /tmp
 
 # ──────────────────────────────────────────────────────────────
 # Case 9 — fail: agent commit but no trailer block parsed (all
-# trailer lines mixed into a prose paragraph). The body has the
-# trailer keywords but they don't form a pure-trailer paragraph,
-# so extract_trailer_blocks rejects them.
+# trailer lines mixed into a prose paragraph).
 # ──────────────────────────────────────────────────────────────
 cat > /tmp/msg-mixed <<EOF
 feat: prose-then-trailers (#15)
@@ -192,14 +187,12 @@ EVAL_LABEL="$EVAL_ID prose-mixed-with-trailers" expect_fail "$CHECK" /tmp/msg-mi
 
 # ──────────────────────────────────────────────────────────────
 # Case 10 — pass: Mode B on `main` validates HEAD's trailers when
-# `base..HEAD` is empty. Squash-merge commits bypass the local
-# commit-msg hook, so without this HEAD-fallback their per-Cost-Key
-# blocks would land on main unchecked.
+# `base..HEAD` is empty.
 # ──────────────────────────────────────────────────────────────
-reset_ledger
+reset_receipts
 KEY_MB="ck-${SESSION_ID:0:12}-1800000900"
 append_priced_row "$KEY_MB" "#16" 750 0 0 250
-git add COSTS.md
+git add receipts
 {
     printf 'feat: post-squash on main (#16)\n\n'
     printf 'Body.\n\n'
@@ -209,18 +202,71 @@ git commit --quiet --no-verify -F /tmp/msg-mode-b-pass
 EVAL_LABEL="$EVAL_ID mode-b-on-main-valid" expect_pass "$CHECK"
 
 # ──────────────────────────────────────────────────────────────
-# Case 11 — fail: Mode B on `main` flags a HEAD commit that's
-# missing the Agent: trailer entirely. Demonstrates the HEAD
-# fallback actively enforces — a malformed squash-merge commit
-# does NOT slip through.
+# Case 11 — fail: Mode B on `main` flags a HEAD commit missing Agent:
 # ──────────────────────────────────────────────────────────────
 git commit --allow-empty --quiet --no-verify -m "chore: trailerless squash (#17)"
 EVAL_LABEL="$EVAL_ID mode-b-on-main-missing-agent" expect_fail "$CHECK"
 
 # ──────────────────────────────────────────────────────────────
-# Case 12 — rates.py honors the user price-override conf
-# ($EVAL_CONF). Overrides merge
-# over the built-in RATES; a malformed row blocks pricing.
+# Case 12 — receipt cost row lands under `## Accounting` → `### Costs`,
+# create-if-absent, and validate-dir accepts a well-formed table.
+# ──────────────────────────────────────────────────────────────
+reset_receipts
+eval_assertions=$(( eval_assertions + 1 ))
+append_priced_row "ck-${SESSION_ID:0:12}-1900000001" "#20" 100 0 0 50
+if grep -q '^## Accounting$' receipts/issue-20.md \
+    && grep -q '^### Costs$' receipts/issue-20.md \
+    && python3 "$LEDGER_PY" validate-dir receipts >/dev/null; then
+    printf '    ✓ %s — cost row homed under ## Accounting / ### Costs\n' "$EVAL_ID"
+else
+    printf '    ✗ %s — receipt accounting section not created correctly\n' "$EVAL_ID" >&2
+    eval_failures=$(( eval_failures + 1 ))
+fi
+
+# ──────────────────────────────────────────────────────────────
+# Case 13 — fail: validate-dir flags a malformed receipt cost row
+# (new_work that does not equal input+cache_create+output).
+# ──────────────────────────────────────────────────────────────
+reset_receipts
+mkdir -p receipts
+cat > receipts/issue-21.md <<'EOF'
+# Receipt
+
+## Accounting
+
+### Costs
+
+| cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | note |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ck-bad-1 | claude-code | s | #21 | claude-sonnet-4-5 | 100 | 0 | 0 | 50 | 999 | 0.0001 | bad |
+EOF
+{ printf 'feat: bad receipt row (#21)\n\n'; printf 'Body.\n\n'; write_block "ck-x" "#21" 1 0 0 1; } > /tmp/msg-badrow
+EVAL_LABEL="$EVAL_ID malformed-receipt-row" expect_fail "$CHECK" /tmp/msg-badrow
+reset_receipts
+
+# ──────────────────────────────────────────────────────────────
+# Case 14 — cost-key counter closes the same-second window: two commits
+# in one session within the same epoch mint distinct keys (issue #201).
+# ──────────────────────────────────────────────────────────────
+reset_receipts
+eval_assertions=$(( eval_assertions + 1 ))
+PREFIX="claude-code-${SESSION_ID:0:12}-1900000000-"
+N1="$(python3 "$LEDGER_PY" next-cost-index receipts "$PREFIX")"
+append_priced_row "${PREFIX}${N1}" "#22" 100 0 0 50
+N2="$(python3 "$LEDGER_PY" next-cost-index receipts "$PREFIX")"
+append_priced_row "${PREFIX}${N2}" "#22" 100 0 0 50
+N3="$(python3 "$LEDGER_PY" next-cost-index receipts "$PREFIX")"
+if [[ "$N1" == "1" && "$N2" == "2" && "$N3" == "3" ]] \
+    && python3 "$LEDGER_PY" validate-dir receipts >/dev/null; then
+    printf '    ✓ %s — same-second cost-keys are distinct (%s, %s)\n' "$EVAL_ID" "${PREFIX}${N1}" "${PREFIX}${N2}"
+else
+    printf '    ✗ %s — cost-key counter did not increment (got %s/%s/%s)\n' "$EVAL_ID" "$N1" "$N2" "$N3" >&2
+    eval_failures=$(( eval_failures + 1 ))
+fi
+reset_receipts
+
+# ──────────────────────────────────────────────────────────────
+# Case 15 — rates.py honors the user price-override conf ($EVAL_CONF).
 # ──────────────────────────────────────────────────────────────
 RATES_PY=".governance/packs/governance-kit/audit/directives/$EVAL_ID/lib/rates.py"
 mkdir -p .governance/conf

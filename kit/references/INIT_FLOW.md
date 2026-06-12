@@ -397,7 +397,7 @@ hook can be bypassed around. If the user later opts into native tests via
 
 Goal: make the install commit pass every installed directive on the first try, with **no `SKIP_GOVERNANCE` and no bootstrap-only waivers**. This is the step that makes "no audit gap at bootstrap" possible.
 
-1. **Stage the install output.** `git add` everything Steps 4–7 wrote: `CONSTITUTION.md`, `AGENTS.md` (if seeded/edited), `.governance/`, `.githooks/` (or the Path-B equivalent), `.github/workflows/governance.yml`, `scripts/enable-governance.sh`, and any install-assets (`COSTS.md`, `STEERING.md`, `QUALITY.md`, …).
+1. **Stage the install output.** `git add` everything Steps 4–7 wrote: `CONSTITUTION.md`, `AGENTS.md` (if seeded/edited), `.governance/`, `.githooks/` (or the Path-B equivalent), `.github/workflows/governance.yml`, `scripts/enable-governance.sh`, and any install-assets (`QUALITY.md`, …). (The accounting directives no longer seed `COSTS.md`/`STEERING.md` — those receipts are created on demand by the hook at first commit.)
 
 2. **Seed the bootstrap receipt.** If `commit-issue-receipt-match` is installed, create `receipts/issue-<N>-bootstrap-governance.md` from [`../assets/receipt.bootstrap.template.md`](../assets/receipt.bootstrap.template.md), substituting the bootstrap issue number `<N>` and the actual install choices. Stage it. (`<N>` is the GitHub issue the operator filed to track the adoption — surface that anchor up front in the survey if it isn't already known.)
 
@@ -430,11 +430,11 @@ git commit -m "feat(governance): bootstrap governance-driven development (#<N>)"
 
 What happens on this commit:
 
-- **`hooks/pre-commit.sh` populators** fire normally. `agent-token-accounting` reads the active session transcript via `runtimes/<runtime>.sh`, appends the matching row to `COSTS.md`, writes the handoff env file. `agent-steering-accounting` does the same for `STEERING.md`.
+- **`hooks/pre-commit.sh` populators** fire normally. `agent-token-accounting` reads the active session transcript via `runtimes/<runtime>.sh`, resolves the bootstrap issue number, appends the matching cost row to that issue's receipt (`receipts/issue-<N>.md`, under `## Accounting` — creating the receipt with just that section if absent), and writes the handoff env file. `agent-steering-accounting` does the same for the steering row.
 - **`hooks/prepare-commit-msg.sh` stampers** consume the handoff and stamp the eight token trailers + the three steering trailers onto the install commit's message.
 - **`commit-msg` validators** all pass — the tree is clean (Step 8), the trailers are stamped (populators ran), and the receipt is in place (Step 8.2).
 
-The install commit lands with **real token trailers and a real `COSTS.md` row** — the directives are satisfied with data, not with exemptions.
+The install commit lands with **real token trailers and a real cost row in the bootstrap issue's receipt** — the directives are satisfied with data, not with exemptions.
 
 **Runtime-not-detected fallback.** If `init` was invoked from a shell with no `CLAUDECODE` / `CODEX_THREAD_ID` (etc.), the token-accounting populator can't read a transcript and stamps nothing. Add `governance: allow-agent-token-accounting unsupported-runtime: bootstrapped from non-agent shell` to the commit body before running `git commit`. The validator then bypasses the trailer requirement for this commit only — and `git log --grep='allow-agent-token-accounting'` keeps the gap visible forever. The steering side needs no equivalent (its populator always stamps a zero-default triple via `prepare-commit-msg.sh`).
 

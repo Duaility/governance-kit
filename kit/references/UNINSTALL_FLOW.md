@@ -18,7 +18,7 @@ Three source-of-truth layers drive what `uninstall` deletes, in priority order:
 2. **Ownership marker** — `.githooks/` dispatchers carry the line-2 marker `# governance-kit:managed kit-version=<v>` — the same shape runtime templates (`run.sh`, `lib.sh`, `governance.yml`, `enable-governance.sh`) carry. The marker is a contract that the file is regeneratable, and symmetrically, safe to delete.
 3. **Heuristic fallback** — when neither file pair nor marker is present but governance artifacts are detected, `uninstall` defaults to **dry-run** and requires explicit opt-in before deleting anything.
 
-Leaving intact: files the user owns (pack-seeded docs like `QUALITY.md` / `COSTS.md` in soft mode), hooks without the ownership marker (those belong to someone else), user-authored content inside `AGENTS.md` (only the marker-bounded directive block is stripped), and every uncommitted change in the working tree.
+Leaving intact: files the user owns (pack-seeded docs like `QUALITY.md` in soft mode), hooks without the ownership marker (those belong to someone else), user-authored content inside `AGENTS.md` (only the marker-bounded directive block is stripped), and every uncommitted change in the working tree.
 
 ## Interaction policy
 
@@ -112,7 +112,7 @@ Ask the user one `AskUserQuestion` with three mutually exclusive options:
 | Mode | Intent | Leaves untouched |
 |---|---|---|
 | `dry-run` | Print the plan, change nothing. | Everything. |
-| `soft` (default) | Remove managed surface (constitution, tests, workflow, managed hooks, manifest, AGENTS.md block). | Pack-seeded `install-assets/` docs (`QUALITY.md`, `COSTS.md`, others). Backup `.bak` files. |
+| `soft` (default) | Remove managed surface (constitution, tests, workflow, managed hooks, manifest, AGENTS.md block). | Pack-seeded `install-assets/` docs (`QUALITY.md`, others; a legacy pre-#201 install may also carry `COSTS.md`). Backup `.bak` files. |
 | `hard` | Remove **everything** governance-kit touched, including seeded docs, `.bak` backups from overwrite-collision resolution, and an AGENTS.md stub if manifest records it as kit-created. | Uncommitted work in the working tree. |
 
 Forced overrides:
@@ -149,7 +149,6 @@ Git config:
 
 Seeded docs (preserved in soft mode; deleted in hard):
   QUALITY.md
-  COSTS.md
 ```
 
 The preview is informational. Ask for an explicit `yes` to execute — this is destructive, and the cost of a misclicked default is higher than the friction of an extra keystroke.

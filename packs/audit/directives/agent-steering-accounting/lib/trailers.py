@@ -7,12 +7,17 @@ Every non-merge, non-revert commit stamps the always-on summary triple:
     Steer-Types: <type>=<N>,...   (sorted, or `none` on N=0)
     Steer-Tiers: <tier>=<N>,...   (sorted, or `none` on N=0)
 
-`Steer-Count` equals the number of rows newly added to STEERING.md by this
+`Steer-Count` equals the number of rows newly added to receipts by this
 commit; the type / tier breakdowns agree with those rows' `type` / `tier`
-columns and total to `Steer-Count`. The row → commit join uses STEERING.md's
-`commit |` column — the per-event `Steer-Key:` trailer that earlier versions
-stamped is retired (issue #66). Historical commits in the repo's log may
-still carry `Steer-Key:` trailers; the new validator ignores them.
+columns and total to `Steer-Count`. The row → commit join uses the steering
+table's `commit |` column — the per-event `Steer-Key:` trailer that earlier
+versions stamped is retired (issue #66). Historical commits in the repo's log
+may still carry `Steer-Key:` trailers; the new validator ignores them.
+
+Steering rows now live in per-issue receipts (issue #201), not a central
+`STEERING.md`. The validator parses every receipt's `### Steering` sub-table
+into one `steer-key → row` map and looks up the keys the caller computed from
+the receipts diff.
 
 The directive is independent of `agent-token-accounting`: the contract
 applies to every in-scope commit, not just commits carrying an `Agent:`
@@ -20,14 +25,14 @@ trailer. Installation is the gate.
 
 CLI:
 
-    python3 trailers.py validate <label> <ledger> [--subject SUBJECT] \\
+    python3 trailers.py validate <label> <receipts_dir> [--subject SUBJECT] \\
             <msg_file|-> [<added-key>...]
         Reads the commit message and the list of steer-keys newly added to
-        STEERING.md by this commit (computed by the caller from the
-        STEERING.md diff). Emits one violation per line; exits 1 if any,
-        0 otherwise. `--subject` enables the row.commit-cell == subject
-        check (Mode A only — squash-merge can rewrite the subject after
-        the row was stamped, so Mode B passes without it).
+        receipts by this commit (computed by the caller from the receipts
+        diff). Emits one violation per line; exits 1 if any, 0 otherwise.
+        `--subject` enables the row.commit-cell == subject check (Mode A
+        only — squash-merge can rewrite the subject after the row was
+        stamped, so Mode B passes without it).
 """
 
 from __future__ import annotations
@@ -37,13 +42,15 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+sys.dont_write_bytecode = True  # don't litter the consumer repo with __pycache__
+
 # ledger.py sits next to this file; relative import works under
 # `python3 trailers.py …` because the parent dir is on sys.path.
 try:
-    from ledger import parse as parse_ledger  # type: ignore
+    from ledger import parse_all as parse_ledger  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from ledger import parse as parse_ledger  # type: ignore
+    from ledger import parse_all as parse_ledger  # type: ignore
 
 
 _SCALAR_TRAILER_RE = re.compile(r"^([A-Za-z][A-Za-z0-9-]*):[ \t]*(.*)$")
@@ -80,7 +87,7 @@ def extract_summed_trailers(
     so the same partition trailer can appear N times. For `Steer-Count` /
     `Steer-Types` / `Steer-Tiers` the correct semantics is sum-across-
     occurrences, not last-wins — anything else makes the squashed body
-    disagree with the cumulative STEERING.md diff by construction.
+    disagree with the cumulative receipts diff by construction.
 
     Returned dict only contains keys that appeared at least once. For each
     key, `summed_int` accumulates count-style values, `summed_breakdown`
@@ -157,14 +164,14 @@ def _tally(rows, attr: str) -> dict[str, int]:
 def validate(
     msg: str,
     label: str,
-    ledger_path: str | Path,
+    receipts_dir: str | Path,
     added_keys: list[str],
     *,
     subject: str | None,
 ) -> list[str]:
     """Cross-check summary trailers against rows newly added by this commit.
 
-    `added_keys` are the steer-keys parsed from the STEERING.md diff (Mode A:
+    `added_keys` are the steer-keys parsed from the receipts diff (Mode A:
     staged diff; Mode B: `git show <sha>` diff). `subject`, when not None, is
     the pending commit's subject for the row.commit-cell check; pass None in
     Mode B.
@@ -172,7 +179,7 @@ def validate(
     violations: list[str] = []
     # Sum across occurrences instead of last-wins: GitHub squash-merge
     # concatenates each sub-commit's body, so the trailer triple can appear
-    # N times in the resulting commit message. The cumulative STEERING.md
+    # N times in the resulting commit message. The cumulative receipts
     # diff is the union of all sub-commits' added rows, so the only
     # arithmetically consistent reading of the trailer triple is the sum.
     summed = extract_summed_trailers(
@@ -230,19 +237,19 @@ def validate(
 
     if expected_count != len(added_keys):
         violations.append(
-            f"{label} — Steer-Count ({expected_count}) != newly-added rows in "
-            f"STEERING.md ({len(added_keys)})"
+            f"{label} — Steer-Count ({expected_count}) != newly-added steering "
+            f"rows in receipts ({len(added_keys)})"
         )
 
-    rows = parse_ledger(ledger_path)
+    rows = parse_ledger(receipts_dir)
     by_key = {r.steer_key: r for r in rows}
     matched = []
     for k in added_keys:
         r = by_key.get(k)
         if r is None:
             violations.append(
-                f"{label} — STEERING.md diff added row {k!r} but it is not "
-                f"present in the parsed ledger"
+                f"{label} — receipts diff added steering row {k!r} but it is not "
+                f"present in any parsed receipt"
             )
         else:
             matched.append(r)
@@ -267,7 +274,7 @@ def validate(
         for r in matched:
             if r.commit and not _subject_matches(r.commit, subject):
                 violations.append(
-                    f"{label} — STEERING.md row {r.steer_key!r} has commit "
+                    f"{label} — receipt steering row {r.steer_key!r} has commit "
                     f"cell {r.commit!r} which does not match pending subject "
                     f"{subject!r}"
                 )
@@ -287,12 +294,12 @@ def _read_msg(path_or_dash: str) -> str:
 def _cmd_validate(argv: list[str]) -> int:
     if len(argv) < 3:
         print(
-            "trailers validate: <label> <ledger> [--subject SUBJECT] "
+            "trailers validate: <label> <receipts_dir> [--subject SUBJECT] "
             "<msg|-> [added-key...]",
             file=sys.stderr,
         )
         return 2
-    label, ledger = argv[0], argv[1]
+    label, receipts_dir = argv[0], argv[1]
     rest = argv[2:]
     subject: str | None = None
     if rest and rest[0] == "--subject":
@@ -306,7 +313,7 @@ def _cmd_validate(argv: list[str]) -> int:
         return 2
     msg_src, added_keys = rest[0], rest[1:]
     msg = _read_msg(msg_src)
-    violations = validate(msg, label, ledger, added_keys, subject=subject)
+    violations = validate(msg, label, receipts_dir, added_keys, subject=subject)
     for v in violations:
         print(v)
     return 1 if violations else 0
