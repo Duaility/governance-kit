@@ -39,7 +39,6 @@ def _load(name: str):
 
 packplan = _load("packplan")
 packapply = _load("packapply")
-docsurgery = _load("docsurgery")
 
 GIT_CLEAN_ENV = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
 
@@ -165,57 +164,8 @@ def _capture(fn):
     return rc, json.loads(out)
 
 
-# --- docsurgery (pure) ------------------------------------------------------
-
-CONST = (
-    "# CONSTITUTION\n\n## Directives\n\n"
-    "### required-docs\n\n- body A\n\n"
-    "### no-console-log\n\n- body B\n\n"
-    "### secrets-hygiene\n\n- body C\n\n"
-    "## Evolution Log\n\n<!-- hint -->\n\n- 2026-01-01 — old\n"
-)
-
-
-def test_strip_subsection_removes_only_target() -> None:
-    out, removed = docsurgery.strip_directive_subsection(CONST, "no-console-log")
-    assert removed
-    assert "### no-console-log" not in out
-    assert "### required-docs" in out and "### secrets-hygiene" in out
-    assert "- body A" in out and "- body C" in out and "- body B" not in out
-
-
-def test_strip_subsection_absent_is_noop() -> None:
-    out, removed = docsurgery.strip_directive_subsection(CONST, "nope")
-    assert not removed and out == CONST
-
-
-def test_strip_subsection_prefix_no_alias() -> None:
-    # `doc` must not match `doc-freshness`.
-    text = "## Directives\n\n### doc-freshness\n\nbody\n"
-    out, removed = docsurgery.strip_directive_subsection(text, "doc")
-    assert not removed and out == text
-
-
-def test_upsert_replaces_in_place() -> None:
-    out, action = docsurgery.upsert_directive_subsection(
-        CONST, "no-console-log", "### no-console-log\n\n- NEW body\n")
-    assert action == "replaced"
-    assert "- NEW body" in out and "- body B" not in out
-    assert out.count("### no-console-log") == 1
-
-
-def test_upsert_inserts_at_end_of_directives() -> None:
-    out, action = docsurgery.upsert_directive_subsection(
-        CONST, "brand-new", "### brand-new\n\n- fresh\n")
-    assert action == "inserted"
-    # lands inside Directives, before Evolution Log
-    assert out.index("### brand-new") < out.index("## Evolution Log")
-
-
-def test_append_evolution_log_after_last_entry() -> None:
-    out = docsurgery.append_evolution_log(CONST, "- 2026-06-10 — new entry")
-    assert out.rstrip().endswith("- 2026-06-10 — new entry")
-    assert "- 2026-01-01 — old" in out
+# Pure docsurgery transforms (strip/upsert/render/evolution-log) are unit-tested
+# in scripts/test-docsurgery.py; this file owns the pack-plan/apply integration.
 
 
 # --- pack-plan / pack-apply: add -------------------------------------------
@@ -394,7 +344,36 @@ def test_add_upserts_constitution_subsection() -> None:
         assert text.count("### no-console-log") == 1
         assert text.index("### no-console-log") < text.index("## Evolution Log")
         assert "### required-docs" in text  # existing entry untouched
+        # pack-group-aware: the subsection lands under a `## acme/widgets` header.
+        assert "## acme/widgets" in text
+        assert text.index("## acme/widgets") < text.index("### no-console-log")
         assert report["constitution_upserted"] == ["no-console-log"]
+
+
+def test_add_relocates_ungrouped_subsection_under_pack_header() -> None:
+    # A directive whose subsection already sits ungrouped (an earlier flat upsert,
+    # or a hand-curated doc) is moved under its `## <owner>/<pack>` header — not
+    # duplicated. This is the path that fixes a previously-ungrouped subsection on
+    # a re-pin.
+    with tempfile.TemporaryDirectory() as tmp:
+        src = _write_source_pack(Path(tmp) / "src")
+        ungrouped = (
+            "# CONSTITUTION\n\n## Directives\n\n"
+            "### no-console-log\n\n- stale flat body\n\n"
+            "### required-docs\n\n- body\n\n"
+            "## Evolution Log\n\n- 2026-01-01 — seed\n"
+        )
+        root = _make_repo(Path(tmp) / "repo", constitution=ungrouped)
+        packplan.fetch_ref = _stub_fetch(src, "acme/widgets", "a" * 40)
+        rc, report = _capture(lambda: packapply.cmd_pack_apply(
+            _ns(mode="add", root=str(root), target="gh:acme/widgets")))
+        assert rc == 0 and report["result"] == "applied", report
+        text = (root / "CONSTITUTION.md").read_text()
+        assert text.count("### no-console-log") == 1  # relocated, not duplicated
+        assert "stale flat body" not in text          # old copy gone
+        assert text.index("## acme/widgets") < text.index("### no-console-log")
+        # the unrelated ungrouped entry is left where it was
+        assert text.index("### required-docs") < text.index("## acme/widgets")
 
 
 def test_update_replaces_constitution_subsection_in_place() -> None:
@@ -415,6 +394,8 @@ def test_update_replaces_constitution_subsection_in_place() -> None:
         text = (root / "CONSTITUTION.md").read_text()
         assert text.count("### no-console-log") == 1  # replaced, not duplicated
         assert "REVISED body" in text
+        # still grouped under its pack header after the update
+        assert text.index("## acme/widgets") < text.index("### no-console-log")
         assert report["constitution_upserted"] == ["no-console-log"]
 
 

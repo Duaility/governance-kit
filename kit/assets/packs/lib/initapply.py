@@ -175,16 +175,19 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
         # seed_directive_conf, inside _install_directives.
         report["conf_seeded"] = conf_seeded
 
-        # CONSTITUTION.md: template + principles + spliced subsections.
-        subsections = []
+        # CONSTITUTION.md: template + principles + subsections grouped by pack.
+        groups: list[tuple[str, list[str]]] = []
         for pack in packs:
+            subs = []
             for did in sorted(pack.get("directives") or []):
                 sub = Path(pack["pack_dir"]) / "directives" / did / "constitution.md"
                 if sub.is_file():
-                    subsections.append(sub.read_text())
+                    subs.append(sub.read_text())
+            if subs:
+                groups.append((pack["id"], subs))
         template = (KIT_ASSETS / "CONSTITUTION.template.md").read_text()
         (root / "CONSTITUTION.md").write_text(
-            assemble_constitution(template, decisions.get("principles") or [], subsections))
+            assemble_constitution(template, decisions.get("principles") or [], groups))
         report["constitution"] = "written"
 
         # AGENTS.md stub (Case 2 — operator handles in-place insertion into an

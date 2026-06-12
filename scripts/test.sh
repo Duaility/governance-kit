@@ -84,6 +84,10 @@ run_layer "skill bootstrap: fetch-only shim + cache contract (Python)" \
     uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-bootstrap.py" \
     || failed_layers+=("test-bootstrap.py")
 
+run_layer "docsurgery: pure CONSTITUTION.md transforms (Python)" \
+    uv run --quiet --isolated python "$ROOT/scripts/test-docsurgery.py" \
+    || failed_layers+=("test-docsurgery.py")
+
 run_layer "pack-apply: plan/apply add/update/remove + doc surgery (Python)" \
     uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-packverb-apply.py" \
     || failed_layers+=("test-packverb-apply.py")
