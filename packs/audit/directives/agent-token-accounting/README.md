@@ -65,15 +65,15 @@ Cost-USD: 2.7932
 ## Row schema
 
 Cost rows live in the commit's per-issue receipt — `receipts/issue-<N>.md`,
-under the `## Accounting` → `### Costs` sub-table. The 12-column schema is
-unchanged from the old central `COSTS.md`; only the storage location moved.
+under the `## Accounting` → `### Costs` sub-table. v4 is 16 columns — the v3
+schema plus four absolute-cumulative columns (issue #229).
 The record is lossless by design — cache traffic is tracked in its own columns
 and the model-priced dollar cost lives next to the token counts so billing and
 cache-hit-rate analyses are recoverable without re-deriving rates after the
 fact:
 
 ```
-| cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | note |
+| cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | cum-input | cum-cache-create | cum-cache-read | cum-output | note |
 ```
 
 - `model` — runtime-reported model id (e.g. `claude-sonnet-4-5`); empty for
@@ -84,6 +84,13 @@ fact:
   **tracked but excluded from `new-work`**.
 - `output` — model output tokens.
 - `new-work = input + cache-create + output` (self-checking directive).
+- `cum-input` / `cum-cache-create` / `cum-cache-read` / `cum-output` (v4, issue
+  #229) — the session's **cumulative** counter for each column at this commit,
+  written blind from the transcript. These are the row's absolute transcript
+  coordinates and the accounting source of truth: a row claims a *position* on a
+  monotonic counter, not a *quantity*, so the delta columns above are derived
+  claims that the validator can prove (`delta == cum(n) − cum(n−1)`) once a
+  session's consecutive rows are co-visible. Each `cum-*` is ≥ its own delta.
 - `cost-usd` — the true dollar cost for this row, computed from `model` via
   the directive's `lib/rates.py` and **all four** token columns
   (`cache-read` included — that's the only place cache rent appears).
@@ -124,6 +131,10 @@ cache columns — the row directive still holds.
 
 Legacy rows are accepted by the parser:
 
+- **v3** (12 cols, pre-#229): the v4 row without the four `cum-*` columns.
+  Validated to the v3 rules and **excluded from cumulative reconciliation /
+  monotonicity** (those apply to v4 rows only), so no historical receipt needs
+  backfilling.
 - **v2** (10 cols, pre-2026-04-23): `cost-key agent session issue input
   cache-create cache-read output total note`. The old `total` semantic
   (= `input + cache_create + output`) already matches v3's `new-work`, so
@@ -132,7 +143,8 @@ Legacy rows are accepted by the parser:
 - **v1** (8 cols, pre-cache-split): `cost-key agent session issue input
   output total note`. Cache fields default to `0`; `model`/`cost-usd` empty.
 
-Both legacy shapes are validated under the same `new-work` directive.
+All legacy shapes are validated under the same `new-work` directive; only new
+rows carry the v4 cumulative columns.
 
 ## Installing
 
@@ -201,13 +213,18 @@ pre-commit ──► .governance/packs/<owner>/<repo>/directives/agent-token-acc
       │          3. Dispatch to runtimes/<runtime>.sh (sibling of the helper)
       │             — returns `<session_id> <cum_input> <cum_cache_create>
       │             <cum_cache_read> <cum_output> <model>`
-      │          4. Subtract prior rows for this session (via lib/ledger.py
-      │             `sum-by-session`, scanning the Accounting sections across
-      │             receipts) → per-commit delta for all four token fields
-      │          5. Compute Cost-Key, append the row to
-      │             `receipts/issue-<N>.md` under `## Accounting` → `### Costs`
-      │             (lib/ledger.py `append-row`, creating the stub receipt if
-      │             absent), `git add` the receipt
+      │          4. Read the session's prior cumulative from the git-dir
+      │             checkpoint (lib/ledger.py `checkpoint-get`, file
+      │             `governance-token-checkpoints.json`) and subtract from the
+      │             transcript total → per-commit delta for all four token
+      │             fields. NOT scanned from the receipts (issue #229): the
+      │             delta never depends on which sibling receipts are visible.
+      │          5. Compute Cost-Key, append the row (delta columns + the four
+      │             absolute `cum-*` coordinates) to `receipts/issue-<N>.md`
+      │             under `## Accounting` → `### Costs` (lib/ledger.py
+      │             `append-row`, creating the stub receipt if absent),
+      │             `git add` the receipt, then advance the checkpoint
+      │             (`checkpoint-set`) to this commit's cumulative
       │          6. Write handoff env file at
       │             `$(git rev-parse --git-path governance-pending.env)`
       │
@@ -347,13 +364,15 @@ All paths below are rooted at the installed directive folder
 | `runtimes/<runtime>.sh` | Transcript discovery + 4-field token sum + model extraction for one specific runtime. Prints 6 space-separated values. |
 | `defaults.conf` | Pack-owned default rate card — one `rate <model> <base> <cache_create> <cache_read> <output>` row per model (per-MTok USD), same format as the user overlay. `governance pack update` refreshes it. Sibling of `check.sh`; loaded by `lib/rates.py`. |
 | `lib/rates.py` | Per-MTok USD rate lookup (base / cache-create / cache-read / output) + `compute_cost_usd(model, i, cc, cr, o)`. Loads the rate card from `defaults.conf` and merges the per-repo overlay over it (one shared `rate`-row parser, overrides win). Tolerant model lookup: lowercase, strip date suffix, longest-prefix match with family fallbacks (`claude-opus`, `claude-sonnet`, `claude-haiku`, `gpt-5`). Unknown model → `None` → `rates cost` exits 3 → pre-commit blocks the commit (Cost-USD is mandatory). |
-| `lib/ledger.py` | Stdlib-only Python library that owns the row schema: `LedgerRow` dataclass, `parse`, `sum_by_session`, `append_row` (recomputes `new_work`, looks up `cost_usd` from `rates.py`, writes to the receipt's `## Accounting` → `### Costs` table, creating the stub if absent), `validate`, `find_by_cost_key`. Reads/writes rows across `receipts/*.md` via the shared `lib/receipt_io.py` section/table plumbing. Handles the v3 12-column schema and both legacy shapes (v2: 10 cols, v1: 8 cols). Keeping the schema-sensitive parsing in named-field Python (not `awk -F'\|'`) eliminates the whole class of column-index bugs we ate once already. |
+| `lib/ledger.py` | Stdlib-only Python library that owns the row schema: `LedgerRow` dataclass, `parse`, `append_row` (recomputes `new_work`, looks up `cost_usd` from `rates.py`, writes the delta + `cum-*` columns to the receipt's `## Accounting` → `### Costs` table, creating the stub if absent), `sum_by_session` (a query helper — **not** on the write path), `find_by_cost_key`, and the CLI dispatch. Handles the v4 16-column schema and all legacy shapes (v3: 12 cols, v2: 10 cols, v1: 8 cols). Keeping the schema-sensitive parsing in named-field Python (not `awk -F'\|'`) eliminates the whole class of column-index bugs we ate once already. |
+| `lib/validate.py` | Receipt validation, split out of `ledger.py` (issue #229): per-row shape (v3 + v4), global cost-key uniqueness, and `validate_dir` (which also runs the cumulative checks from `reconcile.py`). `ledger.py` lazy-imports it from the CLI so the dependency stays one-directional. |
+| `lib/reconcile.py` | The cumulative concerns the event-sourced ledger added: the per-session **checkpoint** (`checkpoint_get`/`checkpoint_set`, a git-dir JSON the write path reads to derive the delta) and **reconciliation** (`reconcile_sessions` — per-session monotonicity over `cum-*`, plus `delta == cum(n) − cum(n−1)` against the true co-visible predecessor; pairs whose predecessor isn't in the tree are skipped, not blocked). |
 | `lib/receipt_io.py` | Shared markdown section/table plumbing (locate the `## Accounting` section, read/insert the `### Costs` sub-table, create an accounting-only stub receipt) used by both `lib/ledger.py` and `lib/report.py`. |
 | `lib/report.py` | Aggregates the Accounting sections across `receipts/*.md` for per-issue and grand totals (cost-usd, tokens, and — for the steering directive — steering counts). Run: `python3 <dir>/report.py <receipts_dir> [--json]`. |
 | `lib/trailers.py` | Splits the commit body into trailer-only paragraphs (one per folded sub-commit on a squash-merge) and cross-checks each (block, receipt row) pair anchored by `Cost-Key` — `Token-Input == input + cache_create`, `Token-Output == output`, `Token-Total == Token-Input + Token-Output`, `Token-Total == row.new_work`, and `Cost-USD == row.cost_usd` (so the trailer headline and the row headline can't drift). Per-block parsing replaces an earlier global last-wins reading that silently skipped every sub-commit's row except the trailing one's. |
-| `hooks/pre-commit.sh` | Bash glue: runtime detection, issue parsing from parent argv, cost-key generation, handoff env-file write. Shells out to `lib/ledger.py` for `sum-by-session` (per-commit delta) and `append-row` (receipt-row write + `git add`) — **all before** git snapshots the tree. Wired into `.githooks/pre-commit` by the generator. |
+| `hooks/pre-commit.sh` | Bash glue: runtime detection, issue parsing from parent argv, cost-key generation, handoff env-file write. Shells out to `lib/ledger.py` for `checkpoint-get` (per-commit delta from the git-dir checkpoint, **not** the receipts), `append-row` (delta + `cum-*` write + `git add`), and `checkpoint-set` (advance the checkpoint) — **all before** git snapshots the tree. Wired into `.githooks/pre-commit` by the generator. |
 | `hooks/prepare-commit-msg.sh` | Sources the handoff env file (resolved via `git rev-parse --git-path governance-pending.env` so worktrees work) and stamps all eight trailers. Idempotent on amends (skips if an `Agent:` trailer is already present). Silent no-op if no handoff file exists (human commit, or `--no-verify`). Does not touch the receipt. |
-| `check.sh` (commit-msg + CI) | Walks `base..HEAD`. Calls `lib/ledger.py validate` for repo-wide shape checks; for each commit with an `Agent:` trailer calls `lib/trailers.py validate-blocks` to walk every trailer block in the body, require the full per-block trailer set, check `Total = Input + Output`, require exactly one matching `Cost-Key` row across `receipts/*.md` per block, and verify each row's numbers agree with its block's trailers. When `base..HEAD` is empty (typically on `main` itself post-squash-merge) Mode B falls back to validating HEAD's trailer blocks on their own — squash-merge commits land on `main` via GitHub's server and bypass the local commit-msg hook, so without the HEAD-fallback their per-Cost-Key blocks would go unchecked. Recognises one body-level waiver: `governance: allow-agent-token-accounting unsupported-runtime: <reason>` (any commit, non-empty reason required), which bypasses the trailer + row requirement for that commit. No bootstrap accommodation lives in `check.sh` — `governance init`'s Step 8 dry-run + inline-fix path makes the install commit pass on the first try. Runs independently of any receipt's presence so the record stays clean even after branch commits are squashed away. |
+| `check.sh` (commit-msg + CI) | Walks `base..HEAD`. Calls `lib/ledger.py validate-dir` for repo-wide shape checks, global cost-key uniqueness, **and** the cumulative reconciliation / monotonicity (same path in Mode A and Mode B — issue #229); for each commit with an `Agent:` trailer calls `lib/trailers.py validate-blocks` to walk every trailer block in the body, require the full per-block trailer set, check `Total = Input + Output`, require exactly one matching `Cost-Key` row across `receipts/*.md` per block, and verify each row's numbers agree with its block's trailers. When `base..HEAD` is empty (typically on `main` itself post-squash-merge) Mode B falls back to validating HEAD's trailer blocks on their own — squash-merge commits land on `main` via GitHub's server and bypass the local commit-msg hook, so without the HEAD-fallback their per-Cost-Key blocks would go unchecked. Recognises one body-level waiver: `governance: allow-agent-token-accounting unsupported-runtime: <reason>` (any commit, non-empty reason required), which bypasses the trailer + row requirement for that commit. No bootstrap accommodation lives in `check.sh` — `governance init`'s Step 8 dry-run + inline-fix path makes the install commit pass on the first try. Runs independently of any receipt's presence so the record stays clean even after branch commits are squashed away. |
 
 ## What it doesn't try to do
 

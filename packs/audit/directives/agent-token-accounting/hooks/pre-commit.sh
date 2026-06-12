@@ -190,11 +190,19 @@ done
 # the slugless issue-N.md, which the agent later fleshes out (or renames).
 RECEIPT="$(python3 "$LIB/ledger.py" resolve-receipt "$RECEIPTS_DIR" "$ISSUE")"
 
-# ── Compute per-commit delta from prev rows for this session ──
-# Summed across every receipt's Costs sub-table so a session that spans
-# receipts still computes the right delta.
+# ── Compute per-commit delta from a per-session checkpoint ────
+# Issue #229: the write path reads the session's last-written cumulative
+# coordinate from a git-dir checkpoint (not from the receipts), so a delta
+# never depends on which sibling receipts are visible in this branch's tree —
+# the cross-branch double-count is structurally gone. The cumulative columns
+# written below are the accounting truth; this delta is a derived claim for the
+# trailer / display, proven later by reconciliation once rows are co-visible.
+# A missing/stale checkpoint degrades the claim (caught by reconciliation),
+# never blocks. The checkpoint lives in the git dir so it survives branch
+# switches within a worktree (the canonical one-issue-one-branch workflow).
+CHECKPOINT="$(git rev-parse --git-path governance-token-checkpoints.json)"
 read -r PREV_INPUT PREV_CACHE_CREATE PREV_CACHE_READ PREV_OUTPUT < <(
-    python3 "$LIB/ledger.py" sum-by-session "$RECEIPTS_DIR" "$SESSION_ID"
+    python3 "$LIB/ledger.py" checkpoint-get "$CHECKPOINT" "$SESSION_ID"
 )
 
 TOKEN_INPUT=$(( CUM_INPUT         - PREV_INPUT         ))
@@ -258,8 +266,16 @@ python3 "$LIB/ledger.py" append-row \
     "$RECEIPT" \
     "$COST_KEY" "$AGENT_NAME" "$SESSION_ID" "$ISSUE" "$MODEL" \
     "$TOKEN_INPUT" "$TOKEN_CACHE_CREATE" "$TOKEN_CACHE_READ" "$TOKEN_OUTPUT" \
+    "$CUM_INPUT" "$CUM_CACHE_CREATE" "$CUM_CACHE_READ" "$CUM_OUTPUT" \
     "$SUBJECT"
 git add "$RECEIPT"
+
+# ── Advance the per-session checkpoint to this commit's cumulative ──
+# Written after the row lands so a retry (transcript cumulative unchanged) sees
+# the checkpoint already at cum → derives a zero delta, exactly as the old
+# sum-by-session path did once its own row was staged.
+python3 "$LIB/ledger.py" checkpoint-set "$CHECKPOINT" "$SESSION_ID" \
+    "$CUM_INPUT" "$CUM_CACHE_CREATE" "$CUM_CACHE_READ" "$CUM_OUTPUT"
 
 # ── Hand off to prepare-commit-msg via env file ───────────────
 cat > "$HANDOFF" <<EOF

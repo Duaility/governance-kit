@@ -108,19 +108,17 @@ ignores them.
 ## Row schema
 
 Steering rows live in the commit's per-issue receipt — `receipts/issue-<N>.md`,
-under the `## Accounting` → `### Steering` sub-table. The 7-column schema is
-unchanged from the old central `STEERING.md`; only the storage location moved:
+under the `## Accounting` → `### Steering` sub-table. v2 is 9 columns (issue
+#229 added `ordinal` + `timestamp`):
 
 ```
-| steer-key | session | issue | type | tier | user-reason | commit |
+| steer-key | session | issue | type | tier | user-reason | commit | ordinal | timestamp |
 ```
 
 - `steer-key` — `steer-<session-short>-<epoch>-<idx>`. Globally unique across
   all `receipts/*.md`, monotonically non-decreasing in `<epoch>`. Treat it as
   an opaque join token — do not parse it.
-- `session` — runtime session id (e.g. Claude Code's `sessionId`). Used to
-  scope the dedup boundary so a single session that produces multiple commits
-  doesn't double-record events.
+- `session` — runtime session id (e.g. Claude Code's `sessionId`).
 - `issue` — `#N` from the commit subject's `(#N)` anchor. Required: every
   accounted event must resolve to an issue (it's the row's home receipt), and
   the hook refuses to write events it can't attribute — there are no issue-less
@@ -136,6 +134,17 @@ unchanged from the old central `STEERING.md`; only the storage location moved:
   fallback). Empty for `interrupt` rows on Claude Code today, since the
   runtime doesn't surface a typed interrupt reason. Truncated to 240 chars.
 - `commit` — short subject of the commit that recorded this row.
+- `ordinal` (v2, issue #229) — the event's 1-based position in the session's
+  deterministic event stream. With `session` it forms the event's identity:
+  dedup appends a `(session, ordinal)` pair once, ever (an identity test, not
+  the old positional "skip the first N"), per-session ordinals are strictly
+  increasing, and the same `(session, ordinal)` in two receipts — a cross-branch
+  re-append — is flagged.
+- `timestamp` (v2) — the ISO timestamp the extractor already emits for the
+  event; recorded rather than dropped on write.
+
+Legacy v1 rows (7 columns, no `ordinal`/`timestamp`) keep parsing and are
+validated to the v1 rules; only new rows carry the v2 columns.
 
 ## Detection model
 
@@ -291,17 +300,20 @@ pre-commit ──► .governance/packs/<owner>/<repo>/directives/agent-steering-
       │             lib/argv.py on macOS — `ps -o args=` mangles UTF-8 under
       │             LC_ALL=C, see issue #140).
       │          4. python3 lib/extract.py <transcript> --cache <path>
-      │             — emits TSV: ts, type, tier, user-reason.
+      │             — emits TSV: ordinal, ts, type, tier, user-reason.
       │             Tier-2 always runs; classifier vs lexical depends on
       │             whether the runtime CLI is on $PATH.
-      │          5. Dedup: count rows already recorded for this session across
-      │             receipts/*.md; skip that prefix of the extractor's output.
+      │          5. Identity dedup (issue #229): read the (session) ordinals
+      │             already recorded across receipts/*.md (lib/ledger.py
+      │             existing-ordinals); keep only events whose ordinal isn't
+      │             already present — an identity test, not "skip the first N".
       │          6. Resolve the issue from the (#N) anchor; refuse to write
       │             events that can't be attributed to an issue.
-      │          7. Append remaining rows via lib/ledger.py append-row to
+      │          7. Append the new rows via lib/ledger.py append-row to
       │             receipts/issue-<N>.md under `## Accounting` → `### Steering`
       │             (creating the stub receipt if absent), one steer-key per
-      │             row: steer-<session-short>-<epoch>-<idx>.
+      │             row: steer-<session-short>-<epoch>-<idx>, each carrying its
+      │             ordinal + timestamp.
       │          8. git add the receipt (so rows land in this commit's tree).
       │          9. Write handoff env file at
       │             $(git rev-parse --git-path governance-pending-steering.env).
@@ -338,14 +350,17 @@ row was stamped.
 
 ## Dedup boundary
 
-The extractor returns *every* steering event in the session JSONL. The hook
-records only the *new* events: the count of rows already recorded for this
-session across `receipts/*.md` is the prefix to skip. Append-only ordering of
-the recorded rows plus the chronological order of the JSONL makes this exact
-under normal operation. The append-only invariant is itself enforced by
-`check.sh`'s row validator (rows must be monotonically non-decreasing in their
-embedded epoch), so a tampered record fails the directive before the hook
-trusts the dedup count.
+The extractor returns *every* steering event in the session JSONL, each tagged
+with a stable per-session `ordinal` (its 1-based position in the deterministic
+event stream). The hook records only events whose `(session, ordinal)` isn't
+already present across `receipts/*.md` — an identity test, not the old
+positional "skip the first N recorded rows" (issue #229). The positional scheme
+re-appended and misattributed events across branches in the same session,
+because "N already recorded" counted only the rows visible in the current
+branch's tree; the ordinal makes dedup branch-independent and makes a
+cross-branch duplicate *detectable* — the same `(session, ordinal)` landing in
+two receipts is flagged by `check.sh`'s `validate-dir`, alongside the
+append-only epoch-ordering and per-session ordinal-monotonicity checks.
 
 ## Runtime support
 
