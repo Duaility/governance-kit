@@ -22,6 +22,14 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [audit/v0.3.0] - 2026-06-12
+
+### Changed
+- collapse per-directive config to defaults.conf + overlay (#210) (#211)
+- canonicalize conf-knob default docs and fix frozen-section OOM (#208) (#209)
+- move agent-token-accounting rate card into a pack-owned defaults.conf (#206) (#207)
+- move cost + steering accounting into per-issue receipts (#203)
+
 ## [commits/v0.2.1] - 2026-06-12
 
 ### Changed
