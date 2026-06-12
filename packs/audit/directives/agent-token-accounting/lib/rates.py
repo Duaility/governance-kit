@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
-"""Model → per-MTok USD rate table for cost-usd computation for receipt Costs rows.
+"""Model → per-MTok USD rate lookup for cost-usd computation for receipt Costs rows.
 
 Rates are per-million-tokens, split by usage mode:
 
     (base_input, cache_create_5m, cache_read, output)
 
-Source: Anthropic pricing table (Opus 4.x / Sonnet 3.7-4.6 / Haiku 4.x) and
-OpenAI API pricing table (GPT-5.4 family) as of 2026-04-23.
+The rate card itself is **data, not code**: it ships as the pack-owned
+`defaults.conf` next to this directive (a sibling of `check.sh`), one
+`rate <model> <base> <cache_create> <cache_read> <output>` row per model —
+the same row format as the per-repo override file. `governance pack update`
+refreshes `defaults.conf` like every other list-valued directive's defaults,
+so a rate-card change ships as a data refresh rather than a code patch. This
+module loads that file; it carries no hardcoded table.
 Cache writes assume the **5-minute** TTL for Anthropic models, which is
 Claude Code's default. OpenAI models do not charge a separate cache-write
 rate in this ledger, so their cache-create rate matches base input.
@@ -18,13 +23,13 @@ Model lookup is tolerant:
     still resolves to `claude-sonnet-4-5`)
 
 Family-prefix fallbacks (`claude-opus`, `claude-sonnet`, `claude-haiku`,
-`gpt-5`) are seeded from the current production rate card so that a new
-minor release between directive updates — e.g. `gpt-5.5` or `claude-opus-4-8` —
-resolves to the nearest family schedule rather than falling through to an
-empty `cost-usd` cell. Families shift slowly; version numbers churn fast,
-so an estimated-but-present cost beats silently-zero. When an older release
-has its own pricing (Opus 4.0/4.1), keep a version-specific key alongside
-the family key — longest-prefix matching picks the version first.
+`gpt-5`) are seeded in `defaults.conf` from the current production rate card so
+that a new minor release between directive updates — e.g. `gpt-5.5` or
+`claude-opus-4-8` — resolves to the nearest family schedule rather than falling
+through to an empty `cost-usd` cell. Families shift slowly; version numbers
+churn fast, so an estimated-but-present cost beats silently-zero. When an older
+release has its own pricing (Opus 4.0/4.1), keep a version-specific row
+alongside the family row — longest-prefix matching picks the version first.
 
 Unknown model → `lookup()` returns None. The `cost` CLI exits non-zero
 and emits nothing on stdout, so the pre-commit caller can distinguish
@@ -32,16 +37,18 @@ a real failure from a "cost=0.0000" priced row. Cost-USD is mandatory
 on new commits, so an unknown model blocks the commit — the operator
 adds a `rate <model> ...` row to `.governance/conf/governance-kit/audit/agent-token-accounting.conf`
 (the user-owned override file, which survives `governance pack update`),
-or for a built-in default a family-prefix row to `RATES` here, or waives
-via `SKIP_GOVERNANCE=1` for a hot-fix. The directive script's ledger
+or for a built-in default a family-prefix row to `defaults.conf` here, or
+waives via `SKIP_GOVERNANCE=1` for a hot-fix. The directive script's ledger
 validator still tolerates legacy rows with an empty `cost-usd` cell
 (grandfathered — pre-mandate history).
 
-Per-repo price overrides: `load_overrides()` reads
-`.governance/conf/governance-kit/audit/agent-token-accounting.conf` and MERGES its `rate` rows over
-`RATES` (user rows win), so a repo with negotiated pricing or a brand-new model
-never has to patch this pack-owned file. A malformed override row raises
-`ValueError`; the CLI turns that into a non-zero exit that blocks the commit.
+Two rate tables, one format, merged at lookup: `load_defaults()` reads the
+pack-owned `defaults.conf`; `load_overrides()` reads
+`.governance/conf/governance-kit/audit/agent-token-accounting.conf` and MERGES its
+`rate` rows over the defaults (user rows win), so a repo with negotiated pricing
+or a brand-new model never has to touch the pack-owned file. A malformed row in
+either file raises `ValueError`; the CLI turns that into a non-zero exit that
+blocks the commit.
 
 This module is stdlib-only.
 
@@ -62,51 +69,23 @@ import re
 import sys
 
 
-# (base_input, cache_create_5m, cache_read, output) per MTok, USD
-RATES: dict[str, tuple[float, float, float, float]] = {
-    # ── Claude family fallbacks ────────────────────────────────────────
-    # Seeded from the current (4-6 / 4-7) production rate card. A new
-    # minor release lands on these rates until a version-specific row
-    # is added. Kept deliberately coarse — 5 chars shorter than any
-    # version key so longest-prefix matching picks a specific version
-    # whenever one exists.
-    "claude-opus":   (5.00, 6.25, 0.50, 25.00),
-    "claude-sonnet": (3.00, 3.75, 0.30, 15.00),
-    "claude-haiku":  (1.00, 1.25, 0.10,  5.00),
-    "claude-fable":  (10.00, 12.50, 1.00, 50.00),
-
-    # ── Claude Fable — version-specific rows ───────────────────────────
-    "claude-fable-5": (10.00, 12.50, 1.00, 50.00),
-
-    # ── Claude Opus — version-specific rows ────────────────────────────
-    "claude-opus-4-7": (5.00, 6.25, 0.50, 25.00),
-    "claude-opus-4-6": (5.00, 6.25, 0.50, 25.00),
-    "claude-opus-4-5": (5.00, 6.25, 0.50, 25.00),
-    "claude-opus-4-1": (15.00, 18.75, 1.50, 75.00),
-    "claude-opus-4-0": (15.00, 18.75, 1.50, 75.00),
-
-    # ── Claude Sonnet — version-specific rows ──────────────────────────
-    "claude-sonnet-4-6": (3.00, 3.75, 0.30, 15.00),
-    "claude-sonnet-4-5": (3.00, 3.75, 0.30, 15.00),
-    "claude-sonnet-4-0": (3.00, 3.75, 0.30, 15.00),
-    "claude-sonnet-3-7": (3.00, 3.75, 0.30, 15.00),
-
-    # ── OpenAI GPT-5 family ────────────────────────────────────────────
-    # `gpt-5` acts as the family fallback for `gpt-5.5`, `gpt-5.6`, etc.
-    # Specific variants override — `gpt-5.4-mini`/`-nano` win by length.
-    "gpt-5":        (2.50, 2.50, 0.25, 15.00),
-    "gpt-5.4":      (2.50, 2.50, 0.25, 15.00),
-    "gpt-5.4-mini": (0.75, 0.75, 0.075, 4.50),
-    "gpt-5.4-nano": (0.20, 0.20, 0.02, 1.25),
-}
-
 _DATE_SUFFIX_RE = re.compile(r"-\d{8}$")
+
+# Rate tuples are (base_input, cache_create_5m, cache_read, output) per MTok, USD.
+# The pack-owned default rate card ships as `defaults.conf` at the directive
+# root (sibling of check.sh), in the same `rate <model> ...` row format as the
+# user overlay. Resolved from this file's installed location
+# (`.../directives/<id>/lib/rates.py`) so it travels with the directive folder.
+_DEFAULTS_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),  # .../directives/<id>
+    "defaults.conf",
+)
 
 # User-owned per-repo price overrides live here, relative to the repo root.
 # Each row is `rate <model> <base_input> <cache_create> <cache_read> <output>`
-# (per-MTok USD). Overrides MERGE OVER the built-in RATES — a user adds a new
-# model or corrects a price without patching this pack-owned file (which a
-# `governance pack update` would clobber). See config.conf for the template.
+# (per-MTok USD). Overrides MERGE OVER the pack-owned defaults — a user adds a
+# new model or corrects a price without editing defaults.conf (which a
+# `governance pack update` refreshes). See config.conf for the template.
 def _conf_rel() -> str:
     """Pack-qualified overlay path relative to the repo root:
     `.governance/conf/<owner>/<pack>/agent-token-accounting.conf`. Derived from
@@ -148,15 +127,14 @@ def _find_conf() -> str | None:
         d = parent
 
 
-def load_overrides() -> dict[str, tuple[float, float, float, float]]:
-    """Parse the user conf's `rate` rows into a model → rates map. Empty when no
-    conf exists. Raises ValueError on a malformed row — a bad price table must
-    fail loudly, never silently misprice a commit."""
+def _parse_rate_rows(path: str) -> dict[str, tuple[float, float, float, float]]:
+    """Parse a `rate <model> <base> <cache_create> <cache_read> <output>` file
+    into a model → rates map. Blank lines and `#` comments are ignored. Raises
+    ValueError on any malformed row — a bad price table must fail loudly, never
+    silently misprice a commit. Shared by the pack-owned defaults and the user
+    overlay so the two files stay byte-for-byte the same format."""
     out: dict[str, tuple[float, float, float, float]] = {}
-    conf = _find_conf()
-    if conf is None:
-        return out
-    with open(conf, encoding="utf-8") as fh:
+    with open(path, encoding="utf-8") as fh:
         for lineno, raw in enumerate(fh, 1):
             line = raw.split("#", 1)[0].strip()
             if not line:
@@ -164,12 +142,12 @@ def load_overrides() -> dict[str, tuple[float, float, float, float]]:
             parts = line.split()
             if parts[0] != "rate":
                 raise ValueError(
-                    f"{conf}:{lineno}: unrecognized line {line!r} — override rows "
+                    f"{path}:{lineno}: unrecognized line {line!r} — rate rows "
                     f"must start with `rate` (or be a `#` comment)"
                 )
             if len(parts) != 6:
                 raise ValueError(
-                    f"{conf}:{lineno}: malformed rate row — expected "
+                    f"{path}:{lineno}: malformed rate row — expected "
                     f"`rate <model> <base_input> <cache_create> <cache_read> <output>`"
                 )
             model = parts[1].lower().strip()
@@ -177,10 +155,33 @@ def load_overrides() -> dict[str, tuple[float, float, float, float]]:
                 nums = tuple(float(x) for x in parts[2:])
             except ValueError:
                 raise ValueError(
-                    f"{conf}:{lineno}: rate row for {model!r} has a non-numeric price"
+                    f"{path}:{lineno}: rate row for {model!r} has a non-numeric price"
                 ) from None
             out[model] = nums  # type: ignore[assignment]
     return out
+
+
+def load_defaults() -> dict[str, tuple[float, float, float, float]]:
+    """The pack-owned default rate card from `defaults.conf`. Raises ValueError
+    if the file is missing (a broken install — it ships with the directive) or
+    holds a malformed row, so pricing fails loudly rather than going silently
+    empty and blocking every commit with an unexplained 'unpriced model'."""
+    if not os.path.isfile(_DEFAULTS_PATH):
+        raise ValueError(
+            f"{_DEFAULTS_PATH}: pack-owned rate card not found — the "
+            f"agent-token-accounting directive is installed without its "
+            f"defaults.conf. Reinstall or `governance pack update`."
+        )
+    return _parse_rate_rows(_DEFAULTS_PATH)
+
+
+def load_overrides() -> dict[str, tuple[float, float, float, float]]:
+    """Per-repo price overrides from the user overlay conf. Empty when no conf
+    exists; a malformed row raises ValueError (same parser as the defaults)."""
+    conf = _find_conf()
+    if conf is None:
+        return {}
+    return _parse_rate_rows(conf)
 
 
 def _prefix_match(norm: str, table: dict[str, tuple[float, float, float, float]],
@@ -196,25 +197,26 @@ def _prefix_match(norm: str, table: dict[str, tuple[float, float, float, float]]
 
 def lookup(model: str) -> tuple[float, float, float, float] | None:
     """Return `(base, cache_create, cache_read, output)` per-MTok rates, or
-    None if the model isn't priced. User overrides merge over the built-in
-    RATES: an exact override wins outright, and on a prefix match the override
-    wins ties (built-ins still win with a strictly longer, more-specific key)."""
+    None if the model isn't priced. User overrides merge over the pack-owned
+    defaults: an exact override wins outright, and on a prefix match the override
+    wins ties (defaults still win with a strictly longer, more-specific key)."""
     if not model:
         return None
     norm = normalize(model)
+    defaults = load_defaults()
     overrides = load_overrides()
-    # Exact match — override beats built-in.
+    # Exact match — override beats default.
     if norm in overrides:
         return overrides[norm]
-    if norm in RATES:
-        return RATES[norm]
+    if norm in defaults:
+        return defaults[norm]
     # Longest-prefix match across both tables — `claude-sonnet-4-5-custom-suffix`
     # finds the 4-5 row; `gpt-5.5` finds the `gpt-5` family row. Overrides are
     # searched first so an equal-length override prefix wins the tie.
     best_key, best_val = _prefix_match(norm, overrides, "")
-    best_key, rates_val = _prefix_match(norm, RATES, best_key)
-    if rates_val is not None:
-        best_val = rates_val
+    best_key, def_val = _prefix_match(norm, defaults, best_key)
+    if def_val is not None:
+        best_val = def_val
     return best_val
 
 
@@ -268,8 +270,9 @@ def _cmd_cost(argv: list[str]) -> int:
         # from a priced row that happens to total $0. Stderr carries the
         # human-readable reason; stdout is empty.
         print(
-            f"rates cost: model {model!r} has no entry in RATES and no "
-            f"family-prefix fallback matches; add an entry to lib/rates.py",
+            f"rates cost: model {model!r} has no entry in the rate card "
+            f"(defaults.conf) and no family-prefix fallback matches; add a "
+            f"`rate {model} ...` row to defaults.conf or the per-repo overlay",
             file=sys.stderr,
         )
         return 3

@@ -307,3 +307,4 @@ Schema:
 | claude-code-b4be6ed4-c1e-1781243602 | claude-code | b4be6ed4-c1ed-46b7-842c-dd9c875cd0dc | #200 | claude-opus-4-8 | 34854 | 907396 | 70678290 | 600849 | 1543099 | 56.2059 | refactor(dogfood): rebuild on honest pins, drop hand-vendoring (#200) -m Replace |
 | claude-code-aba66c0f-88a-1781248196 | claude-code | aba66c0f-88a6-470c-8a99-ec5ad21a60f6 | #201 | claude-opus-4-8 | 100373 | 1322208 | 88639413 | 647760 | 2070341 | 69.2794 |  |
 | claude-code-aba66c0f-88a-1781248328 | claude-code | aba66c0f-88a6-470c-8a99-ec5ad21a60f6 | #201 | claude-opus-4-8 | 10 | 15120 | 2230621 | 5250 | 20380 | 1.3411 |  |
+| claude-code-4a27ce83-8ab-1781254661 | claude-code | 4a27ce83-8ab8-440c-ad11-124f28708c87 | #206 | claude-opus-4-8 | 2776 | 13031 | 16008 | 22 | 15829 | 0.1039 | refactor(audit): move agent-token-accounting rate card into defaults.conf (#206) |
