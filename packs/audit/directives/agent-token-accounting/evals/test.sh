@@ -29,12 +29,20 @@ receipt_for() {  # receipt_for <issue e.g. #10>
 
 # claude-sonnet-4-5 RATES: input $3.00, cache-create $3.75, cache-read $0.30, output $15.00 (per M tok).
 append_priced_row() {
-    # append_priced_row <cost-key> <issue> <input> <cache-create> <cache-read> <output>
+    # append_priced_row <cost-key> <issue> <input> <cache-create> <cache-read> <output> \
+    #                   [cum-in cum-cc cum-cr cum-out] [session]
+    # v4 (issue #229): each row carries the four cumulative coordinates. The
+    # trailer-cross-check cases don't exercise reconciliation, so by default a
+    # row stands alone in its own synthetic session (cum == delta → a clean
+    # first-of-session row). The reconciliation cases below pass cumulatives and
+    # a shared session explicitly.
     local key="$1" issue="$2" inp="$3" cc="$4" cr="$5" out="$6"
+    local ci="${7:-$inp}" ccc="${8:-$cc}" ccr="${9:-$cr}" co="${10:-$out}"
+    local ses="${11:-sess-$key}"
     mkdir -p receipts
     python3 "$LEDGER_PY" append-row "$(receipt_for "$issue")" \
-        "$key" claude-code "$SESSION_ID" "$issue" "$MODEL" \
-        "$inp" "$cc" "$cr" "$out" ""
+        "$key" claude-code "$ses" "$issue" "$MODEL" \
+        "$inp" "$cc" "$cr" "$out" "$ci" "$ccc" "$ccr" "$co" ""
 }
 
 # Computes cost-usd to 4dp the same way rates.compute_cost_usd does.
@@ -302,5 +310,121 @@ else
     printf '    ✓ %s malformed conf blocks pricing\n' "$EVAL_ID"
 fi
 rm -f $EVAL_CONF
+
+# append_cum_row <cost-key> <issue> <session> <input> <cc> <cr> <out> <cum-in> <cum-cc> <cum-cr> <cum-out>
+# Direct v4 append with an explicit shared session + cumulative coordinates,
+# for the reconciliation fixtures (issue #229).
+append_cum_row() {
+    local key="$1" issue="$2" ses="$3" inp="$4" cc="$5" cr="$6" out="$7"
+    local ci="$8" ccc="$9" ccr="${10}" co="${11}"
+    mkdir -p receipts
+    python3 "$LEDGER_PY" append-row "$(receipt_for "$issue")" \
+        "$key" claude-code "$ses" "$issue" "$MODEL" \
+        "$inp" "$cc" "$cr" "$out" "$ci" "$ccc" "$ccr" "$co" ""
+}
+
+# ──────────────────────────────────────────────────────────────
+# Case 16 — the two-branch blocker scenario (issue #229). Same session spans
+# branch fix-310 (C1, C3) and branch fix-312 (C2). On branch fix-310 the old
+# sum-by-session write path couldn't see #312's row, so C3's delta was inflated
+# to cum(C3) − cum(C1) = 103,400 instead of the true cum(C3) − cum(C2) = 47,600.
+# Once the trees merge, all three rows are co-visible and reconciliation must
+# flag *exactly* the inflated row — pre-fix this double-count was structurally
+# undetectable (every check was internal consistency).
+# ──────────────────────────────────────────────────────────────
+reset_receipts
+eval_assertions=$(( eval_assertions + 1 ))
+RSES="recon-session-229"
+append_cum_row recon-c1 "#310" "$RSES" 96900  0 0 0  96900  0 0 0   # cum 96,900
+append_cum_row recon-c2 "#312" "$RSES" 55800  0 0 0  152700 0 0 0   # cum 152,700, Δ 55,800
+append_cum_row recon-c3 "#310" "$RSES" 103400 0 0 0  200300 0 0 0   # cum 200,300, Δ INFLATED
+RECON_OUT="$(python3 "$LEDGER_PY" validate-dir receipts 2>&1)"; RECON_RC=$?
+if [[ $RECON_RC -ne 0 ]] \
+    && printf '%s' "$RECON_OUT" | grep -q "cost row 'recon-c3'" \
+    && printf '%s' "$RECON_OUT" | grep -qi "double-count" \
+    && ! printf '%s' "$RECON_OUT" | grep -qE "cost row 'recon-c1'|cost row 'recon-c2'"; then
+    printf '    ✓ %s — reconciliation flags exactly the inflated C3 row post-merge\n' "$EVAL_ID"
+else
+    printf '    ✗ %s — reconciliation did not flag exactly C3 (rc=%s)\n%s\n' "$EVAL_ID" "$RECON_RC" "$RECON_OUT" >&2
+    eval_failures=$(( eval_failures + 1 ))
+fi
+
+# ──────────────────────────────────────────────────────────────
+# Case 17 — same merged tree, but C3 carries the *correct* delta (47,600 =
+# cum(C3) − cum(C2)). Reconciliation must pass: the cumulative coordinates
+# reconcile against the true predecessor C2.
+# ──────────────────────────────────────────────────────────────
+reset_receipts
+eval_assertions=$(( eval_assertions + 1 ))
+append_cum_row recon-c1 "#310" "$RSES" 96900 0 0 0  96900  0 0 0
+append_cum_row recon-c2 "#312" "$RSES" 55800 0 0 0  152700 0 0 0
+append_cum_row recon-c3 "#310" "$RSES" 47600 0 0 0  200300 0 0 0   # cum 200,300, Δ correct
+if python3 "$LEDGER_PY" validate-dir receipts >/dev/null 2>&1; then
+    printf '    ✓ %s — reconciliation passes when the delta == cum(n) − cum(n−1)\n' "$EVAL_ID"
+else
+    printf '    ✗ %s — reconciliation false-flagged a correct delta\n' "$EVAL_ID" >&2
+    eval_failures=$(( eval_failures + 1 ))
+fi
+
+# ──────────────────────────────────────────────────────────────
+# Case 18 — at commit time on branch fix-310 (C2 not yet co-visible), the
+# *correct* C3 delta must NOT false-flag: its claimed predecessor (cum 152,700)
+# isn't in the tree, so the pair is undecidable and skipped. The merged tree
+# (Case 17) is where it gets proven.
+# ──────────────────────────────────────────────────────────────
+reset_receipts
+eval_assertions=$(( eval_assertions + 1 ))
+append_cum_row recon-c1 "#310" "$RSES" 96900 0 0 0  96900  0 0 0
+append_cum_row recon-c3 "#310" "$RSES" 47600 0 0 0  200300 0 0 0   # C2 absent on this branch
+if python3 "$LEDGER_PY" validate-dir receipts >/dev/null 2>&1; then
+    printf '    ✓ %s — branch-local correct delta is skipped (predecessor absent), not flagged\n' "$EVAL_ID"
+else
+    printf '    ✗ %s — branch-local correct delta false-flagged with predecessor absent\n' "$EVAL_ID" >&2
+    eval_failures=$(( eval_failures + 1 ))
+fi
+
+# ──────────────────────────────────────────────────────────────
+# Case 19 — per-session monotonicity: a cumulative counter that goes backwards
+# is corruption/tamper the delta-only scheme could not express. validate-dir
+# must flag it.
+# ──────────────────────────────────────────────────────────────
+reset_receipts
+eval_assertions=$(( eval_assertions + 1 ))
+append_cum_row mono-1 "#40" "mono-session" 100 0 0 0  100 0 0 0    # cum_input 100
+append_cum_row mono-2 "#40" "mono-session" 0   0 0 0  80  0 0 100  # cum_input 80 (< 100) at higher total
+MONO_OUT="$(python3 "$LEDGER_PY" validate-dir receipts 2>&1)"; MONO_RC=$?
+if [[ $MONO_RC -ne 0 ]] && printf '%s' "$MONO_OUT" | grep -qi "monotonic"; then
+    printf '    ✓ %s — backwards cumulative counter flagged (monotonicity/tamper)\n' "$EVAL_ID"
+else
+    printf '    ✗ %s — monotonicity check missed a backwards cumulative (rc=%s)\n%s\n' "$EVAL_ID" "$MONO_RC" "$MONO_OUT" >&2
+    eval_failures=$(( eval_failures + 1 ))
+fi
+
+# ──────────────────────────────────────────────────────────────
+# Case 20 — legacy v3 (12-column) rows still parse and validate to the v3 rules,
+# and are excluded from cumulative reconciliation (issue #229 backward-compat).
+# ──────────────────────────────────────────────────────────────
+reset_receipts
+eval_assertions=$(( eval_assertions + 1 ))
+mkdir -p receipts
+cat > receipts/issue-50.md <<'EOF'
+# Receipt
+
+## Accounting
+
+### Costs
+
+| cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | note |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ck-legacy-1 | claude-code | legacy-sess | #50 | claude-sonnet-4-5 | 1000 | 0 | 0 | 500 | 1500 | 0.0105 | legacy v3 row |
+| ck-legacy-2 | claude-code | legacy-sess | #50 | claude-sonnet-4-5 | 2000 | 0 | 0 | 100 | 2100 | 0.0075 | legacy v3 row |
+EOF
+if python3 "$LEDGER_PY" validate-dir receipts >/dev/null 2>&1; then
+    printf '    ✓ %s — legacy v3 rows parse, validate, and skip reconciliation\n' "$EVAL_ID"
+else
+    printf '    ✗ %s — legacy v3 rows broke under the v4 validator\n' "$EVAL_ID" >&2
+    eval_failures=$(( eval_failures + 1 ))
+fi
+reset_receipts
 
 eval_done

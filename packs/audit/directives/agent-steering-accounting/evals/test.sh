@@ -396,4 +396,75 @@ else
 fi
 rm -f $EVAL_CONF
 
+# ──────────────────────────────────────────────────────────────
+# v2 schema (issue #229): ordinal + timestamp columns, identity dedup.
+# These exercise the ledger CLI / validate-dir directly for clean isolation.
+# ──────────────────────────────────────────────────────────────
+STEER_LEDGER=".governance/packs/governance-kit/audit/directives/$EVAL_ID/lib/ledger.py"
+SS2="sess229abcdef"
+add_v2() {
+    # add_v2 <receipt> <steer-key> <issue> <type> <tier> <ordinal> <timestamp>
+    mkdir -p receipts
+    python3 "$STEER_LEDGER" append-row "$1" "$2" "$SS2" "$3" "$4" "$5" "" "feat: v2 row" "$6" "$7"
+}
+
+# ── Case 19 — pass: v2 rows with distinct ordinals validate cleanly ──
+reset_ledger
+eval_assertions=$(( eval_assertions + 1 ))
+add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002000-1" "#1" interrupt  structural 1 "2026-06-12T00:00:01Z"
+add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002001-2" "#1" correction classifier 2 "2026-06-12T00:00:02Z"
+add_v2 "receipts/issue-2.md" "steer-${SS2:0:12}-1800002002-1" "#2" interrupt  structural 3 "2026-06-12T00:00:03Z"
+if python3 "$STEER_LEDGER" validate-dir receipts >/dev/null 2>&1; then
+    printf '    ✓ %s — v2 rows (ordinal+timestamp) across receipts validate clean\n' "$EVAL_ID"
+else
+    printf '    ✗ %s — clean v2 rows false-flagged\n' "$EVAL_ID" >&2
+    eval_failures=$(( eval_failures + 1 ))
+fi
+
+# ── Case 20 — fail: cross-branch duplicate (session, ordinal) is detectable ──
+# The blocker scenario: branch B re-records branch A's event under its own
+# receipt because the positional dedup couldn't see A's row. Post-merge both
+# receipts carry the same (session, ordinal) — the validator flags it. Pre-fix
+# (positional, no ordinal) this duplicate was structurally undetectable.
+reset_ledger
+eval_assertions=$(( eval_assertions + 1 ))
+add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002100-1" "#1" interrupt structural 1 "2026-06-12T01:00:01Z"
+add_v2 "receipts/issue-2.md" "steer-${SS2:0:12}-1800002200-1" "#2" interrupt structural 1 "2026-06-12T01:00:01Z"
+DUP_OUT="$(python3 "$STEER_LEDGER" validate-dir receipts 2>&1)"; DUP_RC=$?
+if [[ $DUP_RC -ne 0 ]] \
+    && printf '%s' "$DUP_OUT" | grep -qi "recorded twice" \
+    && printf '%s' "$DUP_OUT" | grep -q "ordinal 1"; then
+    printf '    ✓ %s — cross-branch duplicate (session, ordinal) flagged post-merge\n' "$EVAL_ID"
+else
+    printf '    ✗ %s — duplicate (session, ordinal) not flagged (rc=%s)\n%s\n' "$EVAL_ID" "$DUP_RC" "$DUP_OUT" >&2
+    eval_failures=$(( eval_failures + 1 ))
+fi
+
+# ── Case 21 — fail: non-monotonic ordinals within a session ──
+reset_ledger
+eval_assertions=$(( eval_assertions + 1 ))
+add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002300-1" "#1" interrupt structural 5 "2026-06-12T02:00:05Z"
+add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002301-2" "#1" interrupt structural 2 "2026-06-12T02:00:02Z"
+MONO_OUT="$(python3 "$STEER_LEDGER" validate-dir receipts 2>&1)"; MONO_RC=$?
+if [[ $MONO_RC -ne 0 ]] && printf '%s' "$MONO_OUT" | grep -qi "not greater than the previous ordinal"; then
+    printf '    ✓ %s — non-monotonic ordinals flagged\n' "$EVAL_ID"
+else
+    printf '    ✗ %s — non-monotonic ordinals missed (rc=%s)\n%s\n' "$EVAL_ID" "$MONO_RC" "$MONO_OUT" >&2
+    eval_failures=$(( eval_failures + 1 ))
+fi
+
+# ── Case 22 — identity dedup boundary: existing-ordinals reports recorded ones ──
+reset_ledger
+eval_assertions=$(( eval_assertions + 1 ))
+add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002400-1" "#1" interrupt structural 1 "2026-06-12T03:00:01Z"
+add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002401-2" "#1" interrupt structural 3 "2026-06-12T03:00:03Z"
+ORDS="$(python3 "$STEER_LEDGER" existing-ordinals receipts "$SS2" | tr '\n' ',' )"
+if [[ "$ORDS" == "1,3," ]]; then
+    printf '    ✓ %s — existing-ordinals reports the recorded identity set (dedup boundary)\n' "$EVAL_ID"
+else
+    printf '    ✗ %s — existing-ordinals returned %q (expected 1,3,)\n' "$EVAL_ID" "$ORDS" >&2
+    eval_failures=$(( eval_failures + 1 ))
+fi
+reset_ledger
+
 eval_done
