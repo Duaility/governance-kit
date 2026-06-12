@@ -298,3 +298,5 @@ Schema:
 | claude-code-d65d79d1-5a5-1781240737 | claude-code | d65d79d1-5a5c-4279-a04f-db029519c5d1 | #200 | claude-opus-4-8 | 0 | 0 | 0 | 0 | 0 | 0.0000 | chore(release): foundation v0.1.0 → v0.2.0 -m governance: allow-commit-message-f |
 | claude-code-d65d79d1-5a5-1781240858 | claude-code | d65d79d1-5a5c-4279-a04f-db029519c5d1 | #200 | claude-opus-4-8 | 0 | 0 | 0 | 0 | 0 | 0.0000 | chore(release): security v0.1.0 → v0.2.0 -m governance: allow-commit-message-for |
 | claude-code-d65d79d1-5a5-1781240945 | claude-code | d65d79d1-5a5c-4279-a04f-db029519c5d1 | #200 | claude-opus-4-8 | 0 | 0 | 0 | 0 | 0 | 0.0000 | chore(release): security v0.1.0 → v0.2.0 -m governance: allow-commit-message-for |
+| claude-code-d65d79d1-5a5-1781241046 | claude-code | d65d79d1-5a5c-4279-a04f-db029519c5d1 | #200 | claude-opus-4-8 | 0 | 0 | 0 | 0 | 0 | 0.0000 | chore(release): docs v0.1.0 → v0.2.0 -m governance: allow-commit-message-format  |
+| claude-code-d65d79d1-5a5-1781241126 | claude-code | d65d79d1-5a5c-4279-a04f-db029519c5d1 | #200 | claude-opus-4-8 | 0 | 0 | 0 | 0 | 0 | 0.0000 | chore(release): docs v0.1.0 → v0.2.0 -m governance: allow-commit-message-format  |
