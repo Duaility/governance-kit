@@ -25,7 +25,7 @@
 
 id: governance-kit/audit
 name: Agent audit-chain governance directives
-version: "0.3.0"
+version: "0.4.0"
 min_governance_kit: "0.3"
 description: A trustworthy record of agent work — issue → receipt → commit → cost → steering, kept tamper-proof.
 author: governance-kit
