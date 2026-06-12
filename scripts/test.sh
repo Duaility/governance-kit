@@ -24,6 +24,8 @@
 #                               SKIP_GOVERNANCE handling
 #   5. test-runtime.sh        — runtime files shipped to consumer repos
 #                               (dot-governance/run.sh + lib.sh)
+#   5b. test-sweep.py         — sweep.py digest-filing contract (ensure the
+#                               governance-sweep label, unlabeled fallback)
 #   6. test-schema-split.sh   — install.yaml + packs.lock cross-file invariants
 #                               (no packs[] in install.yaml; every source kind
 #                               recorded in packs.lock with the right fields)
@@ -105,6 +107,10 @@ run_layer "hooks.sh dispatcher generation (bash)" \
 run_layer "shipped runtime: run.sh + lib.sh (bash)" \
     bash "$ROOT/scripts/test-runtime.sh" \
     || failed_layers+=("test-runtime.sh")
+
+run_layer "sweep engine: digest filing + label ensure (Python)" \
+    uv run --quiet --isolated python "$ROOT/scripts/test-sweep.py" \
+    || failed_layers+=("test-sweep.py")
 
 run_layer "schema split: install.yaml + packs.lock (bash)" \
     bash "$ROOT/scripts/test-schema-split.sh" \

@@ -92,7 +92,11 @@ What `run` does:
 - **Digest.** One issue per run, labelled `governance-sweep`: sections per
   directive (file/line/quote/why/confidence), a footer stating the commit range
   and hunks triaged vs. adjudicated vs. dropped for budget, and the end-SHA
-  marker that the next run resumes from.
+  marker that the next run resumes from. The engine creates the label
+  idempotently before filing (the workflow's `issues: write` grant covers the
+  labels API); if creation fails anyway, it files the digest unlabeled with a
+  warning rather than dropping the findings — that one digest just won't feed
+  resume/dedupe.
 
 ## Provider / transport
 

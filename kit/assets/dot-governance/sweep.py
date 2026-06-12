@@ -351,6 +351,21 @@ def discover_sweep_directives(root: Path) -> list[Path]:
     return out
 
 
+def _ensure_sweep_label(root: Path) -> bool:
+    """Idempotently create the digest label; True iff it exists afterwards.
+
+    The label is part of the engine's state contract — resume (_last_end_sha)
+    and dedupe (_open_digest_pairs) both query by it — but nothing in the
+    install path creates it, so the first run on a fresh repo must. The sweep
+    workflow's `issues: write` grant covers the labels API, so this works with
+    the built-in GITHUB_TOKEN; "already exists" is the idempotent success case.
+    """
+    res = _gh(root, "label", "create", SWEEP_LABEL,
+              "--description", "Digest issues filed by the governance semantic sweep",
+              "--color", "5319E7")
+    return res.returncode == 0 or "already exists" in (res.stderr or "")
+
+
 def _last_end_sha(root: Path) -> str | None:
     """Resume point: the end-SHA recorded in the most recent sweep digest."""
     res = _gh(root, "issue", "list", "--label", SWEEP_LABEL, "--state", "all",
@@ -490,7 +505,15 @@ def cmd_run(args: argparse.Namespace) -> int:
         print("sweep run: no new findings — no digest filed")
         return 0
     title = f"Governance sweep: {len(finding_markers)} finding(s) in {rng[:40]}"
-    res = _gh(root, "issue", "create", "--label", SWEEP_LABEL,
+    # A digest filed unlabeled loses resume/dedupe, but a digest not filed at
+    # all loses the findings — so a label we can't create only degrades.
+    label_args = ["--label", SWEEP_LABEL]
+    if not _ensure_sweep_label(root):
+        print(f"sweep run: could not create label '{SWEEP_LABEL}'; filing the digest "
+              "unlabeled — the next run will not resume or dedupe from it",
+              file=sys.stderr)
+        label_args = []
+    res = _gh(root, "issue", "create", *label_args,
               "--title", title, "--body", body)
     if res.returncode != 0:
         print(f"sweep run: gh issue create failed: {res.stderr}", file=sys.stderr)
