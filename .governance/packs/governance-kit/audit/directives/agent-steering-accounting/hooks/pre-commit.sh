@@ -3,7 +3,7 @@
 #
 # Walks the active agent runtime's session JSONL, extracts steering events
 # (interrupts, classifier-confirmed corrections), and appends one row per
-# *new* event to STEERING.md. `git add`s the ledger so the rows land in
+# *new* event to receipts. `git add`s the ledger so the rows land in
 # this commit's tree, then writes a handoff env file for prepare-commit-msg
 # to stamp the always-on summary triple from.
 #
@@ -24,12 +24,12 @@
 # agent-token-accounting/hooks/pre-commit.sh.
 #
 # Dedup: the extractor returns *every* event on the session. We skip the
-# first N, where N is the count of rows already in STEERING.md for this
+# first N, where N is the count of rows already in receipts for this
 # session. Append-only ordering of the ledger plus the JSONL's chronological
 # order makes this exact.
 #
 # Retry safety (issue #66): the summary trailers are derived from the
-# *staged* STEERING.md diff at handoff time, not from the events the
+# *staged* receipts diff at handoff time, not from the events the
 # extractor newly appended. On a retry after a failed commit-msg check,
 # pre-commit's first attempt has already appended N rows and `git add`ed
 # them; the extractor sees zero new events the second time around, but
@@ -66,7 +66,9 @@ fi
 ROOT="$(git rev-parse --show-toplevel)"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 RULE_DIR="$(cd "$HERE/.." && pwd)"
-LEDGER="$ROOT/STEERING.md"
+# Steering rows live in per-issue receipts (issue #201). The receipt is
+# resolved from the issue anchor once events are known to need homing.
+RECEIPTS_DIR="$ROOT/receipts"
 LIB="$RULE_DIR/lib"
 RUNTIMES="$RULE_DIR/runtimes"
 HANDOFF="$(git rev-parse --git-path governance-pending-steering.env)"
@@ -156,28 +158,47 @@ fi
 
 TOTAL_EVENTS="$(wc -l < "$ALL_EVENTS" | tr -d ' ')"
 
-# Count rows already in STEERING.md for this session — the dedup boundary.
-EXISTING_ROWS=0
-if [[ -f "$LEDGER" ]]; then
-    EXISTING_ROWS="$(awk -F'|' -v sid="$SESSION_ID" '
-        /^\|/ {
-            key = $2
-            sess = $3
-            gsub(/^[ \t]+|[ \t]+$/, "", key)
-            gsub(/^[ \t]+|[ \t]+$/, "", sess)
-            if (key == "steer-key" || key == "" || key ~ /^-+$/) next
-            if (sess == sid) c++
-        }
-        END { print c+0 }
-    ' "$LEDGER")"
-fi
+# Count steering rows already recorded for this session across every receipt —
+# the dedup boundary.
+EXISTING_ROWS="$(python3 "$LIB/ledger.py" count-by-session "$RECEIPTS_DIR" "$SESSION_ID")"
 
 # New events to append: lines after the first $EXISTING_ROWS. May be zero.
 NEW_EVENTS_COUNT=$(( TOTAL_EVENTS - EXISTING_ROWS ))
 if (( NEW_EVENTS_COUNT < 0 )); then
-    # Defensive — extractor returned fewer events than the ledger already
-    # has for this session. Treat as a no-op and let check.sh surface it.
+    # Defensive — extractor returned fewer events than receipts already
+    # have for this session. Treat as a no-op and let check.sh surface it.
     NEW_EVENTS_COUNT=0
+fi
+
+# ── Attribution gate (issue #201, decision 6) ─────────────────
+# Every accounted event must resolve to an issue — receipts are per-issue, so
+# an issue-less event has no home and a catch-all file would reintroduce the
+# central ledger this design retires. Refuse to write events we cannot
+# attribute; zero-event commits don't need an issue (nothing to home).
+if (( NEW_EVENTS_COUNT > 0 )) && [[ -z "$ISSUE" ]]; then
+    cat >&2 <<EOF
+
+────────────────────────────────────────
+✗ Agent commit blocked by agent-steering-accounting.
+
+Detected $NEW_EVENTS_COUNT new steering event(s) but no issue anchor to
+attribute them to. Steering rows live in the issue's receipt; an event with
+no issue has nowhere to land.
+
+Pass '(#N)' in the subject:
+    git commit -m "fix: thing (#123)"
+
+Or set AGENT_ISSUE explicitly:
+    AGENT_ISSUE='#123' git commit
+────────────────────────────────────────
+EOF
+    exit 1
+fi
+
+# Resolve the receipt these rows belong in (only meaningful with an issue).
+RECEIPT=""
+if [[ -n "$ISSUE" ]]; then
+    RECEIPT="$(python3 "$LIB/ledger.py" resolve-receipt "$RECEIPTS_DIR" "$ISSUE")"
 fi
 
 # ── Append rows ────────────────────────────────────────────────
@@ -187,6 +208,7 @@ SESSION_SHORT="${SESSION_SHORT//[^A-Za-z0-9]/}"
 [[ -z "$SESSION_SHORT" ]] && SESSION_SHORT="anon"
 
 if (( NEW_EVENTS_COUNT > 0 )); then
+    mkdir -p "$RECEIPTS_DIR"
     idx=0
     while IFS=$'\t' read -r ts typ tier user_reason; do
         idx=$(( idx + 1 ))
@@ -197,7 +219,7 @@ if (( NEW_EVENTS_COUNT > 0 )); then
         [[ "$user_reason" == "-" ]] && user_reason=""
 
         if ! python3 "$LIB/ledger.py" append-row \
-            "$LEDGER" \
+            "$RECEIPT" \
             "$STEER_KEY" "$SESSION_ID" "$ISSUE" \
             "$typ" "$tier" "$user_reason" \
             "$SUBJECT"; then
@@ -206,17 +228,22 @@ if (( NEW_EVENTS_COUNT > 0 )); then
         fi
     done < <(tail -n "$NEW_EVENTS_COUNT" "$ALL_EVENTS")
 
-    git add "$LEDGER"
+    git add "$RECEIPT"
 fi
 
-# ── Derive the summary triple from the staged STEERING.md diff ──
+# ── Derive the summary triple from the staged receipt diff ──
 # Re-deriving from the diff (rather than from the events newly appended in
 # *this* invocation) is what makes the retry-after-failed-commit-msg case
 # work: on a retry, the rows appended by the first attempt are still
 # staged, so they show up in `git diff --cached` and the handoff stamps
 # the right Steer-Count. See issue #66.
-STAGED_TSV="$(git diff --cached -- "$LEDGER" 2>/dev/null | python3 -c '
-import re, sys
+#
+# The receipt diff also carries cost rows and prose; we keep only steering
+# data rows — a `+| ... |` line whose first cell starts with `steer-`.
+STAGED_TSV=""
+if [[ -n "$RECEIPT" ]]; then
+    STAGED_TSV="$(git diff --cached -- "$RECEIPT" 2>/dev/null | python3 -c '
+import sys
 for line in sys.stdin:
     line = line.rstrip("\n")
     if not line.startswith("+") or line.startswith("+++"):
@@ -225,14 +252,15 @@ for line in sys.stdin:
     if not body.startswith("|"):
         continue
     cells = [c.strip() for c in body.split("|")[1:-1]]
-    if not cells:
+    if len(cells) != 7:
         continue
     key = cells[0]
-    if key in ("steer-key", "") or re.fullmatch(r"-+", key):
+    # Skip the table header ("steer-key" also starts with "steer-").
+    if key == "steer-key" or not key.startswith("steer-"):
         continue
-    if len(cells) >= 5:
-        print(f"{cells[3]}\t{cells[4]}")
+    print(f"{cells[3]}\t{cells[4]}")
 ')"
+fi
 
 STAGED_COUNT="$(printf '%s' "$STAGED_TSV" | awk 'NF' | wc -l | tr -d ' ')"
 TYPES_RAW="$(printf '%s' "$STAGED_TSV" | awk -F'\t' 'NF { print $1 }')"

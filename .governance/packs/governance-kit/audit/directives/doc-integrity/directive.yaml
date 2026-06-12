@@ -2,6 +2,6 @@
 category: AgentDiscipline
 recommended: true
 always_install: true
-summary: "Documents opted into .governance/integrity.conf are append-only: receipts are immutable once on the trunk (frozen-files), ledgers may only grow (append-only), and frozen sections (e.g. resolved issues, the evolution log) keep their baseline lines verbatim."
+summary: "System-of-record documents are integrity-protected against the default-branch baseline: receipts are immutable once on the trunk (frozen-files), the legacy COSTS.md/STEERING.md ledgers are sealed in place (frozen-files), opted-in append-only files may only grow, and frozen sections (e.g. resolved issues, the evolution log) keep their baseline lines verbatim."
 surface: change-set
 hook: commit-msg

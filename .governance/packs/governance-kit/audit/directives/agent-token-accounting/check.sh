@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 # Directive: Every non-merge, non-revert commit carries full token-accounting
-# trailers and a matching append-only row in COSTS.md. This repo is
-# agent-driven only — an untrailered commit is a bug, not an allowed mode.
+# trailers and a matching row under `## Accounting` → `### Costs` in the
+# issue's receipt (`receipts/issue-<N>.md`). This repo is agent-driven only —
+# an untrailered commit is a bug, not an allowed mode.
+#
+# Rows live in per-issue receipts, not a central COSTS.md (issue #201): the
+# receipt is conflict-free (only its own PR branch writes it) and naturally
+# sealed (frozen on the trunk by doc-integrity). The legacy COSTS.md is sealed
+# history that this check no longer reads.
 #
 # Required trailers on every in-scope commit:
 #   Agent:         free-form runtime identifier (codex, claude-code, cursor, ...)
@@ -10,12 +16,13 @@
 #   Token-Input:   non-negative integer (= input + cache_create)
 #   Token-Output:  non-negative integer (= output)
 #   Token-Total:   non-negative integer, == Token-Input + Token-Output
-#   Cost-Key:      <agent>-<session-short>-<epoch>, unique within COSTS.md
-#   Cost-USD:      4-decimal dollar figure, cross-checked against COSTS.md's
-#                  cost_usd column. An unpriced model blocks the commit
+#   Cost-Key:      <agent>-<session-short>-<epoch>-<n>, globally unique across
+#                  receipts/*.md. Opaque — a join token, not a parseable id.
+#   Cost-USD:      4-decimal dollar figure, cross-checked against the receipt
+#                  row's cost_usd column. An unpriced model blocks the commit
 #                  upstream in the pre-commit hook — Cost-USD is not optional.
 #
-# COSTS.md ledger format — one row per agent-authored commit, append-only:
+# Receipt Costs sub-table format — one row per agent-authored commit:
 #   | cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | note |
 #
 # Where:
@@ -45,13 +52,13 @@
 #       Squash-merge commits land on `main` via GitHub's server and bypass
 #       the local commit-msg hook, so without this single-commit fallback
 #       the squashed commit's per-Cost-Key trailer blocks would go
-#       unchecked. Also validates COSTS.md shape independently, so
-#       post-squash repos still get ledger integrity.
+#       unchecked. Also validates every receipt's Costs sub-table shape
+#       independently, so post-squash repos still get accounting integrity.
 #
 # Per-block validation: the trailer set above repeats once per sub-commit
 # in a squash-merge body (one (Token-*, Cost-Key, Cost-USD) tuple per
 # folded sub-commit). lib/trailers.py splits the body into trailer-only
-# paragraphs and cross-checks every (block, COSTS.md row) pair anchored
+# paragraphs and cross-checks every (block, receipt row) pair anchored
 # by Cost-Key — last-wins parsing across the whole body would keep only
 # the trailing sub-commit's trailers and silently skip the rest.
 #
@@ -73,7 +80,7 @@ directive_start "agent-token-accounting"
 require_git
 
 ROOT="$(git rev-parse --show-toplevel)"
-LEDGER="$ROOT/COSTS.md"
+RECEIPTS_DIR="$ROOT/receipts"
 LIB="$HERE/lib"
 
 if [[ ! -f "$LIB/ledger.py" || ! -f "$LIB/trailers.py" ]]; then
@@ -82,14 +89,15 @@ if [[ ! -f "$LIB/ledger.py" || ! -f "$LIB/trailers.py" ]]; then
 fi
 
 # ──────────────────────────────────────────────────────────────
-# Ledger-integrity check (independent of any commits). Runs first so
-# repo-wide shape problems get reported even on human-only branches.
+# Receipt-accounting integrity check (independent of any commits). Runs
+# first so repo-wide shape problems (bad row shape, duplicate cost-keys
+# across receipts) get reported even on human-only branches.
 # ──────────────────────────────────────────────────────────────
-if [[ -f "$LEDGER" ]]; then
+if [[ -d "$RECEIPTS_DIR" ]]; then
     while IFS= read -r v; do
         [[ -z "$v" ]] && continue
         violation "$v"
-    done < <(python3 "$LIB/ledger.py" validate "$LEDGER" || true)
+    done < <(python3 "$LIB/ledger.py" validate-dir "$RECEIPTS_DIR" || true)
 fi
 
 # ──────────────────────────────────────────────────────────────
@@ -127,8 +135,8 @@ validate_commit_message() {
 
     # Per-block validation: lib/trailers.py walks every trailer block in
     # the body (one per sub-commit on a squash-merge), looks up each
-    # block's Cost-Key in COSTS.md, and cross-checks the row's columns
-    # against the block's Token-*/Cost-USD trailers. Each block is
+    # block's Cost-Key across receipts/*.md, and cross-checks the row's
+    # columns against the block's Token-*/Cost-USD trailers. Each block is
     # reported independently — a single squashed body can flag N rows.
     local v
     while IFS= read -r v; do
@@ -136,7 +144,7 @@ validate_commit_message() {
         violation "$v"
     done < <(
         printf '%s' "$msg" | python3 "$LIB/trailers.py" validate-blocks \
-            "$label" "$LEDGER" - 2>/dev/null || true
+            "$label" "$RECEIPTS_DIR" - 2>/dev/null || true
     )
 }
 

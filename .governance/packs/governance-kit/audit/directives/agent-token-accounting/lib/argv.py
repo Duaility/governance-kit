@@ -4,7 +4,7 @@
 macOS's `ps -ww -p $pid -o args=` cat-v-escapes every byte >= 0x80, which
 mangles UTF-8 multi-byte sequences in commit subjects. The token hook
 captures the subject best-effort for the ledger's note column; preserving
-exact bytes here keeps COSTS.md consistent with what reviewers see in
+exact bytes here keeps the receipt row consistent with what reviewers see in
 `git log`. See issue #140.
 
 Linux's `/proc/<pid>/cmdline` is already exact-byte; this helper is the

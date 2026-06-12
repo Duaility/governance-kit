@@ -14,11 +14,16 @@ toggles for tiers.
 This is the human-side counterpart to [`agent-token-accounting`](../agent-token-accounting/README.md).
 That directive captures *machine* cost (token consumption, dollars). This one
 captures *steering* cost (where the agent's instructions or directives drifted
-from operator intent and the operator had to correct it). Both ledgers live at
-repo root, both are append-only, both survive squash merges via mirrored commit
-trailers, and both are layered the same way: trailers for branch-time
-provenance, the Markdown table for the durable record, a stable join key in
-both, and a governance directive that cross-checks the two.
+from operator intent and the operator had to correct it). Both records now home
+their rows in the commit's per-issue receipt — `receipts/issue-<N>.md`, under a
+`## Accounting` section (cost rows in `### Costs`, steering rows in
+`### Steering`) — instead of a central ledger at repo root. Both survive squash
+merges via mirrored commit trailers, and both are layered the same way:
+trailers for branch-time provenance, the Markdown table for the durable record,
+a stable join key in both, and a governance directive that cross-checks the
+two. Homing rows in the receipt keeps the record conflict-free (only the PR
+branch that owns the issue writes it) and bounded, and it is naturally sealed
+once the receipt merges (frozen on the trunk by `doc-integrity`).
 
 ## Why it's layered this way
 
@@ -30,10 +35,17 @@ Direct alternatives all break under squash:
   laptop and rotate. They are not durable across the repo's lifetime.
 - **Computing keys from commit SHAs** — branch SHAs disappear under squash.
 
-What works: durable rows in `STEERING.md` keyed by `steer-key`, with the row
-→ commit join carried by the `commit |` column, plus a per-commit summary
-trailer triple cross-checked by
+What works: durable rows in the commit's per-issue receipt
+`receipts/issue-<N>.md` (under `## Accounting` → `### Steering`) keyed by
+`steer-key`, with the row → commit join carried by the `commit |` column, plus
+a per-commit summary trailer triple cross-checked by
 `.governance/packs/<owner>/<repo>/directives/agent-steering-accounting/check.sh`.
+The previously-central `STEERING.md` is now sealed legacy history (a
+`doc-integrity` frozen-file) — it stops receiving writes; no migration.
+
+Every accounted steering event must resolve to an issue (the `(#N)` anchor on
+the commit subject). The hook refuses to write events it can't attribute to an
+issue — there are no issue-less rows.
 
 ## Trailer schema
 
@@ -60,14 +72,14 @@ Why summary-only, and why always-on:
 - **`Steer-Count` / `Steer-Types` / `Steer-Tiers`** are the headline
   reviewers skim in `git log` — same role `Token-Total` and `Cost-USD`
   play for the cost ledger. They survive squash merges and let you sort
-  commits by steering volume without joining against `STEERING.md`.
+  commits by steering volume without joining against the receipt rows.
   `Types` and `Tiers` are sorted `key=N,key=N` (or the literal `none`
   on a zero-event commit). The numbers must agree with the rows the
-  commit adds to `STEERING.md`: `Steer-Count` equals the row count, and
-  the breakdowns tally those rows' `type` / `tier` columns.
+  commit adds to its receipt's `### Steering` table: `Steer-Count` equals
+  the row count, and the breakdowns tally those rows' `type` / `tier` columns.
 - **Per-event `Steer-Key:` trailers were retired** in #66. The row →
-  commit join uses `STEERING.md`'s `commit |` column instead — one
-  `git grep` scoped to the ledger gets every event for a given commit
+  commit join uses the receipt row's `commit |` column instead — one
+  `git grep` scoped to `receipts/*.md` gets every event for a given commit
   subject, without the trailers having to mirror the rows. Dropping the
   per-event trailers also fixes a retry-after-failed-commit-msg bug
   where the second `git commit` invocation re-stamped zero `Steer-Key:`
@@ -85,7 +97,7 @@ runtime, no transcript, or `SKIP_GOVERNANCE=1`), `prepare-commit-msg.sh`
 falls back to stamping `Steer-Count: 0` / `Steer-Types: none` /
 `Steer-Tiers: none` so the triple is always present at commit-msg time.
 The failure modes are: a commit lacking the summary triple, the summary
-count disagrees with the rows the commit adds to the ledger, the
+count disagrees with the rows the commit adds to its receipt, the
 breakdowns disagree with those rows' `type` / `tier` columns, or a
 newly-added row's `commit |` cell doesn't match the pending subject
 (Mode A only — squash merges may rewrite the subject after the row was
@@ -93,22 +105,26 @@ stamped, so Mode B's CI walk skips that comparison). Historical commits in
 the repo's log may still carry `Steer-Key:` trailers; the new check
 ignores them.
 
-## Ledger schema
+## Row schema
 
-`STEERING.md` is the durable record:
+Steering rows live in the commit's per-issue receipt — `receipts/issue-<N>.md`,
+under the `## Accounting` → `### Steering` sub-table. The 7-column schema is
+unchanged from the old central `STEERING.md`; only the storage location moved:
 
 ```
 | steer-key | session | issue | type | tier | user-reason | commit |
 ```
 
-- `steer-key` — `steer-<session-short>-<epoch>-<idx>`. Unique within the file,
-  monotonically non-decreasing in `<epoch>` (the ledger is append-only — never
-  reorder).
+- `steer-key` — `steer-<session-short>-<epoch>-<idx>`. Globally unique across
+  all `receipts/*.md`, monotonically non-decreasing in `<epoch>`. Treat it as
+  an opaque join token — do not parse it.
 - `session` — runtime session id (e.g. Claude Code's `sessionId`). Used to
   scope the dedup boundary so a single session that produces multiple commits
   doesn't double-record events.
-- `issue` — `#N` from the commit subject's `(#N)` anchor, or empty for repos
-  that don't enforce anchors.
+- `issue` — `#N` from the commit subject's `(#N)` anchor. Required: every
+  accounted event must resolve to an issue (it's the row's home receipt), and
+  the hook refuses to write events it can't attribute — there are no issue-less
+  rows.
 - `type` ∈ `interrupt` | `correction`.
 - `tier` ∈ `structural` | `classifier` | `lexical`. `structural` covers
   interrupts (runtime sentinels). `classifier` covers corrections classified
@@ -183,12 +199,14 @@ gates and cannot turn the directive off.)
 
 Two classifier knobs are tunable per repo, via the same layered-overlay model
 every configurable directive uses: a pack-owned `defaults.conf` ships in the
-directive folder (live defaults, refreshed by `governance pack update`, never
-hand-edited), and the user-owned overlay
-`.governance/conf/agent-steering-accounting.conf` holds only your deltas (seeded
-once from the directive's `config.conf` at install, never clobbered by an
-update). `lib/conf.py` mirrors the bash `conf_list` / `conf_get` helpers so the
-Python classifier and extractor read the same effective values.
+directive folder (the live defaults AND their docs, refreshed by `governance
+pack update`, never hand-edited), and the user-owned overlay
+`.governance/conf/governance-kit/audit/agent-steering-accounting.conf` holds
+only your deltas (seeded once at install from a generic kit stub that points at
+the defaults.conf, never clobbered by an update). `lib/conf.py` mirrors the bash
+`conf_list` / `conf_get` helpers so the Python classifier and extractor read the
+same effective values, including reading the `CANDIDATE_MAX_LEN` default from
+the same `defaults.conf`.
 
 - **Lexical-fallback trigger phrases** — the redirect-trigger list shown above,
   used only on the silent `lexical` path when the runtime CLI is unreachable.
@@ -240,18 +258,24 @@ pack. Manual install:
 ```sh
 cp -r <governance-kit>/packs/audit/directives/agent-steering-accounting \
       .governance/packs/governance-kit/audit/directives/
-cp    <governance-kit>/packs/audit/directives/agent-steering-accounting/install-assets/STEERING.md \
-      STEERING.md
 chmod +x .governance/packs/governance-kit/audit/directives/agent-steering-accounting/check.sh \
          .governance/packs/governance-kit/audit/directives/agent-steering-accounting/hooks/*.sh \
          .governance/packs/governance-kit/audit/directives/agent-steering-accounting/runtimes/*.sh
 ```
 
+There is no ledger file to seed at install — rows live in per-issue receipts,
+and the pre-commit hook creates the receipt (an accounting-only stub with just
+a `## Accounting` section) on demand the first time a commit for that issue
+needs one. The directive ships no `STEERING.md` install-asset.
+
 Then add an `agent-steering-accounting` Directives subsection to
 `CONSTITUTION.md` via the `governance directive add` verb.
 
 Stdlib-only Python 3, no `pip install` required. The only runtime dependency
-is `python3` on `$PATH`.
+is `python3` on `$PATH`. The shared markdown section/table plumbing lives in
+`lib/receipt_io.py`, and `lib/report.py` aggregates the Accounting sections
+across `receipts/*.md` for per-issue + grand totals (run
+`python3 <dir>/report.py <receipts_dir> [--json]`).
 
 ## How a commit flows
 
@@ -270,12 +294,16 @@ pre-commit ──► .governance/packs/<owner>/<repo>/directives/agent-steering-
       │             — emits TSV: ts, type, tier, user-reason.
       │             Tier-2 always runs; classifier vs lexical depends on
       │             whether the runtime CLI is on $PATH.
-      │          5. Dedup: count rows already in STEERING.md for this session;
-      │             skip that prefix of the extractor's output.
-      │          6. Append remaining rows via lib/ledger.py append-row, one
-      │             steer-key per row: steer-<session-short>-<epoch>-<idx>.
-      │          7. git add STEERING.md (so rows land in this commit's tree).
-      │          8. Write handoff env file at
+      │          5. Dedup: count rows already recorded for this session across
+      │             receipts/*.md; skip that prefix of the extractor's output.
+      │          6. Resolve the issue from the (#N) anchor; refuse to write
+      │             events that can't be attributed to an issue.
+      │          7. Append remaining rows via lib/ledger.py append-row to
+      │             receipts/issue-<N>.md under `## Accounting` → `### Steering`
+      │             (creating the stub receipt if absent), one steer-key per
+      │             row: steer-<session-short>-<epoch>-<idx>.
+      │          8. git add the receipt (so rows land in this commit's tree).
+      │          9. Write handoff env file at
       │             $(git rev-parse --git-path governance-pending-steering.env).
       │
       ▼
@@ -295,7 +323,7 @@ commit-msg ──► .governance/packs/<owner>/<repo>/directives/agent-steering-
                   Mode A. Cross-checks:
                     - every in-scope commit carries the full summary triple
                     - Steer-Count equals the count of rows the commit adds
-                      to STEERING.md
+                      to its receipt's `### Steering` table
                     - Steer-Types / Steer-Tiers tally those rows' columns
                       and total to Steer-Count
                     - each newly-added row's `commit |` cell matches the
@@ -311,12 +339,12 @@ row was stamped.
 ## Dedup boundary
 
 The extractor returns *every* steering event in the session JSONL. The hook
-records only the *new* events: the count of rows already in `STEERING.md`
-for this session is the prefix to skip. Append-only ordering of the ledger
-plus the chronological order of the JSONL makes this exact under normal
-operation. The append-only invariant is itself enforced by `check.sh`'s
-ledger validator (rows must be monotonically non-decreasing in their
-embedded epoch), so a tampered ledger fails the directive before the hook
+records only the *new* events: the count of rows already recorded for this
+session across `receipts/*.md` is the prefix to skip. Append-only ordering of
+the recorded rows plus the chronological order of the JSONL makes this exact
+under normal operation. The append-only invariant is itself enforced by
+`check.sh`'s row validator (rows must be monotonically non-decreasing in their
+embedded epoch), so a tampered record fails the directive before the hook
 trusts the dedup count.
 
 ## Runtime support
