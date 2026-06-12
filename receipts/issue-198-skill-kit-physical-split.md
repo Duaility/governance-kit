@@ -6,79 +6,97 @@ Closes [#198](https://github.com/Duaility/governance-kit/issues/198).
 repo layout, not just a routing convention. `npx skills` installs the entire
 directory holding `SKILL.md` with no exclude mechanism, so the post-#194 skill
 still shipped the whole 1.8M `governance/` tree (844K of it eval fixtures) to
-every machine. The published skill is now `skill/` — **116K**: an installer doc
-plus a fetch-only bootstrap. Everything else lives in `kit/` and reaches
-machines only as released `kit/vX.Y.Z` trees, fetched and pinned per repo.
+every machine. The published skill is now `skill/` — **two hand-authored
+files**: an installer doc and a stdlib-only fetch script. Everything else lives
+in `kit/` and reaches machines only as released `kit/vX.Y.Z` trees, fetched and
+pinned per repo. The dogfood repo resolves its own pin through the exact same
+downstream-consumer path — no special case.
 
 ## Checklist
 
-- [x] skill/ thin shim (SKILL.md + fetch-only bootstrap)
+- [x] skill/ = SKILL.md + bootstrap.py, all source
 - [x] kit/ rename (governance/ → kit/, KIT_SUBPATH `kit`)
-- [x] All lifecycle flows read from the kit tree
+- [x] All lifecycle flows read from fetched kit trees
 - [x] Offline refuse-with-guidance
-- [x] build-skill.sh + skill-build-sync drift directive
-- [x] release.sh integration
+- [x] Version axes decoupled
+- [x] scripts/test-bootstrap.py locks the cache contract
 - [x] Path sweep + tests + dogfood green
 
 ## What changed
 
-- **skill/ thin shim (SKILL.md + fetch-only bootstrap).** New top-level `skill/`
-  is what `npx skills` detects and installs (`governance/SKILL.md` deleted, so
-  discovery is unambiguous). `skill/SKILL.md` (hand-authored source) documents
-  the three lifecycle verbs as *get a kit tree, then follow that tree's doc*,
-  plus one delegate rule for every other verb (`kit-current` → the pinned kit's
-  `VERBS.md`); it carries no pack/directive/reset content and no flow procedure.
-  `skill/assets/` is derived: `kit.yaml` (version anchor) + six bootstrap
-  modules (`kitverb`, `kitresolve`, `kitapply`, `packverb`, `packctl`,
-  `applylib`) — resolve/fetch/cache/pin only, no apply engines, no bash
-  helpers. Verified self-contained by running `kit-current` and full subparser
-  registration from a copy outside the repo.
+- **skill/ = SKILL.md + bootstrap.py, all source.** New top-level `skill/` is
+  what `npx skills` detects and installs (`governance/SKILL.md` deleted, so
+  discovery is unambiguous). `skill/SKILL.md` documents the three lifecycle
+  verbs as *get a kit tree, then follow that tree's doc*, plus one delegate
+  rule for every other verb. `skill/bootstrap.py` is a single stdlib-only
+  python3 script with two subcommands: `resolve` (latest published `kit/vX.Y.Z`
+  tag or `--to`; offline `--to` is served by a content scan of the cache) and
+  `current` (the repo's recorded `kit_ref`/`kit_sha` pin). Both fetch into the
+  shared `~/.governance/cache/kits/<owner>__<repo>@<sha>/` layout and report
+  `kit_dir`/`lib_dir`/`references_dir`/`assets_dir` as JSON — or `result:
+  refused` with recovery guidance. The shim carries **no kit content**: no
+  `kit.yaml` version anchor, no engine modules, no flow docs. An earlier
+  review iteration vendored six kit lib modules behind a `build-skill.sh` +
+  `skill-build-sync` drift directive; review killed it — the shim had
+  inherited `packverb`/`packctl`/`applylib` through import-graph gravity, and
+  the bundled `kit.yaml` existed only to feed `packctl`'s eager `KIT_VERSION`.
+  With nothing derived there is no build step and no drift surface.
 - **kit/ rename (governance/ → kit/, KIT_SUBPATH `kit`).** The kit artifact now
   reads like the mental model: `skill/` (installer) + `kit/` (product:
   engine lib, flow docs, templates, kit.yaml) + `packs/` (content).
   `build_kit_ref` now constructs `gh:<repo>/kit@kit/vX.Y.Z`. **Subpath epoch:**
-  pre-split tags keep their tree at `governance/`, so `--to` a pre-split version
-  fails the fetch with a clear error; repos already pinned to such tags keep
-  working — the recorded `…/governance@…` ref stays valid and `kit-current`
-  parses the subpath from the ref (documented in `VERSIONING.md`). The dogfood
-  pin and pre-split eval fixtures intentionally keep the old-style ref.
-- **All lifecycle flows read from the kit tree.** The skill ships zero reference
-  docs. `install` follows the *fetched* kit's `references/INIT_FLOW.md`;
-  `update` follows the fetched *target's* `references/UPDATE_FLOW.md` (the #177
-  the-engine-that-writes-X-is-X's-engine contract, extended to docs);
-  `uninstall` resolves the pinned kit via `kit-current` and follows its
-  `references/UNINSTALL_FLOW.md`, running `uninstall-plan`/`uninstall-apply`
-  from the resolved kit's lib.
+  pre-split tags keep their tree at `governance/`, so `resolve --to` a
+  pre-split version refuses at fetch validation with a clear
+  no-`assets/kit.yaml` error; repos already pinned to such tags keep working —
+  the recorded `…/governance@…` ref stays valid and `bootstrap.py current`
+  parses the subpath from the ref (documented in `VERSIONING.md`). This repo's
+  own `kit/v0.4.0` pin resolves through that path today.
+- **All lifecycle flows read from fetched kit trees.** The skill ships zero
+  reference docs and zero engines. `install`: `bootstrap.py resolve` → the
+  fetched kit's `references/INIT_FLOW.md`, engines from `<lib_dir>`. `update`:
+  `bootstrap.py current` → the *pinned* kit's `references/UPDATE_FLOW.md`
+  (rustup model — the version you have performs the move); its Step 1 runs
+  `kit-resolve` from `<lib_dir>`, which fetches the target, gates
+  floor/direction, and delegates apply to the fetched *target's* own engine on
+  forward/same (#177) and keeps downgrades driven by the newer pinned engine.
+  `uninstall`: `bootstrap.py current` (falling back to `resolve` when
+  unpinned) → that tree's `references/UNINSTALL_FLOW.md` and
+  `uninstall-plan`/`uninstall-apply` engines. All version gates live in the
+  kit's `kit-resolve`; the shim's only validation is structural (a delegable
+  tree must carry `assets/kit.yaml`, an engine lib, and `references/`).
 - **Offline refuse-with-guidance.** With no reachable release and nothing
-  cached (`provenance: installed-skill`), `install`, `update`, and `uninstall`
-  refuse with connect-once guidance instead of assembling from (or tearing down
-  with) the shim — it carries no templates, packs, or apply engines.
-  `kit_provenance: installed-skill` stays in the `INSTALL_SCHEMA.md` enum solely
-  as the audit trail of pre-#198 installs. `INIT_FLOW.md` Step 0,
-  `UPDATE_FLOW.md`'s offline matrix row, and the init evals updated to match.
-- **build-skill.sh + skill-build-sync drift directive.**
-  `scripts/build-skill.sh` is the single assembler of the derived
-  `skill/assets/` (regenerate-wholesale; `skill/SKILL.md` exempt). New
-  repo-local dogfood directive `skill-build-sync`
-  (`.governance/packs/duaility/governance-kit/directives/skill-build-sync/`)
-  rebuilds into a temp dir and fails on any byte drift — companion
-  CONSTITUTION.md subsection and Evolution Log entry land in this same commit
-  (the cardinal rule). `kit-version-consistency` amended to compare
-  `kit/assets/kit.yaml` against `skill/SKILL.md` frontmatter.
-- **release.sh integration.** Kit releases now stamp `skill/SKILL.md`
-  frontmatter (the deleted `governance/SKILL.md` line replaced), exclude
-  `skill/assets/*` from marker discovery, and re-run `build-skill.sh` as the
-  last apply step so the derived tree always carries the bumped version.
-  Verified with `release.sh kit 0.6.0 --dry-run`.
-- **Path sweep + tests + dogfood green.** 79 files swept
+  cached, `bootstrap.py` reports `result: refused` + `recovery` (connect once;
+  the fetch is cached, so later runs are network-free) for all verbs — never a
+  partial tree, never a shim-sourced fallback; there is nothing to fall back
+  to. `kit_provenance: installed-skill` stays in the `INSTALL_SCHEMA.md` enum
+  solely as the audit trail of pre-#198 installs; new installs record
+  `published-tag` / `explicit` / `cache`.
+- **Version axes decoupled.** The skill's frontmatter `version` is the
+  installer's own, bumped by hand when the shim changes. The
+  `kit-version-consistency` dogfood directive drops the
+  `kit.yaml`-equals-`SKILL.md` equality (keeping the kit-version-present and
+  pack-floor invariants), and `scripts/release.sh` kit releases no longer
+  stamp `skill/SKILL.md` (header, dry-run plan, and apply step updated;
+  verified with `release.sh kit 0.6.0 --dry-run`).
+- **scripts/test-bootstrap.py locks the cache contract.** 15 network-free
+  tests (wired into `scripts/test.sh`): ref/scalar/pin parsing, structural
+  validation refusals, `current`/`resolve` CLI happy and refusal paths for
+  both subpath epochs, the real clone→sha→validate→cache-move path against a
+  local upstream, and the cross-codebase assertion that a tree the shim caches
+  is found by the kit engines' `cached_kit_path` (and vice versa) — the one
+  piece of shared knowledge between the two codebases.
+- **Path sweep + tests + dogfood green.** ~80 files swept
   `governance/{assets,references,evals}` → `kit/…` and `/governance@kit/v` →
   `/kit@kit/v` (immutable `receipts/`, `plans/`, CHANGELOG entries, frozen
   CONSTITUTION.md Evolution Log lines, and the historical dogfood/fixture pins
   excluded; CHANGELOG's live preamble links updated). The kit's reference docs
-  no longer link `../SKILL.md` (a fetched kit has no skill alongside it) — those
-  became plain-text mentions. Eval 7 of `kit-update` retargeted from the
-  pre-split `0.4.0` to `0.6.0` with the `kit@` ref form. SKILL.md frontmatter
-  re-verified with gray-matter (guarding the #196 colon-space regression class).
+  no longer link `../SKILL.md` (a fetched kit has no skill alongside it) and
+  the routed-verb preambles route through `bootstrap.py current`, refusing —
+  not degrading to a machine copy — when unpinned/offline-uncached. Eval 7 of
+  `kit-update` retargeted from the pre-split `0.4.0` to `0.6.0` with the
+  `kit@` ref form; eval 11's version-skew case rewritten (the shim has no kit
+  version to be "stuck on"). SKILL.md frontmatter re-verified with gray-matter
+  (guarding the #196 colon-space regression class).
 
 ## Out of scope
 
@@ -97,32 +115,37 @@ machines only as released `kit/vX.Y.Z` trees, fetched and pinned per repo.
   carries just enough to download and verify, never the product's engines. The
   tradeoff — tear-down with a cold cache while offline refuses (connect once)
   instead of working unconditionally — was accepted explicitly in review.
+- **Nothing derived in skill/; no build step.** Review rejected the
+  vendored-bundle iteration (`build-skill.sh` + `skill-build-sync` directive +
+  six copied modules + a `kit.yaml` anchor): it rebuilt a fat path and made
+  the dogfood a special case. The shim's own ~300-line bootstrap duplicates
+  only the ref-parse/cache-layout contract, and `scripts/test-bootstrap.py`
+  pins that contract against the kit engines so the two sides cannot drift.
 - **Rename `governance/` → `kit/` rather than documenting around it.** The
   directory name was the last residue of the fat-skill era and kept the
   skill-vs-kit boundary ambiguous. V0 allows the churn; ~80 files were
   mechanical path updates.
-- **The shim ships no flow docs, not even lifecycle ones.** Earlier iterations
-  vendored six lifecycle reference docs; review judged that *how to assemble a
+- **The shim ships no flow docs, not even lifecycle ones.** *How to assemble a
   repo from the kit is kit knowledge* — the shim only knows how to get a tree
-  and which doc inside it to follow. This also erased the need for doc-link
-  exclusions for vendored copies.
-- **skill/ is a committed derived artifact, not built-on-publish.** Same
-  contract as the consumed pack trees: lock/source is truth, the derived tree is
-  reconstructable, and a directive (not a human) guards the sync.
+  and which doc inside it to follow.
+- **`update` orchestrates from the pinned tree.** The version you have
+  performs the move (rustup/apt): the pinned kit's `UPDATE_FLOW.md` +
+  `kit-resolve` gate the target and delegate apply to the target's own engine
+  — preserving both #177 contracts (target engine writes forward moves; the
+  newer engine drives downgrades) without any engine carried by the shim.
 
 ## Verification
 
 ```sh
-bash .governance/run.sh        # ✓ all 19 directives passed (incl. new skill-build-sync)
-bash scripts/test.sh           # ✓ all kit-internal test layers passed
-bash scripts/build-skill.sh    # ✓ deterministic; re-run produces zero diff
-bash scripts/release.sh kit 0.6.0 --dry-run   # ✓ stamps skill/SKILL.md, reassembles skill/assets
+bash .governance/run.sh        # ✓ all 18 directives passed
+bash scripts/test.sh           # ✓ all kit-internal test layers passed (incl. new test-bootstrap.py)
+bash scripts/release.sh kit 0.6.0 --dry-run   # ✓ no skill/ stamping, no build step
+python3 skill/bootstrap.py current "$(git rev-parse --show-toplevel)" --offline
+                               # ✓ resolves this repo's real pre-split pin from the shared cache
 ```
 
-- Shim self-containment: copied `skill/` to a temp dir outside the repo;
-  `kitverb.py --help` registers every subcommand (exercising the full import
-  closure) and `kit-current --offline` returns the installed-skill fallback with
-  the vendored `kit.yaml` version — no `ImportError`, no repo dependency.
-- Footprint: `du -sh skill` = **116K** vs 1.8M for the pre-split published tree.
-- `skill/SKILL.md` frontmatter parses under gray-matter 4.0.3 (the `npx skills`
-  discovery path).
+- Shim self-containment: `test_bootstrap_is_stdlib_only_and_standalone` copies
+  `bootstrap.py` alone to a temp dir and runs it on bare `python3` — no
+  PyYAML, no repo, no kit modules.
+- `skill/SKILL.md` frontmatter parses under gray-matter 4.0.3 (the `npx
+  skills` discovery path).

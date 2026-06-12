@@ -5,6 +5,11 @@ the repo's manifest pins — the **repo-pinned model** (issue #177). Dispatched
 from the installed skill's `SKILL.md`. (Verb name: `governance update`; `kit update`
 remains a recognized alias, and the engine subcommands keep their `kit-*` names.)
 
+> **`<lib_dir>`** throughout is the `assets/packs/lib/` of the kit tree this
+> document came from — normally the repo's pinned kit, resolved by the
+> installed skill's `bootstrap.py` (issue #198); in the governance-kit source
+> repo itself, `kit/assets/packs/lib/`.
+
 ## The repo-pinned model (read this first)
 
 The repo's `install.yaml` is the authoritative statement of which kit it runs.
@@ -27,9 +32,10 @@ the manifest pin, not through which skill copy `npx skills` last installed.
   inside `~/.governance/cache/kits/<owner>__<repo>@<sha>/`, the kit twin of the
   pack cache.
 - **Real downgrades.** `--allow-downgrade` rolls the runtime backward,
-  explicit-only. A downgrade is driven by the *newer* (local) engine applying
-  the *fetched older* assets + hook generator (an older engine cannot be trusted
-  with a newer manifest, and refuses downgrades anyway).
+  explicit-only. A downgrade is driven by the *newer* engine — the
+  pinned kit this flow runs from — applying the *fetched older* assets + hook
+  generator (an older engine cannot be trusted with a newer manifest, and
+  refuses downgrades anyway).
 - **Delegation floor.** Delegation needs the target to ship the engine
   (`kitverb.py kit-plan`/`kit-apply`), first present in `kit/v0.4.0`. A target
   below that floor is refused with the legacy skill-reinstall path.
@@ -80,7 +86,7 @@ copies. This verb closes the loop:
 | `install.yaml` is missing **and** no runtime file carries a versioned marker | Stop and route the user to `governance uninstall` + `governance init` — there is no recoverable version pin. |
 | `install.yaml.kit_version` is absent | Treat the install as pre-tracking; offer to record the current `KIT_VERSION` and proceed (this is the upgrade path for repos bootstrapped before the field existed). |
 | `install.yaml.kit_version` == resolved target | No-op for the kit-runtime; still record the pin (`kit-pin`) and, if `--with-packs`, fall through to pack update. Report `kit: up-to-date`. |
-| Resolved target is **older** than `install.yaml.kit_version` | Refuse unless `--allow-downgrade`. The refusal names the flag. With it, the *newer local* engine applies the *fetched older* assets (see Step 5). |
+| Resolved target is **older** than `install.yaml.kit_version` | Refuse unless `--allow-downgrade`. The refusal names the flag. With it, the *newer pinned* engine applies the *fetched older* assets (see Step 5). |
 | Resolved target is below the delegation floor (`< 0.4.0`) | Refuse — that target ships no `kitverb.py` engine to delegate to. Name the floor and the legacy `npx skills add …#kit/v<target>` reinstall path. |
 | Offline / upstream unreachable | Do not error. Fall back to the cached pin (`kit_ref`/`kit_sha`), reporting the provenance; exit 0 when there is nothing to do. If the pin is uncached too (`provenance: installed-skill`), **refuse with guidance** — the thin shim carries no kit assets to apply from; connect once or re-run when the cache is populated (issue #198). |
 | Offline / fetch failed **with `--to X.Y.Z`** | The fallback may satisfy the request only if it resolves *exactly* X.Y.Z; a fallback that resolves a different version refuses (never "asked for X, applied Y, exit 0"). Re-run with network access or drop `--to`. |
@@ -88,7 +94,7 @@ copies. This verb closes the loop:
 | A managed file was hand-edited (line-2 marker present, byte-diff non-empty) | Show the diff and ask per-file: `apply` / `skip` / `overwrite-with-backup` (writes `<path>.pre-update.bak` then overwrites). Default `apply`. |
 | A managed file is missing the line-2 marker | Treat as user-owned. Skip silently and surface in the report under `Skipped (unmanaged):`. |
 | `--with-packs` was passed | After the kit-runtime block, run `pack update` against every `source: gh` entry in the lockfile. Each pack still uses its own diff-before-exec confirmation. |
-| `--check-upstream` was passed | Run the read-only upstream check (`kitverb.py kit-upstream`) and surface the result in the `Upstream:` report row. **Never** auto-fetch-and-apply — if the installed skill is behind, route the user to the skill manager (`npx skills update governance --global`), then re-run. The verb still syncs the repo to the *installed* kit as usual. |
+| `--check-upstream` was passed | Run the read-only upstream check (`kit-upstream` from `<lib_dir>`) and surface the result in the `Upstream:` report row — a signal only. The default (no `--to`) run already targets the latest published tag, so a pin behind upstream is resolved by this very verb. |
 | Structured question tools are unavailable | Use short free-text prompts. If no answer to a destructive prompt, stop. |
 
 ---
@@ -107,7 +113,7 @@ Then resolve the target in one deterministic call (this is the network step):
 
 ```sh
 uv run --quiet --isolated --with PyYAML python \
-    kit/assets/packs/lib/kitverb.py kit-resolve "<root>" \
+    <lib_dir>/kitverb.py kit-resolve "<root>" \
     [--to X.Y.Z] [--allow-downgrade] [--offline]
 ```
 
@@ -126,9 +132,9 @@ nothing to the repo. Consume its JSON:
 | `provenance` | `published-tag` / `explicit` / `cache` / `installed-skill` — name it in the `Resolved:` report row. |
 | `direction` | `forward` / `same` / `downgrade` / `unknown` — drives Step 2. |
 | `floor_ok` | `false` ⇒ already refused (target `< 0.4.0`). |
-| `delegate` | `true` ⇒ run the fetched engine; `false` ⇒ installed-skill fallback (local engine). |
-| `engine_path` | The `kitverb.py` to invoke for Steps 4–5 (the fetched target's own on forward/same; the local one on a downgrade or installed-skill fallback). |
-| `assets_root` / `hooks_lib` | Passed to the **local** engine only on a downgrade (the fetched older tree's `assets/` + `lib/`). Omit them when delegating to the target's own engine. |
+| `delegate` | `true` ⇒ run the fetched engine; `false` ⇒ offline fallback to the engine this flow runs from (the pinned kit). |
+| `engine_path` | The `kitverb.py` to invoke for Steps 4–5 (the fetched target's own on forward/same; the hosting pinned kit's on a downgrade or offline fallback). |
+| `assets_root` / `hooks_lib` | Passed to the **hosting** engine only on a downgrade (the fetched older tree's `assets/` + `lib/`). Omit them when delegating to the target's own engine. |
 | `kit_ref` / `kit_sha` | The pin to record after a successful apply (`kit-pin`). |
 
 If `result` is `refused` (floor or downgrade-without-flag), surface the reason
@@ -143,7 +149,7 @@ uv run --quiet --isolated --with PyYAML python \
 ```
 
 The `--assets-root`/`--stamp-version` flags are passed **only** on a downgrade
-(local engine, fetched older assets). For forward/same the fetched target's own
+(hosting engine, fetched older assets). For forward/same the fetched target's own
 engine already reads its own tree and version — pass neither.
 
 `kit-plan` is the side-effect-free core of Steps 2–3. It reads
@@ -197,13 +203,13 @@ it against the engine's stamp version. Act on the combined picture:
 | `pre-tracking` | Manifest present but carries no `kit_version`. Offer to record the target version; on consent, pass `--record-pre-tracking` to `kit-apply` in Step 5 (render `<prev>` as `unknown` in the report). Without that flag `kit-apply` refuses — the flag *is* the recorded consent. |
 | `forward` | Forward update. Continue to Step 3. |
 | `same` / `up-to-date` | No file changes. Still record the pin (`kit-pin`, Step 5) so a repo first pinned now stops being treated as unpinned; if `--with-packs`, jump to Step 6. Report `kit: up-to-date` with the `Resolved:` provenance row. |
-| `downgrade` (with `--allow-downgrade`) | Roll backward. `kit-resolve` named the **local** engine + the fetched older `assets_root`/`hooks_lib`; pass `--assets-root --stamp-version <target> --hooks-lib --allow-downgrade` to `kit-plan`/`kit-apply`. |
+| `downgrade` (with `--allow-downgrade`) | Roll backward. `kit-resolve` named the **hosting (pinned, newer)** engine + the fetched older `assets_root`/`hooks_lib`; pass `--assets-root --stamp-version <target> --hooks-lib --allow-downgrade` to `kit-plan`/`kit-apply`. |
 | `downgrade` (without the flag) / floor | Already refused by `kit-resolve` — surface its `reason`/`recovery` and stop. |
 | `no-recoverable-pin` | Stop with the `uninstall` + `init` recovery path. |
 
 **Resolution provenance (always reported).** Because the default target is the
 latest published tag, "up-to-date" now means "current with the published kit",
-not merely "current with the installed skill" — the issue-#170 footgun is
+not merely "current with some machine copy" — the issue-#170 footgun is
 closed by construction. The `Resolved:` report row must still name *how* the
 target was resolved, verbatim shape:
 
@@ -216,7 +222,7 @@ fetching a tree:
 
 ```sh
 uv run --quiet --isolated --with PyYAML python \
-    kit/assets/packs/lib/kitverb.py kit-upstream
+    <lib_dir>/kitverb.py kit-upstream
 ```
 
 `kit-upstream` is read-only — a single `git ls-remote`. It returns `status`
@@ -347,9 +353,9 @@ uv run --quiet --isolated --with PyYAML python \
 
 For forward / same-version this is the **fetched target tree's own**
 `kitverb.py` (so it writes its own assets, stamps its own version). On a
-**downgrade** it is the local engine with the resolved overrides:
+**downgrade** it is the hosting (pinned, newer) engine with the resolved overrides:
 `--assets-root <assets_root> --stamp-version <target> --hooks-lib <hooks_lib>
---allow-downgrade`. On an offline **installed-skill** fallback it is the local
+--allow-downgrade`. On an offline **installed-skill** fallback it is the hosting
 engine with no overrides.
 
 Flags, all optional: `--decisions <json|file>` (per-file overrides from
@@ -366,7 +372,7 @@ byte-identity contract):
 
 ```sh
 uv run --quiet --isolated --with PyYAML python \
-    kit/assets/packs/lib/kitverb.py kit-pin "<root>" \
+    <lib_dir>/kitverb.py kit-pin "<root>" \
     --kit-ref "<kit_ref>" --kit-sha "<kit_sha>"     # from kit-resolve
 ```
 
@@ -516,8 +522,8 @@ For the documented short-circuit branches:
   `Packs:` (the `--with-packs`-aware sentinel), `Upstream:` (the
   `--check-upstream`-aware sentinel), `Committed:` (`none` unless the pin write
   produced a commit), and `Next:`. When the resolution fell back to the cache
-  or installed skill, `Assumptions:` carries the offline note `kit-resolve`
-  emitted.
+  (or the hosting tree itself), `Assumptions:` carries the offline note
+  `kit-resolve` emitted.
 - **Refusal** (`no recoverable pin`, downgrade without `--allow-downgrade`,
   below the delegation floor, dirty tree without `--force`) — emit
   `From → To:` / `Resolved:` with the detected values, set every action row to
@@ -566,7 +572,7 @@ either emits every row or it has not finished.
   skill is a thin bootstrapper.
 - **Downgrades are explicit.** `--allow-downgrade` rolls a runtime file
   backward; without it the verb refuses (naming the flag). A downgrade is
-  driven by the *newer* local engine applying the *fetched older* assets +
+  driven by the *newer* pinned engine applying the *fetched older* assets +
   hook generator — an older engine can't be trusted with a newer manifest.
 - **Delegation floor.** A target below `kit/v0.4.0` ships no engine to
   delegate to and is refused with the legacy skill-reinstall path.
@@ -581,7 +587,7 @@ either emits every row or it has not finished.
   Network happens only *inside* `kit update` (resolving + fetching the
   target tree) and the optional `pack update` chain — exactly as `pack add`
   / `pack update` do. `--offline` skips even that, resolving from the cached
-  pin or installed skill.
+  pin.
 
 ## References
 

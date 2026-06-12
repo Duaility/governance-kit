@@ -13,8 +13,13 @@ axes relate, the tag scheme consumers pin against, and the release procedure.
 
 | Axis | Question it answers | Source of truth | Derived copies (never hand-edit) |
 |---|---|---|---|
-| **Kit** | What version of the *framework* is this? (run.sh, lib.sh, hook generators, the `governance` skill, schemas) | [`kit/assets/kit.yaml`](../assets/kit.yaml) `version` | `skill/SKILL.md` frontmatter `version` (plus the derived `skill/` tree rebuilt by `scripts/build-skill.sh`); `.governance/install.yaml` `kit_version`; the `# governance-kit:managed kit-version=<v>` markers stamped into every managed runtime file |
+| **Kit** | What version of the *framework* is this? (run.sh, lib.sh, hook generators, engines, schemas) | [`kit/assets/kit.yaml`](../assets/kit.yaml) `version` | `.governance/install.yaml` `kit_version`; the `# governance-kit:managed kit-version=<v>` markers stamped into every managed runtime file |
 | **Pack** | What version of this *directive content* is this? | each pack's `pack.yaml` `version` (the bundled concern packs live under [`packs/`](../../packs), e.g. [`packs/security/pack.yaml`](../../packs/security/pack.yaml)) | the consumer's `.governance/packs.lock` entry, written at `pack add`/`pack update` time |
+
+The published **skill** (`skill/`) is *not* on the kit axis (issue #198): it is
+a fetch-only installer carrying no kit code and no kit version, and its
+`SKILL.md` frontmatter `version` is the installer's own, bumped by hand when
+the shim itself changes. Kit releases do not touch `skill/`.
 
 The axes move **independently** — and, since the decomposition, each pack moves
 independently of its sibling packs too. A pack can ship a patch (a `check.sh`
@@ -117,8 +122,8 @@ statement of which kit it runs and the machine honours it rather than deciding.
 `kit update` resolves the latest published `kit/vX.Y.Z` tag by default, or an
 exact version with `--to X.Y.Z`. **Subpath epoch (issue #198):** newly
 constructed refs use the `kit/` subpath; tags cut before the skill≠kit split
-keep their tree at `governance/`, so `--to` a pre-split version fails the fetch
-with a clear no-`assets/kit.yaml` error (repos already pinned to such a tag keep
+keep their tree at `governance/`, so `resolve --to` a pre-split version refuses
+with a clear no-`assets/kit.yaml` epoch error (repos already pinned to such a tag keep
 working — the recorded `…/governance@…` ref stays valid). `--allow-downgrade`
 is required to move
 backward. This pin is **content state, not a derived version line** — it is

@@ -119,13 +119,13 @@
     {
       "id": 9,
       "prompt": "I'm offline on a plane. Run governance kit update anyway.",
-      "expected_output": "Following UPDATE_FLOW.md's offline fallback: the skill passes `--offline` to `kit-resolve` (or `kit-resolve` degrades after a failed `git ls-remote`). With no network, resolution falls back through the repo's cached pin (`kit_ref`/`kit_sha` → a cached tree under `~/.governance/cache/kits/`) and then the installed skill, reporting which in the `Resolved:` row and an `Assumptions:` note. Since the cached pin equals the recorded `0.4.0`, this is `up-to-date`: no file writes, exit 0, never an error just because the network was unavailable.",
+      "expected_output": "Following UPDATE_FLOW.md's offline fallback: the skill passes `--offline` to `kit-resolve` (or `kit-resolve` degrades after a failed `git ls-remote`). With no network, resolution falls back to the repo's cached pin (`kit_ref`/`kit_sha` → a cached tree under `~/.governance/cache/kits/`), reporting that in the `Resolved:` row and an `Assumptions:` note; with nothing cached it would refuse with connect-once guidance (issue #198). Since the cached pin equals the recorded `0.4.0`, this is `up-to-date`: no file writes, exit 0, never an error just because the network was unavailable.",
       "files": ["files/up-to-date-repo/"],
       "assertions": [
         "The skill resolved offline without erroring — it did NOT fail the verb because the network was unavailable",
         "The `Resolved:` row names the fallback provenance (`cache` if the pinned tree is cached, else `installed-skill`) and an `Assumptions:` note explains the offline fallback",
         "Because the resolved target equals the recorded pin, the run was a clean `up-to-date` no-op (exit 0, no commit)",
-        "The skill pointed the user at refreshing the skill / re-running online to pick up a newer published release"
+        "The skill pointed the user at re-running online to pick up a newer published release"
       ]
     },
     {
@@ -143,12 +143,12 @@
     {
       "id": 11,
       "prompt": "My installed governance skill is stuck on an old version, but I want this repo on the latest published kit. Run kit update.",
-      "expected_output": "Following UPDATE_FLOW.md's delegation contract (the version-skew case): even though the locally installed skill is on an older kit than the target, `kit-resolve` resolves the latest published `kit/vX.Y.Z` tag, fetches that tree, and the apply runs the **fetched target's own** `kitverb.py` — so the files written are exactly what the target version would write, byte-identical to running with a matching installed skill. The installed skill's version is no longer the ceiling; it is just the bootstrapper that resolves and delegates. The repo lands on the target version with its pin recorded.",
+      "expected_output": "Following UPDATE_FLOW.md's delegation contract (the version-skew case): the installed skill carries no kit version at all (issue #198) — it is a fetch-only bootstrapper, so there is nothing to be 'stuck on'. `kit-resolve` resolves the latest published `kit/vX.Y.Z` tag, fetches that tree, and the apply runs the **fetched target's own** `kitverb.py` — so the files written are exactly what the target version would write. Version selection happens through the manifest pin and tag resolution, never through the machine's skill copy. The repo lands on the target version with its pin recorded.",
       "files": ["files/stale-repo/"],
       "assertions": [
-        "The skill resolved the latest published tag as the target, NOT the (older) installed skill's version — the installed skill is not the ceiling",
-        "The apply was delegated to the FETCHED target tree's engine, so the result is byte-identical to a matching-skill run (markers stamped with the target version, written by the target's own code)",
-        "The repo's `kit_version` and `kit_ref`/`kit_sha` reflect the resolved target, not the installed skill",
+        "The skill resolved the latest published tag as the target — the installed skill carries no kit version and is never the ceiling",
+        "The apply was delegated to the FETCHED target tree's engine, so the result is exactly what the target version writes (markers stamped with the target version, written by the target's own code)",
+        "The repo's `kit_version` and `kit_ref`/`kit_sha` reflect the resolved target",
         "The skill did not require the user to refresh `npx skills` first to select the version — version selection happened through the manifest pin / resolution"
       ]
     }

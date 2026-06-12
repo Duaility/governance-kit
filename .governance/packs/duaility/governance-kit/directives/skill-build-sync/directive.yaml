@@ -1,7 +1,0 @@
-# skill-build-sync — (dogfood) the committed published-skill tree skill/ is
-# byte-identical to what scripts/build-skill.sh derives from governance/.
-category: Foundation
-recommended: true
-summary: skill/ derived tree matches scripts/build-skill.sh output from governance/.
-surface: repo-state
-hook: pre-commit

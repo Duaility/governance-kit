@@ -7,8 +7,9 @@
 # kit/references/VERSIONING.md):
 #
 #   kit    — the framework. Source of truth: kit/assets/kit.yaml `version`.
-#            Re-stamps every derived copy (SKILL.md frontmatter, install.yaml
-#            kit_version, the `kit-version=` managed markers).
+#            Re-stamps every derived copy (install.yaml kit_version, the
+#            `kit-version=` managed markers). The published skill (skill/)
+#            versions independently and is not touched by kit releases (#198).
 #   <pack> — a bundled concern pack (foundation, security, docs, commits,
 #            audit). Source of truth:
 #            packs/<pack>/pack.yaml `version`. Each pack versions and tags on
@@ -115,8 +116,6 @@ if [[ "$AXIS" == "kit" ]]; then
             ':(exclude)kit/evals/*' \
             ':(exclude)kit/assets/packs/lib/*' \
             ':(exclude)kit/references/*' \
-            ':(exclude)skill/assets/*' \
-            ':(exclude)skill/references/*' \
             ':(exclude)scripts/test-*' 2>/dev/null | sort
     )
 fi
@@ -191,10 +190,8 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
     note "── DRY RUN — no files written ──"
     echo "source bump:   $SRC  $CURRENT → $VERSION"
     if [[ "$AXIS" == "kit" ]]; then
-        echo "frontmatter:   skill/SKILL.md  version → $VERSION"
         echo "manifest:      .governance/install.yaml  kit_version → $VERSION"
         echo "eval fixture:  $UP_TO_DATE_FIXTURE  kit_version → $VERSION"
-        echo "derived skill: skill/assets reassembled by scripts/build-skill.sh"
         echo "markers (${#marker_files[@]}):"
         printf '   %s\n' "${marker_files[@]}"
     fi
@@ -207,15 +204,11 @@ fi
 # ── apply ─────────────────────────────────────────────────────────────────
 set_quoted_field "$SRC" "$ANCHOR" "$VERSION"
 if [[ "$AXIS" == "kit" ]]; then
-    set_quoted_field "skill/SKILL.md" '^  version: "' "$VERSION"
     set_quoted_field ".governance/install.yaml" '^kit_version: "' "$VERSION"
     set_quoted_field "$UP_TO_DATE_FIXTURE" '^kit_version: "' "$VERSION"
     for f in "${marker_files[@]}"; do
         [[ -f "$f" ]] && stamp_managed_marker "$f" "$VERSION"
     done
-    # Re-derive the published thin skill from the bumped sources — last, so
-    # skill/assets/kit.yaml and the vendored lib/docs carry the new version.
-    bash scripts/build-skill.sh
 fi
 prepend_changelog
 

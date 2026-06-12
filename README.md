@@ -66,7 +66,7 @@ claude
 > governance init
 ```
 
-`npx skills` auto-detects [skill/SKILL.md](skill/SKILL.md) — the published **thin shim** (installer doc + bootstrap engine, ~260K, issue #198) — and symlinks it into every skills-compatible runtime on your machine (`~/.claude/skills/`, `~/.codex/skills/`, `~/.cursor/skills/`, …). The **kit** (rules, packs, templates, every other verb) is fetched from the released `kit/vX.Y.Z` tag at install time and pinned per repo. `governance install` bootstraps `CONSTITUTION.md`, `.governance/`, a pre-commit hook, and the bundled `governance-kit/*` concern packs.
+`npx skills` auto-detects [skill/SKILL.md](skill/SKILL.md) — the published **thin shim** (installer doc + one stdlib-only fetch script — two files, issue #198) — and symlinks it into every skills-compatible runtime on your machine (`~/.claude/skills/`, `~/.codex/skills/`, `~/.cursor/skills/`, …). The **kit** (rules, packs, templates, every other verb) is fetched from the released `kit/vX.Y.Z` tag at install time and pinned per repo. `governance install` bootstraps `CONSTITUTION.md`, `.governance/`, a pre-commit hook, and the bundled `governance-kit/*` concern packs.
 
 Make a bad commit to see the gate fire:
 
@@ -165,7 +165,7 @@ Full catalog: [kit/references/DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_C
 
 governance-kit has **two layers**, versioned independently on separate axes (the Helm `Chart.version` vs `appVersion` model — see [VERSIONING.md](kit/references/VERSIONING.md)):
 
-- **The kit** — the framework: the `governance` skill, the runtime (`run.sh`, `lib.sh`), the hook generators, and the schemas. Released under `kit/vX.Y.Z`.
+- **The kit** — the framework: the runtime (`run.sh`, `lib.sh`), the hook generators, the engines, and the schemas. Released under `kit/vX.Y.Z`. (The published `governance` skill is a fetch-only installer that versions independently and carries no kit code.)
 - **Packs** — the directive *content*: the five `governance-kit/*` concern packs (`foundation`, `security`, `docs`, `commits`, `audit`) ship with the kit; community packs live in their own repos. Each pack versions independently on its own `pack.yaml version`.
 
 `.governance/packs.lock` is the source of truth for **which** packs and versions a repo runs. The directive code itself is **vendored into `.governance/packs/<owner>/<name>/` and committed** — so the checks that enforce your repo are reviewable in your own diffs, and a pack bump shows the real `check.sh` change, not just a SHA. (The lock pins a SHA for integrity; committing the tree adds in-diff auditability — the `go mod vendor` / committed-Helm-`charts/` choice, justified because governance is a trust tool.)
@@ -202,11 +202,11 @@ Edits in the clone flow to every linked runtime live — handy when contributing
 **Update** — two independent things can move; update each on its own:
 
 ```sh
-npx skills add Duaility/governance-kit                 # refresh the skill on your machine to the latest kit release
+npx skills add Duaility/governance-kit                 # refresh the installer shim itself (rarely needed)
 governance kit update [--with-packs] [--dry-run] [--force]
                                                        # inside a repo: re-sync the runtime files init seeded
                                                        # (run.sh, lib.sh, governance.yml, enable-governance.sh,
-                                                       # hook dispatchers) to the kit version now on PATH
+                                                       # hook dispatchers) to the latest published kit release
 ```
 
 `kit update` is **disjoint** from `pack update`: it touches the framework runtime, never directive content. It diffs each kit-owned file and prompts per-file before writing; managed files carry a `# governance-kit:managed kit-version=<v>` marker that flags them as safe to regenerate. `--with-packs` chains a `pack update` afterward.

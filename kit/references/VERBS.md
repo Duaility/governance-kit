@@ -6,16 +6,17 @@ reference file pointed at by the installed skill's `SKILL.md`; see the issue
 full rearchitecture context.
 
 **Two kinds of verb (issue #194).** `install` / `update` / `uninstall` are
-**lifecycle** verbs that run from this installed skill. `pack *` / `directive *` /
-`reset` are **routed** verbs: the skill resolves the kit the repo pins
-(`kit-current`, see the installed skill's `SKILL.md`, "Delegate everything else to the pinned kit") and runs them from
-*that* kit's `<lib_dir>` + `<references_dir>`. The per-verb sections below
-describe behavior regardless of where the engine runs.
+**lifecycle** verbs the installed skill bootstraps (it fetches a kit tree and
+follows that tree's flow doc). `pack *` / `directive *` / `reset` are **routed**
+verbs: the skill resolves the kit the repo pins (`bootstrap.py current`, see the
+installed skill's `SKILL.md`, "Delegate everything else to the pinned kit") and
+runs them from *that* kit's `<lib_dir>` + `<references_dir>`. The per-verb
+sections below describe behavior regardless of where the engine runs.
 
 ## `install` (alias: `init`)
 
 - **Aliases a user might type:** `governance install`, `governance init`, `governance bootstrap`, `set up governance`, `add governance to this repo`.
-- **Tag-resolved (issue #194).** Resolves + fetches the latest published `kit/vX.Y.Z` tag (or `--to X.Y.Z`) and runs the assembly engines from that tree, recording `kit_ref`/`kit_sha`/`kit_provenance` in `install.yaml`. Offline → installed-skill fallback, recorded.
+- **Tag-resolved (issue #194).** Resolves + fetches the latest published `kit/vX.Y.Z` tag (or `--to X.Y.Z`) and runs the assembly engines from that tree, recording `kit_ref`/`kit_sha`/`kit_provenance` in `install.yaml`. Offline with nothing cached → refuse with guidance (issue #198).
 - **Precondition:** must be a git repo.
 - **Authoritative flow:** [INIT_FLOW.md](INIT_FLOW.md) Steps 1–8.
 - **Deterministic plan/apply.** The operator owns the elicitation (packs/preset/directives, principles, collision choices, the Step-8 finding loop, the commit); `packverb init-plan --decisions <json>` validates the resolved set + emits the inventory, and `packverb init-apply <root> --decisions <json>` does the mechanical assembly (directive installs, CONSTITUTION assembly, runtime/CI stamping, hook generation, manifest + lock writes, smoke test) in one tested call.
@@ -44,7 +45,7 @@ describe behavior regardless of where the engine runs.
 
 - **Aliases a user might type:** `governance update`, `governance kit update`, `update governance-kit`, `pull the new kit version`, `sync run.sh from the kit`, `the kit was published — update this repo`.
 - **Precondition:** repo must have governance installed (`.governance/` and at least one kit-owned file present). Reads the version pin from `install.yaml.kit_version`; if the manifest is missing or the field is absent, scans per-file `kit-version=` markers and takes the min. Refuses only when neither manifest nor any versioned marker is found — that means there is no recoverable version pin.
-- **Flags:** `--with-packs` (also chain `pack update` for every `source: gh` entry), `--check-upstream` (read-only check of whether the installed skill is behind the latest published `kit/vX.Y.Z` — a signal only; never fetches-and-applies, routes to the skill manager), `--dry-run`, `--force` (override the dirty-working-tree refusal).
+- **Flags:** `--with-packs` (also chain `pack update` for every `source: gh` entry), `--check-upstream` (read-only check of whether the repo's pin is behind the latest published `kit/vX.Y.Z` — a signal only; the default run already targets the latest tag), `--dry-run`, `--force` (override the dirty-working-tree refusal).
 - **Authoritative flow:** [UPDATE_FLOW.md](UPDATE_FLOW.md) Steps 1–8.
 - **Deterministic plan/apply.** `kitverb.py kit-plan --diff` resolves the plan; `kitverb.py kit-apply` executes it (gates, stamped writes, per-file decisions, hook regeneration, manifest write-through, smoke test) in one tested call. The skill never hand-executes file operations.
 - **Disjoint from `pack update`.** Updates the kit-runtime files (`run.sh`, `lib.sh`, `enable-governance.sh`, `governance.yml`, hook dispatchers) and the `kit_version` pin in `install.yaml`. For directive-content updates use `pack update`. Use both with `kit update --with-packs`.

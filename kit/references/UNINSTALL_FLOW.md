@@ -3,6 +3,13 @@
 The 6-step recipe `governance uninstall` runs. Dispatched from
 the installed skill's `SKILL.md`.
 
+> **Runs from a resolved kit tree (issue #198).** The thin `governance` skill
+> carries no uninstall engine. It resolves the repo's pinned kit via
+> `bootstrap.py current` (or the latest release via `bootstrap.py resolve`
+> when no pin is recorded) and runs every `packverb` invocation below from
+> that tree's `<lib_dir>`. Offline with nothing cached → the shim refuses
+> with connect-once guidance.
+
 `uninstall` is the inverse of `governance init` — for every side-effect `init` can produce, `uninstall` knows how to reverse it, and it refuses to touch anything it does not recognize as kit-owned.
 
 Three source-of-truth layers drive what `uninstall` deletes, in priority order:

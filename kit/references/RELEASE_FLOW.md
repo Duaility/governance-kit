@@ -10,8 +10,9 @@ scheme) is in [VERSIONING.md](VERSIONING.md).
 
 **Version lines are written only by `scripts/release.sh`, only in
 `chore(release)` commits.** Feature and fix PRs never touch `kit.yaml`,
-`pack.yaml` `version`, `SKILL.md` frontmatter, `install.yaml` `kit_version`, or
-any `kit-version=` marker. This is what lets the `kit-version-sync` directive
+`pack.yaml` `version`, `install.yaml` `kit_version`, or
+any `kit-version=` marker. (`skill/SKILL.md`'s frontmatter version is the
+installer's own independent axis — not written by kit releases, issue #198.) This is what lets the `kit-version-sync` directive
 treat any out-of-band edit to those fields as drift.
 
 ## When to cut which axis
@@ -44,7 +45,7 @@ bash scripts/release.sh <kit|PACK> <X.Y.Z> [--dry-run] [--push]
    gate can be bypassed with `RELEASE_SKIP_SUITE=1` only when the suite is red
    for reasons unrelated to the release.
 3. **Bump the one source of truth** — `kit.yaml` or `pack.yaml`.
-4. **Re-derive every stamp (kit axis only).** `SKILL.md` frontmatter version,
+4. **Re-derive every stamp (kit axis only).**
    `.governance/install.yaml` `kit_version`, and the `kit-version=` marker on
    every managed runtime file (auto-discovered from tracked files carrying the
    leading marker, minus generator code, test data, eval fixtures, and docs).

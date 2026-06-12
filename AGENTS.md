@@ -19,7 +19,7 @@ See the **Compliance** section of [CONSTITUTION.md](CONSTITUTION.md) for the ful
 
 `governance-kit` ships Claude Code / Codex skills that together implement **governance-driven development** — a workflow where every directive in a `CONSTITUTION.md` has a matching executable test, and the two evolve as one commit.
 
-The user-facing entry point is the unified [`governance`](skill/SKILL.md) skill. **The skill is an installer; the kit is the product** (issues #194, #198): the published skill is the thin shim at [skill/](skill/) — three lifecycle verbs (`install`, `update`, `uninstall`) plus a delegate rule; everything else (`pack {search,create,add,update,remove,list}`, `directive {add,modify,remove}`, `reset`, all routed flow docs and assets) lives in the kit at [kit/](kit/) and executes from the kit version each repo pins in `install.yaml`. `skill/SKILL.md` is source; `skill/assets/` is derived from `kit/` by [scripts/build-skill.sh](scripts/build-skill.sh) (re-run by `release.sh`; drift fails CI). The skill is the single writer for every governance-kit lifecycle operation.
+The user-facing entry point is the unified [`governance`](skill/SKILL.md) skill. **The skill is an installer; the kit is the product** (issues #194, #198): the published skill is the thin shim at [skill/](skill/) — `SKILL.md` (three lifecycle verbs plus a delegate rule) and one stdlib-only [bootstrap.py](skill/bootstrap.py) that resolves/fetches kit trees into the shared cache. It carries no kit code, no kit version, and no flow docs — everything (`pack {search,create,add,update,remove,list}`, `directive {add,modify,remove}`, `reset`, all flow docs, templates, engines) lives in the kit at [kit/](kit/) and executes from the kit version each repo pins in `install.yaml`. Both skill files are hand-authored source; nothing in `skill/` is derived. The skill is the single writer for every governance-kit lifecycle operation.
 
 | Skill | Purpose |
 |---|---|
@@ -45,8 +45,8 @@ governance-kit/
 ├── README.md                    # Short public overview.
 ├── AGENTS.md                    # You are here.
 ├── skill/                       # Published thin shim — what `npx skills` installs.
-│   ├── SKILL.md                 # SOURCE: lifecycle verbs + delegate-to-kit rule.
-│   └── assets/                  # DERIVED by scripts/build-skill.sh (kit.yaml + packs/lib).
+│   ├── SKILL.md                 # Lifecycle verbs + delegate-to-kit rule.
+│   └── bootstrap.py             # Stdlib-only fetch bootstrap (resolve/current). No kit code.
 ├── kit/                         # The kit artifact (tagged kit/vX.Y.Z) — the product.
 │   ├── assets/                  # Templates copied into target repos.
 │   │   ├── CONSTITUTION.template.md
@@ -91,7 +91,7 @@ governance-kit/
 
 ### Modifying the governance skill
 
-The published skill is `skill/`: a `SKILL.md` (source) plus a derived copy of the kit's engine lib. Everything else — every flow doc (including the lifecycle flows), templates, references, evals, the apply engines — lives in the kit at `kit/` and never ships with the skill; the skill reads them from the fetched/pinned kit tree at run time. Edit kit content under `kit/`, then run `bash scripts/build-skill.sh` to refresh the derived `skill/assets/`; the `skill-build-sync` dogfood directive fails CI when it drifts.
+The published skill is `skill/`: a `SKILL.md` plus a stdlib-only `bootstrap.py` (resolve a published `kit/vX.Y.Z` tag or the repo's pin, fetch it into `~/.governance/cache/kits/`, report paths, refuse offline-with-nothing-cached). Both are hand-authored source — nothing in `skill/` is derived from `kit/`, so there is no build step. Everything else — every flow doc (including the lifecycle flows), templates, references, evals, the apply engines, every version gate — lives in the kit at `kit/` and never ships with the skill; the skill reads them from the fetched/pinned kit tree at run time. The one shared contract between the two is the cache layout, locked by `scripts/test-bootstrap.py`. The skill versions independently of the kit (its frontmatter `version` is the installer's own; kit releases don't touch `skill/`).
 
 When editing `skill/SKILL.md`, keep the `description:` frontmatter field tight — it's what determines whether the skill auto-triggers. Too generic and it fires on everything; too specific and users have to name the skill by hand. Never put an unquoted `: ` (colon-space) inside the description — it breaks YAML frontmatter parsing and `npx skills` discovery (issue #196).
 

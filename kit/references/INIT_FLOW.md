@@ -91,37 +91,37 @@ from whatever skill `npx skills` last installed (main HEAD). This step closes
 that skew by fetching the released tag and running every later engine from it
 (issue #194, milestone 1).
 
-Run the resolver from the **installed skill's bundled lib** (this is bootstrap —
-the repo is not yet pinned; `<skill_dir>` is the directory holding the installed
-`SKILL.md`):
+The installed skill is a fetch-only shim (`SKILL.md` + `bootstrap.py`); it
+already ran this step to reach this document (`<skill_dir>` is the directory
+holding the installed `SKILL.md`):
 
 ```sh
-uv run --quiet --isolated --with PyYAML python \
-    <skill_dir>/assets/packs/lib/kitverb.py kit-resolve "<root>" [--to X.Y.Z]
+python3 <skill_dir>/bootstrap.py resolve [--to X.Y.Z]
 ```
 
-`kit-resolve` resolves the target (default: the latest published `kit/vX.Y.Z`
-tag; `--to X.Y.Z` pins an exact version), fetches that tree into
-`~/.governance/cache/kits/<owner>__<repo>@<sha>/`, gates the delegation floor,
-and reports the tree to run from. A fresh repo has no recorded pin, so
-`direction` is `unknown` and no downgrade gate applies. Consume its JSON:
+`resolve` picks the target (default: the latest published `kit/vX.Y.Z` tag;
+`--to X.Y.Z` pins an exact version), fetches that tree into
+`~/.governance/cache/kits/<owner>__<repo>@<sha>/`, validates it is delegable
+(it must ship its own engine lib and flow docs — pre-0.4.0 kits refuse here),
+and reports the tree to run from. A fresh repo has no recorded pin, so no
+direction gate applies. Consume its JSON:
 
 | Field | Use in `install` |
 |---|---|
-| `result` | `ok` / `refused`. On `refused` (only the `< 0.4.0` floor can fire here), surface `reason` + `recovery` and stop. |
-| `provenance` | `published-tag` / `explicit` (`--to`) / `installed-skill` (offline fallback). Thread into `decisions.kit_provenance` (Step 3) and name it in the summary. |
-| `kit_ref` / `kit_sha` | The pin to thread into `decisions` (Step 3) and record in `install.yaml`. Absent on the offline `installed-skill` fallback (init records the ref it constructs and backfills the sha on first `update`). |
-| `hooks_lib` | The fetched kit's `assets/packs/lib` — call this `<lib_dir>`. **Every engine invocation in Steps 2–7 runs from `<lib_dir>`**, not from `kit/assets/packs/lib/`. |
-| `assets_root` | The fetched kit's `assets/` — call this `<assets_dir>`. The source for `CONSTITUTION.template.md`, `dot-governance/`, `governance.yml`, the bundled `packs/`, etc. |
+| `result` | `ok` / `refused`. On `refused`, surface `reason` + `recovery` and stop. |
+| `provenance` | `published-tag` / `explicit` (`--to`) / `cache` (offline `--to` served from the local cache). Thread into `decisions.kit_provenance` (Step 3) and name it in the summary. |
+| `kit_ref` / `kit_sha` | The pin to thread into `decisions` (Step 3) and record in `install.yaml`. |
+| `lib_dir` | The fetched kit's `assets/packs/lib` — call this `<lib_dir>`. **Every engine invocation in Steps 2–7 runs from `<lib_dir>`**, not from `kit/assets/packs/lib/`. |
+| `assets_dir` | The fetched kit's `assets/` — call this `<assets_dir>`. The source for `CONSTITUTION.template.md`, `dot-governance/`, `governance.yml`, the bundled `packs/`, etc. |
 
 **Offline / upstream unreachable → refuse with guidance (issue #198).** When
-`kit-resolve` reports `provenance: installed-skill`, there is no released kit
-tree to assemble from — the published skill is a thin shim that carries no
-templates or packs. **Stop without writing anything** and tell the user:
-connect once so `install` can fetch the released `kit/vX.Y.Z` (it lands in
-`~/.governance/cache/kits/` and later installs of the same version are
-network-free), or pass `--to X.Y.Z` for a version already in that cache. Do
-not assemble a partial or skill-sourced tree. (`kit_provenance:
+`resolve` reports `result: refused`, there is no released kit tree to
+assemble from — the published skill is a thin shim that carries no templates,
+packs, or engines. **Stop without writing anything** and surface its
+`recovery`: connect once so `install` can fetch the released `kit/vX.Y.Z` (it
+lands in `~/.governance/cache/kits/` and later installs of the same version
+are network-free), or pass `--to X.Y.Z` for a version already in that cache.
+Do not assemble a partial or skill-sourced tree. (`kit_provenance:
 installed-skill` remains in the manifest schema only for repos installed by
 pre-#198 kits.)
 
@@ -267,9 +267,7 @@ install list). Then hand the whole assembly to the **resolved kit's**
 *is* version X's code — the same delegation contract `update` uses, now extended
 to install. The `kit_ref` / `kit_sha` / `kit_provenance` threaded through
 `decisions` are written into `install.yaml`, recording which kit this repo runs
-and how the install resolved it (issue #194). (When Step 0 fell back to the
-installed skill, `<lib_dir>` is the machine copy and `kit_provenance` is
-`installed-skill`.)
+and how the install resolved it (issue #194).
 
 `init-apply` installs each directive folder (minus `evals/`) + its
 `install-assets/`, and for any directive shipping a `config.conf` seeds the
@@ -331,11 +329,10 @@ the pin `governance kit update` reads to detect drift, mirrored by
 `install.yaml.kit_version`.
 
 `init-apply` also records the **content-addressed kit pin** in the manifest
-(issue #177): `kit_ref` and `kit_sha` come straight from Step 0's `kit-resolve`
+(issue #177): `kit_ref` and `kit_sha` come straight from Step 0's `resolve`
 (the fetched `kit/vX.Y.Z` tag and the commit it resolved to), threaded through
-`--decisions`. On the offline `installed-skill` fallback `kit_sha` is omitted and
-backfilled on the first `update`. Alongside the pin, `kit_provenance`
-(`published-tag` / `explicit` / `installed-skill`, also from Step 0) records *how*
+`--decisions`. Alongside the pin, `kit_provenance`
+(`published-tag` / `explicit` / `cache`, also from Step 0) records *how*
 the install resolved its kit (issue #194). Together these make the repo's
 manifest the authoritative statement of which kit it runs and how it got there —
 `update` fetches that ref and delegates apply to its engine. See
@@ -451,7 +448,7 @@ Print a concise summary:
 - Any pre-existing hook collisions encountered and how they were resolved.
 - **Findings resolved in Step 8** — every inline fix and every per-file/per-line waiver added, with the reason recorded against it.
 - **Findings escalated** — anything Step 8 could not inline-fix and surfaced to the operator (with the action they need to take).
-- **Resolved kit** (Step 0): the target version and how it resolved (`published-tag` / `explicit` / `installed-skill`).
+- **Resolved kit** (Step 0): the target version and how it resolved (`published-tag` / `explicit` / `cache`).
 - **Detected runtime** at commit time: `claude-code`, `codex`, or `none`. If `none`, mention the body waiver that was applied.
 - **Install commit SHA** that just landed.
 - How to run locally: `bash .governance/run.sh`.
@@ -463,7 +460,7 @@ Print a concise summary:
 
 Every successful `install` run should leave the user with a summary that includes:
 
-- `Resolved kit:` `<version> via published-tag | explicit (--to) | installed-skill` (Step 0). On the `installed-skill` fallback, append the offline note.
+- `Resolved kit:` `<version> via published-tag | explicit (--to) | cache` (Step 0). On the `cache` provenance, note upstream was not consulted.
 - `Packs:` the list of selected packs.
 - `Preset:` chosen preset and whether it was explicit or assumed.
 - `Hook strategy:` `.githooks/`, husky, or `pre-commit`.

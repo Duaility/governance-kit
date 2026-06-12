@@ -4,7 +4,7 @@
 
 Authoritative flow for the hand-authored directive verbs: `governance directive add`, `governance directive modify`, `governance directive remove`.
 
-> **Routed verb — runs from the repo-pinned kit (issue #194).** The thin `governance` skill does not run `directive *` from its own machine copy. Resolve the kit the repo pins via `kit-current` (see the installed skill's `SKILL.md` ("Delegate everything else to the pinned kit")) first, then run every engine and read every template from the resolved kit's `<lib_dir>` / `<assets_dir>`. See [DIRECTIVE_AMEND_FLOW.md](DIRECTIVE_AMEND_FLOW.md) for the full flow. When `kit-current` falls back to the installed skill, those paths are this machine copy.
+> **Routed verb — runs from the repo-pinned kit (issue #194).** The thin `governance` skill carries no engines of its own. Resolve the kit the repo pins via `bootstrap.py current` (see the installed skill's `SKILL.md` ("Delegate everything else to the pinned kit")) first, then run every engine and read every template from the resolved kit's `<lib_dir>` / `<assets_dir>`. See [DIRECTIVE_AMEND_FLOW.md](DIRECTIVE_AMEND_FLOW.md) for the full flow. When the resolve is `refused` (no recorded pin, or offline + uncached), stop and route the user to `governance update` (online once).
 
 ## The atomic triple
 

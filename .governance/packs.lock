@@ -6,7 +6,6 @@ packs:
   directives:
   - kit-version-consistency
   - pre-commit-test-gate
-  - skill-build-sync
 - id: governance-kit/foundation
   version: 0.1.0
   source: gh
