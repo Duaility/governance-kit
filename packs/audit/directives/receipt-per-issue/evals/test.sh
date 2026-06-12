@@ -112,7 +112,8 @@ stage_all
 commit_quiet "docs: untokened receipt"
 EVAL_LABEL="$EVAL_ID no-token" expect_fail "$CHECK"
 
-# fail — filename has issue number but no slug
+# pass — slugless `issue-<N>.md` is a valid filename (issue #201: the
+#        accounting hooks create slugless receipts; the slug is optional).
 rm receipts/rogue.md
 cat > receipts/issue-9.md <<'EOF'
 # No slug
@@ -134,8 +135,8 @@ None.
 ok
 EOF
 stage_all
-commit_quiet "docs: receipt without slug"
-EVAL_LABEL="$EVAL_ID no-slug" expect_fail "$CHECK"
+commit_quiet "docs: slugless receipt"
+EVAL_LABEL="$EVAL_ID slugless-ok" expect_pass "$CHECK"
 
 # fail — slug contains uppercase (not kebab-case)
 rm receipts/issue-9.md
@@ -569,5 +570,87 @@ EOF
 stage_all
 commit_quiet "docs: grandfathered receipt without decisions"
 EVAL_LABEL="$EVAL_ID grandfathered-no-decisions" expect_pass "$CHECK"
+
+# ── Accounting-only stubs (issue #201) ──
+# The token/steering pre-commit hooks create receipts/issue-<N>.md carrying
+# just a `## Accounting` section before the agent writes the narrative. Such a
+# stub is exempt from the four-section / crosswalk / Decisions / Verification
+# rules; `### Costs`/`### Steering` are level-3 and don't count as sections.
+
+# pass — a newly added accounting-only stub (slugless, no narrative) is exempt
+rm -f receipts/*.md
+cat > receipts/issue-40.md <<'EOF'
+## Accounting
+
+### Costs
+
+| cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | note |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ck-1 | claude-code | s | #40 | claude-sonnet-4-5 | 100 | 0 | 0 | 50 | 150 | 0.0011 | seed |
+EOF
+stage_all
+EVAL_LABEL="$EVAL_ID accounting-stub-exempt" expect_pass "$CHECK"
+
+# pass — a full receipt that also carries a `## Accounting` section still
+#        passes: the accounting section sits alongside the narrative and the
+#        crosswalk reads only Checklist/What changed/Verification.
+rm -f receipts/*.md
+cat > receipts/issue-41-full.md <<'EOF'
+# Receipt with accounting
+
+## Checklist
+
+- [x] do the thing
+
+## What changed
+
+Do the thing.
+
+## Out of scope
+
+None.
+
+## Verification
+
+```sh
+bash .governance/run.sh
+```
+
+## Decisions
+
+None.
+
+## Accounting
+
+### Costs
+
+| cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | note |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ck-2 | claude-code | s | #41 | claude-sonnet-4-5 | 100 | 0 | 0 | 50 | 150 | 0.0011 | x |
+EOF
+stage_all
+EVAL_LABEL="$EVAL_ID full-receipt-with-accounting" expect_pass "$CHECK"
+
+# fail — once the agent adds ANY narrative section the full shape is enforced;
+#        a receipt with `## Accounting` + `## Checklist` but missing the other
+#        required sections is not a stub.
+rm -f receipts/*.md
+cat > receipts/issue-42-partial.md <<'EOF'
+# Partial receipt
+
+## Checklist
+
+- [x] do the thing
+
+## Accounting
+
+### Costs
+
+| cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | note |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ck-3 | claude-code | s | #42 | claude-sonnet-4-5 | 100 | 0 | 0 | 50 | 150 | 0.0011 | x |
+EOF
+stage_all
+EVAL_LABEL="$EVAL_ID partial-narrative-not-stub" expect_fail "$CHECK"
 
 eval_done

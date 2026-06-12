@@ -26,7 +26,9 @@ agents_md_created: false         # true only when bootstrap Step 4b Case 2 ran (
 enable_governance_script: scripts/enable-governance.sh  # Path A only; omitted under Path B
 install_assets_seeded:           # files seeded by directives' install-assets/
   - QUALITY.md
-  - COSTS.md
+# NOTE: the accounting directives (agent-token-accounting / agent-steering-accounting)
+# seed no ledger file — they create the issue's receipt on demand at first commit
+# rather than seeding COSTS.md/STEERING.md, so neither appears here.
 # NOTE: per-directive config overlays seeded from a directive's config.conf are
 # NOT listed here. They live at the deterministic path .governance/conf/<id>.conf
 # inside the .governance/ tree (which both uninstall modes delete wholesale), so

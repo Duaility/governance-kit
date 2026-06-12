@@ -8,8 +8,8 @@
 #
 # The summary triple parallels Token-Total / Cost-USD on the
 # agent-token-accounting side: a reviewer skimming `git log` can see the
-# steering volume without joining against STEERING.md. The row → commit
-# join uses STEERING.md's `commit |` column; per-event `Steer-Key:`
+# steering volume without joining against receipts. The row → commit
+# join uses receipts's `commit |` column; per-event `Steer-Key:`
 # trailers were retired in #66.
 #
 # Always-on contract: every non-merge, non-revert commit gets the triple
@@ -46,7 +46,7 @@ if [[ -f "$HANDOFF" ]]; then
 fi
 
 # Idempotent on amends/retries: skip if Steer-Count is already stamped. The
-# pre-commit hook re-derives the summary from the staged STEERING.md diff
+# pre-commit hook re-derives the summary from the staged receipts diff
 # every run, so a clean re-stamp would be safe; this guard is belt-and-
 # braces against a stale handoff lingering past a failed commit-msg check.
 if grep -qE '^Steer-Count:[[:space:]]' "$MSG_FILE"; then

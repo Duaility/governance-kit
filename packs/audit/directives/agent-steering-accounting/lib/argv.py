@@ -4,7 +4,7 @@
 macOS's `ps -ww -p $pid -o args=` cat-v-escapes every byte >= 0x80, which
 mangles UTF-8 multi-byte sequences in commit subjects. The steering hook
 needs exact-byte argv to recover the subject so the strict subject-match
-check in check.sh agrees with what the hook wrote to STEERING.md. This
+check in check.sh agrees with what the hook wrote to the receipt. This
 helper reads KERN_PROCARGS2 via sysctl(3) so non-ASCII commit subjects
 survive intact. See issue #140.
 

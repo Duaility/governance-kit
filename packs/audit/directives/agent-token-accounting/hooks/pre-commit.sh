@@ -26,7 +26,7 @@
 # explicitly to skip inference (useful for editor-mode commits where argv has
 # no -m).
 #
-# All COSTS.md parsing / summing / appending goes through
+# All receipt parsing / summing / appending goes through
 # sibling lib/ledger.py — bash here only handles git plumbing,
 # environment detection, argv walking, and the env-file handoff.
 # Per-runtime transcript readers live in sibling runtimes/<runtime>.sh.
@@ -53,7 +53,9 @@ fi
 ROOT="$(git rev-parse --show-toplevel)"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 RULE_DIR="$(cd "$HERE/.." && pwd)"
-LEDGER="$ROOT/COSTS.md"
+# Accounting rows live in per-issue receipts (issue #201), not a central
+# COSTS.md. The receipt is resolved from the issue anchor below.
+RECEIPTS_DIR="$ROOT/receipts"
 LIB="$RULE_DIR/lib"
 RUNTIMES="$RULE_DIR/runtimes"
 # In a worktree `.git` is a pointer file, not a directory. Use rev-parse
@@ -183,9 +185,16 @@ for var in CUM_INPUT CUM_CACHE_CREATE CUM_CACHE_READ CUM_OUTPUT; do
     fi
 done
 
+# ── Resolve the receipt this issue's accounting rows belong in ──
+# Prefer an existing issue-N.md / issue-N-<slug>.md; create-if-absent lands
+# the slugless issue-N.md, which the agent later fleshes out (or renames).
+RECEIPT="$(python3 "$LIB/ledger.py" resolve-receipt "$RECEIPTS_DIR" "$ISSUE")"
+
 # ── Compute per-commit delta from prev rows for this session ──
+# Summed across every receipt's Costs sub-table so a session that spans
+# receipts still computes the right delta.
 read -r PREV_INPUT PREV_CACHE_CREATE PREV_CACHE_READ PREV_OUTPUT < <(
-    python3 "$LIB/ledger.py" sum-by-session "$LEDGER" "$SESSION_ID"
+    python3 "$LIB/ledger.py" sum-by-session "$RECEIPTS_DIR" "$SESSION_ID"
 )
 
 TOKEN_INPUT=$(( CUM_INPUT         - PREV_INPUT         ))
@@ -204,9 +213,16 @@ TRAILER_OUTPUT=$TOKEN_OUTPUT
 TRAILER_TOTAL=$(( TRAILER_INPUT + TRAILER_OUTPUT ))
 
 # ── Compute cost-key ──────────────────────────────────────────
+# Opaque key: <agent>-<session-short>-<epoch>-<n>. The per-(prefix) counter
+# <n> closes the same-second collision window — two commits in one session
+# within the same epoch second mint distinct keys (matching steer-key's
+# scheme). The key is a join token, not a parseable structure.
 SESSION_SHORT="${SESSION_ID:0:12}"
 SESSION_SHORT="${SESSION_SHORT%%[-._]}"
-COST_KEY="${AGENT_COST_KEY:-${AGENT_NAME}-${SESSION_SHORT}-$(date +%s)}"
+EPOCH="$(date +%s)"
+KEY_PREFIX="${AGENT_NAME}-${SESSION_SHORT}-${EPOCH}-"
+COST_INDEX="$(python3 "$LIB/ledger.py" next-cost-index "$RECEIPTS_DIR" "$KEY_PREFIX")"
+COST_KEY="${AGENT_COST_KEY:-${KEY_PREFIX}${COST_INDEX}}"
 
 # ── Compute cost-usd once; feed both ledger row and trailer ───
 # Keeping this shell-side (instead of letting ledger.py recompute) means
@@ -234,13 +250,16 @@ if ! COST_USD="$(python3 "$LIB/rates.py" cost "$MODEL" "$TOKEN_INPUT" "$TOKEN_CA
     exit 1
 fi
 
-# ── Append the ledger row ─────────────────────────────────────
+# ── Append the cost row to the issue's receipt ────────────────
+# Creates receipts/issue-<N>.md with a `## Accounting` → `### Costs` section
+# if it doesn't exist yet; otherwise slots the row into the existing table.
+mkdir -p "$RECEIPTS_DIR"
 python3 "$LIB/ledger.py" append-row \
-    "$LEDGER" \
+    "$RECEIPT" \
     "$COST_KEY" "$AGENT_NAME" "$SESSION_ID" "$ISSUE" "$MODEL" \
     "$TOKEN_INPUT" "$TOKEN_CACHE_CREATE" "$TOKEN_CACHE_READ" "$TOKEN_OUTPUT" \
     "$SUBJECT"
-git add "$LEDGER"
+git add "$RECEIPT"
 
 # ── Hand off to prepare-commit-msg via env file ───────────────
 cat > "$HANDOFF" <<EOF

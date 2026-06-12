@@ -16,7 +16,7 @@ A few tenets fall out of that.
 
 **3. Receipts beat plans.** Pre-implementation plans are the model's promise; post-implementation receipts are the model's attestation. Plans are private to the runtime and get thrown away. Receipts are durable, reviewable, and crosswalk every claim ("I did X") to evidence ("here is where X is verifiable in the diff or the verification steps").
 
-**4. Ledgers outlive sessions.** Append-only files in the repo — `CONSTITUTION.md`, `COSTS.md`, `STEERING.md`, `QUALITY.md`, `receipts/` — are the system of record. Not chat history, not session transcripts, not the runtime's local state. They survive the squash merge, the runtime swap, and the team turnover.
+**4. Ledgers outlive sessions.** Durable files in the repo — `CONSTITUTION.md`, `QUALITY.md`, and the per-issue `receipts/` (which carry the cost + steering accounting under each receipt's `## Accounting` section) — are the system of record. (`COSTS.md`/`STEERING.md` are sealed legacy ledgers, frozen on the trunk; new accounting lands in the receipts.) Not chat history, not session transcripts, not the runtime's local state. They survive the squash merge, the runtime swap, and the team turnover.
 
 **5. Verify, do not trust — and make verification cheap.** The agent is treated as a moderately untrusted author whose work crosswalks back to an issue, evidence, and cost. This is not pessimism about agents; it is the same posture mature teams already take with humans (CI, review, audit trails). GDD's job is to make that posture *cheap enough to apply at agent throughput*, because human review bandwidth does not scale with agent commit volume.
 

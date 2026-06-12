@@ -35,7 +35,7 @@ sections below describe behavior regardless of where the engine runs.
 
 - **Aliases a user might type:** `governance uninstall`, `tear down governance`, `remove governance-kit`, `clean slate`, `remove governance from this repo`.
 - **Not** an alias for `reset` — see disambiguation in the installed skill's `SKILL.md`. "uninstall" removes governance entirely; "reset" restores rules to pinned versions while leaving the install in place.
-- **Modes:** `dry-run` (default when manifest missing), `soft` (default when manifest present), `hard` (also strips seeded docs like `QUALITY.md`, `COSTS.md`, and `.pre-governance.bak` backups).
+- **Modes:** `dry-run` (default when manifest missing), `soft` (default when manifest present), `hard` (also strips seeded docs like `QUALITY.md`, a legacy pre-#201 `COSTS.md` if one was seeded, and `.pre-governance.bak` backups).
 - **Authoritative flow:** [UNINSTALL_FLOW.md](UNINSTALL_FLOW.md) Steps 1–6.
 - **Deterministic plan/apply.** `packverb uninstall-plan` surveys/classifies; `packverb uninstall-apply --mode <m> [--allow-heuristic]` executes the reversal in fixed order (hooks → config → AGENTS.md → tree → path-B → seeded → backups → `.governance/` last). The skill never hand-executes the deletions.
 - **Source-of-truth ladder:** install manifest → `governance-kit:managed kit-version=<v>` line-2 marker → heuristic fallback (forces dry-run; a destructive mode needs `--allow-heuristic`).

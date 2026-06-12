@@ -69,7 +69,7 @@ These are user-owned after the copy — bootstrap does not overwrite them in aug
 | Path | Seeded by | Ownership evidence | Soft | Hard |
 |---|---|---|---|---|
 | `QUALITY.md` | `issues-tracked` directive | manifest: `install_assets_seeded: [QUALITY.md, …]` | preserve; list as orphaned in the report | delete |
-| `COSTS.md` | `agent-token-accounting` directive | manifest: `install_assets_seeded: […, COSTS.md]` | preserve; list as orphaned in the report | delete |
+| `COSTS.md` (legacy, pre-#201 installs only — the accounting directives no longer seed it) | `agent-token-accounting` directive | manifest: `install_assets_seeded: […, COSTS.md]` | preserve; list as orphaned in the report | delete |
 | any future `install-assets/<file>` | any future directive | manifest | preserve | delete |
 
 Hard mode requires an **extra confirm** on top of the Step 4 confirmation because deleting a user-edited file (likely with hand-written content by the time reset runs) is the most destructive action the skill can take.
