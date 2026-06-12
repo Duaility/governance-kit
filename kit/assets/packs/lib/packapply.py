@@ -173,7 +173,7 @@ def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str
             # in both modes, so dry-run can report it.
             sub = pack_dir / "directives" / did / "constitution.md"
             if sub.is_file():
-                constitution_upserts.append((did, sub.read_text()))
+                constitution_upserts.append((pack["id"], did, sub.read_text()))
             if dry_run:
                 continue
             cmd = 'install_directive_folder "$1" "$2" "$3"; install_directive_assets "$1" "$2" "$3"'
@@ -219,13 +219,14 @@ def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str
     # rulebook gains (add) or refreshes (update) an entry for every directive that
     # gained a test — the GDD invariant (every directive ↔ a constitution entry).
     # init assembles these at bootstrap and `pack remove` strips them; this keeps
-    # add/update symmetric. upsert replaces in place or inserts at the end of
-    # `## Directives`, matching init's placement.
+    # add/update symmetric. The upsert homes each subsection under its pack's
+    # `## <owner>/<pack>` header (creating it if absent, relocating a stray copy),
+    # matching init's pack-grouped placement.
     constitution = root / "CONSTITUTION.md"
     if constitution_upserts and constitution.is_file():
         text = constitution.read_text()
-        for did, subsection in constitution_upserts:
-            text, _action = upsert_directive_subsection(text, did, subsection)
+        for pack_id, did, subsection in constitution_upserts:
+            text, _action = upsert_directive_subsection(text, did, subsection, pack_id)
             report["constitution_upserted"].append(did)
         if not dry_run:
             constitution.write_text(text)

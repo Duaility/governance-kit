@@ -25,6 +25,18 @@ def _heading_re(directive_id: str) -> re.Pattern[str]:
 
 _ANY_HEADING_RE = re.compile(r"^(#{2,3})[ \t]+\S")
 
+# A pack-group header is `## <owner>/<pack>` — a level-2 heading whose only token
+# contains a slash. The other level-2 headings in CONSTITUTION.md (`## Directives`,
+# `## Amendment process`, `## Evolution Log`, …) never do, so this discriminates a
+# pack group from a major section without a hard-coded section list.
+_PACK_HEADER_RE = re.compile(r"^##[ \t]+\S+/\S+[ \t]*$")
+_DIRECTIVES_RE = re.compile(r"^##[ \t]+Directives[ \t]*$")
+_L2_RE = re.compile(r"^##[ \t]+\S")
+
+
+def _pack_header_re(pack_id: str) -> re.Pattern[str]:
+    return re.compile(rf"^##[ \t]+{re.escape(pack_id)}[ \t]*$")
+
 
 def find_subsection(text: str, directive_id: str) -> tuple[int, int] | None:
     """Return the `[start, end)` line-index span of the directive's `### <id>`
@@ -60,39 +72,104 @@ def strip_directive_subsection(text: str, directive_id: str) -> tuple[str, bool]
     return "".join(lines), True
 
 
-def upsert_directive_subsection(text: str, directive_id: str, subsection: str) -> tuple[str, str]:
+def _directives_region_end(lines: list[str]) -> int:
+    """Index of the line that ends the Directives region — the first level-2
+    heading after `## Directives` that is *not* a pack group (e.g. `## Amendment
+    process`), or `len(lines)`. Pack-group headers live inside this region; a new
+    one is created just before it."""
+    dir_start = next((i for i, ln in enumerate(lines) if _DIRECTIVES_RE.match(ln)), None)
+    if dir_start is None:
+        return len(lines)
+    for j in range(dir_start + 1, len(lines)):
+        if _L2_RE.match(lines[j]) and not _PACK_HEADER_RE.match(lines[j]):
+            return j
+    return len(lines)
+
+
+def render_pack_groups(groups: list[tuple[str, list[str]]]) -> str:
+    """Render directive subsections grouped under `## <owner>/<pack>` headers.
+
+    `groups` is `[(pack_id, [subsection, …]), …]` in display order. Each pack
+    emits its `## <pack_id>` header followed by its directive subsections, one
+    blank line between blocks. Shared by `init` assembly and the pack-aware
+    upsert so both produce the same grouped structure.
+    """
+    out: list[str] = []
+    for pack_id, subs in groups:
+        out.append(f"## {pack_id}\n\n")
+        for s in subs:
+            out.append(s.rstrip("\n") + "\n\n")
+    return "".join(out)
+
+
+def upsert_directive_subsection(
+    text: str, directive_id: str, subsection: str, pack_id: str | None = None
+) -> tuple[str, str]:
     """Replace the directive's subsection with `subsection`, or insert it if absent.
 
     Returns `(new_text, action)` where action is `replaced` or `inserted`.
-    Insertion lands at the end of the `## Directives` section (before the next
-    `## ` heading), matching where init appends new directive blocks. `subsection`
-    is normalized to end with exactly one trailing blank line so adjacent blocks
-    stay one blank line apart.
+    `subsection` is normalized to end with exactly one trailing blank line so
+    adjacent blocks stay one blank line apart.
+
+    When `pack_id` is given (`<owner>/<pack>`), the subsection is homed under that
+    pack's `## <owner>/<pack>` header — created at the end of the Directives region
+    if absent — and any stray copy elsewhere in the document is first removed, so
+    a re-pin relocates a previously-ungrouped subsection into its group. When
+    `pack_id` is None, the legacy flat behaviour applies: replace in place, else
+    append at the end of `## Directives`.
     """
     block = subsection.rstrip("\n") + "\n\n"
-    lines = text.splitlines(keepends=True)
-    span = find_subsection(text, directive_id)
-    if span is not None:
-        start, end = span
-        lines[start:end] = [block]
-        return "".join(lines), "replaced"
 
-    # Insert at the end of the `## Directives` section.
-    dir_start = next(
-        (i for i, ln in enumerate(lines) if re.match(r"^##[ \t]+Directives[ \t]*$", ln)),
-        None,
-    )
-    if dir_start is None:
-        # No Directives section — append at end of document.
-        tail = "" if text.endswith("\n") else "\n"
-        return text + tail + "\n" + block, "inserted"
-    insert_at = len(lines)
-    for j in range(dir_start + 1, len(lines)):
-        if re.match(r"^##[ \t]+\S", lines[j]):
-            insert_at = j
-            break
-    lines[insert_at:insert_at] = [block]
-    return "".join(lines), "inserted"
+    if pack_id is None:
+        lines = text.splitlines(keepends=True)
+        span = find_subsection(text, directive_id)
+        if span is not None:
+            start, end = span
+            lines[start:end] = [block]
+            return "".join(lines), "replaced"
+        dir_start = next((i for i, ln in enumerate(lines) if _DIRECTIVES_RE.match(ln)), None)
+        if dir_start is None:
+            # No Directives section — append at end of document.
+            tail = "" if text.endswith("\n") else "\n"
+            return text + tail + "\n" + block, "inserted"
+        insert_at = len(lines)
+        for j in range(dir_start + 1, len(lines)):
+            if _L2_RE.match(lines[j]):
+                insert_at = j
+                break
+        lines[insert_at:insert_at] = [block]
+        return "".join(lines), "inserted"
+
+    # Pack-group-aware: remove any existing copy (wherever it sits — this is what
+    # relocates a previously-ungrouped subsection), then insert under the pack's
+    # header. action reflects whether the directive already had an entry.
+    text, removed = strip_directive_subsection(text, directive_id)
+    action = "replaced" if removed else "inserted"
+    lines = text.splitlines(keepends=True)
+    header = _pack_header_re(pack_id)
+    header_idx = next((i for i, ln in enumerate(lines) if header.match(ln)), None)
+    if header_idx is not None:
+        # Group spans from the header to the next level-2 heading (or EOF).
+        group_end = len(lines)
+        for j in range(header_idx + 1, len(lines)):
+            if _L2_RE.match(lines[j]):
+                group_end = j
+                break
+        # Insert in sorted position by directive id — init emits each pack's
+        # directives `sorted`, so matching that keeps the two paths in lockstep
+        # and makes a re-upsert idempotent rather than churning the order.
+        insert_at = group_end
+        for j in range(header_idx + 1, group_end):
+            m = re.match(r"^###[ \t]+(\S+)", lines[j])
+            if m and m.group(1) > directive_id:
+                insert_at = j
+                break
+        lines[insert_at:insert_at] = [block]
+        return "".join(lines), action
+    # No header yet — create `## <pack_id>` at the end of the Directives region.
+    region_end = _directives_region_end(lines)
+    lines[region_end:region_end] = [f"## {pack_id}\n\n", block]
+    return "".join(lines), action
 
 
 def strip_marker_block(text: str, open_marker: str, close_marker: str) -> tuple[str, str, bool]:

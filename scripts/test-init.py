@@ -52,13 +52,28 @@ def test_assemble_constitution_splices_principles_and_subsections() -> None:
     template = (ROOT / "kit/assets/CONSTITUTION.template.md").read_text()
     out = initplan.assemble_constitution(
         template, ["Ship receipts, not promises."],
-        ["### no-console-log\n\n- **Directive**: no console.log.\n"])
+        [("acme/widgets", ["### no-console-log\n\n- **Directive**: no console.log.\n"])])
     assert "Ship receipts, not promises." in out
     assert "### no-console-log" in out
     # the template example directive is replaced, not kept
     assert "### Example — constitution-exists" not in out
     # structure preserved
     assert "## Amendment process" in out and "## Evolution Log" in out
+
+
+def test_assemble_constitution_groups_subsections_by_pack() -> None:
+    template = (ROOT / "kit/assets/CONSTITUTION.template.md").read_text()
+    out = initplan.assemble_constitution(
+        template, [],
+        [("acme/widgets", ["### widget-naming\n\n- **Directive**: x.\n",
+                           "### widget-size\n\n- **Directive**: y.\n"]),
+         ("acme/shapes", ["### no-shims\n\n- **Directive**: z.\n"])])
+    # each pack gets a `## <owner>/<pack>` header, between `## Directives` and
+    # `## Amendment process`, with its directives nested under it.
+    assert "## acme/widgets" in out and "## acme/shapes" in out
+    assert out.index("## Directives") < out.index("## acme/widgets") < out.index("## Amendment process")
+    assert out.index("## acme/widgets") < out.index("### widget-naming") < out.index("## acme/shapes")
+    assert out.index("## acme/shapes") < out.index("### no-shims") < out.index("## Amendment process")
 
 
 # --- end-to-end init-apply --------------------------------------------------

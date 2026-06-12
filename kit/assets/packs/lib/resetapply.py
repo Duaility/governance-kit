@@ -103,7 +103,8 @@ def cmd_reset_apply(args: argparse.Namespace) -> int:
             report["restored"].append(d["id"])
             sub_src = Path(d["subsection_source"])
             if const_text and sub_src.is_file():
-                const_text, action = upsert_directive_subsection(const_text, d["id"], sub_src.read_text())
+                const_text, action = upsert_directive_subsection(
+                    const_text, d["id"], sub_src.read_text(), d.get("pack_id"))
                 report["constitution_changed"].append(f"{d['id']}:{action}")
         elif d["kind"] == "drop":
             shutil.rmtree(root / d["dest"], ignore_errors=True)

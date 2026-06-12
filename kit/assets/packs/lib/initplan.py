@@ -53,11 +53,19 @@ def directive_inventory(packs: list[dict[str, Any]]) -> list[dict[str, str]]:
     return out
 
 
-def assemble_constitution(template: str, principles: list[str], subsections: list[str]) -> str:
+def assemble_constitution(
+    template: str, principles: list[str], groups: list[tuple[str, list[str]]]
+) -> str:
     """Template → CONSTITUTION.md: operator principles spliced into Principles,
     each directive's `constitution.md` spliced into Directives (replacing the
-    example), the rest verbatim.
+    example) and grouped under its `## <owner>/<pack>` header, the rest verbatim.
+
+    `groups` is `[(pack_id, [subsection, …]), …]` in display order — the same
+    pack-grouped shape the `pack add`/`update` upsert maintains, so a fresh
+    install and an incrementally-grown CONSTITUTION.md share one structure.
     """
+    from docsurgery import render_pack_groups
+
     lines = template.splitlines(keepends=True)
 
     def find(pat: str) -> int:
@@ -69,11 +77,8 @@ def assemble_constitution(template: str, principles: list[str], subsections: lis
     directives_i = find(r"^##[ \t]+Directives[ \t]*$")
     amendment_i = find(r"^##[ \t]+Amendment process[ \t]*$")
 
-    # Rebuild the Directives section body: heading + spliced subsections.
-    body = "## Directives\n\n"
-    body += "\n".join(s.rstrip("\n") + "\n" for s in subsections)
-    if subsections:
-        body += "\n"
+    # Rebuild the Directives section body: heading + pack-grouped subsections.
+    body = "## Directives\n\n" + render_pack_groups(groups)
     new_lines = lines[:directives_i] + [body] + lines[amendment_i:]
 
     text = "".join(new_lines)
