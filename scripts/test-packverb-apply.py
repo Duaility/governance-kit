@@ -94,6 +94,27 @@ def _write_source_pack(base: Path, pack_id: str = "acme/widgets") -> Path:
     return pack
 
 
+def _write_sweep_source_pack(base: Path, pack_id: str = "acme/shape", did: str = "no-shims") -> Path:
+    """A minimal valid `surface: sweep` source pack (triage.sh, not check.sh)."""
+    pack = base / "shape"
+    ddir = pack / "directives" / did
+    (ddir / "evals").mkdir(parents=True)
+    (pack / "pack.yaml").write_text(
+        f"id: {pack_id}\nname: Shape\nversion: \"0.1\"\nmin_governance_kit: \"0.0.1\"\n"
+        "description: test\nauthor: acme\nsource: gh\n")
+    (ddir / "directive.yaml").write_text(
+        "category: ArchitecturalShape\nrecommended: false\nsummary: no shims.\n"
+        "surface: sweep\nhook: none\nengine: llm\nmodel_tier: high\n")
+    (ddir / "triage.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
+    (ddir / "constitution.md").write_text(
+        f"### {did}\n\n- **Directive**: no shims.\n"
+        f"- **Enforced by**: `.governance/packs/{pack_id}/directives/{did}/triage.sh`\n")
+    (ddir / "evals" / "test.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
+    (ddir / "triage.sh").chmod(0o755)
+    (ddir / "evals" / "test.sh").chmod(0o755)
+    return pack
+
+
 def _make_repo(tmp: Path, *, constitution: str | None = None,
                lock: str | None = None, installed_directive: str | None = None) -> Path:
     root = Path(tmp)
@@ -310,6 +331,47 @@ def test_add_held_back_directive_via_decisions() -> None:
         assert rc == 0, report
         assert report["held_back"] == ["no-console-log"]
         assert not (root / ".governance/packs/acme/widgets").exists()
+
+
+def test_add_vendors_sweep_lane() -> None:
+    # issue #142 parity: `pack add` of a `surface: sweep` directive must lay down
+    # the kit-level sweep workflow + engine and ledger them — exactly as init
+    # does — so the lane is dispatchable when added to an already-initialized
+    # repo. (Before this fix, only init seeded them; pack add left them missing.)
+    with tempfile.TemporaryDirectory() as tmp:
+        src = _write_sweep_source_pack(Path(tmp) / "src")
+        root = _make_repo(Path(tmp) / "repo")
+        packplan.fetch_ref = _stub_fetch(src, "acme/shape", "c" * 40)
+        rc, report = _capture(lambda: packapply.cmd_pack_apply(
+            _ns(mode="add", root=str(root), target="gh:acme/shape")))
+        assert rc == 0 and report["result"] == "applied", report
+        wf = root / ".github/workflows/governance-sweep.yml"
+        eng = root / ".governance/sweep.py"
+        assert wf.is_file() and "kit-version=" in wf.read_text().splitlines()[0]
+        assert eng.is_file() and "kit-version=" in eng.read_text().splitlines()[1]
+        assert os.access(eng, os.X_OK)
+        assert ".github/workflows/governance-sweep.yml" in report["seeded_assets"]
+        assert ".governance/sweep.py" in report["seeded_assets"]
+        ledger = (root / ".governance/install.yaml").read_text()
+        assert ".governance/sweep.py" in ledger
+        assert ".github/workflows/governance-sweep.yml" in ledger
+
+
+def test_add_held_back_sweep_directive_seeds_no_lane() -> None:
+    # The lane is keyed to what actually installs: a held-back sweep directive
+    # must NOT pull in the workflow + engine.
+    with tempfile.TemporaryDirectory() as tmp:
+        src = _write_sweep_source_pack(Path(tmp) / "src")
+        root = _make_repo(Path(tmp) / "repo")
+        packplan.fetch_ref = _stub_fetch(src, "acme/shape", "c" * 40)
+        rc, report = _capture(lambda: packapply.cmd_pack_apply(
+            _ns(mode="add", root=str(root), target="gh:acme/shape",
+                decisions='{"no-shims": "skip"}')))
+        assert rc == 0, report
+        assert report["held_back"] == ["no-shims"]
+        assert not (root / ".governance/sweep.py").exists()
+        assert not (root / ".github/workflows/governance-sweep.yml").exists()
+        assert report["seeded_assets"] == []
 
 
 # --- pack-apply: remove (offline, via CLI) ----------------------------------
