@@ -17,11 +17,24 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
 
 LIB_DIR = Path(__file__).resolve().parent
+KIT_ASSETS = LIB_DIR.parents[1]  # kit/assets
+
+# The sweep lane's vendored assets (issue #142): kit-level files laid down into a
+# target repo whenever a `surface: sweep` directive is installed. Each value is
+# the path parts under KIT_ASSETS. This is the single source of truth, shared by
+# init-apply and pack-apply so the two install paths can never diverge — the
+# no-path-bifurcation invariant the sweep lane itself enforces.
+SWEEP_ASSETS = {
+    ".github/workflows/governance-sweep.yml": ("governance-sweep.yml",),
+    ".governance/sweep.py": ("dot-governance", "sweep.py"),
+}
 
 # Where each hook strategy lands its dispatchers — kept in sync with
 # hooks.sh `generate_hooks_for_strategy`.
@@ -97,6 +110,56 @@ def bash_lib(script: str, *argv: str, lib_dir: Path | None = None) -> subprocess
          "_", str(lib_dir or LIB_DIR), *argv],
         check=False, text=True, capture_output=True,
     )
+
+
+def selects_sweep_directive(packs: list[dict[str, Any]]) -> bool:
+    """True if any directive in `packs` declares `surface: sweep` (issue #142).
+
+    Reading the flat scalar `surface:` line directly keeps this stdlib-only (the
+    apply engines avoid PyYAML in the runtime path), and is enough — surface is a
+    flat scalar. `packs` entries carry `pack_dir` + a `directives` id list, the
+    shape both init-plan and pack-plan emit.
+    """
+    for pack in packs:
+        pack_dir = Path(pack["pack_dir"])
+        for did in pack.get("directives") or []:
+            y = pack_dir / "directives" / did / "directive.yaml"
+            if not y.is_file():
+                continue
+            for raw in y.read_text().splitlines():
+                if re.match(r'^\s*surface:\s*["\']?sweep["\']?\s*(#.*)?$', raw):
+                    return True
+    return False
+
+
+def pending_sweep_assets(root: Path, packs: list[dict[str, Any]]) -> list[str]:
+    """The sweep assets a `surface: sweep` install still needs to lay down — those
+    not already vendored. Empty when no sweep directive is selected, or when every
+    asset is already present (idempotent: a second sweep directive seeds nothing
+    new, and re-running over an existing lane is a no-op)."""
+    if not selects_sweep_directive(packs):
+        return []
+    return [rel for rel in SWEEP_ASSETS if not (root / rel).exists()]
+
+
+def seed_sweep_assets(root: Path, packs: list[dict[str, Any]], kit_version: str) -> list[str]:
+    """Lay down the sweep workflow + engine for a `surface: sweep` install,
+    stamped with `kit_version`, and return the rel paths actually seeded.
+
+    Shared by init-apply and pack-apply so the lane is vendored identically no
+    matter which verb installs the first sweep directive (issue #142). The caller
+    records the returned rels in install.yaml's `install_assets_seeded` ledger so
+    `governance uninstall` reverses them.
+    """
+    rels = pending_sweep_assets(root, packs)
+    for rel in rels:
+        dest = root / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(KIT_ASSETS.joinpath(*SWEEP_ASSETS[rel]), dest)
+        bash_lib('stamp_managed_marker "$1" "$2"', str(dest), kit_version)
+        if dest.name == "sweep.py":
+            dest.chmod(0o755)
+    return rels
 
 
 def hook_digests(root: Path, strategy: str) -> dict[str, str]:

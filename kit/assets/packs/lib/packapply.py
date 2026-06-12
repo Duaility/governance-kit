@@ -41,8 +41,10 @@ from applylib import (
     bash_lib,
     dirty_gate,
     load_decisions,
+    pending_sweep_assets,
     refuse,
     regen_hooks_step,
+    seed_sweep_assets,
     smoke_test,
 )
 from packctl import KIT_VERSION
@@ -119,6 +121,10 @@ def _gate_add_update(plan: dict[str, Any], report: dict[str, Any]) -> int | None
 def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str],
                       report: dict[str, Any], dry_run: bool) -> int:
     manifest_path = root / ".governance" / "install.yaml"
+    # Directives actually installed this run (post-decisions), in plan shape, so
+    # the sweep-lane seeding below sees only what really landed — a held-back
+    # sweep directive must not pull in the workflow + engine.
+    applied_for_sweep: list[dict[str, Any]] = []
 
     # up-to-date no-op: every pack's SHA already matches (update mode).
     if plan["mode"] == "update" and all(p.get("action") in ("skip",) for p in plan["packs"]):
@@ -167,6 +173,7 @@ def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str
                 return 1
         if not installed_dids:
             continue
+        applied_for_sweep.append({"pack_dir": str(pack_dir), "directives": installed_dids})
         if not dry_run:
             _append_install_assets_seeded(manifest_path, sorted(set(seeded)))
         report["seeded_assets"].extend(sorted(set(seeded)))
@@ -179,6 +186,19 @@ def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str
         if not dry_run:
             _lock_upsert(root / ".governance" / "packs.lock", lock_entry)
         report["lock"].append({"id": pack["id"], "sha": pack["sha"], "directives": sorted(installed_dids)})
+
+    # Sweep lane (issue #142): the workflow + engine are kit-level assets, seeded
+    # the moment a `surface: sweep` directive is installed — by init or, now, by
+    # pack add (the parity gap this fixes). Done once after the directive loop
+    # (the assets are kit-level, not per-pack) via the shared helper init uses,
+    # and recorded in the seeded ledger so `governance uninstall` reverses them.
+    if dry_run:
+        report["seeded_assets"].extend(pending_sweep_assets(root, applied_for_sweep))
+    else:
+        sweep_rels = seed_sweep_assets(root, applied_for_sweep, KIT_VERSION)
+        if sweep_rels:
+            _append_install_assets_seeded(manifest_path, sweep_rels)
+            report["seeded_assets"].extend(sweep_rels)
 
     return _finish(root, plan, report, dry_run)
 
