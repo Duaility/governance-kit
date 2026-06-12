@@ -322,3 +322,6 @@ Schema:
 | claude-code-8acdd4a1-71c-1781265411 | claude-code | 8acdd4a1-71c4-4383-92c9-50ec253cf5cc | #213 | claude-opus-4-8 | 393 | 2220 | 375165 | 1275 | 3888 | 0.2353 | chore(release): docs v0.2.0 → v0.2.1 -m governance: allow-commit-message-format  |
 | claude-code-8acdd4a1-71c-1781265509 | claude-code | 8acdd4a1-71c4-4383-92c9-50ec253cf5cc | #213 | claude-opus-4-8 | 16 | 4448 | 1011703 | 2799 | 7263 | 0.6037 | chore(release): commits v0.2.0 → v0.2.1 -m governance: allow-commit-message-form |
 | claude-code-8acdd4a1-71c-1781265606 | claude-code | 8acdd4a1-71c4-4383-92c9-50ec253cf5cc | #213 | claude-opus-4-8 | 0 | 0 | 0 | 0 | 0 | 0.0000 | chore(release): audit v0.2.0 → v0.3.0 -m governance: allow-commit-message-format |
+| claude-code-c51a7dd9-bcc-1781267431 | claude-code | c51a7dd9-bcc9-4f49-babc-55d0d5ab7beb | #216 | claude-opus-4-8 | 35594 | 281287 | 6197359 | 91048 | 407929 | 7.3109 |  |
+| claude-code-c51a7dd9-bcc-1781267601 | claude-code | c51a7dd9-bcc9-4f49-babc-55d0d5ab7beb | #216 | claude-opus-4-8 | 409 | 32329 | 1271201 | 17086 | 49824 | 1.2669 |  |
+| claude-code-c51a7dd9-bcc-1781267732 | claude-code | c51a7dd9-bcc9-4f49-babc-55d0d5ab7beb | #216 | claude-opus-4-8 | 12 | 20547 | 743022 | 10743 | 31302 | 0.7686 |  |
