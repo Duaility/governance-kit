@@ -69,17 +69,17 @@ governance-kit/
 │   │   ├── catalog.schema.json      # JSON Schema for catalog entries.
 │   │   └── packs/lib/           # Shared pack tooling (packs.sh, install.sh, hooks.sh, …).
 ├── packs/                       # Kit-bundled concern packs (source of truth).
-│   └── <concern>/               # foundation, security, docs, commits, audit
+│   └── <concern>/               # foundation, security, docs, commits, audit, architecture
 │       ├── pack.yaml            # pack id + presets
 │       └── directives/
 │           └── <directive-id>/  # self-contained directive folder
 │               ├── directive.yaml    # per-directive metadata
-│               ├── check.sh          # executable test
+│               ├── check.sh          # executable test (triage.sh for surface: sweep)
 │               ├── constitution.md   # Directive subsection
 │               ├── defaults.conf     # optional: pack-owned live defaults + their docs
-│               └── evals/test.sh     # pass/fail fixtures
+│               └── evals/test.sh     # pass/fail fixtures (calibration for surface: sweep)
 │   ├── references/              # INIT_FLOW.md, UNINSTALL_FLOW.md, RESET_FLOW.md,
-│   │                            #   DIRECTIVE_AMEND_FLOW.md,
+│   │                            #   DIRECTIVE_AMEND_FLOW.md, SWEEP_FLOW.md,
 │   │                            #   VERBS.md, DIRECTIVE_VERBS.md, PACK_VERBS.md,
 │   │                            #   DIRECTIVES_CATALOG.md, PACK_AUTHORING.md, NATIVE_TESTS.md,
 │   │                            #   DIRECTIVE_AUTHORING.md, UNINSTALL_MATRIX.md,
@@ -110,9 +110,11 @@ Do not edit [CONSTITUTION.md](CONSTITUTION.md) by hand. Invoke the `governance` 
 
 ### Adding a new directive to the catalog
 
-Directives live inside **packs**, each at its own pack root. The kit ships five
-bundled concern packs — `governance-kit/{foundation,security,docs,commits,audit}`,
-each at `packs/<concern>/`. Community packs are authored in their own
+Directives live inside **packs**, each at its own pack root. The kit ships six
+bundled concern packs — `governance-kit/{foundation,security,docs,commits,audit,architecture}`,
+each at `packs/<concern>/` (`architecture` holds the off-commit-path,
+LLM-adjudicated `surface: sweep` directives — see
+[kit/references/SWEEP_FLOW.md](kit/references/SWEEP_FLOW.md)). Community packs are authored in their own
 repos and consumed by target repos via `governance pack add gh:<owner>/<repo>`;
 they are not bundled here. Each directive is a self-contained folder — test,
 snippet, metadata, and eval all live together under `directives/<directive-id>/`.
@@ -181,6 +183,7 @@ Edits to source files flow to both runtimes live.
 - [CONSTITUTION.md](CONSTITUTION.md) — the live directive set and amendment process.
 - [kit/references/DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md) — every ready-made directive and its check.
 - [kit/references/PACK_AUTHORING.md](kit/references/PACK_AUTHORING.md) — writing a third-party pack.
+- [kit/references/SWEEP_FLOW.md](kit/references/SWEEP_FLOW.md) — the off-commit-path LLM-judge lane (`surface: sweep`, issue #142).
 - [kit/references/NATIVE_TESTS.md](kit/references/NATIVE_TESTS.md) — porting bash directives to pytest / jest / go test, husky / pre-commit.com snippets.
 - [kit/references/VERSIONING.md](kit/references/VERSIONING.md) — the two version axes (kit vs pack), the semver policy, the tag scheme, and the release procedure.
 - [README.md](README.md) — the public-facing overview.

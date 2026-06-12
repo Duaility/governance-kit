@@ -1,0 +1,56 @@
+# governance-kit:managed kit-version=0.5.0
+name: Governance sweep
+
+# The semantic-sweep lane (issue #142). This runs the LLM-judge engine OFF the
+# commit path: it never gates a PR or a push. It sweeps the day's commits,
+# adjudicates candidate hunks via GitHub Models using the built-in GITHUB_TOKEN
+# (no secrets, no vendor onboarding), and files ONE digest issue. Findings then
+# enter the repo through the same door as human corrections: issue → agent → PR.
+#
+# Because it's off the commit path, a false positive can never trigger
+# `--no-verify`, so it carries zero authority risk for the synchronous gate.
+# Installed only when a `surface: sweep` directive is selected.
+
+on:
+  schedule:
+    # Daily at 07:00 UTC. Adjust to taste; the engine resumes from the last
+    # digest's end-sha, so cadence only changes how much each run covers.
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+    inputs:
+      range:
+        description: "Explicit A..B commit range (overrides the resume point)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  models: read
+  issues: write
+
+concurrency:
+  group: governance-sweep
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5.0.1
+        with:
+          # Full history so the engine can resolve the commit range it sweeps.
+          fetch-depth: 0
+
+      - name: Run governance sweep
+        env:
+          # GitHub Models inference is authenticated with the workflow token;
+          # the `models: read` permission above is what unlocks it.
+          GITHUB_TOKEN: ${{ github.token }}
+          # gh CLI (resume point + digest filing) uses the same token.
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 .governance/sweep.py run \
+            --root . \
+            --judge auto \
+            ${{ github.event.inputs.range && format('--range {0}', github.event.inputs.range) || '' }}

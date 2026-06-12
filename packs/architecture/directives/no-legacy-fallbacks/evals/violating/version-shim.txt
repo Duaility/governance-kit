@@ -1,0 +1,6 @@
+def load_config(path):
+    data = _read(path)
+    # keep the old key working for backward compatibility
+    if "endpoint" not in data and "url" in data:
+        data["endpoint"] = data["url"]
+    return data

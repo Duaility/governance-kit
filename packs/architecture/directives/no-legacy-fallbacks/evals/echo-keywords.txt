@@ -1,0 +1,12 @@
+# Calibration keywords for the deterministic echo-judge STUB (issue #142).
+#
+# These are NOT the directive's enforcement logic — the real judge is the model,
+# adjudicating against constitution.md. They exist only so the CI eval is
+# reproducible without spending inference requests: the echo stub flags a hunk
+# iff it contains one of these. Keep them aligned with evals/violating/* and
+# absent from evals/clean/*.
+backward compat
+legacy
+fallback
+deprecated
+importerror

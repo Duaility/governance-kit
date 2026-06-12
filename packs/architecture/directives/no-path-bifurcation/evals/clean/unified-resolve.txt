@@ -1,0 +1,2 @@
+def resolve(name):
+    return _store.get(name)

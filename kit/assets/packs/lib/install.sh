@@ -121,7 +121,11 @@ install_directive_folder() {
     }
     mkdir -p "$(dirname "$dest")"
     copy_tree_without_evals "$src" "$dest"
-    chmod +x "$dest/check.sh"
+    # A directive ships exactly one entry script: check.sh for repo-state /
+    # change-set, triage.sh for surface: sweep (issue #142). chmod whichever
+    # came across rather than assuming check.sh exists.
+    [[ -f "$dest/check.sh" ]] && chmod +x "$dest/check.sh"
+    [[ -f "$dest/triage.sh" ]] && chmod +x "$dest/triage.sh"
     if [[ -d "$dest/hooks" ]]; then
         chmod +x "$dest/hooks/"*.sh 2>/dev/null || true
     fi

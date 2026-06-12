@@ -18,7 +18,19 @@ import yaml
 
 
 HOOKS = {"pre-commit", "commit-msg", "prepare-commit-msg", "post-commit", "none"}
-SURFACES = {"repo-state", "change-set"}
+# `sweep` (issue #142) is the off-commit-path surface: never enforced by run.sh
+# or a git hook, swept asynchronously by the LLM-judge engine. A sweep directive
+# ships `triage.sh` (candidate-hunk emitter) instead of `check.sh`, declares
+# `engine: llm`, and pins a capability `model_tier` rather than a model id.
+SURFACES = {"repo-state", "change-set", "sweep"}
+# Adjudication engines. `grep` is the implicit default for repo-state/change-set
+# directives (their `check.sh` is the engine). `llm` is the only non-grep engine
+# in v1 and is required for — and reserved to — `surface: sweep`.
+ENGINES = {"grep", "llm"}
+# Capability tiers, not model ids: a sweep directive pins the *capability* it
+# needs so a model upgrade within the tier doesn't silently rewrite its verdicts
+# (issue #142, design constraint 5). The engine maps tier → concrete model.
+MODEL_TIERS = {"low", "high"}
 HOOK_STRATEGIES = {"githooks", "husky", "pre-commit"}
 PACK_FIELDS = ("id", "name", "version", "min_governance_kit", "description", "author")
 DIRECTIVE_FIELDS = ("category", "recommended", "summary", "surface", "hook")
@@ -299,6 +311,27 @@ def validate_pack_dir(pack_dir: Path) -> list[str]:
             errors.append(
                 f"{pack_dir}/{directive_id}: unknown requires_hook_strategy value {hook_strategy!r}"
             )
+        # Sweep directives (issue #142) are adjudicated by the LLM-judge engine,
+        # never by a grep. They must declare `engine: llm` and pin a capability
+        # `model_tier`; conversely, `engine: llm` is reserved to `surface: sweep`.
+        engine = scalar(directive.get("engine") or "")
+        model_tier = scalar(directive.get("model_tier") or "")
+        if engine and engine not in ENGINES:
+            errors.append(f"{pack_dir}/{directive_id}: unknown engine value {engine!r}")
+        if surface == "sweep":
+            if engine != "llm":
+                errors.append(
+                    f"{pack_dir}/{directive_id}: surface: sweep requires engine: llm"
+                )
+            if model_tier not in MODEL_TIERS:
+                errors.append(
+                    f"{pack_dir}/{directive_id}: surface: sweep requires model_tier in "
+                    f"{sorted(MODEL_TIERS)} (got {model_tier!r})"
+                )
+        elif engine == "llm":
+            errors.append(
+                f"{pack_dir}/{directive_id}: engine: llm is only valid with surface: sweep"
+            )
         if directive.get("always_install") is True and not pack_id.startswith("governance-kit/"):
             errors.append(
                 f"{pack_dir}/{directive_id}: always_install: true is reserved to the "
@@ -336,17 +369,22 @@ def validate_pack_dir(pack_dir: Path) -> list[str]:
                 errors.append(
                     f"{pack_dir}/{directive_id}: {capability!r} must be a list of non-empty path globs"
                 )
-        check = directive_path / "check.sh"
+        # The executable a directive ships depends on its surface: repo-state /
+        # change-set directives carry a pass/fail `check.sh`; sweep directives
+        # carry a candidate-emitting `triage.sh` (issue #142). The constitution
+        # subsection's "Enforced by" line must reference whichever it ships.
+        script_name = "triage.sh" if surface == "sweep" else "check.sh"
+        script = directive_path / script_name
         constitution = directive_path / "constitution.md"
-        if not check.is_file():
-            errors.append(f"{pack_dir}/{directive_id}: check.sh missing")
-        elif not os.access(check, os.X_OK):
-            errors.append(f"{pack_dir}/{directive_id}: check.sh is not executable")
+        if not script.is_file():
+            errors.append(f"{pack_dir}/{directive_id}: {script_name} missing")
+        elif not os.access(script, os.X_OK):
+            errors.append(f"{pack_dir}/{directive_id}: {script_name} is not executable")
         if not constitution.is_file():
             errors.append(f"{pack_dir}/{directive_id}: constitution.md missing")
         else:
             text = constitution.read_text()
-            expected = f".governance/packs/{pack_id}/directives/{directive_id}/check.sh"
+            expected = f".governance/packs/{pack_id}/directives/{directive_id}/{script_name}"
             if expected not in text:
                 errors.append(f"{pack_dir}/{directive_id}: constitution.md must reference `{expected}`")
         eval_script = directive_path / "evals" / "test.sh"

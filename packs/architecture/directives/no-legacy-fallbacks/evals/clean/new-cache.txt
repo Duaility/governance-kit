@@ -1,0 +1,5 @@
+from app.cache import RedisCache as Cache
+
+
+def cache_for(settings):
+    return Cache(settings.redis_url)

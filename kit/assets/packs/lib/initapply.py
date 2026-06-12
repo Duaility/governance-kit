@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -42,6 +43,24 @@ def _copy_stamp(src: Path, dest: Path) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, dest)
     bash_lib('stamp_managed_marker "$1" "$2"', str(dest), KIT_VERSION)
+
+
+def _selects_sweep_directive(packs: list[dict[str, Any]]) -> bool:
+    """True if any selected directive declares `surface: sweep` (issue #142).
+
+    Reading the scalar `surface:` line directly keeps this stdlib-only (the engine
+    avoids PyYAML in the runtime path), and is enough — surface is a flat scalar.
+    """
+    for pack in packs:
+        pack_dir = Path(pack["pack_dir"])
+        for did in pack.get("directives") or []:
+            y = pack_dir / "directives" / did / "directive.yaml"
+            if not y.is_file():
+                continue
+            for raw in y.read_text().splitlines():
+                if re.match(r'^\s*surface:\s*["\']?sweep["\']?\s*(#.*)?$', raw):
+                    return True
+    return False
 
 
 def _install_directives(root: Path, packs: list[dict[str, Any]], report: dict[str, Any]) -> tuple[list[str], list[str], list[str]]:
@@ -200,6 +219,21 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
             _copy_stamp(KIT_ASSETS / "dot-governance" / fn, root / ".governance" / fn)
             (root / ".governance" / fn).chmod(0o755)
         _copy_stamp(KIT_ASSETS / "governance.yml", root / ".github" / "workflows" / "governance.yml")
+
+        # Sweep lane (issue #142): when a `surface: sweep` directive is selected,
+        # lay down the scheduled workflow + the vendored engine so the lane runs
+        # in plain CI with no skill and no secret. Both are recorded as seeded
+        # assets so `governance uninstall` removes them with everything else.
+        if _selects_sweep_directive(packs):
+            _copy_stamp(KIT_ASSETS / "governance-sweep.yml",
+                        root / ".github" / "workflows" / "governance-sweep.yml")
+            _copy_stamp(KIT_ASSETS / "dot-governance" / "sweep.py", root / ".governance" / "sweep.py")
+            (root / ".governance" / "sweep.py").chmod(0o755)
+            seeded = sorted(set(seeded) | {
+                ".github/workflows/governance-sweep.yml",
+                ".governance/sweep.py",
+            })
+            report["seeded_assets"] = seeded
 
         # Hooks + Path-A onboarding.
         hooks_rc = regen_hooks_step(

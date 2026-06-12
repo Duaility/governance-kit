@@ -202,6 +202,60 @@ def test_init_apply_refuses_collision() -> None:
         assert rc == 2 and "more than one pack" in report["reason"], report
 
 
+def _write_sweep_pack(base: Path, pack_id: str = "acme/shape", did: str = "no-shims") -> Path:
+    pack = base / "shape"
+    ddir = pack / "directives" / did
+    (ddir / "evals").mkdir(parents=True)
+    (pack / "pack.yaml").write_text(
+        f"id: {pack_id}\nname: Shape\nversion: \"0.1\"\nmin_governance_kit: \"0.0.1\"\n"
+        "description: test\nauthor: acme\nsource: gh\n")
+    # surface: sweep ⇒ triage.sh, not check.sh; engine: llm; model_tier pinned.
+    (ddir / "directive.yaml").write_text(
+        "category: ArchitecturalShape\nrecommended: false\nsummary: no shims.\n"
+        "surface: sweep\nhook: none\nengine: llm\nmodel_tier: high\n")
+    (ddir / "triage.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
+    (ddir / "constitution.md").write_text(
+        f"### {did}\n\n- **Directive**: no shims.\n"
+        f"- **Enforced by**: `.governance/packs/{pack_id}/directives/{did}/triage.sh`\n")
+    (ddir / "evals" / "test.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
+    (ddir / "triage.sh").chmod(0o755)
+    (ddir / "evals" / "test.sh").chmod(0o755)
+    return pack
+
+
+def test_init_apply_vendors_sweep_lane() -> None:
+    # issue #142: selecting a `surface: sweep` directive lays down the scheduled
+    # workflow + the vendored engine, both recorded as seeded assets so uninstall
+    # removes them. A non-sweep install must NOT carry them.
+    with tempfile.TemporaryDirectory() as tmp:
+        src = _write_sweep_pack(Path(tmp) / "src")
+        root = _fresh_repo(Path(tmp) / "repo")
+        d = _decisions(src)
+        d["packs"] = [{"id": "acme/shape", "version": "0.1", "source": "gh",
+                       "ref": "gh:acme/shape", "sha": "f" * 40, "subpath": "",
+                       "pack_dir": str(src), "directives": ["no-shims"]}]
+        rc, report = init_apply_cli(root, d)
+        assert rc == 0 and report["result"] == "applied", report
+        wf = root / ".github/workflows/governance-sweep.yml"
+        eng = root / ".governance/sweep.py"
+        assert wf.is_file() and "kit-version=" in wf.read_text().splitlines()[0]
+        assert eng.is_file() and "kit-version=" in eng.read_text().splitlines()[1]
+        assert os.access(eng, os.X_OK)
+        assert ".github/workflows/governance-sweep.yml" in report["seeded_assets"]
+        assert ".governance/sweep.py" in report["seeded_assets"]
+        ledger = (root / ".governance/install.yaml").read_text()
+        assert ".governance/sweep.py" in ledger
+
+    # A plain (non-sweep) install must not vendor the sweep lane.
+    with tempfile.TemporaryDirectory() as tmp:
+        src = _write_source_pack(Path(tmp) / "src")
+        root = _fresh_repo(Path(tmp) / "repo")
+        rc, report = init_apply_cli(root, _decisions(src))
+        assert rc == 0, report
+        assert not (root / ".github/workflows/governance-sweep.yml").exists()
+        assert not (root / ".governance/sweep.py").exists()
+
+
 def test_init_apply_dry_run_writes_nothing() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         src = _write_source_pack(Path(tmp) / "src")

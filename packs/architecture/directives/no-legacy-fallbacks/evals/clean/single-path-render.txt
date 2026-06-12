@@ -1,0 +1,3 @@
+def render(node, *, mode="standard"):
+    prepared = _prepare(node, mode)
+    return _emit(prepared)
