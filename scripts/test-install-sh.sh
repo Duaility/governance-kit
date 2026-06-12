@@ -149,8 +149,8 @@ EOF
 
     echo "asset-content" > "$pack_dir/directives/$directive_id/install-assets/seeded/seeded-file.md"
 
-    cat > "$pack_dir/directives/$directive_id/config.conf" <<'EOF'
-# fixture overlay template
+    cat > "$pack_dir/directives/$directive_id/defaults.conf" <<'EOF'
+# fixture pack-owned defaults + docs
 KEY=value
 EOF
 }
@@ -169,7 +169,7 @@ copy_tree_without_evals "$src" "$dest"
 assert_file_exists "copies check.sh"        "$dest/check.sh"
 assert_file_exists "copies directive.yaml"  "$dest/directive.yaml"
 assert_file_exists "copies constitution.md" "$dest/constitution.md"
-assert_file_exists "copies config.conf"     "$dest/config.conf"
+assert_file_exists "copies defaults.conf"   "$dest/defaults.conf"
 assert_file_exists "copies hooks/pre-commit.sh" "$dest/hooks/pre-commit.sh"
 assert_file_absent "excludes evals/"        "$dest/evals"
 assert_file_absent "excludes install-assets/" "$dest/install-assets"
@@ -244,11 +244,16 @@ target_conf="$WORK/target-conf"
 mkdir -p "$target_conf"
 
 # First install seeds the pack-qualified .governance/conf/<owner>/<pack>/<id>.conf
-# from config.conf and echoes the seeded relative path.
+# from the generic conf stub (gated on the directive shipping a defaults.conf)
+# and echoes the seeded relative path.
 qconf=".governance/conf/acme/fixture-pack/demo.conf"
 seeded_path="$(seed_directive_conf "$WORK/fixture-pack" "demo" "$target_conf")"
 assert_file_exists "seeds pack-qualified conf" "$target_conf/$qconf"
 assert_eq "echoes the seeded relative path" "$qconf" "$seeded_path"
+# The seeded overlay is the generic stub with the directive id + its
+# defaults.conf path interpolated — nothing directive-specific is copied.
+assert_contains "seeded overlay names the directive" "demo" "$(cat "$target_conf/$qconf")"
+assert_contains "seeded overlay points at defaults.conf" ".governance/packs/acme/fixture-pack/directives/demo/defaults.conf" "$(cat "$target_conf/$qconf")"
 
 # Second call is augment-only: a user-edited conf is preserved and nothing is
 # echoed (no seed happened).
@@ -257,13 +262,13 @@ seeded_again="$(seed_directive_conf "$WORK/fixture-pack" "demo" "$target_conf")"
 assert_eq "skips existing conf (no re-seed)" "" "$seeded_again"
 assert_eq "preserves user-edited conf" "USER=tweak" "$(cat "$target_conf/$qconf")"
 
-# A directive that ships no config.conf is a silent no-op.
-rm -f "$WORK/fixture-pack/directives/demo/config.conf"
+# A directive that ships no defaults.conf is a silent no-op (not configurable).
+rm -f "$WORK/fixture-pack/directives/demo/defaults.conf"
 target_conf2="$WORK/target-conf2"
 mkdir -p "$target_conf2"
 noconf_out="$(seed_directive_conf "$WORK/fixture-pack" "demo" "$target_conf2")"
-assert_eq "no config.conf → no echo" "" "$noconf_out"
-assert_file_absent "no config.conf → no conf seeded" "$target_conf2/$qconf"
+assert_eq "no defaults.conf → no echo" "" "$noconf_out"
+assert_file_absent "no defaults.conf → no conf seeded" "$target_conf2/$qconf"
 
 # ---- directive_supports_hook_strategy -------------------------------------
 

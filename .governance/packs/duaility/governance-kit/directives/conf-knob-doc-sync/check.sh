@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 # Directive: Every scalar knob a bundled directive's check.sh reads via
-# `conf_get <id> <KEY> <default>` (under packs/*/directives/*/) is documented
-# in that directive's sibling config.conf template, and the documented default
-# matches the literal default in the code.
+# `conf_get <id> <KEY> <defaults-file>` (under packs/*/directives/*/) has a
+# matching `<KEY>=` row in that directive's sibling `defaults.conf`.
 #
-# Rationale: Scalar defaults deliberately live as constants at the conf_get
-# read site (replace-semantics knobs need no defaults.conf data file), which
-# leaves the config.conf comment as the only user-facing statement of the
-# default. Nothing else ties the two together: bumping a default in check.sh
-# without touching the template silently mis-documents the knob for every
-# consumer. This lint closes that drift channel.
+# Rationale: Since issue #210 a knob's default *and* its documentation live in
+# exactly one place — the pack-owned `defaults.conf` row, which `conf_get`
+# reads (env > overlay > defaults.conf). There is no in-code default constant
+# and no separate `config.conf` template, so value/doc drift is impossible by
+# construction. What remains to verify is purely structural: a `conf_get` whose
+# `defaults.conf` carries no `<KEY>=` row would fail loud at runtime (broken
+# install). This lint catches that authoring slip at commit time instead.
 #
-# A documented default counts only when config.conf carries the canonical,
-# commented assignment line `<KEY>=<default>` (postgres-style). Key and value
-# sit on one token, so the match is exact — two knobs sharing a default value
-# cannot false-pass against each other's text.
+# This is the exact form the #210 design called for: a knob read ⇔ a defaults
+# row. It carries no value or prose matching, so the two weaknesses of the old
+# heuristic — two-form text matching and cross-knob value-collision false-pass —
+# cannot arise.
 set -u
 source "$(dirname "$0")/../../../../../lib.sh"
 directive_start "conf-knob-doc-sync"
@@ -28,36 +28,24 @@ if [[ ! -d "$ROOT/packs" ]]; then
     directive_end
 fi
 
-# Suffix that ends a documented value: end-of-line, a non-numeric char, or a
-# literal '.' that is not the start of more digits — so for default 5,
-# "KEY=5" matches while "KEY=50" and "KEY=5.5" do not.
-_VAL_END='(\.([^0-9]|$)|[^0-9.]|$)'
-
 while IFS= read -r check; do
     [[ -z "$check" ]] && continue
-    conf="$(dirname "$check")/config.conf"
+    defaults="$(dirname "$check")/defaults.conf"
 
-    while IFS=: read -r line_no call; do
+    while IFS=: read -r line_no _; do
         [[ -z "$line_no" ]] && continue
-        read -r _id key def _rest <<< "${call#*conf_get }"
-        def="${def%%[)\"\']*}"          # strip the closing of $(...) wrappers
+        call="$(sed -n "${line_no}p" "$check")"
+        # The knob is the second token after `conf_get`: `conf_get <id> <KEY>`.
+        read -r _id key _rest <<< "${call#*conf_get }"
         [[ -z "${key:-}" ]] && continue
-        [[ "${def:-}" == *'$'* ]] && def=""   # non-literal default: only check docs presence
         has_waiver "$check" "$line_no" "conf-knob-doc-sync" && continue
 
-        if [[ ! -f "$conf" ]]; then
-            violation "$check:$line_no — reads knob ${key} via conf_get but the directive ships no config.conf template"
+        if [[ ! -f "$defaults" ]]; then
+            violation "$check:$line_no — reads knob ${key} via conf_get but the directive ships no defaults.conf"
             continue
         fi
-        if ! grep -Eq "(^|[^A-Za-z0-9_])${key}([^A-Za-z0-9_]|$)" "$conf"; then
-            violation "$check:$line_no — knob ${key} is not documented in ${conf}"
-            continue
-        fi
-        if [[ -n "$def" ]]; then
-            esc="$(printf '%s' "$def" | sed -e 's/[][\.*^$()+?{}|\\/]/\\&/g')"
-            if ! grep -Eq "(^|[^A-Za-z0-9_])${key}=${esc}${_VAL_END}" "$conf"; then
-                violation "$check:$line_no — ${conf} does not document the code default for ${key} as a commented ${key}=${def} line (code says ${def})"
-            fi
+        if ! grep -Eq "^${key}=" "$defaults"; then
+            violation "$check:$line_no — knob ${key} read via conf_get has no '${key}=' row in ${defaults}"
         fi
     done < <(grep -nE '^[^#]*conf_get[[:space:]]+[a-z0-9][a-z0-9-]*[[:space:]]+[A-Z_]+' "$check" 2>/dev/null || true)
 done < <(git ls-files -- 'packs/*/directives/*/check.sh' 2>/dev/null || true)

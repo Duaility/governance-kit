@@ -7,15 +7,19 @@
 #   lines starting with # are ignored. If this file is missing or empty, the
 #   directive is a no-op — users explicitly opt docs into freshness tracking.
 #
-# Default staleness window: 90 days. Override with a `FRESHNESS_DAYS=` line in
-# the conf, or the GOVERNANCE_FRESHNESS_DAYS env var (env wins).
+# Staleness window: the FRESHNESS_DAYS default lives in the pack-owned
+# `defaults.conf` beside this script. Override with a `FRESHNESS_DAYS=` line in
+# the overlay, or the GOVERNANCE_FRESHNESS_DAYS env var (env wins).
 set -u
 source "$(dirname "$0")/../../../../../lib.sh"
 directive_start "doc-freshness"
 require_git
 
+DEFAULTS="$(dirname "$0")/defaults.conf"
+[[ -f "$DEFAULTS" ]] || { violation "broken install: $DEFAULTS missing (FRESHNESS_DAYS default unavailable)"; directive_end; }
+
 ROOT="$(git rev-parse --show-toplevel)"
-MAX_DAYS="$(conf_get doc-freshness FRESHNESS_DAYS 90)"
+MAX_DAYS="$(conf_get doc-freshness FRESHNESS_DAYS "$DEFAULTS")"
 
 if ! conf_file doc-freshness >/dev/null; then
     # Nothing opted in. Pass.

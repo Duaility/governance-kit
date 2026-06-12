@@ -7,7 +7,7 @@
 #
 # Directive metadata lives inside each directive's folder under
 # `directives/<id>/` (`directive.yaml`, `check.sh`, `constitution.md`, and
-# optional `config.conf` / `defaults.conf` / `evals/`). This file carries only
+# optional `defaults.conf` / `evals/`). This file carries only
 # pack-level identity and the presets that select directives by id. Presets are
 # per-pack; `governance init` unions each pack's preset across the installed
 # packs (see kit/references/INIT_FLOW.md).

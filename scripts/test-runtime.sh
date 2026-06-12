@@ -23,7 +23,8 @@
 #     - has_file_waiver matches `governance: allow-<id> <sub-check>` in
 #       the first 10 lines, scoped to both directive id and sub-check
 #     - conf_file resolves .governance/conf/<id>.conf (present/absent)
-#     - conf_get precedence: env GOVERNANCE_<KEY> > conf line > default
+#     - conf_get precedence: env GOVERNANCE_<KEY> > overlay > defaults.conf row;
+#       fail-loud on a missing row/file; transitional literal-default compat
 #     - conf_rule_lines strips comments/blanks/KEY= and trims the rest
 #     - conf_list layers defaults.conf with the overlay (+add / !remove),
 #       normalizing whitespace for ! removal
@@ -476,21 +477,47 @@ set -e
 assert_eq "conf_file absent → exit 1" 1 "$exit_code"
 assert_eq "conf_file absent → no output" "" "$output"
 
-# conf_get: value from conf
-output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_get sample FRESHNESS_DAYS 90)
-assert_eq "conf_get reads value from conf" "30" "$output"
+# A pack-owned defaults.conf for the new conf_get resolution (issue #210): the
+# live default + DEF_ONLY live here, FRESHNESS_DAYS is also overridden in the
+# overlay above.
+cat > "$conf_repo/defaults.conf" <<'EOF'
+# pack-owned defaults
+FRESHNESS_DAYS=90
+DEF_ONLY=55
+EOF
 
-# conf_get: env overrides conf
-output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; GOVERNANCE_FRESHNESS_DAYS=7 conf_get sample FRESHNESS_DAYS 90)
-assert_eq "conf_get env beats conf" "7" "$output"
+# conf_get: overlay value wins over the defaults.conf row
+output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_get sample FRESHNESS_DAYS ./defaults.conf)
+assert_eq "conf_get overlay beats defaults.conf" "30" "$output"
 
-# conf_get: missing key → default
-output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_get sample MISSING 90)
-assert_eq "conf_get missing key → default" "90" "$output"
+# conf_get: env overrides both overlay and defaults.conf
+output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; GOVERNANCE_FRESHNESS_DAYS=7 conf_get sample FRESHNESS_DAYS ./defaults.conf)
+assert_eq "conf_get env beats overlay+defaults" "7" "$output"
 
-# conf_get: no conf at all → default
+# conf_get: key absent from overlay → falls through to the defaults.conf row
+output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_get sample DEF_ONLY ./defaults.conf)
+assert_eq "conf_get reads value from defaults.conf" "55" "$output"
+
+# conf_get fail-loud: a read knob with no defaults.conf row → non-zero, no stdout
+set +e
+output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_get sample MISSING ./defaults.conf 2>/dev/null)
+exit_code=$?
+set -e
+assert_eq "conf_get missing row → non-zero" 1 "$exit_code"
+assert_eq "conf_get missing row → no stdout" "" "$output"
+
+# conf_get fail-loud: a missing defaults.conf file → non-zero
+set +e
+output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_get sample DEF_ONLY ./nope/defaults.conf 2>/dev/null)
+exit_code=$?
+set -e
+assert_eq "conf_get missing defaults file → non-zero" 1 "$exit_code"
+
+# conf_get transitional compat: a bare-literal 3rd arg (pre-#210 convention) is
+# treated as an in-code default, so a directive folder vendored from an older
+# release keeps working against this lib.sh.
 output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_get nopack MISSING 90)
-assert_eq "conf_get no conf → default" "90" "$output"
+assert_eq "conf_get literal default (transitional)" "90" "$output"
 
 # conf_rule_lines: comments / blanks / KEY= lines stripped, rest trimmed
 output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_rule_lines sample)

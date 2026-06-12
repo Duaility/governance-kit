@@ -16,8 +16,7 @@ Directives are **atoms**. Each directive is a self-contained folder that owns it
         ├── directive.yaml          # per-directive metadata (category, summary, hook, …)
         ├── check.sh           # the executable test
         ├── constitution.md    # Directive subsection (Directive / Rationale / Enforced by / Exceptions)
-        ├── config.conf        # optional: seeds the overlay .governance/conf/<owner>/<pack>/<id>.conf
-        ├── defaults.conf      # optional: pack-owned live default list (refreshed on update)
+        ├── defaults.conf      # optional: pack-owned live defaults + their docs (refreshed on update)
         └── evals/
             └── test.sh        # pass + fail fixtures using eval-lib.sh
 ```
@@ -26,12 +25,12 @@ Adding, moving, deleting, or shipping a directive to another pack is a single `g
 
 ### Per-directive configuration
 
-A directive that needs tuning ships two optional files in its folder and reads them through the `lib.sh` helpers:
+Configuration is exactly **two artifacts, one writer each** (issue #210):
 
-- **`config.conf`** — an all-comment template documenting the overlay syntax. At install (`init`, `pack add`, `directive add`) it seeds the user-owned overlay `.governance/conf/<owner>/<pack>/<id>.conf` (augment-only — an existing file is never overwritten). No lifecycle verb rewrites the overlay afterward.
-- **`defaults.conf`** — the pack-owned **live default list** for a list-valued directive (commit types, protected patterns, integrity rules). It stays in the directive folder and is refreshed by `pack update` / `reset`, so consumers keep receiving improved defaults.
+- **`defaults.conf`** (pack writes) — one optional file in the directive folder carrying the live defaults **and** their documentation: `KEY=value` rows for scalar knobs, bare rows for list items (commit types, protected patterns, integrity rules), all explained by adjacent comments. It is refreshed by `pack update` / `reset`, so consumers keep receiving improved defaults *and* their docs — value and documentation can never drift apart because they ride the same file. A directive that reads any config ships one; an opt-in directive ships an all-comment `defaults.conf` (docs + examples, zero live rows).
+- **the user overlay** (user writes) — `.governance/conf/<owner>/<pack>/<id>.conf`, seeded once at install (`init`, `pack add`, `directive add`) from a single generic kit stub that names the directive and points at its `defaults.conf`. Augment-only — an existing file is never overwritten, and no lifecycle verb rewrites it afterward. Nothing directive-specific is copied into user space, so nothing seeded can go stale.
 
-The effective config is `defaults.conf` layered with the overlay (seeded once to the pack-qualified `.governance/conf/<owner>/<pack>/<id>.conf`): a bare line **adds** an item, `!<item>` **removes** a default (gitignore-style negation), `KEY=value` **overrides** a scalar (read with `conf_get`; env `GOVERNANCE_<KEY>` still wins). Helpers: `conf_file`, `conf_get`, `conf_rule_lines`, and `conf_list <id> "$(dirname "$0")/defaults.conf"` resolve the qualified overlay path from the directive's installed location automatically. A directive that declares capabilities must list `.governance/conf/**` under `reads:`.
+The effective config is `defaults.conf` layered with the overlay: a bare line **adds** an item, `!<item>` **removes** a default (gitignore-style negation), `KEY=value` **overrides** a scalar. Read scalars with `conf_get <id> <KEY> "$(dirname "$0")/defaults.conf"` (precedence env `GOVERNANCE_<KEY>` > overlay > `defaults.conf` row — a read knob with no `defaults.conf` row fails loud) and lists with `conf_list <id> "$(dirname "$0")/defaults.conf"`; both resolve the qualified overlay path from the directive's installed location automatically. Other helpers: `conf_file`, `conf_rule_lines`. A directive that declares capabilities must list `.governance/conf/**` under `reads:`.
 
 Kit-bundled packs are the five concern packs `governance-kit/{foundation,security,docs,commits,audit}`, each under `packs/<concern>/`; the shared loader/install lib lives at `kit/assets/packs/lib/`. Out-of-tree community packs live in their own repos and are pulled in via `governance pack add gh:<owner>/<repo>`.
 
@@ -203,7 +202,7 @@ At activation the bootstrap skill:
 4. Computes `always_install ∪ preset_rules ∪ user_selections` across the selected packs.
 5. Applies environment filters such as `requires_hook_strategy`.
 6. Copies each selected `directives/<id>/` folder (minus `evals/`) into the target's `.governance/packs/<pack-id>/directives/<id>/`, so `check.sh`, `lib/`, `hooks/`, and `runtimes/` all land as a unit.
-7. Copies optional directive-owned `install-assets/` files into the target repo without overwriting existing files in augment mode, and seeds `.governance/conf/<id>.conf` from any directive's `config.conf` (augment-only — an existing overlay is preserved).
+7. Copies optional directive-owned `install-assets/` files into the target repo without overwriting existing files in augment mode, and seeds `.governance/conf/<id>.conf` from the generic conf stub for any directive shipping a `defaults.conf` (augment-only — an existing overlay is preserved).
 8. Splices each selected `directives/<id>/constitution.md` into the target's `CONSTITUTION.md`.
 9. Writes `.governance/install.yaml` (init choices + side-effect ledger) and `.governance/packs.lock` (one entry per installed pack, with `version` + `source` + optional ref/sha). Installed directives are still user-owned copies; neither file is an auto-upgrade contract.
 10. Generates hook dispatchers (`pre-commit`, `commit-msg`, `prepare-commit-msg`, `post-commit`, `pre-push`) that discover installed `directive.yaml` files at runtime. Each hook carries an ownership marker (`# governance-kit:managed kit-version=<v>`) — the same shape runtime templates use. Pre-existing unmarked hooks trigger a collision prompt. The `post-commit` dispatcher is advisory-only — it surfaces violations to stderr but always exits 0, since `git commit` has already succeeded by the time post-commit fires. The `pre-push` dispatcher blocks the push when any wired check fails.

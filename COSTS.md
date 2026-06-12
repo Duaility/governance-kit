@@ -310,3 +310,5 @@ Schema:
 | claude-code-4a27ce83-8ab-1781254661 | claude-code | 4a27ce83-8ab8-440c-ad11-124f28708c87 | #206 | claude-opus-4-8 | 2776 | 13031 | 16008 | 22 | 15829 | 0.1039 | refactor(audit): move agent-token-accounting rate card into defaults.conf (#206) |
 | claude-code-e27a6ab8-385-1781252768 | claude-code | e27a6ab8-3852-435f-b5e5-5fd4253ae3c2 | #204 | claude-opus-4-8 | 2594 | 13071 | 16008 | 27 | 15692 | 0.1033 | feat(governance): add conf-knob-doc-sync directive (#204)Scalar conf_get knobs k |
 | claude-code-f8fc272f-a02-1781257312 | claude-code | f8fc272f-a02e-4291-9c58-e0c88ee4ad21 | #208 | claude-opus-4-8 | 23290 | 597977 | 22333414 | 280787 | 902054 | 22.0402 |  |
+| claude-code-1e667ce3-5a1-1781261123 | claude-code | 1e667ce3-5a1b-4e51-984c-2b8bf26e5e20 | #210 | claude-opus-4-8 | 46913 | 765574 | 74468564 | 342921 | 1155408 | 50.8267 |  |
+| claude-code-1e667ce3-5a1-1781261282 | claude-code | 1e667ce3-5a1b-4e51-984c-2b8bf26e5e20 | #210 | claude-opus-4-8 | 891 | 20702 | 4605941 | 15416 | 37009 | 2.8222 |  |

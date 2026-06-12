@@ -85,7 +85,8 @@ _DEFAULTS_PATH = os.path.join(
 # Each row is `rate <model> <base_input> <cache_create> <cache_read> <output>`
 # (per-MTok USD). Overrides MERGE OVER the pack-owned defaults — a user adds a
 # new model or corrects a price without editing defaults.conf (which a
-# `governance pack update` refreshes). See config.conf for the template.
+# `governance pack update` refreshes). The overlay-row format and examples are
+# documented in defaults.conf's header comments.
 def _conf_rel() -> str:
     """Pack-qualified overlay path relative to the repo root:
     `.governance/conf/<owner>/<pack>/agent-token-accounting.conf`. Derived from

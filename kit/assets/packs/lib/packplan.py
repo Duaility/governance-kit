@@ -128,17 +128,14 @@ def _resolve_pack(root: Path, ref: str, with_diff: bool, from_sha: str | None) -
         }
         # Surface per-directive config drift so the operator can be told to
         # reconcile their user overlay by hand — `pack update` refreshes the
-        # shipped `config.conf` (overlay template) and `defaults.conf` (live
-        # default list) in the installed tree but never rewrites the user-owned
-        # `.governance/conf/<id>.conf`. A change to defaults.conf is the most
-        # consequential, since it shifts what the directive enforces by default.
+        # pack-owned `defaults.conf` (the live defaults *and* their docs, issue
+        # #210) in the installed tree but never rewrites the user-owned
+        # `.governance/conf/<id>.conf`. A change to defaults.conf shifts what the
+        # directive enforces by default, so it's the signal worth surfacing.
         if d["status"] == "update":
             def _bytes(p: Path) -> bytes:
                 return p.read_bytes() if p.is_file() else b""
-            d["config_drift"] = any(
-                _bytes(installed / name) != _bytes(src / name)
-                for name in ("config.conf", "defaults.conf")
-            )
+            d["config_drift"] = _bytes(installed / "defaults.conf") != _bytes(src / "defaults.conf")
             user_conf = f".governance/conf/{pack_id}/{did}.conf"
             d["user_conf"] = user_conf
             d["user_conf_present"] = (root / user_conf).is_file()

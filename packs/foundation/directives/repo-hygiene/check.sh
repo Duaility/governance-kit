@@ -6,13 +6,17 @@
 #
 # To carve out a sub-check for your repo, use `governance directive modify` to
 # amend this script (or `governance directive remove` to drop the directive
-# entirely). Threshold tunables — MAX_FILE_SIZE_MB and FILE_SIZE_LIMIT — are set
-# in `.governance/conf/governance-kit/foundation/repo-hygiene.conf` (or the matching GOVERNANCE_* env vars,
-# which win), and applied below.
+# entirely). Threshold tunables — MAX_FILE_SIZE_MB and FILE_SIZE_LIMIT — default
+# in the pack-owned `defaults.conf` beside this script and are overridden
+# per-repo in `.governance/conf/governance-kit/foundation/repo-hygiene.conf` (or
+# the matching GOVERNANCE_* env vars, which win); they are applied below.
 set -u
 source "$(dirname "$0")/../../../../../lib.sh"
 directive_start "repo-hygiene"
 require_git
+
+DEFAULTS="$(dirname "$0")/defaults.conf"
+[[ -f "$DEFAULTS" ]] || { violation "broken install: $DEFAULTS missing (threshold defaults unavailable)"; directive_end; }
 
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT" || exit 1
@@ -27,7 +31,7 @@ done < <(git grep -InE '^(<<<<<<< |=======$|>>>>>>> )' -- \
     ':!**/evals/**' 2>/dev/null || true)
 
 # ── large-files ─────────────────────────────────────────────────
-_LIMIT_MB="$(conf_get repo-hygiene MAX_FILE_SIZE_MB 5)"
+_LIMIT_MB="$(conf_get repo-hygiene MAX_FILE_SIZE_MB "$DEFAULTS")"
 _LIMIT_BYTES=$((_LIMIT_MB * 1024 * 1024))
 _file_size() {
     stat -f%z "$1" 2>/dev/null && return 0
@@ -96,7 +100,7 @@ for entry in "${_dbg[@]}"; do
 done
 
 # ── file-size-limit ─────────────────────────────────────────────
-_LIMIT="$(conf_get repo-hygiene FILE_SIZE_LIMIT 500)"
+_LIMIT="$(conf_get repo-hygiene FILE_SIZE_LIMIT "$DEFAULTS")"
 _exts=(
     "*.py" "*.js" "*.jsx" "*.ts" "*.tsx" "*.mjs" "*.cjs"
     "*.go" "*.rs" "*.rb" "*.java" "*.kt" "*.scala"

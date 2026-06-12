@@ -70,7 +70,7 @@ Bad fit:
 
 ### Metric checks (`*-limit`)
 
-- Expose the limit through the per-directive config: read it with `conf_get <id> <KEY> <default>`, which resolves env `GOVERNANCE_<KEY>` first, then a `KEY=value` line in the user overlay `.governance/conf/<id>.conf`, then the default. Ship a commented `KEY=` example in the directive's `config.conf`. Projects need to tune without forking the script.
+- Expose the limit through the per-directive config: ship a `KEY=value` row (with a doc comment) in the directive's pack-owned `defaults.conf`, and read it with `conf_get <id> <KEY> "$(dirname "$0")/defaults.conf"`, which resolves env `GOVERNANCE_<KEY>` first, then a `KEY=value` line in the user overlay `.governance/conf/<id>.conf`, then the `defaults.conf` row. The `defaults.conf` row *is* the default — there is no in-code constant, and a read knob with no row fails loud. Projects tune via the overlay without forking the script.
 - Report the actual value vs. the limit in the violation message. "file X has 612 lines (limit: 500)" is actionable; "file X is too large" isn't.
 
 ### Configurable list checks

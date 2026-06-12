@@ -7,12 +7,17 @@
 # To carve out a sub-check for your repo, use `governance directive modify` to
 # amend this script (or `governance directive remove` to drop the directive
 # entirely). Threshold tunables — AGENTS_MD_MIN / _MAX / _MIN_LINKS and
-# ARCHITECTURE_MIN — are set in `.governance/conf/governance-kit/foundation/required-docs.conf` (or the
-# matching GOVERNANCE_* env vars, which win), and applied below.
+# ARCHITECTURE_MIN — default in the pack-owned `defaults.conf` beside this
+# script and are overridden per-repo in
+# `.governance/conf/governance-kit/foundation/required-docs.conf` (or the
+# matching GOVERNANCE_* env vars, which win); they are applied below.
 set -u
 source "$(dirname "$0")/../../../../../lib.sh"
 directive_start "required-docs"
 require_git
+
+DEFAULTS="$(dirname "$0")/defaults.conf"
+[[ -f "$DEFAULTS" ]] || { violation "broken install: $DEFAULTS missing (threshold defaults unavailable)"; directive_end; }
 
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT" || exit 1
@@ -48,8 +53,8 @@ if ! sub_check_waived agents; then
         violation "AGENTS.md not found at repo root"
     else
         lines=$(wc -l < "$FILE" | tr -d ' ')
-        MIN_LINES="$(conf_get required-docs AGENTS_MD_MIN 30)"
-        MAX_LINES="$(conf_get required-docs AGENTS_MD_MAX 250)"
+        MIN_LINES="$(conf_get required-docs AGENTS_MD_MIN "$DEFAULTS")"
+        MAX_LINES="$(conf_get required-docs AGENTS_MD_MAX "$DEFAULTS")"
         if [[ $lines -lt $MIN_LINES ]]; then
             violation "AGENTS.md has $lines lines — looks like a stub (min: $MIN_LINES)"
         fi
@@ -59,7 +64,7 @@ if ! sub_check_waived agents; then
         link_count=$(grep -oE '\]\([^)]+\)' "$FILE" 2>/dev/null \
             | grep -cvE '\((https?://|mailto:|tel:|#)' 2>/dev/null || true)
         link_count="${link_count:-0}"
-        MIN_LINKS="$(conf_get required-docs AGENTS_MD_MIN_LINKS 3)"
+        MIN_LINKS="$(conf_get required-docs AGENTS_MD_MIN_LINKS "$DEFAULTS")"
         if [[ $link_count -lt $MIN_LINKS ]]; then
             violation "AGENTS.md has $link_count internal links — an index should link out (min: $MIN_LINKS)"
         fi
@@ -132,7 +137,7 @@ if ! sub_check_waived architecture; then
         violation "$ARCH exists but is empty"
     else
         lines=$(wc -l < "$ARCH" | tr -d ' ')
-        MIN_LINES="$(conf_get required-docs ARCHITECTURE_MIN 20)"
+        MIN_LINES="$(conf_get required-docs ARCHITECTURE_MIN "$DEFAULTS")"
         if [[ $lines -lt $MIN_LINES ]]; then
             violation "$ARCH has $lines lines — looks like a stub (min: $MIN_LINES)"
         fi
