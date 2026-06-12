@@ -22,6 +22,11 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [kit/v0.7.1] - 2026-06-12
+
+### Fixed
+- seed the sweep lane on pack add, not just init (#223) (#224)
+
 ## [kit/v0.7.0] - 2026-06-12
 
 ### Added
