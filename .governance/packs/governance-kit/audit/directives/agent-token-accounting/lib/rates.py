@@ -30,7 +30,7 @@ Unknown model → `lookup()` returns None. The `cost` CLI exits non-zero
 and emits nothing on stdout, so the pre-commit caller can distinguish
 a real failure from a "cost=0.0000" priced row. Cost-USD is mandatory
 on new commits, so an unknown model blocks the commit — the operator
-adds a `rate <model> ...` row to `.governance/conf/agent-token-accounting.conf`
+adds a `rate <model> ...` row to `.governance/conf/governance-kit/audit/agent-token-accounting.conf`
 (the user-owned override file, which survives `governance pack update`),
 or for a built-in default a family-prefix row to `RATES` here, or waives
 via `SKIP_GOVERNANCE=1` for a hot-fix. The directive script's ledger
@@ -38,7 +38,7 @@ validator still tolerates legacy rows with an empty `cost-usd` cell
 (grandfathered — pre-mandate history).
 
 Per-repo price overrides: `load_overrides()` reads
-`.governance/conf/agent-token-accounting.conf` and MERGES its `rate` rows over
+`.governance/conf/governance-kit/audit/agent-token-accounting.conf` and MERGES its `rate` rows over
 `RATES` (user rows win), so a repo with negotiated pricing or a brand-new model
 never has to patch this pack-owned file. A malformed override row raises
 `ValueError`; the CLI turns that into a non-zero exit that blocks the commit.
@@ -107,7 +107,24 @@ _DATE_SUFFIX_RE = re.compile(r"-\d{8}$")
 # (per-MTok USD). Overrides MERGE OVER the built-in RATES — a user adds a new
 # model or corrects a price without patching this pack-owned file (which a
 # `governance pack update` would clobber). See config.conf for the template.
-_CONF_REL = os.path.join(".governance", "conf", "agent-token-accounting.conf")
+def _conf_rel() -> str:
+    """Pack-qualified overlay path relative to the repo root:
+    `.governance/conf/<owner>/<pack>/agent-token-accounting.conf`. Derived from
+    this file's installed location
+    (`.governance/packs/<owner>/<pack>/directives/<id>/lib/rates.py`) so homonym
+    directives from different packs read independent overlays — matching
+    `conf_file` in lib.sh. Falls back to the bare path when unresolved."""
+    here = os.path.abspath(__file__)
+    directive_dir = os.path.dirname(os.path.dirname(here))      # .../directives/<id>
+    pack_dir = os.path.dirname(os.path.dirname(directive_dir))  # .../<owner>/<pack>
+    pack = os.path.basename(pack_dir)
+    owner = os.path.basename(os.path.dirname(pack_dir))
+    if owner and pack and os.path.basename(os.path.dirname(directive_dir)) == "directives":
+        return os.path.join(".governance", "conf", owner, pack, "agent-token-accounting.conf")
+    return os.path.join(".governance", "conf", "agent-token-accounting.conf")
+
+
+_CONF_REL = _conf_rel()
 
 
 def normalize(model: str) -> str:
@@ -117,7 +134,7 @@ def normalize(model: str) -> str:
 
 
 def _find_conf() -> str | None:
-    """Walk up from the CWD to find `.governance/conf/agent-token-accounting.conf`.
+    """Walk up from the CWD to find `.governance/conf/governance-kit/audit/agent-token-accounting.conf`.
     The pre-commit hook and run.sh both invoke with the repo root as CWD; the
     walk-up keeps it correct from a subdirectory too. None if not found."""
     d = os.path.abspath(os.getcwd())
@@ -243,7 +260,7 @@ def _cmd_cost(argv: list[str]) -> int:
         cost = compute_cost_usd(model, *tokens)
     except ValueError as exc:
         # A malformed price override must fail loudly — block the commit so the
-        # operator fixes `.governance/conf/agent-token-accounting.conf`.
+        # operator fixes `.governance/conf/governance-kit/audit/agent-token-accounting.conf`.
         print(f"rates cost: {exc}", file=sys.stderr)
         return 2
     if cost is None:

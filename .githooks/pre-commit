@@ -53,10 +53,7 @@ directive_dirs_for_hook() {
                 ;;
         esac
     done < <(
-        {
-            [[ -d "$GOVERNANCE_DIR/packs" ]] && find "$GOVERNANCE_DIR/packs" -type d -path '*/directives/*'
-            [[ -d "$GOVERNANCE_DIR/local/directives" ]] && find "$GOVERNANCE_DIR/local/directives" -mindepth 1 -maxdepth 1 -type d
-        } | sort
+        [[ -d "$GOVERNANCE_DIR/packs" ]] && find "$GOVERNANCE_DIR/packs" -type d -path '*/directives/*' | sort
     )
 }
 if [[ -x "$ROOT/scripts/test.sh" ]]; then

@@ -4,7 +4,7 @@
 Mirrors the bash `conf_list` / `conf_get` helpers in lib.sh so the Python
 classifier honors the same config a target repo edits for every other
 directive. Reads the user-owned overlay
-`.governance/conf/agent-steering-accounting.conf` (never clobbered by
+`.governance/conf/governance-kit/audit/agent-steering-accounting.conf` (never clobbered by
 `governance pack update`) layered over the pack-owned `defaults.conf` that
 ships beside this directive.
 
@@ -25,10 +25,29 @@ import os
 import re
 
 _DIRECTIVE = "agent-steering-accounting"
+
+
+def _overlay_rel() -> str:
+    """Pack-qualified overlay path relative to the repo root:
+    `.governance/conf/<owner>/<pack>/<id>.conf`. Derived from this file's
+    installed location (`.governance/packs/<owner>/<pack>/directives/<id>/lib/
+    conf.py`) so homonym directives from different packs read independent
+    overlays — matching `conf_file` in lib.sh. Falls back to the bare
+    `.governance/conf/<id>.conf` when the location can't be resolved."""
+    here = os.path.abspath(__file__)
+    directive_dir = os.path.dirname(os.path.dirname(here))      # .../directives/<id>
+    pack_dir = os.path.dirname(os.path.dirname(directive_dir))  # .../<owner>/<pack>
+    pack = os.path.basename(pack_dir)
+    owner = os.path.basename(os.path.dirname(pack_dir))
+    if owner and pack and os.path.basename(os.path.dirname(directive_dir)) == "directives":
+        return os.path.join(".governance", "conf", owner, pack, _DIRECTIVE + ".conf")
+    return os.path.join(".governance", "conf", _DIRECTIVE + ".conf")
+
+
 # User overlay, relative to the repo root. The pre-commit hook and run.sh both
 # invoke with the repo root as CWD; the walk-up keeps it correct from a
 # subdirectory too.
-_OVERLAY_REL = os.path.join(".governance", "conf", _DIRECTIVE + ".conf")
+_OVERLAY_REL = _overlay_rel()
 # Pack-owned default list, shipped beside this directive (lib/ -> directive/).
 _DEFAULTS = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), os.pardir, "defaults.conf"

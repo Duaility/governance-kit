@@ -75,7 +75,7 @@ INTERRUPT_PHRASE_RE = re.compile(r"^\[Request interrupted by user\b")
 # about user messages that *could* be redirects — skip empty bodies and
 # obvious tool-result wrappers. Long messages are clipped before classification.
 # CANDIDATE_MAX_LEN is the same per-repo scalar the classifier honors, read from
-# `.governance/conf/agent-steering-accounting.conf` so both modules agree.
+# `.governance/conf/governance-kit/audit/agent-steering-accounting.conf` so both modules agree.
 CANDIDATE_MIN_LEN = 2
 CANDIDATE_MAX_LEN = conf.get_int("CANDIDATE_MAX_LEN", 2000)
 

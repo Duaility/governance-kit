@@ -2,7 +2,7 @@
 # Directive: Freshness-tracked docs carry a recent `<!-- last-verified: YYYY-MM-DD -->`
 # marker. Mechanical version of the harness-engineering "doc-gardening" practice.
 #
-# Config: .governance/conf/doc-freshness.conf
+# Config: .governance/conf/governance-kit/docs/doc-freshness.conf
 #   Rule lines are one path per line, relative to repo root. Blank lines and
 #   lines starting with # are ignored. If this file is missing or empty, the
 #   directive is a no-op — users explicitly opt docs into freshness tracking.

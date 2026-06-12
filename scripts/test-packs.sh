@@ -15,12 +15,13 @@
 set -u
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-# Pack source-of-truth root. governance-kit/core lives at $ROOT/packs/core
-# post-#117 (phase 2 of #114); the kit's lib/ helpers stay under
-# kit/assets/packs/lib/ since they're shipped with the skill.
+# Pack source-of-truth root. The bundled concern packs live at
+# $ROOT/packs/<concern> (post-#193, which dissolved the single `core` pack);
+# the kit's lib/ helpers stay under kit/assets/packs/lib/ since they're shipped
+# with the skill.
 PACKS_ROOT="$ROOT/packs"
 KIT_LIB_ROOT="$ROOT/kit/assets/packs"
-# Pack-search root. `packs/` hosts the in-tree `core` pack (post-#117).
+# Pack-search root. `packs/` hosts the in-tree bundled concern packs.
 # Community packs live in their own repos and are pulled in via
 # `governance pack add gh:<owner>/<repo>`.
 PACK_ROOTS=(

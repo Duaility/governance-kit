@@ -7,7 +7,7 @@
 # To carve out a sub-check for your repo, use `governance directive modify` to
 # amend this script (or `governance directive remove` to drop the directive
 # entirely). Threshold tunables — MAX_FILE_SIZE_MB and FILE_SIZE_LIMIT — are set
-# in `.governance/conf/repo-hygiene.conf` (or the matching GOVERNANCE_* env vars,
+# in `.governance/conf/governance-kit/foundation/repo-hygiene.conf` (or the matching GOVERNANCE_* env vars,
 # which win), and applied below.
 set -u
 source "$(dirname "$0")/../../../../../lib.sh"

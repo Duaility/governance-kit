@@ -32,7 +32,7 @@ import re
 import conf
 
 # Max candidate length and the lexical-fallback trigger list are tunable per
-# repo via `.governance/conf/agent-steering-accounting.conf` (overlay) layered
+# repo via `.governance/conf/governance-kit/audit/agent-steering-accounting.conf` (overlay) layered
 # over the directive's defaults.conf. Env `GOVERNANCE_CANDIDATE_MAX_LEN` wins
 # for the scalar. Resolved once at import — the hook and run.sh invoke from the
 # repo root, and each eval runs a fresh process.

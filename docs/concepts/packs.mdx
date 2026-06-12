@@ -47,13 +47,13 @@ The lockfile is the **single source of truth for which packs, at which versions,
 ```yaml
 version: "2"
 packs:
-  - id: governance-kit/core
-    version: "0.4.0"
+  - id: governance-kit/commits
+    version: "0.2.0"
     source: gh
-    ref: gh:duaility/governance-kit/kit/assets/packs/core@core/v0.4.0
+    ref: gh:duaility/governance-kit/packs/commits@commits/v0.2.0
     sha: e9d339cf…                # 40-char SHA — the trust unit
     installed_at: 2026-06-09T13:00:00Z
-    directives: [commit-message-format, doc-integrity, …]
+    directives: [commit-message-format, …]
 
   - id: acme/widgets             # repo-local pack: no upstream
     version: "0.1"

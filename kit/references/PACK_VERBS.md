@@ -14,7 +14,7 @@ Every pack — kit-bundled, community-installed, or hand-authored in this repo �
 
 - **Installed packs** carry a `source:` field in `pack.yaml` and a lockfile entry with `source: gh`. The pack came from a fetched ref and `pack update` will re-pin it.
 - **Repo-local packs** have no `source:` field in `pack.yaml`. They appear in the lockfile with `source: local` (no ref/sha) so `reset` can still find their directive list. `pack update` skips them.
-- **`governance-kit/core`** is fetched the same way community packs are — from `gh:duaility/governance-kit/packs/core@<rev>`. Its lockfile entry has `source: gh`. `pack update` re-pins it like any other community pack. (The retired `builtin` source type — phase 2 of #114, #117 — is no longer accepted by `lock-add`.)
+- **The kit's bundled concern packs** (`governance-kit/{foundation,security,docs,commits,audit}`) are fetched the same way community packs are — from `gh:duaility/governance-kit/packs/<pack>@<rev>`. Their lockfile entries have `source: gh`. `pack update` re-pins them like any other community pack. (The retired `builtin` source type — phase 2 of #114, #117 — is no longer accepted by `lock-add`.)
 
 The runner walks `.governance/packs/*/*/directives/*/check.sh` uniformly — it does not branch on installed-vs-local.
 
@@ -26,7 +26,7 @@ The runner walks `.governance/packs/*/*/directives/*/check.sh` uniformly — it 
 
 - `subpath` points at the directory containing `pack.yaml` (for monorepos).
 - `rev` can be a branch, tag, or 40-char SHA. `@main` at add-time is resolved to a concrete SHA and pinned in the lockfile.
-- **Prefer a release tag over a floating branch.** A branch like `@main` resolves to whatever the tip is at add-time and silently tracks latest on every `pack update`. Packs cut with the release tooling publish prefixed tags (`@<name>/vX.Y.Z`, e.g. `gh:duaility/governance-kit/packs/core@core/v0.3.4`) — a readable, immutable pin that lets a repo choose and hold a specific version. See [VERSIONING.md](VERSIONING.md#tag-scheme). Pin a tag (or a SHA) for any repo that wants a deliberate version rather than the moving tip.
+- **Prefer a release tag over a floating branch.** A branch like `@main` resolves to whatever the tip is at add-time and silently tracks latest on every `pack update`. Packs cut with the release tooling publish prefixed tags (`@<name>/vX.Y.Z`, e.g. `gh:duaility/governance-kit/packs/commits@commits/v0.2.0`) — a readable, immutable pin that lets a repo choose and hold a specific version. See [VERSIONING.md](VERSIONING.md#tag-scheme). Pin a tag (or a SHA) for any repo that wants a deliberate version rather than the moving tip.
 
 Resolve with `python packverb.py parse-ref <ref>`.
 
@@ -37,15 +37,15 @@ YAML, `version: "2"`. **Every** installed pack — community, kit-core, repo-loc
 ```yaml
 version: "2"
 packs:
-  - id: governance-kit/core
+  - id: governance-kit/security
     version: "0.2"
     source: gh
-    ref: gh:duaility/governance-kit/packs/core@v0.2
+    ref: gh:duaility/governance-kit/packs/security@security/v0.2.0
     sha: b33ec7a05be6c157a63b5f1a22d0102a1bf5a50c
-    subpath: packs/core
+    subpath: packs/security
     directives:
-      - required-docs
       - secrets-hygiene
+      - token-permissions
 
   - id: acme/soc2
     version: "0.3"
