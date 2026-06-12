@@ -50,7 +50,10 @@ or PR.
   `scripts/test-packs.sh`.
 - **Reference docs** — new `kit/references/SWEEP_FLOW.md`; updated
   `DIRECTIVES_CATALOG.md`, `PACK_AUTHORING.md`, `DIRECTIVE_AUTHORING.md`, and
-  `AGENTS.md`.
+  `AGENTS.md`. `README.md` gains a "The sweep lane" section with a mermaid
+  mechanism diagram, a sweep-lane directive table, and the bundled-pack count
+  corrected from five to six (the `architecture` pack was previously undocumented
+  in the README).
 
 ## Incidental fix (unblocks CI)
 
@@ -135,6 +138,7 @@ python3 kit/assets/dot-governance/sweep.py eval \
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | claude-code-f4fbefba-2d4-1781262347 | claude-code | f4fbefba-2d42-46fd-881f-135c23b7e147 | #142 | claude-opus-4-8 | 65266 | 665826 | 46825282 | 261796 | 992888 | 34.4453 | feat(architecture): add LLM-judge sweep engine and architecture pack (#142) |
 | claude-code-f4fbefba-2d4-1781272070-1 | claude-code | f4fbefba-2d42-46fd-881f-135c23b7e147 | #142 | claude-opus-4-8 | 72458 | 846941 | 26803906 | 170154 | 1089553 | 23.3115 | fix(audit): re-materialize consumed ledger.py to match its pin (#142)The vendore |
+| claude-code-c416af65-c70-1781273947-1 | claude-code | c416af65-c70e-4e62-a7f0-ec760fae9486 | #142 | claude-opus-4-8 | 5526 | 30694 | 32016 | 890 | 37110 | 0.2577 | docs(readme): add sweep-lane mechanism diagram and architecture pack (#142)Docum |
 
 ### Steering
 
