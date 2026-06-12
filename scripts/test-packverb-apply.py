@@ -88,7 +88,7 @@ def _write_source_pack(base: Path, pack_id: str = "acme/widgets") -> Path:
     )
     (ddir / "evals" / "test.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
     (ddir / "install-assets" / "WIDGETS.md").write_text("# Widgets doc\n")
-    (ddir / "config.conf").write_text("# overlay template\n# KEY=value\n")
+    (ddir / "defaults.conf").write_text("# fixture defaults + docs\n# KEY=value\n")
     (ddir / "check.sh").chmod(0o755)
     (ddir / "evals" / "test.sh").chmod(0o755)
     return pack
@@ -215,9 +215,12 @@ def test_add_installs_directive_lock_and_hooks() -> None:
         assert (root / "WIDGETS.md").is_file()
         assert report["seeded_assets"] == ["WIDGETS.md"]
         assert "WIDGETS.md" in (root / ".governance/install.yaml").read_text()
-        # per-directive user conf seeded from config.conf; reported, not ledgered
+        # per-directive overlay seeded from the generic conf stub; reported, not ledgered
         conf = root / ".governance/conf/acme/widgets/no-console-log.conf"
         assert conf.is_file()
+        conf_text = conf.read_text()
+        assert "no-console-log" in conf_text
+        assert ".governance/packs/acme/widgets/directives/no-console-log/defaults.conf" in conf_text
         assert report["conf_seeded"] == [".governance/conf/acme/widgets/no-console-log.conf"]
         assert "no-console-log.conf" not in (root / ".governance/install.yaml").read_text()
         # lock upserted
@@ -229,7 +232,7 @@ def test_add_installs_directive_lock_and_hooks() -> None:
 
 def test_update_does_not_reseed_user_conf() -> None:
     """A second apply (update) must never overwrite or resurrect the user conf,
-    and the plan flags config-template drift when defaults/config.conf change."""
+    and the plan flags config drift when defaults.conf changes."""
     with tempfile.TemporaryDirectory() as tmp:
         src = _write_source_pack(Path(tmp) / "src")
         root = _make_repo(Path(tmp) / "repo")
@@ -243,9 +246,9 @@ def test_update_does_not_reseed_user_conf() -> None:
         git(root, "add", "-A")
         git(root, "commit", "-qm", "install + customize")
 
-        # the upstream ships a new config.conf at a new sha
-        (src / "directives" / "no-console-log" / "config.conf").write_text(
-            "# overlay template v2\n# KEY=value\n# NEWKEY=\n")
+        # the upstream ships a new defaults.conf at a new sha
+        (src / "directives" / "no-console-log" / "defaults.conf").write_text(
+            "# fixture defaults + docs v2\n# KEY=value\n# NEWKEY=\n")
         packplan.fetch_ref = _stub_fetch(src, "acme/widgets", "f" * 40)
 
         # plan: the directive is an update and flags config drift
@@ -261,9 +264,9 @@ def test_update_does_not_reseed_user_conf() -> None:
         assert rc == 0 and report["result"] == "applied", report
         assert conf.read_text() == "USER=tweak\n"
         assert report["conf_seeded"] == []
-        # the shipped overlay template was refreshed in the installed tree
-        installed_tpl = root / ".governance/packs/acme/widgets/directives/no-console-log/config.conf"
-        assert "v2" in installed_tpl.read_text()
+        # the pack-owned defaults.conf was refreshed in the installed tree
+        installed_defaults = root / ".governance/packs/acme/widgets/directives/no-console-log/defaults.conf"
+        assert "v2" in installed_defaults.read_text()
 
 
 def test_add_dry_run_writes_nothing() -> None:

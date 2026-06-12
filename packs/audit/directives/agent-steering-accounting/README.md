@@ -199,12 +199,14 @@ gates and cannot turn the directive off.)
 
 Two classifier knobs are tunable per repo, via the same layered-overlay model
 every configurable directive uses: a pack-owned `defaults.conf` ships in the
-directive folder (live defaults, refreshed by `governance pack update`, never
-hand-edited), and the user-owned overlay
-`.governance/conf/agent-steering-accounting.conf` holds only your deltas (seeded
-once from the directive's `config.conf` at install, never clobbered by an
-update). `lib/conf.py` mirrors the bash `conf_list` / `conf_get` helpers so the
-Python classifier and extractor read the same effective values.
+directive folder (the live defaults AND their docs, refreshed by `governance
+pack update`, never hand-edited), and the user-owned overlay
+`.governance/conf/governance-kit/audit/agent-steering-accounting.conf` holds
+only your deltas (seeded once at install from a generic kit stub that points at
+the defaults.conf, never clobbered by an update). `lib/conf.py` mirrors the bash
+`conf_list` / `conf_get` helpers so the Python classifier and extractor read the
+same effective values, including reading the `CANDIDATE_MAX_LEN` default from
+the same `defaults.conf`.
 
 - **Lexical-fallback trigger phrases** — the redirect-trigger list shown above,
   used only on the silent `lexical` path when the runtime CLI is unreachable.

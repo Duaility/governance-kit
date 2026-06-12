@@ -1,6 +1,6 @@
-# conf-knob-doc-sync — Scalar conf_get knobs stay documented in config.conf with matching defaults.
+# conf-knob-doc-sync — Every conf_get scalar knob has a matching defaults.conf row.
 category: Quality
 recommended: true
-summary: Every conf_get scalar knob in a bundled directive's check.sh is documented in its config.conf template with the code's actual default.
+summary: Every conf_get scalar knob a bundled directive's check.sh reads has a matching KEY= row in its sibling defaults.conf.
 surface: repo-state
 hook: pre-commit

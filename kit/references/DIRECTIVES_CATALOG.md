@@ -121,7 +121,7 @@ A flat `allow-<id>` token waives the concern (every homonym of that id). Waivers
      # always_install: true               # optional; reserved to governance-kit/* bundled packs
      # requires_hook_strategy: githooks   # optional environment filter
      ```
-   - `config.conf` / `defaults.conf` — optional per-directive config (see [PACK_AUTHORING.md](PACK_AUTHORING.md)). The user overlay seeds to `.governance/conf/<owner>/<pack>/<id>.conf`.
+   - `defaults.conf` — optional pack-owned config: the live defaults **and** their docs (see [PACK_AUTHORING.md](PACK_AUTHORING.md)). The user overlay seeds to `.governance/conf/<owner>/<pack>/<id>.conf` from a generic stub.
    - `install-assets/` — optional files copied into the target repo before the first governance run.
    - `evals/test.sh` — pass + fail fixtures using `eval-lib.sh`.
 2. If the directive should be part of a preset, add its id to the relevant block (`minimal` / `standard` / `strict`) in the pack's `pack.yaml`.

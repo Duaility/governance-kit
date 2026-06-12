@@ -76,8 +76,7 @@ governance-kit/
 │               ├── directive.yaml    # per-directive metadata
 │               ├── check.sh          # executable test
 │               ├── constitution.md   # Directive subsection
-│               ├── config.conf       # optional: seeds the user overlay
-│               ├── defaults.conf     # optional: pack-owned live default list
+│               ├── defaults.conf     # optional: pack-owned live defaults + their docs
 │               └── evals/test.sh     # pass/fail fixtures
 │   ├── references/              # INIT_FLOW.md, UNINSTALL_FLOW.md, RESET_FLOW.md,
 │   │                            #   DIRECTIVE_AMEND_FLOW.md,
@@ -126,10 +125,13 @@ snippet, metadata, and eval all live together under `directives/<directive-id>/`
    - `check.sh` — the bash test.
    - `constitution.md` — the Directive subsection (Directive / Rationale /
      Enforced by / Exceptions).
-   - `config.conf` (optional) — an all-comment template that seeds the user
-     overlay `.governance/conf/<owner>/<pack>/<id>.conf` at install. `defaults.conf` (optional)
-     — a pack-owned live default list for a list-valued directive, refreshed on
-     `pack update`. Read both via the `lib.sh` helpers (`conf_get`, `conf_list`).
+   - `defaults.conf` (optional) — the one pack-owned config artifact: the live
+     defaults (scalar `KEY=value` rows and/or list rows) **and** their docs,
+     refreshed on `pack update`. The user overlay
+     `.governance/conf/<owner>/<pack>/<id>.conf` is seeded at install from a
+     generic kit stub (not from anything directive-specific). Read via the
+     `lib.sh` helpers (`conf_get`/`conf_list`, passing
+     `"$(dirname "$0")/defaults.conf"`).
      See [kit/references/PACK_AUTHORING.md](kit/references/PACK_AUTHORING.md).
    - `evals/test.sh` — pass + fail fixtures. Run `bash scripts/test-packs.sh`
      to confirm.

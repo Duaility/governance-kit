@@ -100,14 +100,17 @@ has_file_waiver() {
 }
 
 # ── Per-directive configuration ────────────────────────────────────────────
-# A directive's user-tunable config lives at
-# `.governance/conf/<owner>/<pack>/<id>.conf`, seeded once from the directive's
-# shipped `config.conf` template at install time and never overwritten by
-# `pack update` / `reset` / `kit update`. The path is pack-qualified so two
-# packs shipping a same-named directive (homonyms) get independent overlays.
-# The format is line-based: `KEY=value` lines (KEY is `[A-Z_]+`) are scalar
-# settings; every other non-comment, non-blank line is a directive-defined
-# rule line. Blank lines and `#` comments are ignored.
+# Configuration is exactly two artifacts, one writer each (issue #210):
+#   * the pack-owned `defaults.conf` next to the directive's `check.sh` — the
+#     live defaults *and* their documentation, refreshed by `pack update`; and
+#   * the user overlay `.governance/conf/<owner>/<pack>/<id>.conf` — seeded once
+#     at install from a single generic kit stub and never rewritten by any
+#     lifecycle verb. The path is pack-qualified so two packs shipping a
+#     same-named directive (homonyms) get independent overlays.
+# Both files share one line-based format: `KEY=value` lines (KEY is `[A-Z_]+`)
+# are scalar settings; every other non-comment, non-blank line is a
+# directive-defined rule line. Blank lines and `#` comments are ignored. The
+# overlay additionally honors `!<rule>` to drop a default (see `conf_list`).
 #
 # These helpers resolve the repo root themselves, so they work identically in
 # a commit-msg hook (Mode A) and under run.sh / CI (Mode B).
@@ -154,12 +157,28 @@ conf_file() {
     printf '%s\n' "$f"
 }
 
-# conf_get <directive-id> <KEY> [<default>]
-# Resolve a scalar setting. Precedence: environment `GOVERNANCE_<KEY>` (when
-# set and non-empty) > first `^KEY=` line in the conf > default. Always prints
-# a value (the default if nothing else matches) and returns 0.
+# conf_get <directive-id> <KEY> <defaults-file>
+# Resolve a scalar setting. Precedence:
+#   1. environment `GOVERNANCE_<KEY>`            (when set and non-empty)
+#   2. first `^KEY=` line in the user overlay    (.governance/conf/.../<id>.conf)
+#   3. first `^KEY=` line in the pack-owned <defaults-file> (its `defaults.conf`)
+# The pack-owned `defaults.conf` is the single source of a knob's default *and*
+# its documentation (issue #210); there is no in-code default constant. So a
+# <defaults-file> that names a `defaults.conf` but is missing, or that carries
+# no `KEY=` row, is a broken install — conf_get writes an error to stderr and
+# returns non-zero (fails loud) rather than running the directive on a phantom
+# value. Call sites pass `"$(dirname "$0")/defaults.conf"`, the same plumbing
+# `conf_list` already uses.
+#
+# Transitional compatibility: a <defaults-file> that is a bare literal (not a
+# path ending in `defaults.conf`) is treated as an in-code default value — the
+# pre-#210 calling convention. This keeps a directive folder vendored from a
+# pre-#210 release (its check.sh still passes literal defaults) working against
+# this newer lib.sh during the one-release dogfood lag. New directives must pass
+# a `defaults.conf` path; remove this branch once no released directive passes a
+# literal.
 conf_get() {
-    local id="$1" key="$2" default="${3:-}"
+    local id="$1" key="$2" defaults="${3:-}"
     local env_name="GOVERNANCE_${key}"
     if [[ -n "${!env_name:-}" ]]; then
         printf '%s\n' "${!env_name}"
@@ -173,7 +192,28 @@ conf_get() {
             return 0
         fi
     fi
-    printf '%s\n' "$default"
+    case "$defaults" in
+        */defaults.conf | defaults.conf)
+            if [[ ! -f "$defaults" ]]; then
+                printf 'governance: conf_get %s: defaults file %s not found (broken install)\n' \
+                    "$key" "$defaults" >&2
+                return 1
+            fi
+            line="$(grep -E "^${key}=" "$defaults" 2>/dev/null | head -n 1)"
+            if [[ -z "$line" ]]; then
+                printf 'governance: conf_get %s: no %s= row in %s (broken pack)\n' \
+                    "$key" "$key" "$defaults" >&2
+                return 1
+            fi
+            printf '%s\n' "${line#*=}"
+            return 0
+            ;;
+        *)
+            # Pre-#210 literal-default convention (transitional — see header).
+            printf '%s\n' "$defaults"
+            return 0
+            ;;
+    esac
 }
 
 # conf_rule_lines <directive-id>

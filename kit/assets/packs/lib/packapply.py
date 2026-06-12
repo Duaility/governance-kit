@@ -13,8 +13,8 @@ the apply in one call:
   * **add / update** — copy each approved directive folder via install.sh
     `install_directive_folder` (+ `install_directive_assets`), record any seeded
     files in `install.yaml`'s `install_assets_seeded`, seed each freshly-added
-    directive's user conf from its shipped `config.conf` (never on update —
-    user-owned conf is untouchable), regenerate the hook dispatchers, and upsert
+    configurable directive's overlay from the generic conf stub (never on
+    update — user-owned conf is untouchable), regenerate the hook dispatchers, and upsert
     the lockfile pin last (so a crash never leaves the lock claiming directives
     that aren't installed).
   * **remove** — delete each directive folder and its user conf, strip its
@@ -146,9 +146,12 @@ def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str
             # update, where an existing `.governance/conf/<id>.conf` is
             # user-owned and a deleted one must not be resurrected.
             # seed_directive_conf is augment-only as a second guard.
-            conf_tpl = pack_dir / "directives" / did / "config.conf"
+            # A directive seeds an overlay iff it ships a defaults.conf
+            # (issue #210); the overlay is a generic stub, not a per-directive
+            # template copy.
+            conf_defaults = pack_dir / "directives" / did / "defaults.conf"
             conf_dest = root / ".governance" / "conf" / pack["id"] / f"{did}.conf"
-            if d["status"] == "add" and conf_tpl.is_file() and not conf_dest.exists():
+            if d["status"] == "add" and conf_defaults.is_file() and not conf_dest.exists():
                 report["conf_seeded"].append(f".governance/conf/{pack['id']}/{did}.conf")
             if dry_run:
                 continue

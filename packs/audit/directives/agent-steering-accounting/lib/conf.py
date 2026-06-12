@@ -13,8 +13,9 @@ Effective list = defaults.conf, then the overlay applied:
   - `!item` REMOVES a default (gitignore-style negation; internal whitespace is
     normalized so a single-spaced overlay line matches a column-aligned
     default),
-  - `KEY=value` overrides a scalar (env `GOVERNANCE_<KEY>` still wins; scalars
-    are read from the overlay only — the code default is the baked fallback).
+  - `KEY=value` overrides a scalar (env `GOVERNANCE_<KEY>` still wins; the live
+    scalar default is the `defaults.conf` `KEY=` row — issue #210 — and the
+    `default` arg is only a broken-install fallback).
 
 Stdlib-only.
 """
@@ -124,9 +125,12 @@ def effective_list() -> list[str]:
 
 
 def get_int(key: str, default: int) -> int:
-    """Scalar override: env `GOVERNANCE_<KEY>` > overlay `KEY=` line > default.
-    Raises ValueError on a non-integer value — a bad knob fails loudly rather
-    than silently reverting to the default. Mirrors `conf_get` + int parse."""
+    """Scalar override: env `GOVERNANCE_<KEY>` > overlay `KEY=` line >
+    pack-owned `defaults.conf` `KEY=` row > `default`. Mirrors the bash
+    `conf_get` resolution (issue #210): the live default is the `defaults.conf`
+    row, so `default` is only a last-resort fallback for a broken install whose
+    `defaults.conf` is missing the row. Raises ValueError on a non-integer value
+    — a bad knob fails loudly rather than silently reverting to the default."""
     env = os.environ.get("GOVERNANCE_" + key)
     raw = env
     if raw is None:
@@ -137,6 +141,12 @@ def get_int(key: str, default: int) -> int:
                     if line.startswith(key + "="):
                         raw = line.split("=", 1)[1]
                         break
+    if raw is None and os.path.isfile(_DEFAULTS):
+        with open(_DEFAULTS, encoding="utf-8") as fh:
+            for line in fh:
+                if line.startswith(key + "="):
+                    raw = line.split("=", 1)[1]
+                    break
     if raw is None:
         return default
     raw = raw.split("#", 1)[0].strip()

@@ -29,7 +29,7 @@ install_assets_seeded:           # files seeded by directives' install-assets/
 # NOTE: the accounting directives (agent-token-accounting / agent-steering-accounting)
 # seed no ledger file — they create the issue's receipt on demand at first commit
 # rather than seeding COSTS.md/STEERING.md, so neither appears here.
-# NOTE: per-directive config overlays seeded from a directive's config.conf are
+# NOTE: per-directive config overlays seeded from the generic conf stub are
 # NOT listed here. They live at the deterministic path .governance/conf/<id>.conf
 # inside the .governance/ tree (which both uninstall modes delete wholesale), so
 # the path itself is the ledger; the apply engines report them under conf_seeded.

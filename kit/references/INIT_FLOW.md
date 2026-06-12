@@ -57,7 +57,7 @@ elicitation — pack/preset/directive selection (Step 3), principle inference (S
 - **Apply.** `packverb init-apply <root> --decisions <json> [--dry-run] [--force]`
   consumes the operator's serialized decisions and assembles the whole install in
   one call: install each directive folder + its `install-assets/`, seed each
-  directive's user-config overlay from its `config.conf`, assemble + write CONSTITUTION.md (template +
+  configurable directive's overlay from the generic conf stub, assemble + write CONSTITUTION.md (template +
   operator principles + each directive's `constitution.md` subsection, the example
   replaced), create the AGENTS.md stub when asked, stamp the runtime
   (`run.sh`/`lib.sh`) and CI workflow, generate the hook dispatchers (+ for
@@ -270,9 +270,9 @@ to install. The `kit_ref` / `kit_sha` / `kit_provenance` threaded through
 and how the install resolved it (issue #194).
 
 `init-apply` installs each directive folder (minus `evals/`) + its
-`install-assets/`, and for any directive shipping a `config.conf` seeds the
-user-config overlay `.governance/conf/<owner>/<pack>/<id>.conf` from it (augment-only — an
-existing file is preserved). For `doc-integrity` (`always_install`, on by
+`install-assets/`, and for any directive shipping a `defaults.conf` seeds the
+user-config overlay `.governance/conf/<owner>/<pack>/<id>.conf` from the generic
+conf stub (augment-only — an existing file is preserved). For `doc-integrity` (`always_install`, on by
 default) the standard rules ship active in its `defaults.conf`, each a no-op
 until its document exists. It then assembles + writes CONSTITUTION.md,
 stamps the runtime + CI workflow, generates the hooks (+ `core.hooksPath` /

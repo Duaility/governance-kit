@@ -7,7 +7,7 @@ pack/preset/directive selection, principle inference, hook-collision choices, th
 Step-8 finding-resolution loop, and the commit. `init-apply` consumes the
 operator's serialized `--decisions` and does the mechanical assembly in one
 tested call: install each directive folder + its install-assets, seed each
-directive's user config from its shipped `config.conf`, assemble and write
+configurable directive's overlay from the generic conf stub, assemble and write
 CONSTITUTION.md, create the
 AGENTS.md stub when asked, lay down + stamp the runtime (run.sh/lib.sh), generate
 the hook dispatchers (and, for githooks, `core.hooksPath` + enable-governance.sh),
@@ -153,10 +153,12 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
         would_seed_conf = []
         for pack in packs:
             for did in sorted(pack.get("directives") or []):
-                tpl = Path(pack["pack_dir"]) / "directives" / did / "config.conf"
+                # A directive seeds an overlay iff it ships a defaults.conf
+                # (issue #210); the overlay is a generic stub, seeded once.
+                defaults = Path(pack["pack_dir"]) / "directives" / did / "defaults.conf"
                 rel = f".governance/conf/{pack['id']}/{did}.conf"
                 dest = root / rel
-                if tpl.is_file() and not dest.exists():
+                if defaults.is_file() and not dest.exists():
                     would_seed_conf.append(rel)
         report.update(result="dry-run",
                       directives_installed=[d["dest"] for d in directive_inventory(packs)],
@@ -168,8 +170,8 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
     try:
         all_dids, seeded, conf_seeded = _install_directives(root, packs, report)
         report["seeded_assets"] = seeded
-        # Per-directive user config is seeded from each directive's shipped
-        # `config.conf` into `.governance/conf/<id>.conf` (augment-only) by
+        # Each configurable directive (one shipping a `defaults.conf`) seeds a
+        # generic-stub overlay at `.governance/conf/<id>.conf` (augment-only) via
         # seed_directive_conf, inside _install_directives.
         report["conf_seeded"] = conf_seeded
 
