@@ -3,8 +3,8 @@ generated_at: 2026-04-30T00:00:00Z
 owner: duaility
 repo: governance-kit
 kit_version: "0.7.2"
-kit_ref: gh:duaility/governance-kit/kit@kit/v0.7.1
-kit_sha: 260cd4d73a3a0ab6d9c2285d1cfe01c77231b675
+kit_ref: gh:duaility/governance-kit/kit@kit/v0.7.2
+kit_sha: f4d8b23c7c890c9a2323d2e3b98156a8cc33a6fc
 hook_strategy: githooks
 constitution: true
 ci_workflow: .github/workflows/governance.yml
