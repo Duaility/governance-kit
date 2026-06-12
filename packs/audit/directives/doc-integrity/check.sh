@@ -191,20 +191,30 @@ extract_section() {
 # baseline must still appear verbatim under <heading> now. Reordering/insertion
 # are fine; editing or deleting a baseline line is not.
 check_frozen_section() {
-    local file="$1" heading="$2" cur_section line
+    local file="$1" heading="$2" line
     base_exists "$file" || return 0
     is_waived "$file" && return 0
     if ! cur_exists "$file"; then
         violation "frozen-section: '$file' was deleted (its '## $heading' history is frozen; waive with 'governance: allow-doc-integrity $file <reason>')"
         return 0
     fi
-    cur_section="$(cur_blob "$file" | extract_section "$heading")"
+    # Emit each non-blank baseline line that is absent verbatim from the current
+    # section, then raise one violation per emitted line. A single awk
+    # set-membership pass replaces a per-baseline-line `grep -Fxq`, which
+    # allocates pathologically — out-of-memory, exit 2 — on multi-KB single-line
+    # entries under some greps (notably ugrep on macOS); that non-zero exit was
+    # then misread as "line missing" and reported as a false frozen-section
+    # violation. awk keys whole lines exactly, so blank-line skipping and
+    # verbatim matching are unchanged.
     while IFS= read -r line; do
-        [[ -z "${line//[[:space:]]/}" ]] && continue   # ignore blank lines
-        if ! grep -Fxq -- "$line" <<<"$cur_section"; then
-            violation "frozen-section: a line under '## $heading' in '$file' was edited or removed — that section is frozen history. Removed line: '$line' (waive with 'governance: allow-doc-integrity $file <reason>')"
-        fi
-    done < <(base_blob "$file" | extract_section "$heading")
+        violation "frozen-section: a line under '## $heading' in '$file' was edited or removed — that section is frozen history. Removed line: '$line' (waive with 'governance: allow-doc-integrity $file <reason>')"
+    done < <(
+        awk 'NR==FNR { cur[$0] = 1; next }
+             { s = $0; gsub(/[[:space:]]/, "", s); if (s == "") next
+               if (!($0 in cur)) print }' \
+            <(cur_blob "$file" | extract_section "$heading") \
+            <(base_blob "$file" | extract_section "$heading")
+    )
 }
 
 # ── Walk the effective rule set (defaults + overlay; comments already stripped).
