@@ -14,7 +14,7 @@
 
 id: governance-kit/security
 name: Security governance directives
-version: "0.1.0"
+version: "0.2.0"
 min_governance_kit: "0.3"
 description: Supply-chain and credential hygiene (secrets, token-permissions, pinned-dependencies).
 author: governance-kit
