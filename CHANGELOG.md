@@ -22,6 +22,20 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [kit/v0.7.0] - 2026-06-12
+
+### Added
+- add LLM-judge sweep engine and architecture pack (#142) (#212)
+
+### Changed
+- architecture v0.1.0 → v0.2.0
+- pack update — consume latest concern-pack tags (#218) (#219)
+- advance .governance kit pin v0.4.0 → v0.6.0 (#216) (#217)
+- audit v0.2.0 → v0.3.0
+- commits v0.2.0 → v0.2.1
+- docs v0.2.0 → v0.2.1
+- foundation v0.2.0 → v0.2.1
+
 ## [architecture/v0.2.0] - 2026-06-12
 
 - Initial tagged release on the architecture axis. Pre-tag history is in the curated entries below.
