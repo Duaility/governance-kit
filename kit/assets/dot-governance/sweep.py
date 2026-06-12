@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# governance-kit:managed kit-version=0.7.1
+# governance-kit:managed kit-version=0.7.2
 # governance: allow-repo-hygiene file-size-limit single-purpose stdlib-only sweep engine (issue #142); splitting it would mean vendoring multiple runtime files into every consumer.
 """The LLM-judge sweep engine (issue #142).
 
