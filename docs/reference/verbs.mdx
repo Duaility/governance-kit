@@ -5,7 +5,7 @@ summary: 'The governance skill lifecycle surface — init, kit update, pack *, d
 
 # Verbs
 
-The `governance` skill is the **single writer** for every governance-kit lifecycle operation. One entry point, six verb families:
+The `governance` skill is the **single writer** for every Governance Kit lifecycle operation. One entry point, six verb families:
 
 ```
 governance init                                        # bootstrap a repo
@@ -36,7 +36,7 @@ Bootstraps governance-driven development in a repo. The flow:
     Build the menu from each directive's `directive.yaml`.
   </Step>
   <Step title="Choose">
-    Packs (core is locked on), preset (`minimal` / `standard` / `strict` / custom), then per-category fine-tuning. Final set: `always_install(core) ∪ preset ∪ user selections`.
+    Packs (from the bundled `governance-kit/*` concern packs), preset (`minimal` / `standard` / `strict` / custom), then per-category fine-tuning. Final set: `always_install(bundled) ∪ preset ∪ user selections`.
   </Step>
   <Step title="Infer principles">
     3–5 high-level principles derived from the chosen directives, recorded in the constitution.
@@ -73,7 +73,7 @@ Re-syncs the kit-owned runtime files to a newer kit version. The repo is **pinne
 | `pack search [query]` | Browse the advisory community catalog. |
 | `pack add <ref>` | Fetch `gh:<owner>/<repo>[/<subpath>][@<rev>]`, validate, capability-check every directive, show full diffs, then vendor the directive code, splice constitution subsections, regenerate dispatchers, and pin SHA in the lockfile. |
 | `pack update [<pack-id>]` | Re-fetch each `gh` pack via its stored ref; for drifted SHAs show per-directive diffs, then overwrite, regenerate, re-pin. Repo-local packs are skipped. |
-| `pack remove <pack-id>` | Delete the pack's directive folders, strip its constitution subsections, regenerate dispatchers, prune the lockfile. `governance-kit/core` can't be removed wholesale — opt out of individual core directives with `directive remove`. |
+| `pack remove <pack-id>` | Delete the pack's directive folders, strip its constitution subsections, regenerate dispatchers, prune the lockfile. The bundled packs' `always_install` directives can't be dropped wholesale — opt out of individual bundled directives with `directive remove`. |
 | `pack create <name>` | Scaffold a hand-authored repo-local pack at `.governance/packs/<repo-owner>/<name>/` (a `pack.yaml` with no `source:` and an empty `directives/`). |
 
 ## governance directive *
@@ -82,7 +82,7 @@ Hand-authored amendments via the [atomic triple](/concepts/constitution): direct
 
 - `directive add <id>` — collect the spec (statement, rationale, check logic, exceptions, surface), draft `check.sh` from the template, smoke-test against the live repo, splice the constitution, sync the lockfile, commit.
 - `directive modify <id>` — same flow against an existing repo-local directive; the original rationale is preserved unless the policy intent changes.
-- `directive remove <id>` — delete the folder, strip the subsection, log the removal; also the supported way to opt out of an individual core directive.
+- `directive remove <id>` — delete the folder, strip the subsection, log the removal; also the supported way to opt out of an individual bundled directive.
 - `--pack <owner>/<name>` targets a specific repo-local pack; without it, the repo's own default pack is used (auto-created on first add).
 - Community (`source: gh`) directives are refused — use `pack update` / `pack remove` for those.
 
@@ -106,7 +106,7 @@ Cleanly reverses everything `init` did, using a three-layer source of truth: the
 | Mode | Effect |
 |---|---|
 | `--dry-run` | Print the plan; touch nothing. Default whenever state is ambiguous. |
-| `--soft` (default) | Remove kit-owned files; keep pack-seeded docs (`QUALITY.md`, `COSTS.md`, …) and backups. |
+| `--soft` (default) | Remove kit-owned files; keep pack-seeded docs (`QUALITY.md`, …) and backups. |
 | `--hard` | Remove everything governance touched, including seeded docs and backups. |
 
 Execution order is fixed: hooks (restoring any `.userhook` wraps), `git config core.hooksPath`, the AGENTS.md block (marker-bounded surgery), tree files, Path-B framework entries, seeded docs, backups, and `.governance/` last. It deletes only what it can identify as kit-owned, never your content, and leaves changes unstaged for your own commit. Removing the *skill* from your machine is separate — delete the symlink your installer created.

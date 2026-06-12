@@ -1,48 +1,57 @@
 ---
-title: 'The audit chain & ledgers'
-summary: 'issue → receipt → commit → cost, turned into mechanical directives over four git-native, append-only artifacts built for agent-authored commits.'
+title: 'The audit chain'
+summary: 'issue → receipt → commit → cost, turned into mechanical directives over git-native, tamper-evident artifacts built for agent-authored commits.'
 ---
 
-# The audit chain & ledgers
+# The audit chain
 
-If you trust agents to ship code, you need to see what they were told, what they did against each issue, what it cost, and how often you had to grab the wheel. The audit chain turns that into mechanical directives over four git-native, append-only artifacts.
+If you trust agents to ship code, you need to see what they were told, what they did against each issue, what it cost, and how often you had to grab the wheel. The audit chain turns that into mechanical directives over git-native, tamper-evident artifacts.
 
 ## The chain
 
 ```mermaid
 flowchart LR
-  I["Issue"] --> R["Receipt"] --> C["Commit"] --> Co["Cost"]
+    I["<b>Issue #N</b><br/>the work order"]
+    R["<b>Receipt</b><br/>claims crosswalked<br/>to evidence"]
+    C["<b>Commit</b><br/>cost + steering<br/>trailers"]
+    CO["<b>Cost row</b><br/>joined by Cost-Key —<br/>survives the squash"]
+
+    I --> R --> C --> CO
+
+    classDef chain fill:#0d4f86,stroke:#0d4f86,color:#ffffff
+    class I,R,C,CO chain
 ```
 
-Every link is enforced by a directive in the `standard` preset; breaking any link fails the next push:
+Every link is enforced by a directive in the `governance-kit/audit` pack (the `standard` preset); breaking any link fails the next push:
 
 | Link | Directive | What it enforces |
 |---|---|---|
 | Issues exist & are structured | `issue-templates`, `issues-tracked` | Issue forms with handoff fields; a `QUALITY.md` board with `## Open` / `## Resolved` |
 | Work attests itself | `receipt-per-issue` | One receipt file per issue with the required sections and a crosswalked checklist |
 | Commits anchor to work | `commit-issue-receipt-match` | Every commit's `(#N)` anchor matches a receipt it touches |
-| Work carries its price | `agent-token-accounting` | Token + cost trailers on every commit, matching a `COSTS.md` row |
-| Steering is visible | `agent-steering-accounting` | `Steer-*` trailers tallying rows in `STEERING.md` |
-| The record can't be rewritten | `doc-integrity` | Receipts and ledgers are append-only / frozen once on the trunk |
+| Work carries its price | `agent-token-accounting` | Token + cost trailers on every commit, matching a cost row in the issue's receipt |
+| Steering is visible | `agent-steering-accounting` | `Steer-*` trailers tallying steering rows in the issue's receipt |
+| The record can't be rewritten | `doc-integrity` | Receipts freeze once on the trunk; frozen sections keep their baseline lines verbatim |
 
 ## Receipts: attestation over promise
 
-A plan says what the model *intends*; a receipt says what it *did*, in a form a reviewer can check. One receipt per issue, at `receipts/issue-<N>-<slug>.md`, with four required sections:
+A plan says what the model *intends*; a receipt says what it *did*, in a form a reviewer can check. One receipt per issue, at `receipts/issue-<N>-<slug>.md`, with four required sections — plus an `## Accounting` section that carries the issue's cost and steering rows:
 
 ```markdown
 ## Checklist        # mirrors the GitHub issue's acceptance items
 ## What changed     # the actual changes, by file/behavior
 ## Out of scope     # explicitly not done
 ## Verification     # how each claim was checked
+## Accounting       # ### Costs and ### Steering rows, appended per commit
 ```
 
 The trust boundary: **every `- [x]` checklist item must crosswalk** — its text must appear in `## What changed` or `## Verification`. An agent cannot flip a box without writing down what it did and how that was verified. The receipt is what a reviewer reads instead of the raw diff.
 
 `commit-issue-receipt-match` then ties commits to receipts: each non-merge commit needs an issue anchor (`(#N)` in the subject or `Issue: #N` trailer) matching an `issue-<N>` token on a receipt the commit touches.
 
-## COSTS.md: every change has a price tag
+## Cost accounting: every change has a price tag
 
-`agent-token-accounting` requires eight trailers on every non-merge commit:
+`agent-token-accounting` requires the token/cost trailers on every non-merge commit:
 
 ```
 Agent: claude-code
@@ -55,7 +64,7 @@ Cost-Key: claude-01HXYZab-1713800000
 Cost-USD: 2.7932
 ```
 
-…and a matching row in the append-only `COSTS.md` ledger:
+…and a matching row under `### Costs` in the issue's receipt:
 
 ```
 | cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | note |
@@ -64,17 +73,17 @@ Cost-USD: 2.7932
 The layering is the interesting part. Naive anchors all break: PR-level accounting is too late, commit SHAs disappear under squash-merge, transcripts are ephemeral. So:
 
 - **Trailers** carry branch-time provenance on the commit itself.
-- **The ledger row** is the durable record.
-- **`Cost-Key`** is the stable join key present in both — it survives the squash because it lives in the message body and the ledger, not in a SHA.
-- The directive cross-checks trailer ↔ ledger on every commit.
+- **The receipt row** is the durable record.
+- **`Cost-Key`** is the stable join key present in both — it survives the squash because it lives in the message body and the receipt, not in a SHA.
+- The directive cross-checks trailer ↔ receipt on every commit.
 
 Token columns distinguish *new work* from cache traffic (`new-work = input + cache-create + output`; cache reads are excluded), and `Cost-USD` is computed from the runtime-reported model via a rates table — real dollars, not vibes.
 
 The trailers are *stamped* by the directive's own `prepare-commit-msg` populator (reading the runtime's usage data) and *verified* by its check — write and read paths kept separate.
 
-## STEERING.md: where the human grabbed the wheel
+## Steering accounting: where the human grabbed the wheel
 
-`agent-steering-accounting` records **human steering events** — interrupts and corrections — as rows in an append-only `STEERING.md`:
+`agent-steering-accounting` records **human steering events** — interrupts and corrections — as rows under `### Steering` in the issue's receipt:
 
 ```
 | steer-key | session | issue | type | tier | user-reason | commit |
@@ -96,23 +105,23 @@ This directive (and `doc-integrity`) is `always_install: true` — the audit mod
 
 ## doc-integrity: the record cannot be quietly rewritten
 
-An audit trail you can edit is not an audit trail. `doc-integrity` makes the system-of-record documents tamper-evident, driven by standard rules in its `defaults.conf` (layered with the `.governance/conf/doc-integrity.conf` overlay) with three rule shapes:
+An audit trail you can edit is not an audit trail. `doc-integrity` makes the system-of-record documents tamper-evident, driven by standard rules in its `defaults.conf` (layered with the `.governance/conf/governance-kit/audit/doc-integrity.conf` overlay) with three rule shapes:
 
 | Rule | Semantics |
 |---|---|
-| `frozen-files <glob>` | Once a matching file is on the trunk, it is immutable. New files are fine. (Receipts.) |
-| `append-only <file>` | The trunk version must remain a byte-prefix of the current version. (`COSTS.md`, `STEERING.md`.) |
+| `frozen-files <glob>` | Once a matching file is on the trunk, it is immutable. New files are fine. (Receipts — which now carry the accounting rows — and the sealed legacy `COSTS.md` / `STEERING.md` ledgers.) |
+| `append-only <file>` | The trunk version must remain a byte-prefix of the current version. |
 | `frozen-section <file> <heading>` | Lines under the heading survive verbatim; the rest of the file is free. (`QUALITY.md` Resolved, the Evolution Log.) |
 
 Everything is measured against the *trunk baseline* — branch-authored content stays editable until it merges, then freezes. Exceptions are path-scoped waivers in the commit body.
 
-## Reading the ledgers
+## Reading the record
 
 The payoff is that oversight becomes *reading*, not *re-deriving*:
 
 - `git log` headlines show cost and steering at a glance (`Token-Total`, `Cost-USD`, `Steer-Count`).
-- `COSTS.md` answers "what did this feature cost?" with grep.
-- `STEERING.md` answers "where do agents go off the rails?" — input for the next directive.
+- A receipt's `### Costs` rows answer "what did this issue cost?" with grep.
+- Its `### Steering` rows answer "where do agents go off the rails?" — input for the next directive.
 - `receipts/` answers "what exactly landed for issue #N, and how was it verified?"
 
-Next: [Versioning & releases](/concepts/versioning) — how the kit and the packs evolve without breaking the repos that pin them.
+Next: [The sweep lane](/concepts/sweep-lane) — the off-commit-path lane for the rules grep can't reach.

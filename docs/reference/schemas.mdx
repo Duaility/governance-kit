@@ -28,7 +28,6 @@ agents_md_created: false         # true only when init created the stub
 enable_governance_script: scripts/enable-governance.sh   # githooks strategy only
 install_assets_seeded:           # files seeded by directives' install-assets/
   - QUALITY.md
-  - COSTS.md
 collisions: []                   # hook-collision resolutions, if any
 # path_b: present only when hook_strategy != githooks
 ```
@@ -80,7 +79,7 @@ summary: One-line description for the picker
 surface: repo-state               # repo-state | change-set
 hook: pre-commit                  # pre-commit | commit-msg | prepare-commit-msg
                                   #   | post-commit | pre-push | none (CI-only)
-always_install: true              # optional; reserved to governance-kit/core
+always_install: true              # optional; reserved to the bundled governance-kit/* packs
 requires_hook_strategy: githooks  # optional; skip when strategy is incompatible
 reads:                            # optional capability declaration
   - .github/workflows/**

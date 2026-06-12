@@ -1,0 +1,66 @@
+---
+title: 'Installation'
+summary: 'Install scopes for npx skills, manual symlink install, what lands on disk (the thin shim and the kit cache), and how to remove it all.'
+---
+
+# Installation
+
+The published skill is a **thin shim** — an installer document plus one stdlib-only fetch script. Everything else (rules, packs, templates, every other verb) lives in the kit, fetched from a released `kit/vX.Y.Z` tag at install time and pinned per repo.
+
+## With npx skills
+
+<CodeGroup>
+
+```sh All agents (user-wide)
+npx skills add Duaility/governance-kit -g
+```
+
+```sh One agent
+npx skills add Duaility/governance-kit -a claude-code
+```
+
+```sh Project-scoped
+npx skills add Duaility/governance-kit
+```
+
+</CodeGroup>
+
+`npx skills` auto-detects the skill and symlinks it into every skills-compatible runtime on your machine (`~/.claude/skills/`, `~/.codex/skills/`, `~/.cursor/skills/`, …).
+
+## Manual install
+
+No `npx`, or hacking on the kit itself — clone and symlink the skill folder into each runtime you use:
+
+```sh
+git clone https://github.com/Duaility/governance-kit
+cd governance-kit
+ln -s "$(pwd)/skill" ~/.claude/skills/governance   # Claude Code
+ln -s "$(pwd)/skill" ~/.codex/skills/governance    # Codex
+```
+
+Edits in the clone flow to every linked runtime live.
+
+## What lands where
+
+| Layer | Where | When it moves |
+|---|---|---|
+| **The skill** (shim) | Your runtime's skills directory (symlink) | When you re-run `npx skills add` — rarely needed |
+| **The kit** (product) | A shared cache (`~/.governance/cache/kits/`), fetched per released tag | When a repo's pin advances via `governance kit update` |
+| **The repo surface** | `CONSTITUTION.md`, `.governance/`, hooks, CI workflow in each target repo | Through the verbs — `init`, `pack *`, `directive *`, `reset` |
+
+The skill carries no kit code and versions independently of it. Every verb executes from the kit version the repo pins in `.governance/install.yaml` — so two repos on different kit versions behave exactly as their pins say, regardless of when you installed the skill. Offline with nothing cached, the shim refuses rather than guessing.
+
+## Updating
+
+```sh
+npx skills add Duaility/governance-kit    # refresh the shim itself (rarely needed)
+governance kit update                     # inside a repo: advance the kit pin and re-sync runtime files
+governance pack update                    # inside a repo: advance directive-content pins
+```
+
+`kit update` and `pack update` are disjoint — framework runtime vs directive content. See [Versioning & releases](/concepts/versioning).
+
+## Removing
+
+- **From a repo**: `governance uninstall` reverses everything `init` did — see [Verbs](/reference/verbs).
+- **From your machine**: delete the symlink your installer created (`npx skills` manages `~/.claude/skills/…`, `~/.codex/skills/…`, etc.). The shared kit cache under `~/.governance/cache/` is safe to delete at any time; it re-fetches on demand.

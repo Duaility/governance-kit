@@ -5,16 +5,16 @@ summary: 'Two independent semver axes — the kit (framework) and the packs (con
 
 # Versioning & releases
 
-governance-kit versions **two independent things on two independent semver axes** — the Helm `Chart.version` vs `appVersion` model. Understanding the split explains most of the lifecycle verbs.
+Governance Kit versions **two independent things on two independent semver axes** — the Helm `Chart.version` vs `appVersion` model (see the [toolchain-manager mental model](/guide/mental-models#2-an-installer-a-product-its-content)). Understanding the split explains most of the lifecycle verbs.
 
 ## The two axes
 
 | Axis | What it covers | Source of truth | Tag scheme |
 |---|---|---|---|
 | **Kit** (framework) | The `governance` skill, the runtime (`run.sh`, `lib.sh`), hook generators, schemas, verbs | `kit/assets/kit.yaml` | `kit/vX.Y.Z` |
-| **Pack** (content) | Directive code — checks, constitution snippets, presets | Each pack's `pack.yaml` | `<pack>/vX.Y.Z` (e.g. `core/v0.4.0`) |
+| **Pack** (content) | Directive code — checks, constitution snippets, presets | Each pack's `pack.yaml` | `<pack>/vX.Y.Z` (e.g. `security/v0.2.0`) |
 
-They move independently: the core pack can ship a check fix without the framework moving, and the framework can add a verb without any directive changing. One contract ties them: a pack's `min_governance_kit` must be ≤ the installed kit version.
+They move independently: a bundled pack can ship a check fix without the framework moving, and the framework can add a verb without any directive changing. One contract ties them: a pack's `min_governance_kit` must be ≤ the installed kit version.
 
 A repo therefore carries **two pins**:
 
@@ -42,18 +42,18 @@ Schema versions — `install.yaml version: "3"`, `packs.lock version: "2"` — a
 
 ## Version stamps and the consistency directive
 
-Kit-owned files in a target repo carry the marker `# governance-kit:managed kit-version=<v>`. The `version-consistency` directive asserts that **every marker agrees with `install.yaml`'s `kit_version`** — a half-applied update or a hand-edited runtime file shows up as drift, with `governance kit update` as the repair path.
+Kit-owned files in a target repo carry the marker `# governance-kit:managed kit-version=<v>`. The `kit-version-sync` directive asserts that **every marker agrees with `install.yaml`'s `kit_version`** — a half-applied update or a hand-edited runtime file shows up as drift, with `governance kit update` as the repair path.
 
 Markers are deliberately **dateless**: re-stamping the same version is a byte-identical no-op, which keeps updates idempotent.
 
 ## How releases are cut
 
-Version lines are written **only** by `scripts/release.sh`, in `chore(release)` commits — feature and fix PRs never touch a version field. That invariant is what lets `version-consistency` treat any out-of-band version edit as drift.
+Version lines are written **only** by `scripts/release.sh`, in `chore(release)` commits — feature and fix PRs never touch a version field. That invariant is what lets `kit-version-sync` treat any out-of-band version edit as drift.
 
 ```sh
-bash scripts/release.sh <kit|core> <X.Y.Z> --dry-run   # preview from any branch
-bash scripts/release.sh core 0.5.0                     # cut a core pack release
-bash scripts/release.sh kit 0.5.0 --push               # cut + push branch and tag
+bash scripts/release.sh <kit|PACK> <X.Y.Z> --dry-run   # preview from any branch
+bash scripts/release.sh security 0.2.0                 # cut a pack release (one per changed pack)
+bash scripts/release.sh kit 0.6.0 --push               # cut + push branch and tag
 ```
 
 A real run:

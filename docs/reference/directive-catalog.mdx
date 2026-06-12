@@ -1,52 +1,55 @@
 ---
 title: 'Directive catalog'
-summary: 'Everything the kit bundled governance-kit/core pack ships, organized by category and preset.'
+summary: 'Everything the six bundled governance-kit concern packs ship, organized by pack and preset.'
 ---
 
 # Directive catalog
 
-Everything below ships in the kit's one bundled pack, `governance-kit/core`. Community packs bring their own directives; this is what you get out of the box at `governance init`.
+Everything below ships in the kit's six bundled concern packs — `governance-kit/{foundation,security,docs,commits,audit,architecture}`. Community packs bring their own directives; this is what you get out of the box at `governance init`.
 
 ## Presets
 
-| Preset | Directives |
+| Preset | What it adds |
 |---|---|
-| `minimal` | `required-docs`, `secrets-hygiene`, `repo-hygiene`, `workflows-hardened`, `internal-doc-links` |
-| `standard` | *minimal* + `commit-message-format`, `version-consistency`, `doc-freshness`, `toolchain-config-protection`, `issue-templates`, `issues-tracked`, `receipt-per-issue`, `commit-issue-receipt-match`, `doc-integrity`, `agent-token-accounting`, `agent-steering-accounting` |
-| `strict` | *standard* + `no-orphan-todos`, `no-unjustified-suppressions` |
+| `minimal` | `required-docs`, `repo-hygiene`, `secrets-hygiene`, `token-permissions`, `pinned-dependencies`, `internal-doc-links` |
+| `standard` | *minimal* + `kit-version-sync`, `doc-freshness`, `commit-message-format`, and the full audit pack: `issue-templates`, `issues-tracked`, `receipt-per-issue`, `commit-issue-receipt-match`, `agent-token-accounting`, `agent-steering-accounting`, `doc-integrity`, `toolchain-config-protection` |
+| `strict` | *standard* + `no-orphan-todos`, `no-unjustified-suppressions`, and the opt-in `architecture` sweep pack |
 
 <Note>
 `doc-integrity` and `agent-steering-accounting` are `always_install: true` — included in every install regardless of preset.
 </Note>
 
-## Foundation
+## governance-kit/foundation
 
 ### required-docs
 `minimal` · A rolled-up presence check for the system of record: `CONSTITUTION.md`, `AGENTS.md` (with a link to the constitution), `README.md`, `LICENSE`, `SECURITY.md`, `ARCHITECTURE.md` with non-trivial bodies; a CI workflow exists; `.env` keys match `.env.example`; hook scaffolding is in place. Sub-checks are individually waivable.
 
-### version-consistency
+### kit-version-sync
 `standard` · Every kit-managed file's `kit-version=` marker agrees with `install.yaml`'s `kit_version`. Catches half-applied updates and hand-edited runtime files; the repair path is `governance kit update`.
 
-## Security
+### repo-hygiene
+`minimal` · Five sub-checks: no merge-conflict markers; no files over the size limit (default 5 MB); no committed build artifacts (`node_modules/`, `dist/`, `*.pyc`, …); no debug statements (`console.log`, `debugger`, `pdb`); no source files over the line limit (default 500). Limits are env-tunable; waivers are line- or file-level.
+
+## governance-kit/security
 
 ### secrets-hygiene
 `minimal` · Two sub-checks: a heuristic scan for high-confidence secret patterns (AWS, GCP, GitHub, Slack, Stripe, private keys) in tracked files, and `.env` being untracked + gitignored. The remediation order in the docs is deliberate: **rotate first, then remove** — a leaked credential is compromised the moment it is committed.
 
-### workflows-hardened
-`minimal` · Every GitHub Actions workflow declares a `permissions:` block and pins third-party actions to a full 40-char commit SHA, avoiding `pull_request_target` foot-guns.
+### token-permissions
+`minimal` · Every GitHub Actions workflow declares a least-privilege `permissions:` block, avoiding default-token foot-guns.
 
-## System of record
+### pinned-dependencies
+`minimal` · Third-party GitHub Actions are pinned to a full 40-char commit SHA, not a mutable tag.
+
+## governance-kit/docs
 
 ### internal-doc-links
-`minimal` · Rolled-up health of the internal markdown link graph. **`resolve`** (always on): every relative-path link target in a tracked `.md` resolves to a real file. **`reachable`** (opt-in via `.governance/conf/internal-doc-links.conf`): every tracked doc is reachable by following internal links from a declared root — a no-op until you write the config. `resolve` proves your links point somewhere real; `reachable` proves your docs are on the map.
+`minimal` · Rolled-up health of the internal markdown link graph. **`resolve`** (always on): every relative-path link target in a tracked `.md` resolves to a real file. **`reachable`** (opt-in via the `.governance/conf/governance-kit/docs/internal-doc-links.conf` overlay): every tracked doc is reachable by following internal links from a declared root. `resolve` proves your links point somewhere real; `reachable` proves your docs are on the map.
 
 ### doc-freshness
-`standard` · Docs opted into `.governance/conf/doc-freshness.conf` carry a `<!-- last-verified: YYYY-MM-DD -->` marker dated within the last 90 days. A periodic "someone re-read this" checkpoint for runbooks and onboarding docs.
+`standard` · Docs opted into the `.governance/conf/governance-kit/docs/doc-freshness.conf` overlay carry a `<!-- last-verified: YYYY-MM-DD -->` marker dated within the last 90 days. A periodic "someone re-read this" checkpoint for runbooks and onboarding docs.
 
-### doc-integrity
-`always installed` · System-of-record documents are tamper-evident against the trunk baseline. Standard rules ship in the directive's `defaults.conf`, layered with the `.governance/conf/doc-integrity.conf` overlay: `frozen-files` (receipts immutable once merged), `append-only` (`COSTS.md`, `STEERING.md`), `frozen-section` (`QUALITY.md` Resolved, the Evolution Log). Branch content stays editable until it merges.
-
-## Commit hygiene
+## governance-kit/commits
 
 ### commit-message-format
 `standard` · Commit subjects match `<type>(scope)?!?: subject (#123)` — Conventional Commits plus a trailing GitHub issue anchor. Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `build`, `ci`, `revert`, `style`.
@@ -57,14 +60,9 @@ Everything below ships in the kit's one bundled pack, `governance-kit/core`. Com
 ### no-unjustified-suppressions
 `strict` · Every lint / type-checker suppression — `eslint-disable*`, `@ts-ignore`, `@ts-expect-error`, `# noqa`, `# type: ignore`, `#[allow(...)]`, `@SuppressWarnings`, … — references an issue on the same line. The checker-silencing sibling of `no-orphan-todos`: muting a check is invisible in a green build unless the suppression names the ticket that owns un-muting it.
 
-## Quality
+## governance-kit/audit
 
-### repo-hygiene
-`minimal` · Five sub-checks: no merge-conflict markers; no files over the size limit (default 5 MB); no committed build artifacts (`node_modules/`, `dist/`, `*.pyc`, …); no debug statements (`console.log`, `debugger`, `pdb`); no source files over the line limit (default 500). Limits are env-tunable; waivers are line- or file-level.
-
-## Agent discipline — the audit chain
-
-See [The audit chain & ledgers](/concepts/audit-chain) for how these compose.
+See [The audit chain](/concepts/audit-chain) for how these compose.
 
 ### issue-templates
 `standard` · `.github/ISSUE_TEMPLATE/` carries proposal and bug forms with the agent-handoff fields, and blank issues are disabled. Seeded from the directive's `install-assets/`.
@@ -73,23 +71,36 @@ See [The audit chain & ledgers](/concepts/audit-chain) for how these compose.
 `standard` · `QUALITY.md` exists at the repo root with `## Open` and `## Resolved` sections — the lightweight quality board the receipts and commits anchor to.
 
 ### receipt-per-issue
-`standard` · Every `receipts/*.md` carries a unique `issue-<N>` filename token and the four required sections, and every checked checklist item crosswalks into `## What changed` or `## Verification`. Receipts **added in the change set** must also carry a `## Decisions` section and at least one fenced, re-runnable command in `## Verification`; pre-existing receipts are grandfathered.
-
-### toolchain-config-protection
-`standard` · A commit that touches linter / formatter / type-checker / CI / git-hook config must carry a `governance: allow-toolchain-config <reason>` body line. Stops the "edit the rule, not the code" move (loosen eslint, relax a ruff `select`, weaken a workflow's `permissions`) from passing silently in a green build. Protected paths default to a multi-ecosystem list in the directive's `defaults.conf`, customizable via the `.governance/conf/toolchain-config-protection.conf` overlay (bare line adds, `!<pattern>` drops a default).
+`standard` · Every `receipts/*.md` carries a unique `issue-<N>` filename token and the required sections, and every checked checklist item crosswalks into `## What changed` or `## Verification`. Receipts **added in the change set** must also carry a `## Decisions` section and at least one fenced, re-runnable command in `## Verification`; pre-existing receipts are grandfathered.
 
 ### commit-issue-receipt-match
 `standard` · Every non-merge commit's issue anchor matches an `issue-<N>` token on a receipt the commit touches — the link that makes "which issue was this for?" mechanical.
 
 ### agent-token-accounting
-`standard` · Every non-merge commit carries the eight token/cost trailers and a matching `COSTS.md` row joined by `Cost-Key`. Ships its own `prepare-commit-msg` populator that stamps the trailers from runtime usage data.
+`standard` · Every non-merge commit carries the token/cost trailers and a matching cost row in the issue's receipt, joined by `Cost-Key`. Ships its own `prepare-commit-msg` populator that stamps the trailers from runtime usage data.
 
 ### agent-steering-accounting
-`always installed` · Every non-merge commit stamps the `Steer-Count` / `Steer-Types` / `Steer-Tiers` summary triple, tallying rows appended to `STEERING.md`. Records human corrections verbatim — redact via its classifier hook rather than disabling it.
+`always installed` · Every non-merge commit stamps the `Steer-Count` / `Steer-Types` / `Steer-Tiers` summary triple, tallying steering rows appended to the issue's receipt. Records human corrections verbatim — redact via its classifier hook rather than disabling it.
+
+### doc-integrity
+`always installed` · System-of-record documents are tamper-evident against the trunk baseline. Standard rules ship in the directive's `defaults.conf`, layered with the `.governance/conf/governance-kit/audit/doc-integrity.conf` overlay: `frozen-files` (receipts immutable once merged; the sealed legacy ledgers), `frozen-section` (`QUALITY.md` Resolved, the Evolution Log), `append-only` available for repo-specific records. Branch content stays editable until it merges.
+
+### toolchain-config-protection
+`standard` · A commit that touches linter / formatter / type-checker / CI / git-hook config must carry a `governance: allow-toolchain-config <reason>` body line. Stops the "edit the rule, not the code" move (loosen eslint, relax a ruff `select`, weaken a workflow's `permissions`) from passing silently in a green build. Protected paths default to a multi-ecosystem list in the directive's `defaults.conf`, customizable via the conf overlay (bare line adds, `!<pattern>` drops a default).
+
+## governance-kit/architecture
+
+The off-commit-path [sweep lane](/concepts/sweep-lane) — `surface: sweep`, LLM-adjudicated, advisory. Opt-in via `strict`; enabling the pack also installs the scheduled workflow and the vendored engine.
+
+### no-legacy-fallbacks
+`strict` · No backward-compat shims or legacy fallback paths in agent-authored changes.
+
+### no-path-bifurcation
+`strict` · No bifurcated code paths — unify dual dispatch and local-vs-remote special-casing.
 
 ## Waivers
 
-All directives honor the in-source waiver format where exceptions make sense:
+All commit-path directives honor the in-source waiver format where exceptions make sense:
 
 ```
 # governance: allow-<directive-id> <reason>
