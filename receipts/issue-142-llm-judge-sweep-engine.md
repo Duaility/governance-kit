@@ -52,6 +52,21 @@ or PR.
   `DIRECTIVES_CATALOG.md`, `PACK_AUTHORING.md`, `DIRECTIVE_AUTHORING.md`, and
   `AGENTS.md`.
 
+## Incidental fix (unblocks CI)
+
+This branch rebased onto a `main` whose Governance CI was already red:
+`consumed-tree-integrity` flagged that the vendored
+`.governance/packs/governance-kit/audit/directives/agent-steering-accounting/lib/ledger.py`
+did not byte-match its pin (`audit/v0.3.0`, `e686117`). The pack-update PR #219
+vendored a pre-#203 copy of `ledger.py` (an `import receipt_io` without
+`as rio`, plus a dedented fallback) while pinning the post-#203 tag, so the two
+disagreed. Not introduced here — `git diff origin/main...HEAD` on that file, the
+lock, and `packs/` is empty — but it reddens every PR, so it is corrected in
+this one at the user's request, in its own `fix(audit)` commit. The fix is an
+honest re-materialization (`git show audit/v0.3.0:packs/audit/.../ledger.py` →
+the vendored path), not a hand-edit: byte-identical to what a correct
+`governance pack update` produces.
+
 ## Out of scope
 
 - Enabling the sweep lane on this repo (issue #142 Phase 3): that touches the
@@ -119,3 +134,10 @@ python3 kit/assets/dot-governance/sweep.py eval \
 | cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | claude-code-f4fbefba-2d4-1781262347 | claude-code | f4fbefba-2d42-46fd-881f-135c23b7e147 | #142 | claude-opus-4-8 | 65266 | 665826 | 46825282 | 261796 | 992888 | 34.4453 | feat(architecture): add LLM-judge sweep engine and architecture pack (#142) |
+| claude-code-f4fbefba-2d4-1781272070-1 | claude-code | f4fbefba-2d42-46fd-881f-135c23b7e147 | #142 | claude-opus-4-8 | 72458 | 846941 | 26803906 | 170154 | 1089553 | 23.3115 | fix(audit): re-materialize consumed ledger.py to match its pin (#142)The vendore |
+
+### Steering
+
+| steer-key | session | issue | type | tier | user-reason | commit |
+| --- | --- | --- | --- | --- | --- | --- |
+| steer-f4fbefba2d4-1781272070-1 | f4fbefba-2d42-46fd-881f-135c23b7e147 | #142 | correction | classifier | Rejected opening a separate corrective PR; wants the fix in this PR | fix(audit): re-materialize consumed ledger.py to match its pin (#142)The vendor… |
