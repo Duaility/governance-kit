@@ -1,36 +1,30 @@
 #!/usr/bin/env python3
-"""Agent steering accounting ledger — parse, append, validate STEERING.md rows.
+"""Agent steering accounting — parse, append, validate steering rows.
 
-This module is the data-processing half of agent-steering-accounting. The bash
-hooks and directive scripts do git plumbing and runtime detection; anything
-that manipulates STEERING.md rows by name rather than by column index lives
-here.
+Steering rows live in per-issue receipts (issue #201): each row is appended
+under the `## Accounting` → `### Steering` sub-table of `receipts/issue-<N>.md`,
+not in a central `STEERING.md`. The receipt is the conflict-free,
+naturally-sealed home; `STEERING.md` is sealed history this flow no longer
+reads or writes.
 
-Schema (7 columns):
+Row schema (7 columns):
 
     | steer-key | session | issue | type | tier | user-reason | commit |
 
-Where:
-    type ∈ interrupt | correction
-    tier ∈ structural | classifier | lexical
-    steer-key = steer-<session-short>-<epoch>-<idx>
+`type` ∈ interrupt | correction · `tier` ∈ structural | classifier | lexical ·
+`steer-key` = steer-<session-short>-<epoch>-<idx> · `issue` = #N (required —
+every accounted event resolves to an issue, which is the receipt that homes it).
 
-Stdlib-only. CLI shims (called from bash):
+Markdown section/table plumbing lives in sibling `receipt_io.py`. Stdlib-only.
+CLI shims (called from the bash hook / check):
 
-    python3 ledger.py validate <ledger>
-        → prints one violation per line; exits non-zero if any.
-
-    python3 ledger.py find-by-steer-key <ledger> <key>
-        → exit 0 if exactly 1 row, 2 if 0, 3 if >1; prints the row's
-          remaining cells space-separated on stdout.
-
-    python3 ledger.py existing-keys <ledger>
-        → prints every steer-key present, one per line.
-
-    python3 ledger.py append-row <ledger> <steer-key> <session> <issue> \\
-                                  <type> <tier> <user-reason> <commit>
-        → appends the row, creating the file with the canonical header
-          if it doesn't yet exist.
+    resolve-receipt   <receipts_dir> <issue>    → receipt path for issue N
+    count-by-session  <receipts_dir> <session>  → #rows for session (dedup boundary)
+    validate          <receipt>                 → one violation per line
+    validate-dir      <receipts_dir>            → all receipts + global uniqueness
+    find-by-steer-key <receipts_dir> <key>      → "<session> <type> <tier> <commit>"
+    append-row        <receipt> <steer-key> <session> <issue> <type> <tier> \\
+                      <user-reason> <commit>
 """
 
 from __future__ import annotations
@@ -40,52 +34,29 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+# Don't write __pycache__ into the installed directive folder — it would
+# litter the consumer's `.governance/packs/` and trip repo-hygiene.
+sys.dont_write_bytecode = True
 
-# ── Schema ────────────────────────────────────────────────────────────────
+try:
+    import receipt_io  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+import receipt_io as rio  # type: ignore
 
-COLUMNS = (
-    "steer_key",
-    "session",
-    "issue",
-    "type",
-    "tier",
-    "user_reason",
-    "commit",
-)
 
-LEDGER_TEMPLATE = """\
-<!-- STEERING.md — append-only human-steering ledger -->
-<!-- governance: allow-plan-captured -->
+COLUMNS = ("steer_key", "session", "issue", "type", "tier", "user_reason", "commit")
+COLUMN_COUNT = 7
 
-# STEERING.md
-
-Append-only ledger of human-steering events for agent-authored commits. Rows are
-keyed by `steer-key`; the row → commit join uses the `commit |` column so the
-ledger survives squash merges that strip the original commit history. Each
-commit's summary trailers (`Steer-Count`, `Steer-Types`, `Steer-Tiers`) tally
-the rows it adds.
-
-**Do not** rewrite or reorder rows. This file is the durable record that the
-`agent-steering-accounting` governance directive validates.
-
-`type` ∈ `interrupt` | `correction` ·
-`tier` ∈ `structural` | `classifier` | `lexical` (the lexical tier is a
-silent fallback for when the runtime CLI is unreachable).
-
-## Ledger
-
-| steer-key | session | issue | type | tier | user-reason | commit |
-| --- | --- | --- | --- | --- | --- | --- |
-"""
+STEER_HEADER = "| steer-key | session | issue | type | tier | user-reason | commit |"
+STEER_SEPARATOR = "| --- | --- | --- | --- | --- | --- | --- |"
 
 VALID_TYPES = {"interrupt", "correction"}
 VALID_TIERS = {"structural", "classifier", "lexical"}
 
-COLUMN_COUNT = 7
-
-# steer-<session-short>-<epoch>-<idx>
 _STEER_KEY_RE = re.compile(r"^steer-[A-Za-z0-9]+-(\d+)-(\d+)$")
 _ISSUE_RE = re.compile(r"^#[1-9][0-9]*$")
+_RECEIPT_NAME_RE = re.compile(r"^issue-([1-9][0-9]*)(?:-[a-z0-9]+(?:-[a-z0-9]+)*)?\.md$")
 USER_REASON_MAX = 240
 
 
@@ -101,53 +72,48 @@ class LedgerRow:
 
     def to_cells(self) -> list[str]:
         return [
-            self.steer_key,
-            self.session,
-            self.issue,
-            self.type,
-            self.tier,
-            self.user_reason,
-            self.commit,
+            self.steer_key, self.session, self.issue, self.type,
+            self.tier, self.user_reason, self.commit,
         ]
+
+
+def _issue_from_name(name: str) -> str | None:
+    m = _RECEIPT_NAME_RE.match(name)
+    return f"#{m.group(1)}" if m else None
 
 
 # ── Parse ─────────────────────────────────────────────────────────────────
 
 
-def _parse_cells(line: str) -> list[str] | None:
-    stripped = line.strip()
-    if not stripped.startswith("|"):
-        return None
-    parts = [c.strip() for c in stripped.split("|")[1:-1]]
-    return parts or None
-
-
-def _is_header_or_separator(cells: list[str]) -> bool:
-    if not cells:
-        return True
-    first = cells[0]
-    if first == "steer-key":
-        return True
-    if first == "" or re.fullmatch(r"-+", first or ""):
-        return True
-    if all(c == "" or re.fullmatch(r"-+", c) for c in cells):
-        return True
-    return False
-
-
-def parse(path: str | Path) -> list[LedgerRow]:
+def parse_steering(path: str | Path) -> list[LedgerRow]:
+    """Parse the steering rows from one receipt's `### Steering` sub-table."""
     p = Path(path)
     if not p.is_file():
         return []
+    lines = p.read_text().splitlines()
+    region = rio.subtable_region(lines, rio.STEERING_SUBHEADING)
+    if region is None:
+        return []
     rows: list[LedgerRow] = []
-    for line in p.read_text().splitlines():
-        cells = _parse_cells(line)
-        if cells is None or _is_header_or_separator(cells):
+    for idx in range(*region):
+        cells = rio.parse_cells(lines[idx])
+        if cells is None or rio.is_header_or_separator(cells, "steer-key"):
             continue
         if len(cells) != COLUMN_COUNT:
-            # Validation surfaces malformed rows separately; parsing skips them.
             continue
         rows.append(LedgerRow(*cells))
+    return rows
+
+
+parse = parse_steering  # alias
+
+
+def parse_all(receipts_dir: str | Path) -> list[LedgerRow]:
+    d = Path(receipts_dir)
+    rows: list[LedgerRow] = []
+    if d.is_dir():
+        for f in sorted(d.glob("issue-*.md")):
+            rows.extend(parse_steering(f))
     return rows
 
 
@@ -160,6 +126,21 @@ def find_by_steer_key(rows: list[LedgerRow], key: str) -> list[LedgerRow]:
 
 def existing_keys(rows: list[LedgerRow]) -> list[str]:
     return [r.steer_key for r in rows if r.steer_key]
+
+
+def count_by_session(rows: list[LedgerRow], session: str) -> int:
+    return sum(1 for r in rows if r.session == session)
+
+
+def resolve_receipt(receipts_dir: str | Path, issue_number: str) -> str:
+    n = issue_number.lstrip("#")
+    d = Path(receipts_dir)
+    pat = re.compile(rf"^issue-{re.escape(n)}(?:-[a-z0-9]+(?:-[a-z0-9]+)*)?\.md$")
+    if d.is_dir():
+        matches = sorted(p.name for p in d.iterdir() if p.is_file() and pat.match(p.name))
+        if matches:
+            return str(d / matches[0])
+    return str(d / f"issue-{n}.md")
 
 
 # ── Append ────────────────────────────────────────────────────────────────
@@ -176,96 +157,94 @@ def _safe_cell(s: str, *, max_len: int | None = None) -> str:
 
 
 def append_row(path: str | Path, row: LedgerRow) -> None:
-    p = Path(path)
-    if not p.exists():
-        p.write_text(LEDGER_TEMPLATE)
     cells = row.to_cells()
-    # Per-cell sanitization: kill pipes/newlines, truncate user-reason and
-    # commit columns so a runaway transcript can't bloat the ledger.
     cells = [
-        _safe_cell(cells[0]),                              # steer-key
-        _safe_cell(cells[1]),                              # session
-        _safe_cell(cells[2]),                              # issue
-        _safe_cell(cells[3]),                              # type
-        _safe_cell(cells[4]),                              # tier
-        _safe_cell(cells[5], max_len=USER_REASON_MAX),     # user-reason
-        _safe_cell(cells[6], max_len=80),                  # commit
+        _safe_cell(cells[0]), _safe_cell(cells[1]), _safe_cell(cells[2]),
+        _safe_cell(cells[3]), _safe_cell(cells[4]),
+        _safe_cell(cells[5], max_len=USER_REASON_MAX),
+        _safe_cell(cells[6], max_len=80),
     ]
-    line = "| " + " | ".join(cells) + " |\n"
-    with p.open("a") as f:
-        f.write(line)
+    row_line = "| " + " | ".join(cells) + " |"
+    rio.write_row(path, rio.STEERING_SUBHEADING, STEER_HEADER, STEER_SEPARATOR, row_line)
 
 
 # ── Validate ──────────────────────────────────────────────────────────────
 
 
 def validate(path: str | Path) -> list[str]:
-    """Walk the ledger, return violation strings.
+    """Validate one receipt's `### Steering` sub-table.
 
-    Checks:
-        - Every data row has exactly COLUMN_COUNT cells.
-        - steer-key matches `steer-<session-short>-<epoch>-<idx>`.
-        - type ∈ VALID_TYPES, tier ∈ VALID_TIERS.
-        - issue matches `#N` (when non-empty — empty is allowed for legacy
-          commits that didn't carry an issue anchor).
-        - session non-empty.
-        - steer-key unique.
-        - Row order is monotonically non-decreasing in the embedded epoch
-          (append-only — never reorder rows).
+    Checks: 7 cells; well-formed steer-key; type/tier in the allowed sets;
+    issue is `#N` and equals this receipt's own issue (issue #201, decision 6 —
+    every event resolves to an issue); session non-empty; steer-key unique;
+    rows in non-decreasing embedded-epoch order (append-only).
     """
     p = Path(path)
     if not p.is_file():
         return []
+    name = p.name
+    lines = p.read_text().splitlines()
+    region = rio.subtable_region(lines, rio.STEERING_SUBHEADING)
+    if region is None:
+        return []
+    issue_n = _issue_from_name(name)
 
     violations: list[str] = []
     seen: dict[str, int] = {}
     last_epoch = -1
 
-    for line_no, line in enumerate(p.read_text().splitlines(), start=1):
-        cells = _parse_cells(line)
-        if cells is None or _is_header_or_separator(cells):
+    for idx in range(*region):
+        cells = rio.parse_cells(lines[idx])
+        if cells is None or rio.is_header_or_separator(cells, "steer-key"):
             continue
         if len(cells) != COLUMN_COUNT:
             violations.append(
-                f"STEERING.md:{line_no} — row has {len(cells)} cells, expected {COLUMN_COUNT}"
+                f"{name}:{idx + 1} — row has {len(cells)} cells, expected {COLUMN_COUNT}"
             )
             continue
 
         steer_key, session, issue, typ, tier, _reason, _commit = cells
-
         if not steer_key:
-            violations.append(f"STEERING.md:{line_no} — empty steer-key")
+            violations.append(f"{name}:{idx + 1} — empty steer-key")
             continue
 
         m = _STEER_KEY_RE.match(steer_key)
         if not m:
             violations.append(
-                f"STEERING.md — row '{steer_key}' has malformed steer-key "
+                f"{name} — row '{steer_key}' has malformed steer-key "
                 f"(expected steer-<session-short>-<epoch>-<idx>)"
             )
         else:
             epoch = int(m.group(1))
             if epoch < last_epoch:
                 violations.append(
-                    f"STEERING.md — row '{steer_key}' is out of order "
-                    f"(epoch {epoch} < previous {last_epoch}; ledger is append-only)"
+                    f"{name} — row '{steer_key}' is out of order "
+                    f"(epoch {epoch} < previous {last_epoch}; rows are append-only)"
                 )
             last_epoch = max(last_epoch, epoch)
 
         if not session:
-            violations.append(f"STEERING.md — row '{steer_key}' has empty session")
-        if issue and not _ISSUE_RE.match(issue):
+            violations.append(f"{name} — row '{steer_key}' has empty session")
+        if not issue:
             violations.append(
-                f"STEERING.md — row '{steer_key}' issue '{issue}' must look like '#123'"
+                f"{name} — row '{steer_key}' has empty issue (every steering event "
+                f"must resolve to an issue; receipt rows are never issue-less)"
+            )
+        elif not _ISSUE_RE.match(issue):
+            violations.append(f"{name} — row '{steer_key}' issue '{issue}' must look like '#123'")
+        elif issue_n is not None and issue != issue_n:
+            violations.append(
+                f"{name} — row '{steer_key}' issue '{issue}' does not match this "
+                f"receipt's issue '{issue_n}'"
             )
         if typ not in VALID_TYPES:
             violations.append(
-                f"STEERING.md — row '{steer_key}' has unknown type '{typ}' "
+                f"{name} — row '{steer_key}' has unknown type '{typ}' "
                 f"(expected one of: {', '.join(sorted(VALID_TYPES))})"
             )
         if tier not in VALID_TIERS:
             violations.append(
-                f"STEERING.md — row '{steer_key}' has unknown tier '{tier}' "
+                f"{name} — row '{steer_key}' has unknown tier '{tier}' "
                 f"(expected one of: {', '.join(sorted(VALID_TIERS))})"
             )
 
@@ -273,10 +252,29 @@ def validate(path: str | Path) -> list[str]:
 
     for key, count in seen.items():
         if count > 1:
-            violations.append(
-                f"STEERING.md — steer-key '{key}' appears {count} times (must be unique, append-only)"
-            )
+            violations.append(f"{name} — steer-key '{key}' appears {count} times (must be unique)")
+    return violations
 
+
+def validate_dir(receipts_dir: str | Path) -> list[str]:
+    """Validate every receipt's Steering sub-table plus global steer-key uniqueness."""
+    d = Path(receipts_dir)
+    if not d.is_dir():
+        return []
+    violations: list[str] = []
+    seen: dict[str, str] = {}
+    for f in sorted(d.glob("issue-*.md")):
+        violations.extend(validate(f))
+        for row in parse_steering(f):
+            if not row.steer_key:
+                continue
+            if row.steer_key in seen and seen[row.steer_key] != f.name:
+                violations.append(
+                    f"receipts — steer-key '{row.steer_key}' appears in both "
+                    f"{seen[row.steer_key]} and {f.name} (must be globally unique)"
+                )
+            else:
+                seen.setdefault(row.steer_key, f.name)
     return violations
 
 
@@ -288,10 +286,33 @@ def _die(msg: str) -> None:
     sys.exit(2)
 
 
+def _cmd_resolve_receipt(args: list[str]) -> int:
+    if len(args) != 2:
+        _die("resolve-receipt takes: <receipts_dir> <issue_number>")
+    print(resolve_receipt(args[0], args[1]))
+    return 0
+
+
+def _cmd_count_by_session(args: list[str]) -> int:
+    if len(args) != 2:
+        _die("count-by-session takes: <receipts_dir> <session>")
+    print(count_by_session(parse_all(args[0]), args[1]))
+    return 0
+
+
 def _cmd_validate(args: list[str]) -> int:
     if len(args) != 1:
-        _die("validate takes: <ledger>")
+        _die("validate takes: <receipt>")
     violations = validate(args[0])
+    for v in violations:
+        print(v)
+    return 1 if violations else 0
+
+
+def _cmd_validate_dir(args: list[str]) -> int:
+    if len(args) != 1:
+        _die("validate-dir takes: <receipts_dir>")
+    violations = validate_dir(args[0])
     for v in violations:
         print(v)
     return 1 if violations else 0
@@ -299,9 +320,8 @@ def _cmd_validate(args: list[str]) -> int:
 
 def _cmd_find_by_steer_key(args: list[str]) -> int:
     if len(args) != 2:
-        _die("find-by-steer-key takes: <ledger> <key>")
-    rows = parse(args[0])
-    hits = find_by_steer_key(rows, args[1])
+        _die("find-by-steer-key takes: <receipts_dir> <key>")
+    hits = find_by_steer_key(parse_all(args[0]), args[1])
     if len(hits) == 0:
         print(f"steer-key '{args[1]}' not found", file=sys.stderr)
         return 2
@@ -315,8 +335,8 @@ def _cmd_find_by_steer_key(args: list[str]) -> int:
 
 def _cmd_existing_keys(args: list[str]) -> int:
     if len(args) != 1:
-        _die("existing-keys takes: <ledger>")
-    for k in existing_keys(parse(args[0])):
+        _die("existing-keys takes: <receipts_dir>")
+    for k in existing_keys(parse_all(args[0])):
         print(k)
     return 0
 
@@ -324,33 +344,28 @@ def _cmd_existing_keys(args: list[str]) -> int:
 def _cmd_append_row(args: list[str]) -> int:
     if len(args) != 8:
         _die(
-            "append-row takes: <ledger> <steer-key> <session> <issue> "
+            "append-row takes: <receipt> <steer-key> <session> <issue> "
             "<type> <tier> <user-reason> <commit>"
         )
-    ledger, steer_key, session, issue, typ, tier, reason, commit = args
+    receipt, steer_key, session, issue, typ, tier, reason, commit = args
     if typ not in VALID_TYPES:
         _die(f"unknown type {typ!r}")
     if tier not in VALID_TIERS:
         _die(f"unknown tier {tier!r}")
     if not _STEER_KEY_RE.match(steer_key):
         _die(f"malformed steer-key {steer_key!r}")
-    append_row(
-        ledger,
-        LedgerRow(
-            steer_key=steer_key,
-            session=session,
-            issue=issue,
-            type=typ,
-            tier=tier,
-            user_reason=reason,
-            commit=commit,
-        ),
-    )
+    append_row(receipt, LedgerRow(
+        steer_key=steer_key, session=session, issue=issue,
+        type=typ, tier=tier, user_reason=reason, commit=commit,
+    ))
     return 0
 
 
 _COMMANDS = {
+    "resolve-receipt": _cmd_resolve_receipt,
+    "count-by-session": _cmd_count_by_session,
     "validate": _cmd_validate,
+    "validate-dir": _cmd_validate_dir,
     "find-by-steer-key": _cmd_find_by_steer_key,
     "existing-keys": _cmd_existing_keys,
     "append-row": _cmd_append_row,

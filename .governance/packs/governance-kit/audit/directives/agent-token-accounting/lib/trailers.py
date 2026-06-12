@@ -18,21 +18,26 @@ Each agent-authored commit carries a self-contained trailer block:
 GitHub squash-merge concatenates each sub-commit's body into the
 resulting commit message, so the body can contain N such blocks. We
 split on blank lines, treat each pure-trailer paragraph as one block,
-and validate the (trailer-block, COSTS.md-row) pair anchored by each
+and validate the (trailer-block, receipt-row) pair anchored by each
 block's `Cost-Key`. Parsing the whole body as one global last-wins bag
 — the historical approach — kept only the trailing sub-commit's
 trailers and silently skipped the rest, leaving every other sub-commit's
-COSTS.md row unverified.
+receipt row unverified.
+
+Cost rows now live in per-issue receipts (issue #201), not a central
+`COSTS.md`. Because `Cost-Key` is globally unique, the cross-check parses
+every receipt's Costs sub-table into one `cost-key → row` map and anchors
+each trailer block to its row regardless of which receipt holds it.
 
 CLI:
 
-    python3 trailers.py validate-blocks <label> <ledger_path> [msg_file|-]
+    python3 trailers.py validate-blocks <label> <receipts_dir> [msg_file|-]
 
         Reads the commit message, parses every trailer block, and prints
-        one violation per line. Exits 1 if any, 0 if clean. The ledger
+        one violation per line. Exits 1 if any, 0 if clean. The receipt
         cross-check is done per-block — each `Cost-Key` in the body must
-        round-trip with exactly one row in COSTS.md, and the row's token
-        columns must agree with that block's trailers.
+        round-trip with exactly one row across `receipts/*.md`, and the
+        row's token columns must agree with that block's trailers.
 """
 
 from __future__ import annotations
@@ -41,14 +46,15 @@ import re
 import sys
 from pathlib import Path
 
+sys.dont_write_bytecode = True  # don't litter the consumer repo with __pycache__
 
 # ledger.py sits next to this file; relative import works under
 # `python3 trailers.py …` because the parent dir is on sys.path.
 try:
-    from ledger import parse as parse_ledger  # type: ignore
+    from ledger import parse_all_costs  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from ledger import parse as parse_ledger  # type: ignore
+    from ledger import parse_all_costs  # type: ignore
 
 
 REQUIRED_TRAILERS = (
@@ -83,7 +89,7 @@ def extract_trailer_blocks(msg: str) -> list[dict[str, str]]:
     sub-commit's body into the resulting commit, so the trailer
     section repeats N times. Parsing them as one global last-wins
     bag drops every sub-commit's trailers except the last one's, and
-    only the last sub-commit's COSTS.md row gets cross-checked.
+    only the last sub-commit's receipt row gets cross-checked.
     """
     blocks: list[dict[str, str]] = []
     for para in _PARAGRAPH_RE.split(msg):
@@ -106,7 +112,7 @@ def extract_trailer_blocks(msg: str) -> list[dict[str, str]]:
 def validate_blocks(
     msg: str,
     label: str,
-    ledger_path: str | Path,
+    receipts_dir: str | Path,
 ) -> list[str]:
     """Validate every per-Cost-Key trailer block in `msg`.
 
@@ -130,15 +136,15 @@ def validate_blocks(
         )
         return violations
 
-    ledger_path = Path(ledger_path)
-    rows = parse_ledger(ledger_path) if ledger_path.is_file() else []
+    receipts_dir = Path(receipts_dir)
+    rows = parse_all_costs(receipts_dir)
     by_cost_key: dict[str, list] = {}
     for r in rows:
         by_cost_key.setdefault(r.cost_key, []).append(r)
 
     for block in token_blocks:
         violations.extend(
-            _validate_block(block, label, by_cost_key, ledger_path)
+            _validate_block(block, label, by_cost_key, receipts_dir)
         )
     return violations
 
@@ -147,7 +153,7 @@ def _validate_block(
     block: dict[str, str],
     label: str,
     by_cost_key: dict[str, list],
-    ledger_path: Path,
+    receipts_dir: Path,
 ) -> list[str]:
     violations: list[str] = []
     cost_key = block.get("Cost-Key", "")
@@ -201,18 +207,18 @@ def _validate_block(
             f"decimal"
         )
 
-    # Look up matching ledger row.
+    # Look up matching receipt row.
     hits = by_cost_key.get(cost_key, [])
     if len(hits) != 1:
-        if not ledger_path.is_file():
+        if not receipts_dir.is_dir():
             violations.append(
-                f"{sublabel} — declares Agent: trailer but COSTS.md does not "
-                f"exist at repo root"
+                f"{sublabel} — declares Agent: trailer but no receipts/ "
+                f"directory exists to home the accounting row"
             )
         else:
             violations.append(
                 f"{sublabel} — Cost-Key '{cost_key}' should have exactly 1 "
-                f"row in COSTS.md, found {len(hits)}"
+                f"row across receipts/*.md, found {len(hits)}"
             )
         return violations
 
@@ -224,7 +230,7 @@ def _validate_block(
     expected_trailer_output = row.output
     if int(t_input) != expected_trailer_input or int(t_output) != expected_trailer_output:
         violations.append(
-            f"{sublabel} — COSTS.md row for '{cost_key}' disagrees with commit "
+            f"{sublabel} — receipt row for '{cost_key}' disagrees with commit "
             f"trailers (trailer input/output: {t_input}/{t_output}, "
             f"row input+cache_create / output: "
             f"{row.input}+{row.cache_create}={expected_trailer_input} / "
@@ -232,7 +238,7 @@ def _validate_block(
         )
     if int(t_total) != row.new_work:
         violations.append(
-            f"{sublabel} — Token-Total ({t_total}) != COSTS.md row new_work "
+            f"{sublabel} — Token-Total ({t_total}) != receipt row new_work "
             f"({row.new_work}) for cost-key '{cost_key}'"
         )
 
@@ -241,16 +247,16 @@ def _validate_block(
             if abs(float(cost_trailer) - row.cost_usd) > 5e-5:
                 violations.append(
                     f"{sublabel} — Cost-USD trailer ({cost_trailer}) "
-                    f"disagrees with COSTS.md cost_usd ({row.cost_usd:.4f}) "
+                    f"disagrees with receipt cost_usd ({row.cost_usd:.4f}) "
                     f"for cost-key '{cost_key}'"
                 )
         else:
-            # Ledger row exists but has empty cost_usd — only legal for
+            # Receipt row exists but has empty cost_usd — only legal for
             # legacy/grandfathered rows (empty model). A v3 commit
             # claiming ownership of such a row is an authoring error.
             violations.append(
                 f"{sublabel} — Cost-USD trailer is '{cost_trailer}' but "
-                f"COSTS.md row '{cost_key}' has no cost_usd value "
+                f"receipt row '{cost_key}' has no cost_usd value "
                 f"(grandfathered row; new commits must point at a priced row)"
             )
 
@@ -269,14 +275,14 @@ def _read_msg(path_or_dash: str) -> str:
 def _cmd_validate_blocks(argv: list[str]) -> int:
     if len(argv) < 2 or len(argv) > 3:
         print(
-            "trailers validate-blocks: <label> <ledger_path> [msg_file | -]",
+            "trailers validate-blocks: <label> <receipts_dir> [msg_file | -]",
             file=sys.stderr,
         )
         return 2
-    label, ledger_path = argv[0], argv[1]
+    label, receipts_dir = argv[0], argv[1]
     msg_src = argv[2] if len(argv) > 2 else "-"
     msg = _read_msg(msg_src)
-    violations = validate_blocks(msg, label, ledger_path)
+    violations = validate_blocks(msg, label, receipts_dir)
     for v in violations:
         print(v)
     return 1 if violations else 0

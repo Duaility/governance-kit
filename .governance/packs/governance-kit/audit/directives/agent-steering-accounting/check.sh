@@ -2,9 +2,9 @@
 # Directive: every non-merge, non-revert commit stamps the always-on summary
 # triple `Steer-Count`, `Steer-Types`, `Steer-Tiers` — even when zero events
 # were detected. The summary numbers must agree with the rows newly added to
-# STEERING.md by this commit: `Steer-Count` equals the number of added
+# receipts by this commit: `Steer-Count` equals the number of added
 # rows, and the type / tier breakdowns tally those rows' `type` and `tier`
-# columns. The row → commit join uses STEERING.md's `commit |` column.
+# columns. The row → commit join uses receipts's `commit |` column.
 #
 # Independent of agent-token-accounting: the contract applies to every
 # in-scope commit, not gated on the `Agent:` trailer. Installation is the
@@ -16,7 +16,7 @@
 # Modes:
 #   Mode A — commit-msg hook:  bash check.sh <path-to-msg-file>
 #       Validates the pending message: summary triple is well-formed and
-#       agrees with the rows the staged STEERING.md diff adds. Each newly
+#       agrees with the rows the staged receipts diff adds. Each newly
 #       added row's `commit |` cell must equal the pending subject.
 #   Mode B — CI / run.sh:      bash check.sh
 #       Walks default-branch merge-base → HEAD and validates every
@@ -34,7 +34,7 @@
 # Skips merge commits and revert commits, identical to agent-token-accounting.
 #
 # Independent ledger-shape check runs first so even branches with no
-# steering activity catch a malformed STEERING.md.
+# steering activity catch a malformed receipt steering table.
 
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -43,7 +43,7 @@ directive_start "agent-steering-accounting"
 require_git
 
 ROOT="$(git rev-parse --show-toplevel)"
-LEDGER="$ROOT/STEERING.md"
+RECEIPTS_DIR="$ROOT/receipts"
 LIB="$HERE/lib"
 
 if [[ ! -f "$LIB/ledger.py" || ! -f "$LIB/trailers.py" ]]; then
@@ -52,28 +52,29 @@ if [[ ! -f "$LIB/ledger.py" || ! -f "$LIB/trailers.py" ]]; then
 fi
 
 # ──────────────────────────────────────────────────────────────
-# Ledger-shape check (independent of any commits).
+# Receipt steering-table shape check (independent of any commits).
 # ──────────────────────────────────────────────────────────────
-if [[ -f "$LEDGER" ]]; then
+if [[ -d "$RECEIPTS_DIR" ]]; then
     while IFS= read -r v; do
         [[ -z "$v" ]] && continue
         violation "$v"
-    done < <(python3 "$LIB/ledger.py" validate "$LEDGER" || true)
+    done < <(python3 "$LIB/ledger.py" validate-dir "$RECEIPTS_DIR" || true)
 fi
 
-# Print the steer-keys of rows newly added to STEERING.md in this commit.
+# Print the steer-keys of steering rows newly added to receipts in this commit.
 # Mode A reads the staged diff (the pending commit's contribution); Mode B
-# reads `git show <sha> -- STEERING.md`. In both cases, an added row is a
-# `+| ... |` line and the steer-key is the first cell.
+# reads `git show <sha> -- receipts`. In both cases, an added steering row is a
+# `+| ... |` line with 7 cells whose first cell starts with `steer-` (the
+# receipt diff also carries 12-cell cost rows and prose, which we skip).
 new_row_keys() {
     local mode="$1"
     local sha="${2:-}"
     if [[ "$mode" == "A" ]]; then
-        git diff --cached -- "$LEDGER" 2>/dev/null || true
+        git diff --cached -- "$RECEIPTS_DIR" 2>/dev/null || true
     else
-        git show --no-color --format= "$sha" -- "$LEDGER" 2>/dev/null || true
+        git show --no-color --format= "$sha" -- "$RECEIPTS_DIR" 2>/dev/null || true
     fi | python3 -c '
-import re, sys
+import sys
 for line in sys.stdin:
     line = line.rstrip("\n")
     if not line.startswith("+") or line.startswith("+++"):
@@ -82,10 +83,12 @@ for line in sys.stdin:
     if not body.startswith("|"):
         continue
     cells = [c.strip() for c in body.split("|")[1:-1]]
-    if not cells:
+    if len(cells) != 7:
         continue
     key = cells[0]
-    if key in ("steer-key", "") or re.fullmatch(r"-+", key or ""):
+    # Skip the table header (its first cell is the literal "steer-key", which
+    # also starts with "steer-") and the separator; keep real rows only.
+    if key == "steer-key" or not key.startswith("steer-"):
         continue
     print(key)
 '
@@ -111,7 +114,7 @@ validate_commit_message() {
         done <<<"$keys_raw"
     fi
 
-    local -a args=("validate" "$label" "$LEDGER")
+    local -a args=("validate" "$label" "$RECEIPTS_DIR")
     if [[ -n "$subject" ]]; then
         args+=("--subject" "$subject")
     fi
