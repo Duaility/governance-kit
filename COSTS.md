@@ -307,3 +307,4 @@ Schema:
 | claude-code-b4be6ed4-c1e-1781243602 | claude-code | b4be6ed4-c1ed-46b7-842c-dd9c875cd0dc | #200 | claude-opus-4-8 | 34854 | 907396 | 70678290 | 600849 | 1543099 | 56.2059 | refactor(dogfood): rebuild on honest pins, drop hand-vendoring (#200) -m Replace |
 | claude-code-aba66c0f-88a-1781248196 | claude-code | aba66c0f-88a6-470c-8a99-ec5ad21a60f6 | #201 | claude-opus-4-8 | 100373 | 1322208 | 88639413 | 647760 | 2070341 | 69.2794 |  |
 | claude-code-aba66c0f-88a-1781248328 | claude-code | aba66c0f-88a6-470c-8a99-ec5ad21a60f6 | #201 | claude-opus-4-8 | 10 | 15120 | 2230621 | 5250 | 20380 | 1.3411 |  |
+| claude-code-e27a6ab8-385-1781252768 | claude-code | e27a6ab8-3852-435f-b5e5-5fd4253ae3c2 | #204 | claude-opus-4-8 | 2594 | 13071 | 16008 | 27 | 15692 | 0.1033 | feat(governance): add conf-knob-doc-sync directive (#204)Scalar conf_get knobs k |
