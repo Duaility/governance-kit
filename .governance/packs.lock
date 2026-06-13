@@ -55,19 +55,19 @@ packs:
   - doc-freshness
   - internal-doc-links
 - id: governance-kit/foundation
-  version: 0.3.0
+  version: 0.4.1
   source: gh
-  ref: gh:duaility/governance-kit/packs/foundation@foundation/v0.3.0
-  sha: 45ad49a0b0aa1343a72e025b5eb9a51c020e51b8
+  ref: gh:duaility/governance-kit/packs/foundation@foundation/v0.4.1
+  sha: fc8ba479fbb283e09f33025162707c531639e7e3
   subpath: packs/foundation
   min_governance_kit: '0.3'
-  installed_at: '2026-06-13T17:08:19Z'
+  installed_at: '2026-06-13T19:56:50Z'
   directives:
   - managed-tree-integrity
   - repo-hygiene
   - required-docs
   digest:
-    managed-tree-integrity: 22cabdc87bd85ebd9cf7c1d6d2412725ca65ee144df01ebd537705b960658a89
+    managed-tree-integrity: 1ed67a458d3c35ccbb6e7a8eb30a03447d833aaf32f46369a4bdad3375712d6f
     repo-hygiene: bcc6d10bef0a216d1698d6406ef87559268639132632cbd68ca544a0bd843a44
     required-docs: 97d5963e146c39cae9243e4c63cf9cee092497800b81abd3e2c071fc74052833
 - id: governance-kit/security
