@@ -7,9 +7,10 @@
 # kit/references/VERSIONING.md):
 #
 #   kit    — the framework. Source of truth: kit/assets/kit.yaml `version`.
-#            Re-stamps every derived copy (install.yaml kit_version, the
-#            `kit-version=` managed markers). The published skill (skill/)
-#            versions independently and is not touched by kit releases (#198).
+#            Re-stamps the `kit-version=` marker on the SOURCE templates under
+#            kit/assets/ (never this repo's consumed .governance tree — issue
+#            #256). The published skill (skill/) versions independently and is
+#            not touched by kit releases (#198).
 #   <pack> — a bundled concern pack (foundation, security, docs, commits,
 #            audit). Source of truth:
 #            packs/<pack>/pack.yaml `version`. Each pack versions and tags on
@@ -105,21 +106,21 @@ if [[ "${RELEASE_SKIP_SUITE:-0}" != "1" ]]; then
 fi
 
 # ── collect the files to re-stamp ─────────────────────────────────────────
-# kit releases re-stamp every derived kit-version copy. core releases only
-# touch the pack manifest. Marker files are auto-discovered from tracked files
-# carrying the leading marker, minus generator code, test data, eval fixtures
-# (whose markers are deliberately pinned to old versions), and docs — both the
-# kit/references/ flow docs and the docs/ Pages site quote the marker format
-# literally at column 0, so they match the grep but are not managed files.
+# kit releases re-stamp the kit-version marker on the SOURCE templates under
+# kit/assets/ only — never this repo's own *consumed* governance surface
+# (.governance/{run.sh,lib.sh,sweep.py}, .github/workflows/*, the installed
+# scripts/enable-governance.sh, .githooks/*). release.sh only ever runs in the
+# source repo, so that consumed tree is the dogfood's own install. Stamping its
+# markers ahead of content would advance the marker past the runtime it pins,
+# turning the post-release `governance update` into a marker-version no-op that
+# never syncs the new files (issue #256). The consumed tree moves only via the
+# update verb; kit/assets/packs/lib/* is generator code, not a managed asset.
 marker_files=()
 if [[ "$AXIS" == "kit" ]]; then
     while IFS= read -r f; do marker_files+=("$f"); done < <(
         git grep -lE '^# governance-kit:managed' -- \
-            ':(exclude)kit/evals/*' \
-            ':(exclude)kit/assets/packs/lib/*' \
-            ':(exclude)kit/references/*' \
-            ':(exclude)docs/*' \
-            ':(exclude)scripts/test-*' 2>/dev/null | sort
+            'kit/assets/*' \
+            ':(exclude)kit/assets/packs/lib/*' 2>/dev/null | sort
     )
 fi
 
@@ -193,9 +194,8 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
     note "── DRY RUN — no files written ──"
     echo "source bump:   $SRC  $CURRENT → $VERSION"
     if [[ "$AXIS" == "kit" ]]; then
-        echo "manifest:      .governance/install.yaml  kit_version → $VERSION"
         echo "eval fixture:  $UP_TO_DATE_FIXTURE  kit_version → $VERSION"
-        echo "markers (${#marker_files[@]}):"
+        echo "markers (${#marker_files[@]}, kit/assets source only):"
         printf '   %s\n' "${marker_files[@]}"
     fi
     echo "tag:           $TAG (annotated)"
@@ -207,7 +207,10 @@ fi
 # ── apply ─────────────────────────────────────────────────────────────────
 set_quoted_field "$SRC" "$ANCHOR" "$VERSION"
 if [[ "$AXIS" == "kit" ]]; then
-    set_quoted_field ".governance/install.yaml" '^kit_version: "' "$VERSION"
+    # NB: the dogfood's own .governance/install.yaml kit_version is deliberately
+    # NOT bumped here — it is part of the consumed tree that `governance update`
+    # moves after the release, and bumping it (like stamping the consumed
+    # markers) would defeat the update's forward-delta detection (issue #256).
     set_quoted_field "$UP_TO_DATE_FIXTURE" '^kit_version: "' "$VERSION"
     for f in "${marker_files[@]}"; do
         [[ -f "$f" ]] && stamp_managed_marker "$f" "$VERSION"
@@ -219,26 +222,22 @@ git add -A
 # A `chore(release)` commit is a mechanical version bump: it has no feature
 # issue to anchor (so it can't satisfy commit-message-format's `(#N)` suffix)
 # and touches no receipt (so commit-issue-receipt-match has nothing to match).
-# It also re-stamps only managed files (kit.yaml / install.yaml / markers /
-# CHANGELOG.md) and by construction never edits CONSTITUTION.md, so doc-integrity
-# has nothing legitimate to flag on it — pre-waiving it is as sound as the other
-# two, and it also neutralizes the macOS frozen-section grep that OOMs on the
-# Evolution Log's huge single-line entries and false-reports a frozen edit.
-# These are waived in-body; the accounting directives still apply and are
-# stamped by the runtime populator like any other agent commit.
+# It also re-stamps only source files (kit.yaml / kit/assets markers / the
+# up-to-date eval fixture / CHANGELOG.md) and by construction never edits
+# CONSTITUTION.md, so doc-integrity has nothing legitimate to flag on it —
+# pre-waiving it is as sound as the other two, and it also neutralizes the macOS
+# frozen-section grep that OOMs on the Evolution Log's huge single-line entries
+# and false-reports a frozen edit. These are waived in-body; the accounting
+# directives still apply and are stamped by the runtime populator like any other
+# agent commit. No toolchain-config waiver is needed: since issue #256 the kit
+# release touches only kit/assets/ source templates, never the guarded
+# .github/workflows/ or .githooks/ consumed config.
 commit_args=(
     -m "chore(release): ${AXIS} v${CURRENT} → v${VERSION}"
     -m "governance: allow-commit-message-format release commits are mechanical version bumps, not tied to a feature issue"
     -m "governance: allow-commit-issue-receipt-match release commits carry no receipt"
     -m "governance: allow-doc-integrity CONSTITUTION.md release commits re-stamp managed files only and never edit CONSTITUTION.md"
 )
-# A kit release re-stamps the kit-version marker on the hook files and the
-# governance workflow, which toolchain-config-protection guards. The re-stamp is
-# a marker-only, no-behavior change, so pre-waive it — but only on the kit axis;
-# a pack release touches just packs/<pack>/pack.yaml and needs no such waiver.
-if [[ "$AXIS" == "kit" ]]; then
-    commit_args+=( -m "governance: allow-toolchain-config release commits only re-stamp the kit-version marker on hook + workflow files; no behavioral change" )
-fi
 git commit "${commit_args[@]}"
 git tag -a "$TAG" -m "${AXIS} release ${VERSION}"
 note "committed + tagged $TAG"
