@@ -22,6 +22,14 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [kit/v0.8.1] - 2026-06-13
+
+### Fixed
+- release.sh must not stamp the dogfood consumed tree (#256)
+
+### Changed
+- foundation v0.2.1 → v0.3.0
+
 ## [foundation/v0.3.0] - 2026-06-13
 
 ### Added
