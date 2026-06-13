@@ -1,20 +1,13 @@
-<div align="center"><pre>
- ██████╗  ██████╗ ██╗   ██╗███████╗██████╗ ███╗   ██╗ █████╗ ███╗   ██╗ ██████╗███████╗
-██╔════╝ ██╔═══██╗██║   ██║██╔════╝██╔══██╗████╗  ██║██╔══██╗████╗  ██║██╔════╝██╔════╝
-██║  ███╗██║   ██║██║   ██║█████╗  ██████╔╝██╔██╗ ██║███████║██╔██╗ ██║██║     █████╗
-██║   ██║██║   ██║╚██╗ ██╔╝██╔══╝  ██╔══██╗██║╚██╗██║██╔══██║██║╚██╗██║██║     ██╔══╝
-╚██████╔╝╚██████╔╝ ╚████╔╝ ███████╗██║  ██║██║ ╚████║██║  ██║██║ ╚████║╚██████╗███████╗
- ╚═════╝  ╚═════╝   ╚═══╝  ╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝
+<div align="center">
 
-                                 ██╗  ██╗██╗████████╗
-                                 ██║ ██╔╝██║╚══██╔══╝
-                                 █████╔╝ ██║   ██║
-                                 ██╔═██╗ ██║   ██║
-                                 ██║  ██╗██║   ██║
-                                 ╚═╝  ╚═╝╚═╝   ╚═╝
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.png">
+  <img src="docs/assets/banner-light.png" alt="Governance Kit" width="640">
+</picture>
 
-                     The governance layer for AI coding agents
-</pre></div>
+<p align="center">The governance layer for AI coding agents</p>
+
+</div>
 
 <p align="center"><strong>rules with tests · enforced on every commit · audit trail for every agent change · six bundled packs · MIT</strong></p>
 
@@ -41,23 +34,19 @@
 
 ---
 
-Governance Kit turns your repo's rules into a versioned constitution — a declarative description of the state the repository must stay in. Agents read it, checks compare it against reality on every commit, and every agent-authored change leaves a git-native audit trail.
+When an AI agent commits to your repo, it reads what's there and extends it — including the patterns that shouldn't be there. Across enough sessions, branches, and handoffs, your repo drifts: docs that contradict code, rules that live only in a closed chat window, the next agent inheriting a mess the previous one left. More instructions in the prompt don't fix this. The session ends, the context vanishes, and the next agent starts from whatever the repo looks like now.
 
-Installs into [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), Cursor, OpenCode, and 40+ agents via [`npx skills`](https://github.com/vercel-labs/skills). Conforms to the [Agent Skills](https://agentskills.io) format.
+OpenAI described this failure mode — and a way out — in their [harness engineering](https://openai.com/index/harness-engineering/) post, written while running an agent-first codebase at scale. The key insight: coherence comes from a *harness*, not better prompts. Rules that carry their own executable tests survive session boundaries. A failing check that surfaces the rule's rationale at the moment of violation reaches the next agent without a human relay. Humans steer; agents execute; the harness keeps the gap from growing.
 
-## What it does
+Governance Kit packages that stance as an installable kit — and adds one layer. Rules live in **packs**: versioned, composable bundles you pin per repo, share across teams, or author locally to fit your stack. Every agent-authored commit leaves a git-native trail: issue → receipt → token cost → steering tally. The kit installs into [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), Cursor, OpenCode, and 40+ agent runtimes via [`npx skills`](https://github.com/vercel-labs/skills).
 
-- **Constitution** — `CONSTITUTION.md` declares the state your repo must satisfy: directives, rationale, exceptions, evolution log
-- **Executable directives** — every rule carries a `check.sh`; a pre-commit hook and CI compare declared state to reality on every commit
-- **Packs** — concern-scoped directive bundles, versioned and pinned; the check code is vendored into your repo for in-diff review
-- **Audit chain** — every agent-authored change leaves a trail: issue → receipt → commit → token cost
-- **Steering record** — per-commit tallies of how much human correction the work needed
-- **Sweep lane** — LLM-judged architectural rules grep can't reach, off the commit path, advisory-only
-- **Lifecycle verbs** — `init` · `update` · `pack` · `directive` · `reset` · `uninstall`; your agent drives all of them
+- **Constitution** — `CONSTITUTION.md` declares the state your repo must satisfy; every directive ships with its `check.sh`, so the rule and its test evolve as one commit
+- **Packs** — versioned directive bundles you compose, pin, and swap; six are bundled, and you can author repo-local packs to capture rules specific to your stack
+- **Audit chain** — every agent-authored change links an issue, a receipt, a token cost, and a steering tally — all git-native, all checkable
+- **Sweep lane** — LLM-adjudicated architectural rules that grep can't reach, running off the commit path so a false positive never breaks a gate
 
-## Why
-
-When coding agents take control, the problems change. You're no longer debugging one agent's output in one session — you're keeping a repository coherent across many branches, many agents, many handoffs, where your guidance has to reach the next agent without you. OpenAI's [harness engineering](https://openai.com/index/harness-engineering/) article names this problem set from running an agent-first codebase — and the stance that follows: **humans steer, agents execute**. Governance Kit was designed against exactly those problems:
+<details>
+<summary><b>How each design choice maps to a named failure mode</b></summary>
 
 | The agent-first failure mode | The design answer |
 |---|---|
@@ -67,7 +56,7 @@ When coding agents take control, the problems change. You're no longer debugging
 | "Our bottleneck became human QA capacity" | **You review receipts, not diffs.** Each issue's receipt crosswalks claims to changes and verification, with a token price tag and a steering tally attached. |
 | Context is scarce — "a giant instruction file crowds out the task" | **Progressive disclosure, enforced.** A failing check injects one directive's id + rationale at exactly the moment it's violated — not a 500-line prompt on every turn. |
 
-The article describes the practices; Governance Kit packages them as an installable, versioned kit — and adds the accounting layer (cost + steering per commit) that tells you how well the harness is working.
+</details>
 
 ## How it works (30 seconds)
 
