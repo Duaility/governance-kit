@@ -1,6 +1,0 @@
-# conf-knob-doc-sync — Every conf_get scalar knob has a matching defaults.conf row.
-category: Quality
-recommended: true
-summary: Every conf_get scalar knob a bundled directive's check.sh reads has a matching KEY= row in its sibling defaults.conf.
-surface: repo-state
-hook: pre-commit

@@ -1,6 +1,0 @@
-### conf-knob-doc-sync
-
-- **Directive**: Every scalar knob a bundled directive's `check.sh` reads via `conf_get <id> <KEY> <defaults-file>` (under `packs/*/directives/*/`) must have a matching `<KEY>=` row in that directive's sibling `defaults.conf`.
-- **Rationale**: Since the #210 redesign, a knob's default *and* its documentation live in exactly one place — the pack-owned `defaults.conf` row, which `conf_get` resolves (env > overlay > `defaults.conf`). There is no in-code default constant and no `config.conf` template, so value/doc drift is impossible by construction rather than policed heuristically. What remains is purely structural: a `conf_get` whose `defaults.conf` carries no `<KEY>=` row fails loud at runtime (a broken install). This lint catches that authoring slip at commit time. Being a knob-read ⇔ defaults-row identity check, it carries no value or prose matching, so the two weaknesses of the pre-#210 heuristic — two-form text matching and cross-knob value-collision false-pass — cannot arise.
-- **Enforced by**: `.governance/packs/duaility/governance-kit/directives/conf-knob-doc-sync/check.sh`
-- **Exceptions**: Same-line waiver comment `governance: allow-conf-knob-doc-sync <reason>` on the `conf_get` line in the scanned `check.sh`.
