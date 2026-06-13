@@ -305,6 +305,11 @@ def test_add_vendors_sweep_lane() -> None:
         ledger = (root / ".governance/install.yaml").read_text()
         assert ".governance/sweep.py" in ledger
         assert ".github/workflows/governance-sweep.yml" in ledger
+        # issue #259: pack-add records the sweep assets in `managed_digests:` too
+        # (a two-space `  <relpath>: <sha>` row, not the dashed ledger row), so
+        # managed-tree-integrity guards them offline — parity with init.
+        assert "\n  .governance/sweep.py: " in ledger, ledger
+        assert "\n  .github/workflows/governance-sweep.yml: " in ledger, ledger
 
 
 def test_add_held_back_sweep_directive_seeds_no_lane() -> None:

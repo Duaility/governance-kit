@@ -268,6 +268,13 @@ def test_init_apply_vendors_sweep_lane() -> None:
         assert ".governance/sweep.py" in report["seeded_assets"]
         ledger = (root / ".governance/install.yaml").read_text()
         assert ".governance/sweep.py" in ledger
+        # issue #259: the vendored sweep engine + its workflow are now first-class
+        # managed runtime files — recorded in `managed_digests:` (a two-space
+        # `  <relpath>: <sha>` row, distinct from the dashed `install_assets_seeded`
+        # ledger row) so a hand-edit is caught offline by managed-tree-integrity,
+        # exactly like run.sh/lib.sh.
+        assert "\n  .governance/sweep.py: " in ledger, ledger
+        assert "\n  .github/workflows/governance-sweep.yml: " in ledger, ledger
 
     # A plain (non-sweep) install must not vendor the sweep lane.
     with tempfile.TemporaryDirectory() as tmp:
