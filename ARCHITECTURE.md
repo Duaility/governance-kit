@@ -22,8 +22,8 @@ The skill is a self-contained directory with frontmatter
 Each pack is a directory. Seven concern-scoped packs ship in-tree under
 `packs/<concern>/`:
 
-- `governance-kit/foundation` — `required-docs`, `kit-version-sync`,
-  `repo-hygiene`.
+- `governance-kit/foundation` — `required-docs`, `repo-hygiene`,
+  `managed-tree-integrity`.
 - `governance-kit/security` — `secrets-hygiene`, `token-permissions`,
   `pinned-dependencies`.
 - `governance-kit/docs` — `internal-doc-links`, `doc-freshness`.

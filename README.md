@@ -20,7 +20,6 @@
 
 <p align="center">
   <a href="https://github.com/Duaility/governance-kit/actions/workflows/governance.yml"><img src="https://github.com/Duaility/governance-kit/actions/workflows/governance.yml/badge.svg" alt="governance"></a>
-  <a href="https://github.com/Duaility/governance-kit/actions/workflows/dogfood-smoke.yml"><img src="https://github.com/Duaility/governance-kit/actions/workflows/dogfood-smoke.yml/badge.svg" alt="dogfood smoke"></a>
   <a href="https://github.com/Duaility/governance-kit/tags"><img src="https://img.shields.io/github/v/tag/Duaility/governance-kit?filter=kit%2Fv*&label=kit" alt="kit version"></a>
   <a href="https://agentskills.io"><img src="https://img.shields.io/badge/Agent%20Skills-compatible-blueviolet.svg" alt="Agent Skills"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
@@ -118,11 +117,11 @@ What you installed is a thin shim — two files. The kit itself (rules, packs, t
 
 ## Proof — this repo governs itself
 
-- **21 directives gate every commit here** — the same packs `governance init` installs, plus a repo-local pack; two more sweep-lane rules adjudicate merged commits off the commit path
-- **The committed `.governance/` tree is an honest customer of the last release** — pinned at real published tags, moved only by the real `pack update` verb, so every release exercises the update path
-- **A CI smoke lane runs HEAD's directives against a throwaway copy of this repo** — a broken directive surfaces in its own PR, before it ships
+- **18 directives gate every commit here** — the same packs `governance init` installs, plus a repo-local pack; two more sweep-lane rules adjudicate merged commits off the commit path
+- **The committed `.governance/` tree is an honest customer of the last release** — pinned at real published tags, moved only by the real `pack update` / `update` verb, so every release exercises the update path
+- **Its integrity is self-enforced** — the `managed-tree-integrity` directive recomputes the content digests recorded at install time on every commit, so a hand-edit to any vendored check or runtime file fails the gate, offline
 
-Reproduce: clone this repo and run `bash .governance/run.sh`. The two-lane dogfood setup: [AGENTS.md](AGENTS.md).
+Reproduce: clone this repo and run `bash .governance/run.sh`. The dogfood setup: [AGENTS.md](AGENTS.md).
 
 ## Agent compatibility
 
@@ -171,7 +170,7 @@ Six concern packs ship in-tree and install with `governance init` at your chosen
 
 | Pack | Covers | Preset |
 |---|---|---|
-| `governance-kit/foundation` | Required docs, kit-version sync, repo hygiene | minimal–standard |
+| `governance-kit/foundation` | Required docs, repo hygiene, managed-tree integrity | minimal |
 | `governance-kit/security` | Secrets hygiene, workflow permissions, pinned actions | minimal |
 | `governance-kit/docs` | Internal link integrity, doc freshness | minimal–standard |
 | `governance-kit/commits` | Conventional Commits + issue suffix, TODO and suppression discipline | standard–strict |
@@ -188,7 +187,7 @@ Full catalog: [DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md).
 | Pack | Directive | What it enforces | Preset |
 |---|---|---|---|
 | `foundation` | `required-docs` | `README.md`, `LICENSE`, `SECURITY.md`, `ARCHITECTURE.md` exist with non-empty bodies. | minimal |
-| `foundation` | `kit-version-sync` | The single kit-version pin agrees with every managed-file stamp. | standard |
+| `foundation` | `managed-tree-integrity` | The vendored `.governance/` tree matches the content digests recorded at install/update time — hand-edits to any check or runtime file fail the gate, offline. Subsumes the kit-version-marker check. | minimal |
 | `foundation` | `repo-hygiene` | No merge markers, oversized files, build artefacts, or debug statements. | minimal |
 | `security` | `secrets-hygiene` | No high-confidence secret patterns (AWS keys, GitHub tokens, Stripe live keys, …) in tracked files; `.env` gitignored. | minimal |
 | `security` | `token-permissions` | GitHub Actions workflows declare a least-privilege `permissions:` block. | minimal |
@@ -412,7 +411,7 @@ Repo layout, adding directives, and the dogfooding setup: [AGENTS.md](AGENTS.md)
 <details>
 <summary><b>Releasing (maintainers)</b></summary>
 
-Version lines are written **only** by [`scripts/release.sh`](scripts/release.sh) in `chore(release)` commits — any out-of-band edit to a version field is drift the `kit-version-sync` directive catches. Cut the **kit** axis for framework changes, a **pack** axis for directive-content changes; pick the semver level from the [policy table](kit/references/VERSIONING.md#semver-policy).
+Version lines are written **only** by [`scripts/release.sh`](scripts/release.sh) in `chore(release)` commits — any out-of-band edit to a managed file's version marker is drift the `managed-tree-integrity` directive catches. Cut the **kit** axis for framework changes, a **pack** axis for directive-content changes; pick the semver level from the [policy table](kit/references/VERSIONING.md#semver-policy).
 
 ```sh
 bash scripts/release.sh <kit|PACK> <X.Y.Z> --dry-run   # preview — bump, re-stamps, tag, CHANGELOG

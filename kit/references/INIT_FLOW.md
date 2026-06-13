@@ -20,7 +20,7 @@ falls back to the installed skill and records that provenance.
 
 Directives are grouped into **packs** — self-contained directories that bundle directives, their constitution snippets, and hook declarations. Five concern-scoped packs ship in-tree today, under `packs/<concern>/` (source-of-truth in this monorepo; consumers fetch via `gh:duaility/governance-kit/packs/<concern>@<rev>`):
 
-- **`governance-kit/foundation`** — `required-docs`, `kit-version-sync`, `repo-hygiene`.
+- **`governance-kit/foundation`** — `required-docs`, `repo-hygiene`, `managed-tree-integrity`.
 - **`governance-kit/security`** — `secrets-hygiene`, `token-permissions`, `pinned-dependencies`.
 - **`governance-kit/docs`** — `internal-doc-links`, `doc-freshness`.
 - **`governance-kit/commits`** — `commit-message-format`, `no-orphan-todos`, `no-unjustified-suppressions`.

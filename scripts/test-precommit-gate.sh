@@ -23,6 +23,7 @@ required_layers=(
     "scripts/test-hooks-sh.sh"
     "scripts/test-runtime.sh"
     "scripts/test-packs.sh"
+    "scripts/test-digestlib.py"
     "scripts/test-kit-version-consistency.sh"
     "scripts/test-precommit-gate.sh"
     "scripts/test-conf-knob-doc-sync.sh"

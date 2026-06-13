@@ -16,7 +16,7 @@ id: governance-kit/foundation
 name: Foundation governance directives
 version: "0.2.1"
 min_governance_kit: "0.3"
-description: Repo scaffolding (required docs), working-tree hygiene, and kit-version coherence.
+description: Repo scaffolding (required docs), working-tree hygiene, and managed-tree integrity.
 author: governance-kit
 
 presets:
@@ -24,10 +24,10 @@ presets:
     directives:
       - required-docs
       - repo-hygiene
+      - managed-tree-integrity
   standard:
     extends: minimal
-    directives:
-      - kit-version-sync
+    directives: []
   strict:
     extends: standard
     directives: []
