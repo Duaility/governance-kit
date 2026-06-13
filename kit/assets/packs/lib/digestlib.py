@@ -95,9 +95,33 @@ def _manifest_scalar(manifest_text: str, key: str) -> str:
     return m.group(1) if m else ""
 
 
+def _sweep_managed_files() -> list[str]:
+    """Sweep-lane managed runtime relpaths (issue #259).
+
+    The sweep lane (`applylib.seed_sweep_assets`) lays down a vendored engine
+    (`.governance/sweep.py`) and its CI workflow
+    (`.github/workflows/governance-sweep.yml`), both stamped with the
+    `governance-kit:managed` marker — but on a separate install path that never
+    registered them as managed runtime files, so they were digested by nothing
+    (the gap this issue closes). Source the relpaths from `applylib.SWEEP_ASSETS`
+    so enumeration here and the installer can never drift; the caller's
+    disk-existence filter drops them when the sweep lane is not installed."""
+    try:
+        from applylib import SWEEP_ASSETS
+    except ImportError:
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        try:
+            from applylib import SWEEP_ASSETS
+        except Exception:
+            return []
+    return list(SWEEP_ASSETS.keys())
+
+
 def managed_runtime_files(root: str | Path) -> list[str]:
     """Repo-relative paths of the kit-managed runtime files that exist on disk,
-    derived from `.governance/install.yaml`. Order-stable (sorted)."""
+    derived from `.governance/install.yaml` (plus the fixed sweep-lane assets).
+    Order-stable (sorted)."""
     root = Path(root)
     manifest = root / ".governance" / "install.yaml"
     if not manifest.is_file():
@@ -111,6 +135,9 @@ def managed_runtime_files(root: str | Path) -> list[str]:
     enable = _manifest_scalar(text, "enable_governance_script")
     if enable:
         candidates.append(enable)
+    # Sweep-lane assets (issue #259) — present only when a `surface: sweep`
+    # directive is installed; the disk-existence filter below drops them otherwise.
+    candidates.extend(_sweep_managed_files())
     # Hook dispatchers (githooks strategy keeps them at repo-root .githooks/).
     strategy = _manifest_scalar(text, "hook_strategy") or "githooks"
     hook_dir = {"githooks": ".githooks", "husky": ".husky",

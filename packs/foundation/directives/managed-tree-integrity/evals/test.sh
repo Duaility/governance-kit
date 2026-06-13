@@ -104,5 +104,26 @@ write_manifest "managed_digests:
 mkdir -p .governance/conf/governance-kit/foundation
 printf '.governance/lib.sh\n' > .governance/conf/governance-kit/foundation/$EVAL_ID.conf
 EVAL_LABEL="$EVAL_ID waiver" expect_pass "$CHECK"
+rm -f .governance/conf/governance-kit/foundation/$EVAL_ID.conf
+
+# 8. issue #259 — the vendored sweep engine is a first-class managed runtime
+#    file. A manifest naming only `.governance/sweep.py` isolates this case from
+#    the (still-tampered) lib.sh above: a registered sweep engine that matches
+#    its recorded digest passes, a hand-edit fails offline, and a conf-overlay
+#    waiver still lets it through.
+printf '#!/usr/bin/env python3\n# governance-kit:managed kit-version=%s\nprint("sweep")\n' "$KIT_VER" > .governance/sweep.py
+SWEEP_D="$(file_digest ".governance/sweep.py")"
+write_manifest "managed_digests:
+  .governance/sweep.py: $SWEEP_D"
+EVAL_LABEL="$EVAL_ID sweep engine match" expect_pass "$CHECK"
+
+# 8a. fail — sweep engine hand-edited after its digest was recorded
+printf '\n# tampered sweep engine\n' >> .governance/sweep.py
+EVAL_LABEL="$EVAL_ID sweep engine modified" expect_fail "$CHECK"
+
+# 8b. pass — drifted sweep engine waived via the conf overlay
+mkdir -p .governance/conf/governance-kit/foundation
+printf '.governance/sweep.py\n' > .governance/conf/governance-kit/foundation/$EVAL_ID.conf
+EVAL_LABEL="$EVAL_ID sweep engine waiver" expect_pass "$CHECK"
 
 eval_done
