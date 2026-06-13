@@ -1,4 +1,4 @@
-# governance-kit:managed kit-version=0.8.0
+# governance-kit:managed kit-version=0.8.1
 name: Governance
 
 on:
@@ -20,15 +20,10 @@ jobs:
           fetch-depth: 0
 
       - name: Run bash governance directives
-        # Directive trees are committed (vendored) under .governance/packs/, so
-        # the runner sees them directly — no reconcile/fetch step, exactly like a
-        # consumer repo. This repo is a protected consumer of its own product:
-        # the consumed tree is pinned at released tags and moves only in
-        # post-release `governance pack update` / `governance update` PRs, never
-        # hand-edited (`managed-tree-integrity`, with `consumed-tree-integrity`
-        # during the transition, enforces that). Directive changes in packs/ are
-        # exercised against this repo by each directive's own evals in tests.yml.
         run: bash .governance/run.sh
 
-      # The kit-internal test umbrella (scripts/test.sh) runs in tests.yml so
-      # this workflow stays focused on directive enforcement.
+      # Native test runners (pytest / jest / go test) are an opt-in users add
+      # post-init by following kit/references/NATIVE_TESTS.md. They are
+      # not scaffolded by `governance init` — governance is a meta-layer over
+      # the project's code and the directive suite must not depend on the
+      # project's own toolchain.

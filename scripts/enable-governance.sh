@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# governance-kit:managed kit-version=0.8.0
+# governance-kit:managed kit-version=0.8.1
 # Enable governance-kit for this clone.
 #
 # Points git at the tracked .githooks/ directory. Safe to re-run — git
@@ -20,10 +20,3 @@ git config core.hooksPath .githooks
 
 current="$(git config --get core.hooksPath)"
 echo "enable-governance: core.hooksPath=$current"
-
-# No reconcile step: directive trees are committed (vendored) under
-# .governance/packs/, so a fresh clone already has them. That tree is Lane 1 of
-# the dogfood (issue #200) — an honest customer pinned at released tags — and is
-# re-materialized only by `governance pack update` in a post-release PR, never
-# hand-edited. Editing a directive touches packs/ only; Lane 2 (dogfood-smoke.yml)
-# smoke-tests the change against this repo on every PR.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# governance-kit:managed kit-version=0.8.0
+# governance-kit:managed kit-version=0.8.1
 # Shared helpers for governance directive tests.
 # Source this from every directive's check.sh. Packs always live two levels
 # deep, so directives at `.governance/packs/<owner>/<name>/directives/<id>/check.sh`
@@ -55,6 +55,27 @@ directive_end() {
     for v in "${_VIOLATIONS[@]}"; do
         printf "    %s\n" "$v"
     done
+    # Surface the directive's rationale at the moment of violation. The
+    # constitution subsection sits beside check.sh; pull the `**Rationale**:`
+    # field, joining any wrapped continuation lines into one. Absent file or
+    # field → print nothing (community packs needn't ship a constitution.md).
+    local constitution rationale
+    constitution="$(dirname "$0")/constitution.md"
+    if [[ -f "$constitution" ]]; then
+        rationale="$(awk '
+            /^[[:space:]]*-?[[:space:]]*\*\*Rationale\*\*:/ {
+                sub(/^.*\*\*Rationale\*\*:[[:space:]]*/, ""); buf=$0; cap=1; next
+            }
+            cap {
+                if ($0 ~ /^[[:space:]]*$/ || $0 ~ /^[[:space:]]*-[[:space:]]*\*\*/ || $0 ~ /^#/) exit
+                line=$0; sub(/^[[:space:]]+/, "", line); buf=buf " " line
+            }
+            END { print buf }
+        ' "$constitution")"
+        if [[ -n "$rationale" ]]; then
+            printf "\n    %sRationale:%s %s\n" "$C_YELLOW" "$C_RESET" "$rationale"
+        fi
+    fi
     exit 1
 }
 
