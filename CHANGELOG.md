@@ -22,6 +22,14 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [foundation/v0.3.0] - 2026-06-13
+
+### Added
+- consolidate .governance integrity into one offline managed-tree-integrity directive (#253) (#252)
+
+### Fixed
+- derive managed-tree-integrity eval kit_version from marker (#254)
+
 ## [kit/v0.8.0] - 2026-06-13
 
 ### Added
