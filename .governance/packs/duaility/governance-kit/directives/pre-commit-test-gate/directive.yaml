@@ -1,6 +1,0 @@
-# pre-commit-test-gate — Source-repo pack tests run from the local pre-commit hook.
-category: Quality
-recommended: true
-summary: Source-repo pack tests are wired into the local pre-commit hook.
-surface: repo-state
-hook: pre-commit

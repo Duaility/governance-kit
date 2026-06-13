@@ -42,13 +42,13 @@ Schema versions — `install.yaml version: "3"`, `packs.lock version: "2"` — a
 
 ## Version stamps and the consistency directive
 
-Kit-owned files in a target repo carry the marker `# governance-kit:managed kit-version=<v>`. The `kit-version-sync` directive asserts that **every marker agrees with `install.yaml`'s `kit_version`** — a half-applied update or a hand-edited runtime file shows up as drift, with `governance kit update` as the repair path.
+Kit-owned files in a target repo carry the marker `# governance-kit:managed kit-version=<v>`. The `managed-tree-integrity` directive asserts that **every marker agrees with `install.yaml`'s `kit_version`** — and, going further, that each managed file matches the content digest recorded at install/update time. A half-applied update or a hand-edited runtime file shows up as drift, with `governance update` as the repair path.
 
 Markers are deliberately **dateless**: re-stamping the same version is a byte-identical no-op, which keeps updates idempotent.
 
 ## How releases are cut
 
-Version lines are written **only** by `scripts/release.sh`, in `chore(release)` commits — feature and fix PRs never touch a version field. That invariant is what lets `kit-version-sync` treat any out-of-band version edit as drift.
+Version lines are written **only** by `scripts/release.sh`, in `chore(release)` commits — feature and fix PRs never touch a version field. That invariant is what lets `managed-tree-integrity` treat any out-of-band edit to a managed file's version marker as drift.
 
 ```sh
 bash scripts/release.sh <kit|PACK> <X.Y.Z> --dry-run   # preview from any branch

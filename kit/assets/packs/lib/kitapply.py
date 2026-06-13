@@ -31,6 +31,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+import digestlib
 from applylib import (
     bash_lib,
     dirty_gate,
@@ -249,6 +250,12 @@ def cmd_kit_apply(args: argparse.Namespace) -> int:
             print(json.dumps(report, indent=2))
             return 1
         report["manifest"] = "created"
+
+    # Re-stamp the kit-runtime managed-file digests now that the runtime files
+    # and hook dispatchers were rewritten/regenerated, so `managed-tree-integrity`
+    # verifies the post-update tree (issue #253).
+    if manifest_path.is_file():
+        digestlib.write_managed_digests_block(manifest_path, digestlib.managed_digests(root))
 
     report["smoke_test"] = smoke_test(root, plan["tests_dir"])
     report["result"] = "applied"

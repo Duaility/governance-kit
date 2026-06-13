@@ -11,8 +11,8 @@ Everything below ships in the kit's six bundled concern packs — `governance-ki
 
 | Preset | What it adds |
 |---|---|
-| `minimal` | `required-docs`, `repo-hygiene`, `secrets-hygiene`, `token-permissions`, `pinned-dependencies`, `internal-doc-links` |
-| `standard` | *minimal* + `kit-version-sync`, `doc-freshness`, `commit-message-format`, and the full audit pack: `issue-templates`, `issues-tracked`, `receipt-per-issue`, `commit-issue-receipt-match`, `agent-token-accounting`, `agent-steering-accounting`, `doc-integrity`, `toolchain-config-protection` |
+| `minimal` | `required-docs`, `repo-hygiene`, `managed-tree-integrity`, `secrets-hygiene`, `token-permissions`, `pinned-dependencies`, `internal-doc-links` |
+| `standard` | *minimal* + `doc-freshness`, `commit-message-format`, and the full audit pack: `issue-templates`, `issues-tracked`, `receipt-per-issue`, `commit-issue-receipt-match`, `agent-token-accounting`, `agent-steering-accounting`, `doc-integrity`, `toolchain-config-protection` |
 | `strict` | *standard* + `no-orphan-todos`, `no-unjustified-suppressions`, and the opt-in `architecture` sweep pack |
 
 <Note>
@@ -24,8 +24,8 @@ Everything below ships in the kit's six bundled concern packs — `governance-ki
 ### required-docs
 `minimal` · A rolled-up presence check for the system of record: `CONSTITUTION.md`, `AGENTS.md` (with a link to the constitution), `README.md`, `LICENSE`, `SECURITY.md`, `ARCHITECTURE.md` with non-trivial bodies; a CI workflow exists; `.env` keys match `.env.example`; hook scaffolding is in place. Sub-checks are individually waivable.
 
-### kit-version-sync
-`standard` · Every kit-managed file's `kit-version=` marker agrees with `install.yaml`'s `kit_version`. Catches half-applied updates and hand-edited runtime files; the repair path is `governance kit update`.
+### managed-tree-integrity
+`minimal` · The vendored `.governance/` tree matches the content digests recorded at install/update time: every vendored directive folder and every kit-runtime file (`run.sh`, `lib.sh`, hook dispatchers, CI workflow, enable-governance script) matches its recorded `sha256`, and each managed file's `kit-version=` marker agrees with `install.yaml`'s `kit_version`. A hand-edit to any of them fails the gate — **offline, in any repo** (it compares recorded digests, not upstream git objects). Catches half-applied updates and hand-edited check/runtime files; the repair path is `governance pack update` / `governance update`. (Subsumes the former `kit-version-sync`.)
 
 ### repo-hygiene
 `minimal` · Five sub-checks: no merge-conflict markers; no files over the size limit (default 5 MB); no committed build artifacts (`node_modules/`, `dist/`, `*.pyc`, …); no debug statements (`console.log`, `debugger`, `pdb`); no source files over the line limit (default 500). Limits are env-tunable; waivers are line- or file-level.

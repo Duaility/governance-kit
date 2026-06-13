@@ -50,6 +50,7 @@ from applylib import (
     seed_sweep_assets,
     smoke_test,
 )
+import digestlib
 from packctl import KIT_VERSION
 from packplan import compute_pack_plan
 from packverb import load_lockfile, write_lockfile, _utc_now
@@ -199,6 +200,11 @@ def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str
             "installed_at": _utc_now(), "directives": sorted(installed_dids),
         }
         if not dry_run:
+            # Record a per-directive content digest of the just-materialized
+            # folders so `managed-tree-integrity` can verify the vendored tree
+            # offline (issue #253).
+            lock_entry["digest"] = digestlib.directive_digests(
+                root / ".governance" / "packs" / pack["id"], installed_dids)
             _lock_upsert(root / ".governance" / "packs.lock", lock_entry)
         report["lock"].append({"id": pack["id"], "sha": pack["sha"], "directives": sorted(installed_dids)})
 
@@ -294,6 +300,12 @@ def _finish(root: Path, plan: dict[str, Any], report: dict[str, Any], dry_run: b
         recovery="resolve the hook collision, `git checkout -- .` to restore, re-run")
     if hooks_rc is not None:
         return hooks_rc
+    # Re-stamp the kit-runtime managed-file digests now that hooks (a managed
+    # file class) were regenerated, so `managed-tree-integrity` stays accurate
+    # after a pack add/update/remove (issue #253).
+    manifest = root / ".governance" / "install.yaml"
+    if manifest.is_file():
+        digestlib.write_managed_digests_block(manifest, digestlib.managed_digests(root))
     report["smoke_test"] = smoke_test(root, tests_dir)
     report["result"] = "applied"
     print(json.dumps(report, indent=2))

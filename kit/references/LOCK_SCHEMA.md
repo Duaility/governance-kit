@@ -66,6 +66,7 @@ The `builtin` source type was retired in #117. `governance-kit/core` is now fetc
 | `min_governance_kit` | string | (`gh` only) Minimum kit version the pack declares. Used by `pack update` to refuse pins that exceed the running kit. |
 | `installed_at` | RFC 3339 | (`gh` only) When `lock-add` recorded this entry. Empty/absent for `local`. |
 | `directives` | list[string] | Sorted list of directive ids the pack contributes. Used by `reset --pack` and `pack remove`. |
+| `digest` | map[string,string] | (optional, issue #253) `{<directive-id>: <sha256-hex>}` — the content digest of each materialized directive folder under `.governance/packs/<id>/directives/<did>/` (git-tracked files, excluding `evals/`, `install-assets/`, `__pycache__/`, `*.pyc`), recorded by `init` / `pack-apply` via `digestlib.directory_digest`. The `managed-tree-integrity` directive recomputes these on every commit to verify the vendored tree **offline** (no upstream git objects). **Optional** — entries written before #253 omit it, and the directive skips a pack whose `digest` is absent (coverage is gained on the next `pack update`). |
 
 Pack rows are written **sorted by `id`**, regardless of insert order. This keeps PR diffs minimal when a new pack lands ahead of existing ones.
 

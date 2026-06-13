@@ -107,6 +107,12 @@ copy_tree_without_evals() {
         [[ "$base" == "install-assets" ]] && continue
         cp -R "$entry" "$dest/"
     done
+    # Never vendor Python bytecode: a stray __pycache__/*.pyc (e.g. left by a
+    # test that imported a directive's lib/) would otherwise land in the
+    # consumed tree and trip repo-hygiene. digestlib excludes these from the
+    # content digest too, so pruning here keeps copy and digest consistent.
+    find "$dest" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+    find "$dest" -name '*.pyc' -delete 2>/dev/null || true
 }
 
 install_directive_folder() {

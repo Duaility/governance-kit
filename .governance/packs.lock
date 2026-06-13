@@ -4,10 +4,7 @@ packs:
   version: '0.1'
   source: local
   directives:
-  - conf-knob-doc-sync
   - consumed-tree-integrity
-  - kit-version-consistency
-  - pre-commit-test-gate
 - id: governance-kit/architecture
   version: 0.2.1
   source: gh

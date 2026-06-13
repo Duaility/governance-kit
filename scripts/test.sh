@@ -84,6 +84,10 @@ run_layer "skill bootstrap: fetch-only shim + cache contract (Python)" \
     uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-bootstrap.py" \
     || failed_layers+=("test-bootstrap.py")
 
+run_layer "digestlib: digest determinism + directive parity (Python)" \
+    uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-digestlib.py" \
+    || failed_layers+=("test-digestlib.py")
+
 run_layer "docsurgery: pure CONSTITUTION.md transforms (Python)" \
     uv run --quiet --isolated python "$ROOT/scripts/test-docsurgery.py" \
     || failed_layers+=("test-docsurgery.py")
@@ -123,6 +127,18 @@ run_layer "schema split: install.yaml + packs.lock (bash)" \
 run_layer "pack smoke + hook generation + evals (bash)" \
     bash "$ROOT/scripts/test-packs.sh" \
     || failed_layers+=("test-packs.sh")
+
+run_layer "kit-version-consistency: axis floor (bash)" \
+    bash "$ROOT/scripts/test-kit-version-consistency.sh" \
+    || failed_layers+=("test-kit-version-consistency.sh")
+
+run_layer "pre-commit-test-gate: hook wiring (bash)" \
+    bash "$ROOT/scripts/test-precommit-gate.sh" \
+    || failed_layers+=("test-precommit-gate.sh")
+
+run_layer "conf-knob-doc-sync: knob <-> defaults.conf (bash)" \
+    bash "$ROOT/scripts/test-conf-knob-doc-sync.sh" \
+    || failed_layers+=("test-conf-knob-doc-sync.sh")
 
 printf '\n════════════════════════════════════════════════════\n'
 if [[ ${#failed_layers[@]} -eq 0 ]]; then

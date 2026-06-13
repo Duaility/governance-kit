@@ -1,8 +1,0 @@
-# kit-version-consistency — (dogfood) the kit source stamps and the kit/pack
-# axis invariant agree: kit.yaml version == SKILL.md version, and core's
-# min_governance_kit <= kit.yaml version.
-category: Foundation
-recommended: true
-summary: kit.yaml version == SKILL.md version; core min_governance_kit <= kit version.
-surface: repo-state
-hook: pre-commit

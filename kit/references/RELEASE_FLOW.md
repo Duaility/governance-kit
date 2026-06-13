@@ -12,8 +12,8 @@ scheme) is in [VERSIONING.md](VERSIONING.md).
 `chore(release)` commits.** Feature and fix PRs never touch `kit.yaml`,
 `pack.yaml` `version`, `install.yaml` `kit_version`, or
 any `kit-version=` marker. (`skill/SKILL.md`'s frontmatter version is the
-installer's own independent axis — not written by kit releases, issue #198.) This is what lets the `kit-version-sync` directive
-treat any out-of-band edit to those fields as drift.
+installer's own independent axis — not written by kit releases, issue #198.) This is what lets the `managed-tree-integrity` directive
+treat any out-of-band edit to a managed file's version marker as drift.
 
 ## When to cut which axis
 

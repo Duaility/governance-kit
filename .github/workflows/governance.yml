@@ -22,11 +22,12 @@ jobs:
       - name: Run bash governance directives
         # Directive trees are committed (vendored) under .governance/packs/, so
         # the runner sees them directly — no reconcile/fetch step, exactly like a
-        # consumer repo. This is Lane 1 of the dogfood (issue #200): an honest
-        # customer pinned at released tags. The consumed tree moves only in
-        # post-release `governance pack update` PRs — never hand-edited (the
-        # `consumed-tree-integrity` directive enforces that). Directive changes
-        # in packs/ are smoke-tested against this repo by Lane 2 (dogfood-smoke.yml).
+        # consumer repo. This repo is a protected consumer of its own product:
+        # the consumed tree is pinned at released tags and moves only in
+        # post-release `governance pack update` / `governance update` PRs, never
+        # hand-edited (`managed-tree-integrity`, with `consumed-tree-integrity`
+        # during the transition, enforces that). Directive changes in packs/ are
+        # exercised against this repo by each directive's own evals in tests.yml.
         run: bash .governance/run.sh
 
       # The kit-internal test umbrella (scripts/test.sh) runs in tests.yml so

@@ -7,7 +7,7 @@ axes relate, the tag scheme consumers pin against, and the release procedure.
 
 > Mechanics live in [`scripts/release.sh`](../../scripts/release.sh) and
 > [RELEASE_FLOW.md](RELEASE_FLOW.md). Drift between the stamps below is caught by
-> the `kit-version-sync` directive — these are not honour-system fields.
+> the `managed-tree-integrity` directive — these are not honour-system fields.
 
 ## The two semantic axes
 
@@ -39,9 +39,11 @@ pack.min_governance_kit  ≤  kit.yaml.version
 ```
 
 `packctl validate-pack` already refuses any pack whose `min_governance_kit` is
-newer than the installed `KIT_VERSION`. The `kit-version-sync` directive
-additionally enforces the equation above for the bundled packs, and that all
-derived kit-version copies equal `kit.yaml`.
+newer than the installed `KIT_VERSION`. The kit-internal
+`test-kit-version-consistency` test layer additionally enforces the equation
+above for the bundled packs (`min_governance_kit <= KIT_VERSION`); in an
+installed repo, `managed-tree-integrity` enforces that every managed-file
+kit-version marker equals the manifest's `kit_version`.
 
 ## SemVer policy
 
@@ -127,8 +129,9 @@ with a clear no-`assets/kit.yaml` epoch error (repos already pinned to such a ta
 working — the recorded `…/governance@…` ref stays valid). `--allow-downgrade`
 is required to move
 backward. This pin is **content state, not a derived version line** — it is
-written by `init` / `kit update`, never by `release.sh`, and `kit-version-sync`
-still validates only `kit_version` against the managed-file markers. Delegated
+written by `init` / `kit update`, never by `release.sh`, and `managed-tree-integrity`
+validates the managed-file markers against `kit_version` (alongside each file's
+content digest). Delegated
 apply requires the target to ship the `kitverb.py` engine, first present in
 `kit/v0.4.0`; that is the delegation floor.
 

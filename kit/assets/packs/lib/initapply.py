@@ -30,6 +30,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+import digestlib
 from applylib import bash_lib, load_decisions, refuse, regen_hooks_step, seed_sweep_assets, smoke_test
 from initplan import assemble_constitution, collisions
 from packctl import KIT_VERSION
@@ -115,6 +116,10 @@ def _write_lock(root: Path, packs: list[dict[str, Any]]) -> None:
                          subpath=pack.get("subpath", ""),
                          min_governance_kit=pack.get("min_governance_kit", ""),
                          installed_at=_utc_now())
+        # Per-directive content digest of the materialized folders, for offline
+        # verification by `managed-tree-integrity` (issue #253).
+        entry["digest"] = digestlib.directive_digests(
+            root / ".governance" / "packs" / pack["id"], sorted(pack.get("directives") or []))
         data["packs"] = [p for p in data["packs"] if p.get("id") != pack["id"]]
         data["packs"].append(entry)
     write_lockfile(lockpath, data)
@@ -227,6 +232,12 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
             (root / "scripts" / "enable-governance.sh").chmod(0o755)
 
         _write_manifest(root, decisions, seeded, report)
+        # Record the kit-runtime managed-file digests (run.sh, lib.sh, hooks,
+        # CI workflow, enable-governance.sh) so `managed-tree-integrity` can
+        # verify them offline (issue #253). Written after every managed file is
+        # laid down + stamped + hooks regenerated, so the digests match disk.
+        digestlib.write_managed_digests_block(
+            root / ".governance" / "install.yaml", digestlib.managed_digests(root))
         report["manifest"] = "written"
         _write_lock(root, packs)
     except (RuntimeError, OSError) as exc:
