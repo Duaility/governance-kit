@@ -125,5 +125,22 @@ EVAL_LABEL="$EVAL_ID sweep engine modified" expect_fail "$CHECK"
 mkdir -p .governance/conf/governance-kit/foundation
 printf '.governance/sweep.py\n' > .governance/conf/governance-kit/foundation/$EVAL_ID.conf
 EVAL_LABEL="$EVAL_ID sweep engine waiver" expect_pass "$CHECK"
+rm -f .governance/conf/governance-kit/foundation/$EVAL_ID.conf
+
+# 8c. issue #263 — a sweep asset carries its *seed-time* marker and is never
+#     re-stamped on a kit update, so its `kit-version=` legitimately differs from
+#     the manifest pin. That divergence must NOT be a violation (unlike a true
+#     runtime file, cf. case 1b): the digest still guards the content. Stamp the
+#     engine with an older marker than the pin, record its matching digest →
+#     passes on digest alone, no marker-vs-manifest false positive.
+printf '#!/usr/bin/env python3\n# governance-kit:managed kit-version=0.0.1\nprint("sweep")\n' > .governance/sweep.py
+write_manifest "managed_digests:
+  .governance/sweep.py: $(file_digest ".governance/sweep.py")"
+EVAL_LABEL="$EVAL_ID sweep engine seed-time marker" expect_pass "$CHECK"
+
+# 8d. fail — the digest still guards the sweep engine even when its marker
+#     diverges from the pin: a content hand-edit is caught.
+printf '\n# tampered\n' >> .governance/sweep.py
+EVAL_LABEL="$EVAL_ID sweep engine divergent marker + tamper" expect_fail "$CHECK"
 
 eval_done
