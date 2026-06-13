@@ -159,6 +159,14 @@ def test_init_apply_assembles_full_install() -> None:
         # manifest + lock
         assert (root / ".governance/install.yaml").is_file()
         assert "acme/widgets" in (root / ".governance/packs.lock").read_text()
+        # digests recorded for managed-tree-integrity (issue #253): a per-directive
+        # `digest:` map in the lock entry, and a runtime `managed_digests:` block
+        # in the manifest covering the stamped runtime files.
+        lock_text = (root / ".governance/packs.lock").read_text()
+        assert "digest:" in lock_text and "no-console-log:" in lock_text
+        manifest_text = (root / ".governance/install.yaml").read_text()
+        assert "managed_digests:" in manifest_text
+        assert ".governance/run.sh:" in manifest_text and ".governance/lib.sh:" in manifest_text
         # seeded asset + AGENTS stub
         assert (root / "WIDGETS.md").is_file() and "WIDGETS.md" in report["seeded_assets"]
         assert (root / "AGENTS.md").is_file() and report["agents_md"] == "stub created"

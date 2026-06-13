@@ -56,3 +56,4 @@ bash .governance/run.sh     # ✓ 18 directives (dogfood unchanged — A touches
 | cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | cum-input | cum-cache-create | cum-cache-read | cum-output | note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | claude-code-1e57cae2-837-1781363112-1 | claude-code | 1e57cae2-8379-4355-a13d-9864aea0247b | #253 | claude-opus-4-8 | 137790 | 3213834 | 153957645 | 1040887 | 4392511 | 123.7764 | 137790 | 3213834 | 153957645 | 1040887 |  |
+| claude-code-1e57cae2-837-1781363338-1 | claude-code | 1e57cae2-8379-4355-a13d-9864aea0247b | #253 | claude-opus-4-8 | 9272 | 26656 | 8397390 | 15596 | 51524 | 4.8016 | 147062 | 3240490 | 162355035 | 1056483 | test(governance): assert apply engines record managed-tree-integrity digests (#2 |
