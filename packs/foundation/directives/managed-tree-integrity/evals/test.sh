@@ -29,9 +29,15 @@ write_lock() {  # $1 = digest line(s) for foo, or "  digest: {}" / empty for leg
         [[ -n "$1" ]] && printf '%s\n' "$1"
     } > .governance/packs.lock
 }
+# The fixture's lib.sh is copied from the kit assets, so its stamped marker
+# tracks whatever kit version this checkout is at. Derive the manifest's
+# kit_version from that marker rather than hardcoding it, or a kit release bump
+# (which re-stamps the marker) would make the marker-vs-manifest check fire and
+# break the "match" case in this eval.
+KIT_VER="$(sed -nE 's/.*kit-version=([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' .governance/lib.sh | head -1)"
 write_manifest() {  # $1 = managed_digests body, or "" to omit the block
     {
-        printf 'version: "3"\nowner: acme\nrepo: widgets\nkit_version: "0.7.2"\ntests_dir: .governance\n'
+        printf 'version: "3"\nowner: acme\nrepo: widgets\nkit_version: "%s"\ntests_dir: .governance\n' "$KIT_VER"
         [[ -n "$1" ]] && printf '%s\n' "$1"
     } > .governance/install.yaml
 }
@@ -54,7 +60,7 @@ EVAL_LABEL="$EVAL_ID match" expect_pass "$CHECK"
 } > .governance/install.yaml
 EVAL_LABEL="$EVAL_ID marker vs manifest" expect_fail "$CHECK"
 write_manifest "managed_digests:
-  .governance/lib.sh: $LIB_D"   # reset kit_version to the marker's 0.7.2
+  .governance/lib.sh: $LIB_D"   # reset kit_version to the marker's version
 
 # 2. fail — vendored pack file modified after digest recorded
 printf '\n# tampered\n' >> "$VPACK/check.sh"
