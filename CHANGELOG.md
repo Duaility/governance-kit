@@ -22,6 +22,27 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [kit/v0.8.0] - 2026-06-13
+
+### Added
+- consolidate .governance integrity into one offline managed-tree-integrity directive (#253) (#252)
+- surface each directive's rationale when its check fails (#249) (#250)
+
+### Fixed
+- derive managed-tree-integrity eval kit_version from marker (#254)
+- ensure the governance-sweep digest label exists before filing (#235) (#236)
+- require kit >= 0.7.2 for the sweep lane (#234)
+
+### Changed
+- pack update — consume audit/v0.4.0 (#246) (#247)
+- audit v0.3.0 → v0.4.0
+- pack update — consume architecture/v0.2.1 (#243) (#244)
+- architecture v0.2.0 → v0.2.1
+- pack-group-aware CONSTITUTION rendering in init and pack upsert (#238) (#241)
+- event-source cost + steering ledgers with absolute transcript coordinates (#229) (#237)
+- restructure README and docs site around the Governance Kit framing (#239) (#240)
+- resync kit v0.7.2 and backfill architecture CONSTITUTION subsections (#231) (#233)
+
 ## [audit/v0.4.0] - 2026-06-13
 
 ### Changed
