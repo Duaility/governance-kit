@@ -33,6 +33,19 @@ from pathlib import Path
 
 EXCLUDED_DIRS = ("evals", "install-assets", "__pycache__")
 
+# Seed-once sweep-lane assets (issue #259): the apply engines digest-record them
+# (via digestlib.managed_runtime_files), but they are *seeded* with the kit
+# version current at seed time and never re-stamped on a kit update — unlike the
+# four manifest-scalar runtime files, nothing re-renders them forward. Their
+# `kit-version=` marker therefore legitimately diverges from the manifest pin, so
+# they are exempt from the marker-version equality check below (issue #263). The
+# digest check still guards their content fully — the marker line is inside the
+# digested bytes — so a hand-edit is still caught. Mirrors applylib.SWEEP_ASSETS.
+SWEEP_ASSET_RELPATHS = (
+    ".github/workflows/governance-sweep.yml",
+    ".governance/sweep.py",
+)
+
 
 # ── digest (must stay byte-identical to digestlib.py) ───────────────────────
 def file_digest(path) -> str:
@@ -206,7 +219,12 @@ def main(argv: list[str]) -> int:
             # Marker / manifest consistency (subsumes the former kit-version-sync):
             # a hand-edited manifest kit_version leaves the files matching their
             # recorded digests, so the digest alone can't catch it — compare the
-            # file's stamped marker to the manifest's kit_version.
+            # file's stamped marker to the manifest's kit_version. Seed-once sweep
+            # assets are exempt: they carry their seed-time marker and are never
+            # re-stamped on a kit update, so marker != pin is expected, not drift
+            # (issue #263). The digest check above still guards their content.
+            if rel in SWEEP_ASSET_RELPATHS:
+                continue
             mv = marker_version(f)
             if kit_version and mv and mv != kit_version:
                 report(rel, f"{rel}: stamped kit-version={mv} but install.yaml pins kit_version={kit_version} "
