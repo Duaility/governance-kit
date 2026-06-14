@@ -60,7 +60,6 @@ governance-kit/
 │   │   ├── CONSTITUTION.template.md
 │   │   ├── AGENTS.snippet.md
 │   │   ├── governance.yml
-│   │   ├── enable-governance.sh
 │   │   ├── tests-bash/          # Universal bash runner shipped into every target repo.
 │   │   ├── amend/               # Templates for `directive *` (directive.template.sh, directive-section.template.md).
 │   │   ├── catalog.community.json   # Advisory index of known community packs (read by `governance pack search`).

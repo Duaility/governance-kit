@@ -24,9 +24,10 @@
 # the skill prompts the user (wrap / merge / overwrite).
 #
 # The `kit-version=` field is the same value runtime templates (run.sh,
-# lib.sh, enable-governance.sh, governance.yml) carry — making the marker the
-# per-file version pin that `governance kit update` reads to detect
-# drift, with `install.yaml.kit_version` acting as a cache.
+# lib.sh, governance.yml) carry — making the marker the per-file version pin
+# that `governance kit update` reads to detect drift, with
+# `install.yaml.kit_version` acting as a cache. (The dispatchers are not
+# digested by managed-tree-integrity — they are local-only plumbing, issue #267.)
 #
 # The contract with callers:
 #   generate_hooks <target-hooks-dir> <pack-version> <directive-spec-file>

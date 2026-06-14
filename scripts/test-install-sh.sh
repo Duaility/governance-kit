@@ -9,7 +9,7 @@
 #   - directive_supports_hook_strategy passes/fails per requires_hook_strategy
 #   - write_installed_manifest emits every flag-driven branch
 #       (collisions, path_b, install_assets_seeded, agents_md_*, no-constitution,
-#        enable-governance-script, multi-pack grouping, empty packs)
+#        multi-pack grouping, empty packs)
 
 set -eu
 
@@ -327,7 +327,8 @@ assert_contains "tests_dir defaults to .governance" 'tests_dir: .governance' "$m
 assert_contains "empty install_assets_seeded list" 'install_assets_seeded: []' "$manifest_text"
 assert_contains "empty collisions list" 'collisions: []' "$manifest_text"
 assert_not_contains "no path_b block when not requested" 'path_b:' "$manifest_text"
-assert_not_contains "no enable_governance_script when not requested" 'enable_governance_script:' "$manifest_text"
+# enable-governance.sh is de-vendored (issue #267) — never emitted.
+assert_not_contains "no enable_governance_script line" 'enable_governance_script:' "$manifest_text"
 assert_not_contains "no kit_version when not requested" 'kit_version:' "$manifest_text"
 
 # ---- write_installed_manifest: every optional flag ------------------------
@@ -346,7 +347,6 @@ write_installed_manifest "$target5" \
     --agents-md-created \
     --install-asset QUALITY.md \
     --install-asset COSTS.md \
-    --enable-governance-script scripts/setup.sh \
     --collision .githooks/pre-commit:wrap:.githooks/pre-commit.userhook \
     --collision .githooks/commit-msg:overwrite:.githooks/commit-msg.pre-governance.bak \
     --path-b-framework husky \
@@ -362,7 +362,6 @@ assert_contains "honors --tests-dir" 'tests_dir: custom-governance' "$manifest5_
 assert_contains "honors --no-constitution" 'constitution: false' "$manifest5_text"
 assert_contains "honors --agents-md-snippet" 'agents_md_snippet: true' "$manifest5_text"
 assert_contains "honors --agents-md-created" 'agents_md_created: true' "$manifest5_text"
-assert_contains "honors --enable-governance-script" 'enable_governance_script: scripts/setup.sh' "$manifest5_text"
 assert_contains "lists first install asset" '  - QUALITY.md' "$manifest5_text"
 assert_contains "lists second install asset" '  - COSTS.md' "$manifest5_text"
 assert_contains "renders wrap collision path" 'path: .githooks/pre-commit' "$manifest5_text"

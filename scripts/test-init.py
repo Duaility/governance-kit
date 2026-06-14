@@ -17,6 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PACK_LIB = ROOT / "kit" / "assets" / "packs" / "lib"
 PACKVERB = PACK_LIB / "packverb.py"
+MTI_INTEGRITY = ROOT / "packs/foundation/directives/managed-tree-integrity/lib/integrity.py"
 
 
 def _load(name: str):
@@ -150,9 +151,10 @@ def test_init_apply_assembles_full_install() -> None:
         # runtime + workflow stamped
         assert "kit-version=" in (root / ".governance/run.sh").read_text().splitlines()[1]
         assert (root / ".github/workflows/governance.yml").is_file()
-        # hooks + onboarding
+        # hooks + onboarding: dispatchers generated, core.hooksPath set by the
+        # verb itself (no vendored enable-governance.sh anymore — issue #267)
         assert (root / ".githooks/pre-commit").is_file()
-        assert (root / "scripts/enable-governance.sh").is_file()
+        assert not (root / "scripts/enable-governance.sh").exists()
         hookspath = subprocess.run(["git", "-C", str(root), "config", "--get", "core.hooksPath"],
                                    capture_output=True, text=True, env=GIT_CLEAN_ENV).stdout.strip()
         assert hookspath == ".githooks"
@@ -167,6 +169,11 @@ def test_init_apply_assembles_full_install() -> None:
         manifest_text = (root / ".governance/install.yaml").read_text()
         assert "managed_digests:" in manifest_text
         assert ".governance/run.sh:" in manifest_text and ".governance/lib.sh:" in manifest_text
+        # issue #267: the manifest no longer records the de-vendored enable script,
+        # and the local-only hook dispatchers are NOT in the digest set (so Wrap
+        # can append to / replace them without tripping managed-tree-integrity).
+        assert "enable_governance_script" not in manifest_text
+        assert ".githooks/" not in manifest_text
         # seeded asset + AGENTS stub
         assert (root / "WIDGETS.md").is_file() and "WIDGETS.md" in report["seeded_assets"]
         assert (root / "AGENTS.md").is_file() and report["agents_md"] == "stub created"
@@ -182,6 +189,45 @@ def test_init_apply_assembles_full_install() -> None:
         # the deleted hardcoded special case must not resurface
         assert not (root / ".governance/integrity.conf").exists()
         assert not (root / ".governance/freshness.conf").exists()
+
+
+def test_init_apply_wrap_collision_then_commit_is_clean() -> None:
+    # issue #267: a repo that already carries its own pre-commit adopts governance
+    # via the documented Wrap flow — stash the existing hook as <kind>.userhook,
+    # generate ours, then exec the userhook at the end of the generated hook.
+    # Because the local-only dispatchers are no longer in the digest set, the
+    # post-wrap edits (a new exec line + the .userhook file) do NOT trip
+    # managed-tree-integrity. Closes the dogfood gap (this repo has no collision).
+    with tempfile.TemporaryDirectory() as tmp:
+        src = _write_source_pack(Path(tmp) / "src")
+        root = _fresh_repo(Path(tmp) / "repo")
+        # Pre-existing, unmarked hook is the collision the operator hits; Wrap
+        # step 1 (before init-apply) stashes it as the .userhook.
+        hooks = root / ".githooks"
+        hooks.mkdir()
+        (hooks / "pre-commit.userhook").write_text("#!/usr/bin/env bash\necho user-hook\n")
+
+        rc, report = init_apply_cli(root, _decisions(src))
+        assert rc == 0 and report["result"] == "applied", report
+
+        # The generated dispatcher exists but is NOT in the recorded digest set,
+        # and neither is the stashed .userhook.
+        manifest = (root / ".governance/install.yaml").read_text()
+        assert ".githooks/" not in manifest
+        gen = root / ".githooks/pre-commit"
+        assert gen.is_file()
+
+        # Wrap step 2 (after init-apply): exec the stashed hook at the end of the
+        # generated one — the exact edit that, under the old digest behavior,
+        # diverged the on-disk hook from its recorded digest and hard-failed.
+        gen.write_text(gen.read_text() + '\nexec "$(dirname "$0")/pre-commit.userhook" "$@"\n')
+
+        # managed-tree-integrity reports nothing: dispatchers + .userhook are out
+        # of scope; the recorded runtime files + directive folders are intact.
+        proc = subprocess.run(
+            [sys.executable, str(MTI_INTEGRITY), str(root)],
+            cwd=ROOT, check=True, text=True, capture_output=True, env=GIT_CLEAN_ENV)
+        assert proc.stdout.strip() == "", f"unexpected integrity violations after Wrap:\n{proc.stdout}"
 
 
 def test_init_apply_records_kit_provenance_when_supplied() -> None:

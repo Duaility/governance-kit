@@ -391,9 +391,11 @@ Edits in the clone flow to every linked runtime live — handy when contributing
 
 ```sh
 git clone https://github.com/Duaility/governance-kit && cd governance-kit
-./scripts/enable-governance.sh   # one-time per clone — sets core.hooksPath=.githooks
-bash .governance/run.sh          # run the full directive suite
+git config core.hooksPath .githooks   # one-time per clone — enables the local hooks
+bash .governance/run.sh               # run the full directive suite
 ```
+
+Skipping the `core.hooksPath` line only costs you local fast-feedback; CI still enforces every directive on every PR.
 
 Repo layout, adding directives, and the dogfooding setup: [AGENTS.md](AGENTS.md).
 

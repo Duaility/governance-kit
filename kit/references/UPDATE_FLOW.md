@@ -55,7 +55,7 @@ pull it into this repo?". It is **disjoint** from `pack update`:
 | Verb | Updates |
 |---|---|
 | `pack update` | Directive folders + `packs.lock` SHA pins (rules content). |
-| `kit update` | The runtime artifacts `init` originally seeded (`run.sh`, `lib.sh`, `enable-governance.sh`, `governance.yml`, hook dispatchers) and the `kit_version` recorded in `install.yaml`. |
+| `kit update` | The runtime artifacts `init` originally seeded (`run.sh`, `lib.sh`, `governance.yml`, hook dispatchers) and the `kit_version` recorded in `install.yaml`. |
 
 A single user-facing run can chain both with `--with-packs`. The default
 behavior is kit-runtime only — pack updates are reviewed separately because
@@ -63,8 +63,8 @@ their diffs land directive code that runs on commits.
 
 ## Why a separate verb
 
-`init` is one-shot: it copies `dot-governance/run.sh`, `lib.sh`, the
-`enable-governance.sh` template, and `governance.yml` into the target repo and
+`init` is one-shot: it copies `dot-governance/run.sh`, `lib.sh`, and
+`governance.yml` into the target repo and
 never tracks them again. If a later kit version ships a smarter runner or a
 fixed dispatcher generator, the consumer's repo silently keeps the old
 copies. This verb closes the loop:
@@ -249,8 +249,11 @@ pairs are:
 |---|---|---|
 | `assets/dot-governance/run.sh` | `<tests_dir>/run.sh` | `governance-kit:managed kit-version=<v>` in first 3 lines |
 | `assets/dot-governance/lib.sh` | `<tests_dir>/lib.sh` | `governance-kit:managed kit-version=<v>` in first 3 lines |
-| `assets/enable-governance.sh` | `<enable_governance_script>` (Path A only — field absent under Path B) | `governance-kit:managed kit-version=<v>` in first 3 lines |
 | `assets/governance.yml` | `<ci_workflow>` | `governance-kit:managed kit-version=<v>` in first 3 lines |
+
+`enable-governance.sh` is no longer a managed kit asset (issue #267): the verb
+neither re-syncs it nor lists it. A legacy install that still carries one keeps
+its now-inert copy; enablement is kit-owned (the verb sets `core.hooksPath`).
 
 The hook dispatchers are kit-owned too, but `kit-plan` does not list them as
 file pairs — they are regenerated wholesale in Step 5 (`generate_hooks_for_strategy`)
@@ -306,10 +309,9 @@ Apply (diff to existing managed file):
 
 Skip (already up-to-date):
   .governance/lib.sh
-  .github/workflows/governance.yml
 
 Skip (unmanaged — hand-edited or pre-marker):
-  scripts/enable-governance.sh       diff: 8 +/-0  (line-2 marker absent)
+  .github/workflows/governance.yml   diff: 8 +/-0  (line-2 marker absent)
 
 Add (missing — will create):
   (none)
@@ -348,7 +350,7 @@ named (issue #172 mechanics, issue #177 delegation):
 ```sh
 uv run --quiet --isolated --with PyYAML python \
     <engine_path> kit-apply "<root>" \
-    --decisions '{"scripts/enable-governance.sh": "keep"}'   # only if Step 4 collected any
+    --decisions '{".github/workflows/governance.yml": "keep"}'   # only if Step 4 collected any
 ```
 
 For forward / same-version this is the **fetched target tree's own**

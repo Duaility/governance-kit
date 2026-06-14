@@ -88,9 +88,6 @@ def _write_fresh_manifest(root: Path, plan: dict[str, Any], owner: str, repo: st
         "--hook-strategy", plan["hook_strategy"],
         "--tests-dir", plan["tests_dir"],
     ]
-    enable_script = root / "scripts" / "enable-governance.sh"
-    if enable_script.is_file():
-        argv += ["--enable-governance-script", "scripts/enable-governance.sh"]
     return bash_lib('write_installed_manifest "$@"', *argv)
 
 

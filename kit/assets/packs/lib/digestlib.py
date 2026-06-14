@@ -121,7 +121,24 @@ def _sweep_managed_files() -> list[str]:
 def managed_runtime_files(root: str | Path) -> list[str]:
     """Repo-relative paths of the kit-managed runtime files that exist on disk,
     derived from `.governance/install.yaml` (plus the fixed sweep-lane assets).
-    Order-stable (sorted)."""
+    Order-stable (sorted).
+
+    Scope = the **trust-chain** artifacts CI actually executes: `run.sh`,
+    `lib.sh`, the CI workflow, and the sweep pair. Deliberately *excluded*
+    (issue #267):
+
+      * the `.githooks/*` (or `.husky/` / `.governance/hooks/`) dispatchers —
+        local-only convenience plumbing. CI enforcement (`bash .governance/run.sh`)
+        never touches `core.hooksPath`, so gutting a dispatcher changes nothing
+        CI enforces; `SKIP_GOVERNANCE=1` / `--no-verify` make them intentionally
+        bypassable; and they are regenerated from `(kit, install set, strategy)`.
+        Digesting them buys near-zero protection and broke the **Wrap**
+        hook-collision flow (the agent appends `exec <kind>.userhook` after the
+        digest is recorded, and the `<kind>.userhook` itself got swept in and
+        locked — both fixed by not recording them here).
+      * `enable-governance.sh` — de-vendored entirely; the install verb sets
+        `core.hooksPath` itself (the kit-less fallback is a documented one-liner).
+    """
     root = Path(root)
     manifest = root / ".governance" / "install.yaml"
     if not manifest.is_file():
@@ -132,21 +149,9 @@ def managed_runtime_files(root: str | Path) -> list[str]:
     ci = _manifest_scalar(text, "ci_workflow")
     if ci:
         candidates.append(ci)
-    enable = _manifest_scalar(text, "enable_governance_script")
-    if enable:
-        candidates.append(enable)
     # Sweep-lane assets (issue #259) — present only when a `surface: sweep`
     # directive is installed; the disk-existence filter below drops them otherwise.
     candidates.extend(_sweep_managed_files())
-    # Hook dispatchers (githooks strategy keeps them at repo-root .githooks/).
-    strategy = _manifest_scalar(text, "hook_strategy") or "githooks"
-    hook_dir = {"githooks": ".githooks", "husky": ".husky",
-                "pre-commit": ".governance/hooks"}.get(strategy, ".githooks")
-    hd = root / hook_dir
-    if hd.is_dir():
-        for h in sorted(hd.iterdir()):
-            if h.is_file():
-                candidates.append(f"{hook_dir}/{h.name}")
     # Only digest what actually exists; dedupe; sort for stability.
     present = sorted({c for c in candidates if (root / c).is_file()})
     return present
