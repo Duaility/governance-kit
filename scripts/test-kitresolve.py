@@ -48,7 +48,6 @@ BASE_MANIFEST = (
     'version: "3"\n'
     "tests_dir: .governance\n"
     "ci_workflow: .github/workflows/governance.yml\n"
-    "enable_governance_script: scripts/enable-governance.sh\n"
     "hook_strategy: githooks\n"
 )
 
@@ -108,8 +107,6 @@ def make_assets(tmp: Path, version: str, tag: str) -> Path:
         f"#!/usr/bin/env bash\n# governance-kit:managed kit-version={version}\necho {tag} lib\n")
     (a / "governance.yml").write_text(
         f"# governance-kit:managed kit-version={version}\nname: {tag}\n")
-    (a / "enable-governance.sh").write_text(
-        f"#!/usr/bin/env bash\n# governance-kit:managed kit-version={version}\necho {tag} enable\n")
     return a
 
 
@@ -197,7 +194,6 @@ def test_apply_allow_downgrade_stamps_target_version() -> None:
             ".governance/run.sh": _marked(NEWER),
             ".governance/lib.sh": _marked(NEWER),
             ".github/workflows/governance.yml": f"# governance-kit:managed kit-version={NEWER}\nname: governance\n",
-            "scripts/enable-governance.sh": f"#!/usr/bin/env bash\n# governance-kit:managed kit-version={NEWER}\nx\n",
         }
         root = make_git_repo(Path(tmp) / "repo", manifest=BASE_MANIFEST + f'kit_version: "{NEWER}"\n', files=files)
         assets = make_assets(Path(tmp) / "alt", OLDER, "ALT")
@@ -223,7 +219,6 @@ def test_apply_assets_root_forward_copies_alt_tree() -> None:
             ".governance/run.sh": _marked(OLDER),
             ".governance/lib.sh": _marked(OLDER),
             ".github/workflows/governance.yml": f"# governance-kit:managed kit-version={OLDER}\nname: governance\n",
-            "scripts/enable-governance.sh": f"#!/usr/bin/env bash\n# governance-kit:managed kit-version={OLDER}\nx\n",
         }
         root = make_git_repo(Path(tmp) / "repo", manifest=BASE_MANIFEST + f'kit_version: "{OLDER}"\n', files=files)
         mid = "0.0.5"  # OLDER < mid, a forward update from the alt tree

@@ -167,7 +167,6 @@ def _inventory(root: Path, manifest: dict[str, Any], assets_root: Path, stamp_ve
     """
     tests_dir = scalar(manifest.get("tests_dir")) or ".governance"
     ci_workflow = scalar(manifest.get("ci_workflow"))
-    enable_script = scalar(manifest.get("enable_governance_script"))
 
     pairs: list[tuple[str, str, str]] = [
         (str(assets_root / "dot-governance" / "run.sh"), f"{tests_dir}/run.sh", "run.sh"),
@@ -175,8 +174,9 @@ def _inventory(root: Path, manifest: dict[str, Any], assets_root: Path, stamp_ve
     ]
     if ci_workflow:
         pairs.append((str(assets_root / "governance.yml"), ci_workflow, "ci_workflow"))
-    if enable_script:
-        pairs.append((str(assets_root / "enable-governance.sh"), enable_script, "enable_governance_script"))
+    # enable-governance.sh is no longer a managed kit asset (issue #267): the
+    # update verb does not re-sync it; a legacy install that still carries one
+    # simply stops being re-stamped (it becomes an inert user file).
 
     files: list[dict[str, Any]] = []
     for src, rel_dest, key in pairs:
@@ -207,7 +207,6 @@ def _reconstruct(root: Path) -> dict[str, Any]:
         ".governance/run.sh",
         ".governance/lib.sh",
         ".github/workflows/governance.yml",
-        "scripts/enable-governance.sh",
         ".githooks/pre-commit",
     ]
     found: list[tuple[str, str]] = []

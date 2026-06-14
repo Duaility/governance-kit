@@ -61,7 +61,7 @@ elicitation — pack/preset/directive selection (Step 3), principle inference (S
   operator principles + each directive's `constitution.md` subsection, the example
   replaced), create the AGENTS.md stub when asked, stamp the runtime
   (`run.sh`/`lib.sh`) and CI workflow, generate the hook dispatchers (+ for
-  `githooks`: `core.hooksPath` and `enable-governance.sh`), write the
+  `githooks`: set `core.hooksPath`), write the
   `install.yaml` receipt + `packs.lock` pin, and smoke-test. Engine: `initapply.py`.
 
 The `decisions` object the operator serializes carries: `owner`/`repo`,
@@ -275,8 +275,8 @@ user-config overlay `.governance/conf/<owner>/<pack>/<id>.conf` from the generic
 conf stub (augment-only — an existing file is preserved). For `doc-integrity` (`always_install`, on by
 default) the standard rules ship active in its `defaults.conf`, each a no-op
 until its document exists. It then assembles + writes CONSTITUTION.md,
-stamps the runtime + CI workflow, generates the hooks (+ `core.hooksPath` /
-`enable-governance.sh` for `githooks`), and writes the `install.yaml` v3 receipt +
+stamps the runtime + CI workflow, generates the hooks (+ sets `core.hooksPath`
+for `githooks`), and writes the `install.yaml` v3 receipt +
 `packs.lock` v2 pin. The receipt's `--install-asset`/`--agents-md-*` ledger and the
 lock's per-pack directive list are derived from the decisions and the installed
 tree — no hand-assembled `write_installed_manifest`/`lock-add` invocations. The
@@ -356,13 +356,15 @@ declarations, and honors `SKIP_GOVERNANCE=1`. **Never** hand-roll a `bash
 filtering and populators, the exact gap the generator closes.
 
 For **`githooks`** (default when no other framework is present), `init-apply`
-also runs `git config core.hooksPath .githooks` and lays down + stamps
-`scripts/enable-governance.sh` — the one-command onboarding every other
-contributor runs once per fresh clone. In the final report, point new
-contributors at it (in `README.md` or `AGENTS.md`); until they run it,
-`required-docs` nags with the exact command. `init-apply` does **not** create
-files under `.git/hooks/`; if `.git/hooks/pre-commit` already exists from another
-tool, surface it before proceeding (it could be a husky / pre-commit.com hook).
+also runs `git config core.hooksPath .githooks` — enablement is kit-owned, so
+nothing is vendored into the repo (issue #267). Every other contributor enables
+local hooks once per fresh clone with the documented one-liner `git config
+core.hooksPath .githooks`; until they do, `required-docs` nags with the exact
+command. (Skipping it costs only local fast-feedback — CI still enforces every
+directive.) Point new contributors at it in `README.md` or `AGENTS.md`.
+`init-apply` does **not** create files under `.git/hooks/`; if
+`.git/hooks/pre-commit` already exists from another tool, surface it before
+proceeding (it could be a husky / pre-commit.com hook).
 
 The `hook_strategy` and any **collision resolution** stay the operator's call (the
 plan/apply mechanics don't pick a framework or resolve an unmarked-hook
@@ -397,7 +399,7 @@ hook can be bypassed around. If the user later opts into native tests via
 
 Goal: make the install commit pass every installed directive on the first try, with **no `SKIP_GOVERNANCE` and no bootstrap-only waivers**. This is the step that makes "no audit gap at bootstrap" possible.
 
-1. **Stage the install output.** `git add` everything Steps 4–7 wrote: `CONSTITUTION.md`, `AGENTS.md` (if seeded/edited), `.governance/`, `.githooks/` (or the Path-B equivalent), `.github/workflows/governance.yml`, `scripts/enable-governance.sh`, and any install-assets (`QUALITY.md`, …). (The accounting directives no longer seed `COSTS.md`/`STEERING.md` — those receipts are created on demand by the hook at first commit.)
+1. **Stage the install output.** `git add` everything Steps 4–7 wrote: `CONSTITUTION.md`, `AGENTS.md` (if seeded/edited), `.governance/`, `.githooks/` (or the Path-B equivalent), `.github/workflows/governance.yml`, and any install-assets (`QUALITY.md`, …). (The accounting directives no longer seed `COSTS.md`/`STEERING.md` — those receipts are created on demand by the hook at first commit.)
 
 2. **Seed the bootstrap receipt.** If `commit-issue-receipt-match` is installed, create `receipts/issue-<N>-bootstrap-governance.md` from [`../assets/receipt.bootstrap.template.md`](../assets/receipt.bootstrap.template.md), substituting the bootstrap issue number `<N>` and the actual install choices. Stage it. (`<N>` is the GitHub issue the operator filed to track the adoption — surface that anchor up front in the survey if it isn't already known.)
 

@@ -10,9 +10,8 @@ tested call: install each directive folder + its install-assets, seed each
 configurable directive's overlay from the generic conf stub, assemble and write
 CONSTITUTION.md, create the
 AGENTS.md stub when asked, lay down + stamp the runtime (run.sh/lib.sh), generate
-the hook dispatchers (and, for githooks, `core.hooksPath` + enable-governance.sh),
-stamp the CI workflow, write the install.yaml receipt + packs.lock pin, and
-smoke-test.
+the hook dispatchers (and, for githooks, set `core.hooksPath`), stamp the CI
+workflow, write the install.yaml receipt + packs.lock pin, and smoke-test.
 
 It enforces in code the gates that were INIT_FLOW.md prose: refuse outside a git
 repo, refuse to clobber an existing install without `--force`, refuse a
@@ -95,8 +94,6 @@ def _write_manifest(root: Path, decisions: dict[str, Any], seeded: list[str], re
         argv.append("--agents-md-snippet")
     if report.get("agents_md") == "stub created":
         argv.append("--agents-md-created")
-    if decisions.get("hook_strategy", "githooks") == "githooks":
-        argv += ["--enable-governance-script", "scripts/enable-governance.sh"]
     for s in seeded:
         argv += ["--install-asset", s]
     res = bash_lib('write_installed_manifest "$@"', *argv)
@@ -227,15 +224,18 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
         if hooks_rc is not None:
             return hooks_rc
         if strategy == "githooks":
+            # Enablement is kit-owned: the verb sets core.hooksPath itself. A
+            # fresh clone without the kit re-enables local hooks with the
+            # documented one-liner `git config core.hooksPath .githooks`
+            # (issue #267) — no vendored enable-governance.sh.
             subprocess.run(["git", "-C", str(root), "config", "core.hooksPath", ".githooks"], check=False)
-            _copy_stamp(KIT_ASSETS / "enable-governance.sh", root / "scripts" / "enable-governance.sh")
-            (root / "scripts" / "enable-governance.sh").chmod(0o755)
 
         _write_manifest(root, decisions, seeded, report)
-        # Record the kit-runtime managed-file digests (run.sh, lib.sh, hooks,
-        # CI workflow, enable-governance.sh) so `managed-tree-integrity` can
-        # verify them offline (issue #253). Written after every managed file is
-        # laid down + stamped + hooks regenerated, so the digests match disk.
+        # Record the kit-runtime managed-file digests (run.sh, lib.sh, CI
+        # workflow, and the sweep pair when installed) so `managed-tree-integrity`
+        # can verify them offline (issue #253). The local-only hook dispatchers
+        # are intentionally NOT digested (issue #267). Written after every
+        # managed file is laid down + stamped, so the digests match disk.
         digestlib.write_managed_digests_block(
             root / ".governance" / "install.yaml", digestlib.managed_digests(root))
         report["manifest"] = "written"

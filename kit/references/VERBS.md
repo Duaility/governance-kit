@@ -27,7 +27,6 @@ sections below describe behavior regardless of where the engine runs.
   - `../assets/catalog.community.json` (advisory community pack catalog — read by `pack search`)
   - `../assets/dot-governance/`
   - `../assets/governance.yml`
-  - `../assets/enable-governance.sh`
 - **Install state:** `.governance/install.yaml` (`version: "3"`, init receipt) + `.governance/packs.lock` (`version: "2"`, pack pin record).
 - Pack validation enforces `min_governance_kit` against `KIT_VERSION` from [`../assets/packs/lib/packctl.py`](../assets/packs/lib/packctl.py).
 
@@ -48,7 +47,7 @@ sections below describe behavior regardless of where the engine runs.
 - **Flags:** `--with-packs` (also chain `pack update` for every `source: gh` entry), `--check-upstream` (read-only check of whether the repo's pin is behind the latest published `kit/vX.Y.Z` — a signal only; the default run already targets the latest tag), `--dry-run`, `--force` (override the dirty-working-tree refusal).
 - **Authoritative flow:** [UPDATE_FLOW.md](UPDATE_FLOW.md) Steps 1–8.
 - **Deterministic plan/apply.** `kitverb.py kit-plan --diff` resolves the plan; `kitverb.py kit-apply` executes it (gates, stamped writes, per-file decisions, hook regeneration, manifest write-through, smoke test) in one tested call. The skill never hand-executes file operations.
-- **Disjoint from `pack update`.** Updates the kit-runtime files (`run.sh`, `lib.sh`, `enable-governance.sh`, `governance.yml`, hook dispatchers) and the `kit_version` pin in `install.yaml`. For directive-content updates use `pack update`. Use both with `kit update --with-packs`.
+- **Disjoint from `pack update`.** Updates the kit-runtime files (`run.sh`, `lib.sh`, `governance.yml`, hook dispatchers) and the `kit_version` pin in `install.yaml`. For directive-content updates use `pack update`. Use both with `kit update --with-packs`.
 - **No silent downgrades.** A manifest stamp newer than the kit on PATH stops the verb.
 - **Diff-before-exec.** Per-file diff is shown before any file is written; files lacking the line-2 `governance-kit:managed` marker surface as `Skipped (unmanaged)` and the user picks `keep` / `apply` / `overwrite-with-backup` (passed to `kit-apply` as `--decisions`).
 - **One atomic commit.** Conventional-commit subject `chore(governance): kit update <old> → <new>` (or `... (+packs)` under `--with-packs`).

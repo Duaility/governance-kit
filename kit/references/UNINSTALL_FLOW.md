@@ -15,7 +15,7 @@ the installed skill's `SKILL.md`.
 Three source-of-truth layers drive what `uninstall` deletes, in priority order:
 
 1. **Install state pair** at `.governance/install.yaml` (init receipt) and `.governance/packs.lock` (pack pin record) — the authoritative record of packs, directives, and paths `init` installed.
-2. **Ownership marker** — `.githooks/` dispatchers carry the line-2 marker `# governance-kit:managed kit-version=<v>` — the same shape runtime templates (`run.sh`, `lib.sh`, `governance.yml`, `enable-governance.sh`) carry. The marker is a contract that the file is regeneratable, and symmetrically, safe to delete.
+2. **Ownership marker** — `.githooks/` dispatchers carry the line-2 marker `# governance-kit:managed kit-version=<v>` — the same shape runtime templates (`run.sh`, `lib.sh`, `governance.yml`) carry. The marker is a contract that the file is regeneratable, and symmetrically, safe to delete.
 3. **Heuristic fallback** — when neither file pair nor marker is present but governance artifacts are detected, `uninstall` defaults to **dry-run** and requires explicit opt-in before deleting anything.
 
 Leaving intact: files the user owns (pack-seeded docs like `QUALITY.md` in soft mode), hooks without the ownership marker (those belong to someone else), user-authored content inside `AGENTS.md` (only the marker-bounded directive block is stripped), and every uncommitted change in the working tree.
@@ -171,7 +171,7 @@ subsequent runs):
 1. **Hooks first.** Delete `.githooks/<name>` that carry the line-2 marker; rename `<name>.userhook` siblings back to `<name>`. Unmarked hooks are never touched — they tripped the `unmarked-collision` refusal in the plan.
 2. **Git config.** Unset `core.hooksPath` only if it still equals `.githooks` (Path A). A user-redirected value is left alone and reported.
 3. **AGENTS.md surgery** (`docsurgery.strip_marker_block`). Paired markers → delete the inclusive span + the trailing blank line. Opening-marker-only → strip to the next `^## ` heading and record the heuristic in `Assumptions:`. Span removal is byte-safe by construction (every other line is preserved verbatim). A manifest `agents_md_created: true` stub is left in place (deleting a possibly-grown doc stays the operator's call).
-4. **Tree deletes.** `CONSTITUTION.md`, the CI workflow, the enable-governance script.
+4. **Tree deletes.** `CONSTITUTION.md`, the CI workflow, and — for a legacy pre-#267 install that recorded one — the vendored `enable-governance.sh`.
 5. **Path B.** Remove only the governance entries (`.governance/run.sh` invocations) from the husky / `pre-commit` config, using the manifest's `path_b.entries`.
 6. **Seeded docs.** Soft: preserve + report as orphaned. Hard: delete every path the manifest lists under `install_assets_seeded`.
 7. **Backups.** Soft: preserve `*.pre-governance.bak`. Hard: delete them.

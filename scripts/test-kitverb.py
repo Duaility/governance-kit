@@ -83,7 +83,6 @@ BASE_MANIFEST = (
     'version: "3"\n'
     "tests_dir: .governance\n"
     "ci_workflow: .github/workflows/governance.yml\n"
-    "enable_governance_script: scripts/enable-governance.sh\n"
     "hook_strategy: githooks\n"
 )
 
@@ -156,13 +155,13 @@ def test_inventory_status_hints() -> None:
             ".governance/run.sh": _marked(KIT_VERSION),        # versioned == kit → skip
             ".governance/lib.sh": _marked(OLDER),              # versioned older → apply
             ".github/workflows/governance.yml": _marked(None),  # bare marker → apply
-            "scripts/enable-governance.sh": "#!/usr/bin/env bash\nno marker here\n",  # → unmanaged
         })
         files = {f["key"]: f for f in kit_plan(root)["files"]}
         assert files["run.sh"]["status"] == "skip"
         assert files["lib.sh"]["status"] == "apply"
         assert files["ci_workflow"]["status"] == "apply"
-        assert files["enable_governance_script"]["status"] == "unmanaged"
+        # enable-governance.sh is no longer in the managed inventory (issue #267).
+        assert "enable_governance_script" not in files
 
 
 def test_inventory_status_add_when_dest_missing() -> None:
@@ -218,9 +217,18 @@ STALE_FILES = {
     ".governance/run.sh": _marked(OLDER),
     ".governance/lib.sh": _marked(OLDER),
     ".github/workflows/governance.yml": f"# governance-kit:managed kit-version={OLDER}\nname: governance\n",
-    "scripts/enable-governance.sh": "#!/usr/bin/env bash\nuser-owned, no marker\n",
 }
 STALE_MANIFEST = BASE_MANIFEST + f'kit_version: "{OLDER}"\n'
+
+# A managed-file slot left user-owned (no ownership marker) exercises the
+# unmanaged decision machinery, now that enable-governance.sh is no longer
+# vendored (issue #267): the CI workflow without its marker reads as unmanaged.
+UNMANAGED_DEST = ".github/workflows/governance.yml"
+UNMANAGED_FILES = {
+    ".governance/run.sh": _marked(OLDER),
+    ".governance/lib.sh": _marked(OLDER),
+    UNMANAGED_DEST: "name: governance\n",  # no marker → unmanaged
+}
 
 
 def test_apply_forward_stamps_files_and_writes_manifest_through() -> None:
@@ -291,26 +299,24 @@ def test_apply_refuses_dirty_tree_unless_forced() -> None:
 
 def test_apply_unmanaged_default_keep_leaves_file_alone() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        root = make_git_repo(Path(tmp), manifest=STALE_MANIFEST, files=STALE_FILES)
-        original = (root / "scripts/enable-governance.sh").read_text()
+        root = make_git_repo(Path(tmp), manifest=STALE_MANIFEST, files=UNMANAGED_FILES)
+        original = (root / UNMANAGED_DEST).read_text()
         rc, report = kit_apply(root)
         assert rc == 0, report
-        assert report["unmanaged"] == [
-            {"dest": "scripts/enable-governance.sh", "decision": "keep"}
-        ]
-        assert (root / "scripts/enable-governance.sh").read_text() == original
+        assert report["unmanaged"] == [{"dest": UNMANAGED_DEST, "decision": "keep"}]
+        assert (root / UNMANAGED_DEST).read_text() == original
 
 
 def test_apply_unmanaged_overwrite_with_backup() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        root = make_git_repo(Path(tmp), manifest=STALE_MANIFEST, files=STALE_FILES)
-        original = (root / "scripts/enable-governance.sh").read_text()
+        root = make_git_repo(Path(tmp), manifest=STALE_MANIFEST, files=UNMANAGED_FILES)
+        original = (root / UNMANAGED_DEST).read_text()
         rc, report = kit_apply(
-            root, "--decisions", '{"scripts/enable-governance.sh": "overwrite-with-backup"}')
+            root, "--decisions", f'{{"{UNMANAGED_DEST}": "overwrite-with-backup"}}')
         assert rc == 0, report
-        assert report["backups"] == ["scripts/enable-governance.sh.pre-update.bak"]
-        assert (root / "scripts/enable-governance.sh.pre-update.bak").read_text() == original
-        marker = KITVERB.read_marker(root / "scripts/enable-governance.sh")
+        assert report["backups"] == [f"{UNMANAGED_DEST}.pre-update.bak"]
+        assert (root / f"{UNMANAGED_DEST}.pre-update.bak").read_text() == original
+        marker = KITVERB.read_marker(root / UNMANAGED_DEST)
         assert marker == {"state": "versioned", "version": KIT_VERSION}
 
 
@@ -333,7 +339,7 @@ def test_apply_rejects_bad_decisions() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = make_git_repo(Path(tmp), manifest=STALE_MANIFEST, files=STALE_FILES)
         # invalid decision value
-        rc, report = kit_apply(root, "--decisions", '{"scripts/enable-governance.sh": "merge"}')
+        rc, report = kit_apply(root, "--decisions", '{".governance/lib.sh": "merge"}')
         assert rc == 2 and "bad --decisions" in report["reason"], report
         # destination with nothing to decide (not in the plan at all)
         rc, report = kit_apply(root, "--decisions", '{"README.md": "apply"}')
@@ -342,15 +348,15 @@ def test_apply_rejects_bad_decisions() -> None:
 
 def test_apply_dry_run_writes_nothing() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        root = make_git_repo(Path(tmp), manifest=STALE_MANIFEST, files=STALE_FILES)
+        root = make_git_repo(Path(tmp), manifest=STALE_MANIFEST, files=UNMANAGED_FILES)
         before = tree_digest(root)
         rc, report = kit_apply(
             root, "--dry-run",
-            "--decisions", '{"scripts/enable-governance.sh": "overwrite-with-backup"}')
+            "--decisions", f'{{"{UNMANAGED_DEST}": "overwrite-with-backup"}}')
         assert rc == 0 and report["result"] == "dry-run", report
         assert tree_digest(root) == before
         assert ".governance/run.sh" in report["updated"]
-        assert report["backups"] == ["scripts/enable-governance.sh.pre-update.bak"]
+        assert report["backups"] == [f"{UNMANAGED_DEST}.pre-update.bak"]
 
 
 def test_apply_pre_tracking_needs_explicit_consent() -> None:
