@@ -1,5 +1,0 @@
-def render(node, *, mode="v2"):
-    if mode == "v1":
-        # deprecated path retained until everyone migrates
-        return _render_legacy(node)
-    return _render(node)

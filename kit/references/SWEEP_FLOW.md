@@ -135,11 +135,13 @@ CI evals run against the echo stub (no inference spend). Run the real model on
 demand with `GOVERNANCE_SWEEP_JUDGE=github-models` and a token in the
 environment.
 
-## Pilot directives
+## Sweep directives
 
-The `governance-kit/architecture` pack
-([`../../packs/architecture/`](../../packs/architecture/)) ships the first two,
-straight from the steering-ledger themes in issue #142:
+The kit ships the **lane** — the `surface: sweep` contract, the vendored engine,
+and the scheduled workflow — but bundles **no sweep directives**. They are
+authored in repo-local or community packs. This repo dogfoods the first two,
+straight from the steering-ledger themes in issue #142, in its repo-local
+`duaility/governance-kit` pack:
 
 - `no-legacy-fallbacks` — the most-repeated human correction.
 - `no-path-bifurcation` — parallel code paths / dual dispatch / local-only

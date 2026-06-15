@@ -1,8 +1,0 @@
-# no-legacy-fallbacks — No backward-compat shims or legacy fallback paths.
-category: ArchitecturalShape
-recommended: false
-summary: "No backward-compat shims or legacy fallback paths in agent-authored changes."
-surface: sweep
-hook: none
-engine: llm
-model_tier: high

@@ -1,9 +1,0 @@
-# Calibration keywords for the deterministic echo-judge STUB (issue #142).
-# Not the directive's enforcement logic — the real judge is the model. These
-# keep the CI eval reproducible without inference spend. Keep them aligned with
-# evals/violating/* and absent from evals/clean/*.
-bifurcat
-dual dispatch
-local-only
-special-case
-special case

@@ -1,5 +1,0 @@
-def resolve(name):
-    # bifurcated lookup: cache path vs db path kept separate
-    if name in _CACHE:
-        return _from_cache(name)
-    return _from_db_special_case(name)

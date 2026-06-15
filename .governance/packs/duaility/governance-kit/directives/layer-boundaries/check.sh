@@ -21,7 +21,7 @@
 # Ground truth handed to the sub-agent = the diff + the layer model declared in
 # LAYER_DOC (default ARCHITECTURE.md; the `## Layer map` that architecture-map-holds
 # keeps honest about the tree). Configure LAYER_DOC via the overlay
-# `.governance/conf/governance-kit/architecture/layer-boundaries.conf` (or env
+# `.governance/conf/duaility/governance-kit/layer-boundaries.conf` (or env
 # GOVERNANCE_LAYER_DOC). The directive is a no-op when no layer model is declared
 # or when the change set adds no receipt — new work owes the discipline; the
 # historical corpus is grandfathered.
@@ -37,6 +37,18 @@ set -u
 source "$(dirname "$0")/../../../../../lib.sh"
 directive_start "layer-boundaries"
 require_git
+
+# Runtime-dependency guard. This directive is the second consumer of the shared
+# sub-agent-attestation infra (issue #272): it calls `require_attestation`, which
+# the kit ships in the runtime `lib.sh` from the release that carries that infra.
+# On an older runtime (`.governance/lib.sh` synced from a kit predating it) the
+# helper is undefined — enforcing here would either crash or silently false-pass.
+# So skip cleanly when the helper is absent; the directive auto-activates the
+# moment this repo updates to a kit whose `lib.sh` defines it. (governance-kit's
+# own dogfood is pinned at kit v0.9.0, which predates the helper; see issue #280.)
+if ! declare -F require_attestation >/dev/null 2>&1; then
+    directive_end
+fi
 
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT" || exit 1

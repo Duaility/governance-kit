@@ -18,13 +18,14 @@ falls back to the installed skill and records that provenance.
 3. A pre-commit hook (and commit-msg / prepare-commit-msg / post-commit / pre-push dispatchers when the selected directives need them) — runs `.governance/` before commits and pushes, with `SKIP_GOVERNANCE=1` and `git commit --no-verify` / `git push --no-verify` as escape hatches.
 4. A GitHub Actions workflow at `.github/workflows/governance.yml` — same tests, enforced in CI on every PR.
 
-Directives are grouped into **packs** — self-contained directories that bundle directives, their constitution snippets, and hook declarations. Five concern-scoped packs ship in-tree today, under `packs/<concern>/` (source-of-truth in this monorepo; consumers fetch via `gh:duaility/governance-kit/packs/<concern>@<rev>`):
+Directives are grouped into **packs** — self-contained directories that bundle directives, their constitution snippets, and hook declarations. Four concern-scoped packs ship in-tree today, under `packs/<concern>/` (source-of-truth in this monorepo; consumers fetch via `gh:duaility/governance-kit/packs/<concern>@<rev>`):
 
 - **`governance-kit/foundation`** — `required-docs`, `repo-hygiene`, `managed-tree-integrity`.
 - **`governance-kit/docs`** — `internal-doc-links`, `doc-freshness`.
 - **`governance-kit/commits`** — `commit-message-format`, `no-orphan-todos`, `no-unjustified-suppressions`.
 - **`governance-kit/audit`** — a trustworthy record of agent work: issue → receipt → commit traceability (`issue-templates` → `issues-tracked` → `receipt-per-issue` → `commit-issue-receipt-match`), cost + steering accounting (`agent-token-accounting`, `agent-steering-accounting`), and the tamper protection that keeps those records honest (`doc-integrity`, `toolchain-config-protection`).
-- **`governance-kit/architecture`** — `no-legacy-fallbacks`, `no-path-bifurcation` (off-commit-path `surface: sweep` directives, opt-in `strict`).
+
+The kit also ships the off-commit-path `surface: sweep` lane (engine + scheduled workflow), but bundles no sweep directives — those are authored in repo-local or community packs.
 
 `governance init` unions each pack's chosen preset across all bundled packs (see Step 3).
 
@@ -162,7 +163,7 @@ Record findings for use at Step 6.
 
 Source the loader **from the resolved kit's lib** (`<lib_dir>`, Step 0) and
 enumerate packs from that kit's bundled pack root (`<assets_dir>/packs`, which
-holds the five bundled `governance-kit/*` concern packs):
+holds the four bundled `governance-kit/*` concern packs):
 
 ```sh
 source "<lib_dir>/packs.sh"

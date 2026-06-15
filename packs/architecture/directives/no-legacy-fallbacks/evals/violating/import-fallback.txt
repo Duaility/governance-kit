@@ -1,5 +1,0 @@
-try:
-    from app.cache import RedisCache as Cache
-except ImportError:
-    # legacy in-process cache fallback for older deployments
-    from app.cache import MemoryCache as Cache

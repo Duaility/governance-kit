@@ -6,15 +6,7 @@ packs:
   directives:
   - architecture-map-holds
   - consumed-tree-integrity
-- id: governance-kit/architecture
-  version: 0.2.1
-  source: gh
-  ref: gh:duaility/governance-kit/packs/architecture@architecture/v0.2.1
-  sha: 94ea757a1db784439ebf9ea7fe10933783d15cd9
-  subpath: packs/architecture
-  min_governance_kit: 0.7.2
-  installed_at: '2026-06-12T18:56:38Z'
-  directives:
+  - layer-boundaries
   - no-legacy-fallbacks
   - no-path-bifurcation
 - id: governance-kit/audit

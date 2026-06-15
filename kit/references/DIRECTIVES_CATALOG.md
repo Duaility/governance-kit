@@ -4,7 +4,7 @@ Every directive lives in a **pack** — the namespace directives are grouped int
 
 A directive's identity is `<owner>/<pack>/<id>`. The short id is a *given name*, not a global claim: two packs may ship same-named directives that check different things — they coexist and both run (`run.sh <bare-id>` runs every homonym; `run.sh <owner>/<pack>/<id>` runs exactly one). Suppression of another pack's directive is only ever explicit, via `replaces: <owner>/<pack>/<id>`.
 
-Five concern-scoped packs ship in-tree, each at `packs/<concern>/`:
+Four concern-scoped packs ship in-tree, each at `packs/<concern>/`:
 
 | Pack | Location | Concern | Default? |
 |---|---|---|---|
@@ -12,11 +12,10 @@ Five concern-scoped packs ship in-tree, each at `packs/<concern>/`:
 | `governance-kit/docs`       | `packs/docs/`       | Documentation-graph health. | Always present (bundled). |
 | `governance-kit/commits`    | `packs/commits/`    | Commit-message & in-source marker hygiene. | Always present (bundled). |
 | `governance-kit/audit`      | `packs/audit/`      | A trustworthy record of agent work — issue → receipt → commit traceability, cost + steering accounting, and tamper-proof record integrity. | Always present (bundled). |
-| `governance-kit/architecture` | `packs/architecture/` | Semantic, LLM-adjudicated invariants grep cannot reach — swept **off the commit path** (issue #142) and recorded as author-time sub-agent attestations **on it** (issue #272). | Opt-in (`strict` preset only). |
 
-Presets are **per-pack** and unioned at init: each pack ships `minimal`/`standard`/`strict` blocks covering its slice, and `governance init` unions the chosen preset across all five (see [the preset table](#presets-per-pack-unioned-at-init)). Community packs live in their own repos and install via `governance pack add gh:<owner>/<repo>`. For authoring a **third-party pack**, see [PACK_AUTHORING.md](PACK_AUTHORING.md).
+Presets are **per-pack** and unioned at init: each pack ships `minimal`/`standard`/`strict` blocks covering its slice, and `governance init` unions the chosen preset across all four (see [the preset table](#presets-per-pack-unioned-at-init)). Community packs live in their own repos and install via `governance pack add gh:<owner>/<repo>`. For authoring a **third-party pack**, see [PACK_AUTHORING.md](PACK_AUTHORING.md).
 
-Most directives are **synchronous** — enforced by `check.sh` at a git hook and in CI. The `governance-kit/architecture` pack introduces a third surface, **`sweep`** (issue #142): a directive that ships `triage.sh` instead of `check.sh`, declares `engine: llm`, and is adjudicated asynchronously by a scheduled LLM-judge run that files a digest issue — it never gates a commit, push, or PR. See [SWEEP_FLOW.md](SWEEP_FLOW.md).
+Most directives are **synchronous** — enforced by `check.sh` at a git hook and in CI. The kit also ships a third surface, **`sweep`** (issue #142): a directive that ships `triage.sh` instead of `check.sh`, declares `engine: llm`, and is adjudicated asynchronously by a scheduled LLM-judge run that files a digest issue — it never gates a commit, push, or PR. The kit no longer bundles any sweep directives; they are authored in repo-local or community packs. See [SWEEP_FLOW.md](SWEEP_FLOW.md).
 
 The **Standards** column records the external standard a directive implements (OpenSSF Scorecard checks, CWE entries, …) so coverage and gaps are visible. It is advisory metadata (`standards:` in `directive.yaml`); empty cells are not failures, they are the roadmap.
 
@@ -70,27 +69,21 @@ A trustworthy record of agent work, for repos where every tree-change is produce
 
 ---
 
-## `governance-kit/architecture`
+## The sweep lane
 
-Semantic, LLM-adjudicated invariants about *intent* and *architectural shape* — the corrections a human keeps making to agent-authored code that grep fundamentally cannot catch (issue #142). Two surfaces. The **sweep** directives (`surface: sweep`) never gate a commit, push, or PR: a scheduled workflow ([governance-sweep.yml](SWEEP_FLOW.md)) sweeps the day's commits, triages each with a cheap grep (`triage.sh`), adjudicates the candidate hunks via GitHub Models against the directive's `constitution.md` (the rubric doubles as the judge prompt), and files **one digest issue**; each ships calibration fixtures (`evals/violating/` + `evals/clean/`) and a precision/recall floor — **no eval, no ship**. The **attestation** directive (`surface: change-set`, `layer-boundaries`) gates on the commit path via the shared sub-agent-attestation infra ([SUBAGENT_ATTESTATION.md](SUBAGENT_ATTESTATION.md), issue #272): it demands a fresh-context sub-agent verdict recorded into the receipt and re-derived by the sweep lane at merge, but never spawns anything itself. Findings enter the repo through the same door as human corrections: issue → agent → PR. Opt-in via the `strict` preset; enabling the pack also installs the scheduled sweep workflow and the vendored engine (`.governance/sweep.py`).
-
-| Directive | Standards | What it checks |
-|---|---|---|
-| `no-legacy-fallbacks` | — | **`surface: sweep`, `engine: llm`, `model_tier: high`.** Flags backward-compat shims and legacy fallback paths kept alive behind a version check, a `try/except ImportError`, a `getattr` shim, or a "for backward compatibility" branch — the most-repeated human correction. About *intent*, not syntax. A fallback required by an external contract is legitimate when the code names what it is compatible with and until when; an unexplained Chesterton's-fence retention is the target. |
-| `no-path-bifurcation` | — | **`surface: sweep`, `engine: llm`, `model_tier: high`.** Flags bifurcated code paths that should be unified — dual dispatch (`if transport == "ipc" … elif "http"`), a local-only fast path special-casing the remote path, "local must mirror remote" divergence. One operation, one path: branch on data, not on a second copy of the logic. A genuine, documented environment difference is a legitimate exception. |
-| `layer-boundaries` | — | **`surface: change-set`, sub-agent attestation (issue #272).** For each change set, a fresh-context sub-agent must attest (`PASS`/`REFUTED`, handed only the diff + the declared layer model `LAYER_DOC`, default `ARCHITECTURE.md`) that the layering is honored — no logic landing in the wrong layer (kit/engine code under a pack), no upward dependency across a layer edge, shared logic in the layer that owns it. Recorded in the newly added receipt's `## Layer boundaries` section; the hook gates presence + verdict (never its truth, deferred to the sweep lane). No-op when no layer model is declared or no receipt is added. Composes with `architecture-map-holds` (which keeps the map honest about the tree). Per-receipt waiver `governance: allow-layer-boundaries <reason>`. |
+The kit ships the off-commit-path [sweep lane](SWEEP_FLOW.md) — the `surface: sweep` directive contract, the vendored engine (`.governance/sweep.py`), and the scheduled workflow ([governance-sweep.yml](SWEEP_FLOW.md)) — but bundles **no sweep directives**. Sweep directives (LLM-adjudicated invariants about *intent* and *architectural shape* that grep cannot reach, issue #142) are authored in repo-local or community packs; this repo dogfoods `no-legacy-fallbacks` and `no-path-bifurcation` in its repo-local `duaility/governance-kit` pack. Installing any sweep directive also installs the scheduled workflow and the vendored engine. The shared sub-agent-attestation infra ([SUBAGENT_ATTESTATION.md](SUBAGENT_ATTESTATION.md), issue #272) — a `surface: change-set` directive that demands a fresh-context sub-agent verdict recorded into the receipt — ships in the kit too, consumed by `receipt-per-issue` (bundled) and by repo-local dogfood directives such as `layer-boundaries`.
 
 ---
 
 ## Presets (per-pack, unioned at init)
 
-Each pack declares only the preset tiers it contributes to; `governance init` unions the chosen preset across all five bundled packs. The union reproduces the directive sets below.
+Each pack declares only the preset tiers it contributes to; `governance init` unions the chosen preset across all four bundled packs. The union reproduces the directive sets below.
 
 | Preset | Directives (unioned across all bundled packs) |
 |---|---|
 | `minimal`  | `required-docs`, `repo-hygiene`, `managed-tree-integrity`, `internal-doc-links` |
 | `standard` | *minimal* + `doc-freshness`, `commit-message-format`, `issue-templates`, `issues-tracked`, `receipt-per-issue`, `commit-issue-receipt-match`, `agent-token-accounting`, `agent-steering-accounting`, `toolchain-config-protection`, `doc-integrity` |
-| `strict`   | *standard* + `no-orphan-todos`, `no-unjustified-suppressions`, `no-legacy-fallbacks`, `no-path-bifurcation`, `layer-boundaries` |
+| `strict`   | *standard* + `no-orphan-todos`, `no-unjustified-suppressions` |
 
 `repo-hygiene`, `doc-integrity`, and `agent-steering-accounting` are `always_install: true` — they install regardless of preset selection. `always_install: true` is reserved to the `governance-kit/*` bundled packs. Agent accounting is mandatory in this kit's model because every commit is agent-authored.
 

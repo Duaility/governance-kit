@@ -9,7 +9,7 @@
 
 </div>
 
-<p align="center"><strong>rules with tests · enforced on every commit · audit trail for every agent change · six bundled packs · MIT</strong></p>
+<p align="center"><strong>rules with tests · enforced on every commit · audit trail for every agent change · four bundled packs · MIT</strong></p>
 
 <p align="center">
   <a href="https://github.com/Duaility/governance-kit/actions/workflows/governance.yml"><img src="https://github.com/Duaility/governance-kit/actions/workflows/governance.yml/badge.svg" alt="governance"></a>
@@ -40,7 +40,7 @@ OpenAI described this failure mode — and a way out — in their [harness engin
 Governance Kit packages that stance as an installable kit — and adds one layer. Rules live in **packs**: versioned, composable bundles you pin per repo, share across teams, or author locally to fit your stack. Every agent-authored commit leaves a git-native trail: issue → receipt → token cost → steering tally. The kit installs into [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), Cursor, OpenCode, and 40+ agent runtimes via [`npx skills`](https://github.com/vercel-labs/skills).
 
 - **Constitution** — `CONSTITUTION.md` declares the state your repo must satisfy; every directive ships with its `check.sh`, so the rule and its test evolve as one commit
-- **Packs** — versioned directive bundles you compose, pin, and swap; six are bundled, and you can author repo-local packs to capture rules specific to your stack
+- **Packs** — versioned directive bundles you compose, pin, and swap; four are bundled, and you can author repo-local packs to capture rules specific to your stack
 - **Audit chain** — every agent-authored change links an issue, a receipt, a token cost, and a steering tally — all git-native, all checkable
 - **Sweep lane** — LLM-adjudicated architectural rules that grep can't reach, running off the commit path so a false positive never breaks a gate
 
@@ -155,7 +155,7 @@ The skill itself is a two-file shim; every verb executes from the kit version th
 
 ## What's bundled
 
-Five concern packs ship in-tree and install with `governance init` at your chosen preset (`minimal` / `standard` / `strict`):
+Four concern packs ship in-tree and install with `governance init` at your chosen preset (`minimal` / `standard` / `strict`):
 
 | Pack | Covers | Preset |
 |---|---|---|
@@ -163,7 +163,6 @@ Five concern packs ship in-tree and install with `governance init` at your chose
 | `governance-kit/docs` | Internal link integrity, doc freshness | minimal–standard |
 | `governance-kit/commits` | Conventional Commits + issue suffix, TODO and suppression discipline | standard–strict |
 | `governance-kit/audit` | The agent audit chain — receipts, cost, steering, record integrity | standard |
-| `governance-kit/architecture` | Sweep-lane architectural rules, LLM-adjudicated | strict (opt-in) |
 
 Full catalog: [DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md).
 
@@ -198,13 +197,6 @@ Full catalog: [DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md).
 | `audit` | `agent-steering-accounting` | Every commit stamps `Steer-Count` / `Steer-Types` / `Steer-Tiers` and appends steering rows to the issue's receipt. **`always_install: true`** — records human correction text verbatim; redact via the directive's classifier hook rather than skipping it. | standard |
 | `audit` | `doc-integrity` | **`always_install: true`** — system-of-record documents are tamper-proof: receipts freeze once on the trunk, frozen sections (`QUALITY.md` Resolved, the Evolution Log) keep their baseline lines verbatim. Branch-authored content stays editable until it merges. | standard |
 | `audit` | `toolchain-config-protection` | A commit changing lint / format / type-check / CI / hook config carries a `governance: allow-toolchain-config <reason>` body line. | standard |
-
-### Sweep-lane directives
-
-| Pack | Directive | What it enforces | Preset |
-|---|---|---|---|
-| `architecture` | `no-legacy-fallbacks` | No backward-compat shims or legacy fallback paths in agent-authored changes. | strict |
-| `architecture` | `no-path-bifurcation` | No bifurcated code paths — unify dual dispatch and local-vs-remote special-casing. | strict |
 
 </details>
 
@@ -379,7 +371,7 @@ Edits in the clone flow to every linked runtime live — handy when contributing
 
 |  | Governs | Blocks a bad commit | Rationale travels with the rule | Agent audit trail |
 |---|---|:---:|:---:|:---:|
-| **Governance Kit** | Repo state — docs, commits, receipts, architecture | Yes | Yes — constitution + evolution log | Yes — issue → receipt → commit → cost |
+| **Governance Kit** | Repo state — docs, commits, receipts | Yes | Yes — constitution + evolution log | Yes — issue → receipt → commit → cost |
 | pre-commit · husky · lefthook | Hook execution | Yes | No | No |
 | [spec-kit](https://github.com/github/spec-kit) | One feature's spec → implementation | No | Per-spec | No |
 | Agent instruction files alone | What agents are told, not what they do | No | No | No |
