@@ -57,7 +57,7 @@ claude
 |---|---|
 | `minimal` | Foundation + doc links: required docs, repo hygiene, managed-tree integrity, resolving internal links. |
 | `standard` | `minimal` + commit discipline, kit-version sync, doc freshness, and the full [agent audit chain](/concepts/audit-chain): receipts, issue anchors, token and steering accounting, doc integrity. |
-| `strict` | `standard` + TODO and suppression discipline, plus the opt-in [sweep lane](/concepts/sweep-lane) (`governance-kit/architecture`). |
+| `strict` | `standard` + TODO and suppression discipline. The opt-in [sweep lane](/concepts/sweep-lane) ships in the kit but bundles no sweep directives — add them via a repo-local or community pack. |
 
 `standard` is the intended default for agent-heavy repos — it is the preset that turns on the issue → receipt → commit → cost chain.
 

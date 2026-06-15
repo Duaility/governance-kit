@@ -1,3 +1,0 @@
-def load_config(path):
-    data = _read(path)
-    return Config(endpoint=data["endpoint"], timeout=data["timeout"])

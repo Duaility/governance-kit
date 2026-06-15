@@ -79,7 +79,7 @@ The skill is a self-contained directory with frontmatter
 
 ## Directive packs
 
-Each pack is a directory. Five concern-scoped packs ship in-tree under
+Each pack is a directory. Four concern-scoped packs ship in-tree under
 `packs/<concern>/`:
 
 - `governance-kit/foundation` — `required-docs`, `repo-hygiene`,
@@ -93,8 +93,6 @@ Each pack is a directory. Five concern-scoped packs ship in-tree under
   (`agent-token-accounting`, `agent-steering-accounting`), and the tamper
   protection that keeps those records honest (`doc-integrity`,
   `toolchain-config-protection`).
-- `governance-kit/architecture` — `no-legacy-fallbacks`, `no-path-bifurcation`
-  (off-commit-path `surface: sweep` directives, LLM-adjudicated; opt-in `strict`).
 
 The shared pack `lib/` (`packs.sh`, `install.sh`, `hooks.sh`, `packctl.py`,
 `packverb.py`, `eval-lib.sh`) lives at `kit/assets/packs/lib/`.

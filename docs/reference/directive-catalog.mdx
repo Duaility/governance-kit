@@ -1,11 +1,11 @@
 ---
 title: 'Directive catalog'
-summary: 'Everything the five bundled governance-kit concern packs ship, organized by pack and preset.'
+summary: 'Everything the four bundled governance-kit concern packs ship, organized by pack and preset.'
 ---
 
 # Directive catalog
 
-Everything below ships in the kit's five bundled concern packs — `governance-kit/{foundation,docs,commits,audit,architecture}`. Community packs bring their own directives; this is what you get out of the box at `governance init`.
+Everything below ships in the kit's four bundled concern packs — `governance-kit/{foundation,docs,commits,audit}`. Community packs bring their own directives; this is what you get out of the box at `governance init`.
 
 ## Presets
 
@@ -13,7 +13,7 @@ Everything below ships in the kit's five bundled concern packs — `governance-k
 |---|---|
 | `minimal` | `required-docs`, `repo-hygiene`, `managed-tree-integrity`, `internal-doc-links` |
 | `standard` | *minimal* + `doc-freshness`, `commit-message-format`, and the full audit pack: `issue-templates`, `issues-tracked`, `receipt-per-issue`, `commit-issue-receipt-match`, `agent-token-accounting`, `agent-steering-accounting`, `doc-integrity`, `toolchain-config-protection` |
-| `strict` | *standard* + `no-orphan-todos`, `no-unjustified-suppressions`, and the opt-in `architecture` sweep pack |
+| `strict` | *standard* + `no-orphan-todos`, `no-unjustified-suppressions` |
 
 <Note>
 `doc-integrity` and `agent-steering-accounting` are `always_install: true` — included in every install regardless of preset.
@@ -77,15 +77,9 @@ See [The audit chain](/concepts/audit-chain) for how these compose.
 ### toolchain-config-protection
 `standard` · A commit that touches linter / formatter / type-checker / CI / git-hook config must carry a `governance: allow-toolchain-config <reason>` body line. Stops the "edit the rule, not the code" move (loosen eslint, relax a ruff `select`, weaken a workflow's `permissions`) from passing silently in a green build. Protected paths default to a multi-ecosystem list in the directive's `defaults.conf`, customizable via the conf overlay (bare line adds, `!<pattern>` drops a default).
 
-## governance-kit/architecture
+## The sweep lane
 
-The off-commit-path [sweep lane](/concepts/sweep-lane) — `surface: sweep`, LLM-adjudicated, advisory. Opt-in via `strict`; enabling the pack also installs the scheduled workflow and the vendored engine.
-
-### no-legacy-fallbacks
-`strict` · No backward-compat shims or legacy fallback paths in agent-authored changes.
-
-### no-path-bifurcation
-`strict` · No bifurcated code paths — unify dual dispatch and local-vs-remote special-casing.
+The kit also ships the off-commit-path [sweep lane](/concepts/sweep-lane) — the `surface: sweep` directive contract, the vendored engine, and the scheduled workflow — but bundles **no sweep directives**. Sweep directives are authored in repo-local or community packs (this repo dogfoods `no-legacy-fallbacks` and `no-path-bifurcation` in its repo-local `duaility/governance-kit` pack). Installing any sweep directive also installs the scheduled workflow and the vendored engine.
 
 ## Waivers
 

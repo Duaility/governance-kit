@@ -66,13 +66,13 @@ A kit-owned, stdlib-only engine (vendored as `.governance/sweep.py`) does the wo
 
 ## What ships today
 
-The opt-in `governance-kit/architecture` pack (the `strict` preset) carries the pilot directives:
+The kit ships the **lane itself** — the `surface: sweep` directive contract, the vendored engine (`.governance/sweep.py`), and the scheduled workflow — but bundles **no sweep directives**. Sweep directives are authored in repo-local or community packs; this repo dogfoods two of them (`no-legacy-fallbacks`, `no-path-bifurcation`) in its repo-local `duaility/governance-kit` pack:
 
 | Directive | What it watches for |
 |---|---|
 | `no-legacy-fallbacks` | Backward-compat shims and legacy fallback paths in agent-authored changes. |
 | `no-path-bifurcation` | Bifurcated code paths — dual dispatch, local-vs-remote special-casing. |
 
-Enabling the pack also installs the scheduled workflow and the vendored engine.
+Installing any sweep directive also installs the scheduled workflow and the vendored engine.
 
 Next: [Versioning & releases](/concepts/versioning) — how the kit and the packs evolve without breaking the repos that pin them.

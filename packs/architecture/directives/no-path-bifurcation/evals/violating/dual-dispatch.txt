@@ -1,5 +1,0 @@
-def handle(event):
-    if TRANSPORT == "ipc":
-        return _handle_ipc(event)     # dual dispatch: IPC path
-    elif TRANSPORT == "http":
-        return _handle_http(event)
