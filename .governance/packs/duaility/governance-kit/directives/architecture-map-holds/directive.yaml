@@ -1,0 +1,10 @@
+# architecture-map-holds — (dogfood) the layer / responsibility map carried as
+# a Mermaid block in ARCHITECTURE.md must not lie about the real tree: every
+# path the diagram names resolves, the layering arrows stay one-way, and the
+# boundary rules the picture asserts (skill carries no kit code/version; the
+# repo pins both the kit and the packs) actually hold.
+category: Architecture
+recommended: true
+summary: The ARCHITECTURE.md layer map stays true to the tree — named paths resolve, edges stay one-way, boundary rules hold.
+surface: repo-state
+hook: pre-commit
