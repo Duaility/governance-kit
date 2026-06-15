@@ -22,6 +22,24 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [kit/v0.10.0] - 2026-06-15
+
+### Added
+- per-diff layer-boundary attestation via the shared sub-agent infra (#277) (#279)
+- repo-local directive that verifies the architecture layer map (#274) (#275)
+- substance audit for receipt-per-issue via shared sub-agent infra (#272) (#273)
+
+### Fixed
+- stop digesting hook plumbing; de-vendor enable-governance.sh (#267) (#268)
+- managed-tree-integrity must not marker-validate seed-once sweep assets (#264)
+
+### Changed
+- unship the bundled pack; relocate its directives to the local pack (#280) (#282)
+- unship the security pack from v0 (#278)
+- kit update 0.8.1 → 0.9.0 + foundation 0.4.1 (#266)
+- foundation v0.4.0 → v0.4.1
+- foundation v0.3.0 → v0.4.0
+
 ## [foundation/v0.4.1] - 2026-06-14
 
 ### Fixed
