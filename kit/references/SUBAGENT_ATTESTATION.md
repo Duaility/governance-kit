@@ -3,8 +3,10 @@
 Shared kit infrastructure for directives that need a section a **fresh-context
 sub-agent** must populate — a verdict against ground truth the mechanical check
 structurally cannot read. First shipped for `receipt-per-issue`'s `## Audit`
-rule (issue #272); designed to be reused (e.g. the #271 architectural-invariant
-checklist).
+rule (issue #272); the second consumer is `governance-kit/architecture`'s
+`layer-boundaries` (issue #277), whose `## Layer boundaries` section records a
+verdict on whether a diff honors the repo's declared layer model — the
+architectural-invariant case this pattern was designed for.
 
 ## The problem it solves
 

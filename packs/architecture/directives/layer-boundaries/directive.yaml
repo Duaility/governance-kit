@@ -1,0 +1,12 @@
+# layer-boundaries — for each change set, a fresh-context sub-agent attests that
+# the diff honors the repo's declared layer model (no logic landing in the wrong
+# layer; no upward dependency across a layer edge). Recorded in the receipt and
+# gated for presence + verdict; the truth of the verdict is deferred to the
+# merge-time sweep lane. Second consumer of the shared sub-agent-attestation
+# infra (issue #272); reads the layer model #274's architecture-map-holds keeps
+# honest about the tree.
+category: ArchitecturalShape
+recommended: false
+summary: "Per change set, a fresh-context sub-agent attests (PASS/REFUTED) that the diff honors the declared layer boundaries — no kit/engine logic landing under a pack, no upward dependency. Recorded in the newly added receipt's '## Layer boundaries' section; the hook gates presence + verdict, never the verdict's truth."
+surface: change-set
+hook: pre-commit
