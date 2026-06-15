@@ -22,6 +22,11 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [audit/v0.5.0] - 2026-06-15
+
+### Added
+- substance audit for receipt-per-issue via shared sub-agent infra (#272) (#273)
+
 ## [foundation/v0.4.2] - 2026-06-15
 
 ### Fixed
