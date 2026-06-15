@@ -10,13 +10,13 @@ packs:
   - no-legacy-fallbacks
   - no-path-bifurcation
 - id: governance-kit/audit
-  version: 0.4.0
+  version: 0.5.0
   source: gh
-  ref: gh:duaility/governance-kit/packs/audit@audit/v0.4.0
-  sha: ce61f1091a4612be4761adbaa858645a4fc62dd8
+  ref: gh:duaility/governance-kit/packs/audit@audit/v0.5.0
+  sha: 0d82881bd6082a7a44214b5280b9f0da0b691b02
   subpath: packs/audit
-  min_governance_kit: '0.3'
-  installed_at: '2026-06-12T19:19:19Z'
+  min_governance_kit: 0.9.0
+  installed_at: '2026-06-15T17:54:36Z'
   directives:
   - agent-steering-accounting
   - agent-token-accounting
@@ -26,6 +26,15 @@ packs:
   - issues-tracked
   - receipt-per-issue
   - toolchain-config-protection
+  digest:
+    agent-steering-accounting: 9673969a342e99569bbbd37c45d08d463a8a2816944518f931a497a1f8e19fbb
+    agent-token-accounting: 3245527e058c593a9ba0da3f9eb362fc51c01d5b1b00105bd57ffb3cb50be821
+    commit-issue-receipt-match: 436b58a8adaab6f25dbd2d20894d8f31d943cdd52656459a5c61b4ce3d7049a9
+    doc-integrity: 692497a5555f1c6ce07172cda164c24f1157ff1c386cd45d748a42939108fad1
+    issue-templates: ba3e7c6de380ff2f12a922be349dda4d04014f0da6f349e4d26037a2fc576abe
+    issues-tracked: 70d7fb36352cfe69bd5a932862cd4c98ec3697a01981e18c96bb9236b476e72c
+    receipt-per-issue: 81b8a37146b6d0da6cc292b1ef6c3ac3e1b1fed66905dc1f65c81ef7069a0bed
+    toolchain-config-protection: b0ed3d7f5d4bd2358de40f124c428e343df34a98864d8a15a9c56489943a862c
 - id: governance-kit/commits
   version: 0.2.1
   source: gh
@@ -48,30 +57,18 @@ packs:
   - doc-freshness
   - internal-doc-links
 - id: governance-kit/foundation
-  version: 0.4.1
+  version: 0.4.2
   source: gh
-  ref: gh:duaility/governance-kit/packs/foundation@foundation/v0.4.1
-  sha: fc8ba479fbb283e09f33025162707c531639e7e3
+  ref: gh:duaility/governance-kit/packs/foundation@foundation/v0.4.2
+  sha: d5151191b0b2242ca63dac847401886ef4bbe0a6
   subpath: packs/foundation
   min_governance_kit: '0.3'
-  installed_at: '2026-06-13T19:56:50Z'
+  installed_at: '2026-06-15T17:54:17Z'
   directives:
   - managed-tree-integrity
   - repo-hygiene
   - required-docs
   digest:
-    managed-tree-integrity: 1ed67a458d3c35ccbb6e7a8eb30a03447d833aaf32f46369a4bdad3375712d6f
+    managed-tree-integrity: 9f516add12805fea75f4b1f8ee83b42eb38f66f65522d6b7d5fd663bef1b9dd5
     repo-hygiene: bcc6d10bef0a216d1698d6406ef87559268639132632cbd68ca544a0bd843a44
     required-docs: 97d5963e146c39cae9243e4c63cf9cee092497800b81abd3e2c071fc74052833
-- id: governance-kit/security
-  version: 0.2.0
-  source: gh
-  ref: gh:duaility/governance-kit/packs/security@security/v0.2.0
-  sha: 7a52dec8af9b384c23e769d67f17e20a6b14f317
-  subpath: packs/security
-  min_governance_kit: '0.3'
-  installed_at: '2026-06-12T05:24:00Z'
-  directives:
-  - pinned-dependencies
-  - secrets-hygiene
-  - token-permissions
