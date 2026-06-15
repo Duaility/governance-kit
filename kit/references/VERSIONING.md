@@ -14,7 +14,7 @@ axes relate, the tag scheme consumers pin against, and the release procedure.
 | Axis | Question it answers | Source of truth | Derived copies (never hand-edit) |
 |---|---|---|---|
 | **Kit** | What version of the *framework* is this? (run.sh, lib.sh, hook generators, engines, schemas) | [`kit/assets/kit.yaml`](../assets/kit.yaml) `version` | `.governance/install.yaml` `kit_version`; the `# governance-kit:managed kit-version=<v>` markers stamped into every managed runtime file |
-| **Pack** | What version of this *directive content* is this? | each pack's `pack.yaml` `version` (the bundled concern packs live under [`packs/`](../../packs), e.g. [`packs/security/pack.yaml`](../../packs/security/pack.yaml)) | the consumer's `.governance/packs.lock` entry, written at `pack add`/`pack update` time |
+| **Pack** | What version of this *directive content* is this? | each pack's `pack.yaml` `version` (the bundled concern packs live under [`packs/`](../../packs), e.g. [`packs/foundation/pack.yaml`](../../packs/foundation/pack.yaml)) | the consumer's `.governance/packs.lock` entry, written at `pack add`/`pack update` time |
 
 The published **skill** (`skill/`) is *not* on the kit axis (issue #198): it is
 a fetch-only installer carrying no kit code and no kit version, and its
@@ -88,12 +88,12 @@ kit/vX.Y.Z       # a kit (framework) release
 ```
 
 Each bundled `governance-kit/*` concern pack carries its own `pack.yaml`
-`version` and tags on its **own axis** — `foundation/vX.Y.Z`, `security/vX.Y.Z`,
-`docs/vX.Y.Z`, `commits/vX.Y.Z`, `audit/vX.Y.Z` — all starting at `0.1.0` and
+`version` and tags on its **own axis** — `foundation/vX.Y.Z`, `docs/vX.Y.Z`,
+`commits/vX.Y.Z`, `audit/vX.Y.Z`, `architecture/vX.Y.Z` — all starting at `0.1.0` and
 stepping independently. Tag
 **lazily**: a release cuts a tag only for the pack(s) whose subtree actually
-changed since their last tag, so a `security`-only fix ships `security/v0.1.1`
-and touches nothing else — the six unchanged packs keep their existing tags and
+changed since their last tag, so a `docs`-only fix ships `docs/v0.1.1`
+and touches nothing else — the four unchanged packs keep their existing tags and
 versions. This is the Go-multi-module / Changesets model: per-unit tags, cut on
 demand, never a flat bump across packs that did not change. Community packs live
 in their own repos and tag plain `vX.Y.Z`.
@@ -107,7 +107,7 @@ in their own repos and tag plain `vX.Y.Z`.
 Consumers then pin a **readable, immutable** ref instead of an opaque SHA:
 
 ```sh
-governance pack add gh:duaility/governance-kit/packs/security@<tag>
+governance pack add gh:duaility/governance-kit/packs/docs@<tag>
 ```
 
 A tag resolves to a SHA at `pack add`/`pack update` time and is recorded in the
@@ -143,7 +143,7 @@ for the full flow.
 
 ```sh
 # Cut a pack release (content change merged) — one invocation per changed pack:
-bash scripts/release.sh security 0.2.0
+bash scripts/release.sh docs 0.2.0
 
 # Cut a kit release (framework change merged):
 bash scripts/release.sh kit 0.6.0

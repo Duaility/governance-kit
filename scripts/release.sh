@@ -11,8 +11,8 @@
 #            kit/assets/ (never this repo's consumed .governance tree — issue
 #            #256). The published skill (skill/) versions independently and is
 #            not touched by kit releases (#198).
-#   <pack> — a bundled concern pack (foundation, security, docs, commits,
-#            audit). Source of truth:
+#   <pack> — a bundled concern pack (foundation, docs, commits, audit,
+#            architecture). Source of truth:
 #            packs/<pack>/pack.yaml `version`. Each pack versions and tags on
 #            its own axis; release lazily — only the pack(s) that actually
 #            changed since their last tag get a new tag. (The retired `core`

@@ -32,7 +32,7 @@ Configuration is exactly **two artifacts, one writer each** (issue #210):
 
 The effective config is `defaults.conf` layered with the overlay: a bare line **adds** an item, `!<item>` **removes** a default (gitignore-style negation), `KEY=value` **overrides** a scalar. Read scalars with `conf_get <id> <KEY> "$(dirname "$0")/defaults.conf"` (precedence env `GOVERNANCE_<KEY>` > overlay > `defaults.conf` row — a read knob with no `defaults.conf` row fails loud) and lists with `conf_list <id> "$(dirname "$0")/defaults.conf"`; both resolve the qualified overlay path from the directive's installed location automatically. Other helpers: `conf_file`, `conf_rule_lines`. A directive that declares capabilities must list `.governance/conf/**` under `reads:`.
 
-Kit-bundled packs are the five concern packs `governance-kit/{foundation,security,docs,commits,audit}`, each under `packs/<concern>/`; the shared loader/install lib lives at `kit/assets/packs/lib/`. Out-of-tree community packs live in their own repos and are pulled in via `governance pack add gh:<owner>/<repo>`.
+Kit-bundled packs are the five concern packs `governance-kit/{foundation,docs,commits,audit,architecture}`, each under `packs/<concern>/`; the shared loader/install lib lives at `kit/assets/packs/lib/`. Out-of-tree community packs live in their own repos and are pulled in via `governance pack add gh:<owner>/<repo>`.
 
 ### Directive identity (homonyms)
 
@@ -46,7 +46,7 @@ A directive's identity is `<owner>/<pack>/<id>`. The short id is a *given name*,
 
 | Field | Required | Notes |
 |---|---|---|
-| `id` | yes | Pack id. Scoped form `<author>/<slug>` (e.g. `governance-kit/security`, `acme/widgets`) — the slug half must match the directory name. The scoped form prevents collisions across the community catalog. |
+| `id` | yes | Pack id. Scoped form `<author>/<slug>` (e.g. `governance-kit/docs`, `acme/widgets`) — the slug half must match the directory name. The scoped form prevents collisions across the community catalog. |
 | `name` | yes | Human label shown in the pack-selection screen. |
 | `version` | yes | SemVer-ish string, e.g. `"0.1"`. Stamped into hook ownership markers. |
 | `min_governance_kit` | yes | Minimum `governance-kit` version the pack depends on. Validated against the kit's built-in `KIT_VERSION` constant (`kit/assets/packs/lib/packctl.py`). Packs declaring a minimum newer than the installed kit are rejected at install. |

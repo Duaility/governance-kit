@@ -36,7 +36,7 @@ fi
 
 # Single-directive filter. A bare id (`run.sh required-docs`) runs every
 # directive with that id — across packs, all homonyms run. A pack-qualified id
-# (`run.sh governance-kit/security/secrets-hygiene`) runs exactly one. Identity
+# (`run.sh governance-kit/foundation/repo-hygiene`) runs exactly one. Identity
 # is `<owner>/<pack>/<id>`; the short id is a given name, not a global claim.
 if [[ $# -gt 0 ]]; then
     filter="$1"

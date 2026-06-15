@@ -4,24 +4,23 @@ Every directive lives in a **pack** — the namespace directives are grouped int
 
 A directive's identity is `<owner>/<pack>/<id>`. The short id is a *given name*, not a global claim: two packs may ship same-named directives that check different things — they coexist and both run (`run.sh <bare-id>` runs every homonym; `run.sh <owner>/<pack>/<id>` runs exactly one). Suppression of another pack's directive is only ever explicit, via `replaces: <owner>/<pack>/<id>`.
 
-Six concern-scoped packs ship in-tree, each at `packs/<concern>/`:
+Five concern-scoped packs ship in-tree, each at `packs/<concern>/`:
 
 | Pack | Location | Concern | Default? |
 |---|---|---|---|
 | `governance-kit/foundation` | `packs/foundation/` | Repo scaffolding, working-tree hygiene + kit coherence. | Always present (bundled). |
-| `governance-kit/security`   | `packs/security/`   | Supply-chain and credential hygiene. | Always present (bundled). |
 | `governance-kit/docs`       | `packs/docs/`       | Documentation-graph health. | Always present (bundled). |
 | `governance-kit/commits`    | `packs/commits/`    | Commit-message & in-source marker hygiene. | Always present (bundled). |
 | `governance-kit/audit`      | `packs/audit/`      | A trustworthy record of agent work — issue → receipt → commit traceability, cost + steering accounting, and tamper-proof record integrity. | Always present (bundled). |
 | `governance-kit/architecture` | `packs/architecture/` | Semantic, LLM-adjudicated invariants swept **off the commit path** (issue #142) — intent and architectural shape grep cannot reach. | Opt-in (`strict` preset only). |
 
-Presets are **per-pack** and unioned at init: each pack ships `minimal`/`standard`/`strict` blocks covering its slice, and `governance init` unions the chosen preset across all six (see [the preset table](#presets-per-pack-unioned-at-init)). Community packs live in their own repos and install via `governance pack add gh:<owner>/<repo>`. For authoring a **third-party pack**, see [PACK_AUTHORING.md](PACK_AUTHORING.md).
+Presets are **per-pack** and unioned at init: each pack ships `minimal`/`standard`/`strict` blocks covering its slice, and `governance init` unions the chosen preset across all five (see [the preset table](#presets-per-pack-unioned-at-init)). Community packs live in their own repos and install via `governance pack add gh:<owner>/<repo>`. For authoring a **third-party pack**, see [PACK_AUTHORING.md](PACK_AUTHORING.md).
 
 Most directives are **synchronous** — enforced by `check.sh` at a git hook and in CI. The `governance-kit/architecture` pack introduces a third surface, **`sweep`** (issue #142): a directive that ships `triage.sh` instead of `check.sh`, declares `engine: llm`, and is adjudicated asynchronously by a scheduled LLM-judge run that files a digest issue — it never gates a commit, push, or PR. See [SWEEP_FLOW.md](SWEEP_FLOW.md).
 
 The **Standards** column records the external standard a directive implements (OpenSSF Scorecard checks, CWE entries, …) so coverage and gaps are visible. It is advisory metadata (`standards:` in `directive.yaml`); empty cells are not failures, they are the roadmap.
 
-Several directives are **consolidated** — one directive rolling up multiple sub-checks over a shared surface: `required-docs`, `repo-hygiene`, `secrets-hygiene`, and `internal-doc-links`. Each sub-check is independently waivable, and a whole sub-check can be carved out for your repo with `governance directive modify`.
+Several directives are **consolidated** — one directive rolling up multiple sub-checks over a shared surface: `required-docs`, `repo-hygiene`, and `internal-doc-links`. Each sub-check is independently waivable, and a whole sub-check can be carved out for your repo with `governance directive modify`.
 
 ---
 
@@ -34,16 +33,6 @@ Repo scaffolding, working-tree hygiene, and managed-tree integrity — the docum
 | `required-docs` | — | Rolled-up presence check for repo-root docs and local-hook scaffolding. Sub-checks (all enabled): `constitution` (`CONSTITUTION.md` ≥ 10 lines); `agents` (`AGENTS.md` at repo root, 30–250 lines, ≥ 3 internal links, **and a link to `CONSTITUTION.md`**); `readme` (`README.md`/`.rst` with heading + ≥ 30 words); `license` (`LICENSE`/variants, non-empty); `security` (`SECURITY.md` with contact); `architecture` (`ARCHITECTURE.md` ≥ 20 lines); `ci-workflow` (≥ 1 non-governance workflow); `env-example` (every key in local `.env` is declared in `.env.example`); `hooks` (`.githooks/pre-commit` tracked + executable, `core.hooksPath=.githooks`; no-ops on non-`githooks` strategies). Scalars configurable via `.governance/conf/governance-kit/foundation/required-docs.conf`. To carve out a sub-check, use `governance directive modify`. |
 | `managed-tree-integrity` | — | The vendored `.governance/` tree matches the content digests recorded at apply time, so it changes only through the install/update verbs — never by hand. For every `packs.lock` pack entry with a `digest:` map, each vendored directive folder matches its recorded `sha256` (and no unrecorded directive folder appears); for every file in `install.yaml`'s `managed_digests:` map (`run.sh`, `lib.sh`, the CI workflow, and the sweep pair when installed), the file matches its recorded `sha256`. The local-only hook dispatchers (`.githooks/*` etc.) are **not** digested — they sit outside the CI trust chain, are intentionally bypassable, and are regenerated by the verbs (issue #267). Also asserts each managed file's `# governance-kit:managed kit-version=<v>` marker equals the manifest's `kit_version` (subsuming the former `kit-version-sync`). Works **offline in any repo** — it compares recorded digests, not upstream pack git objects. No-op for a pack/manifest with no recorded digests (pre-#253 installs gain coverage on their next `pack update` / `update`). Per-unit waiver via `.governance/conf/<owner>/<pack>/managed-tree-integrity.conf`. |
 | `repo-hygiene` | — | **`always_install: true`.** Rolled-up hygiene greps. Sub-checks: `merge-markers` (no `<<<<<<<` / `=======` / `>>>>>>>` at line start); `large-files` (no tracked file > 5 MB, override via `GOVERNANCE_MAX_FILE_SIZE_MB`); `build-artifacts` (denylist: `*.pyc`, `__pycache__/`, `*.class`, `*.o`, `node_modules/`, `dist/`, `build/`, `target/`, `out/`, `.DS_Store`, `Thumbs.db`, editor swap files); `debug-statements` (no `console.log` / `debugger` / `breakpoint()` / `import pdb` / `dbg!` / `fmt.Println` in non-test source; line-level waiver `# governance: allow-repo-hygiene <reason>`); `file-size-limit` (no source file > 500 lines, override via `GOVERNANCE_FILE_SIZE_LIMIT`; file-level waiver `governance: allow-repo-hygiene file-size-limit <reason>` in the first 10 lines). Scalars configurable via `.governance/conf/governance-kit/foundation/repo-hygiene.conf`. |
-
-## `governance-kit/security`
-
-Supply-chain and credential hygiene. The reference cut for the concern-pack model: `workflows-hardened` is split into the two OpenSSF Scorecard checks it fused.
-
-| Directive | Standards | What it checks |
-|---|---|---|
-| `secrets-hygiene` | CWE-798 | Rolled-up secret-scanning. Sub-checks: `hardcoded-credentials` (CWE-798) — heuristic scan for AWS / GCP / GitHub / Slack / Stripe / private-key patterns; waiver `# governance: allow-secrets-hygiene <reason>`; `dotenv` — `.env` is not tracked **and** is listed in `.gitignore`. To carve out a sub-check, use `governance directive modify`. |
-| `token-permissions` | OpenSSF Scorecard: Token-Permissions | Every `.github/workflows/*.yml` (or `*.yaml`) declares a `permissions:` block (top-level or per-job) so the workflow runs least-privilege rather than inheriting the repo's broad default token. File-level waiver: `# governance: allow-token-permissions <reason>` in the first ten lines of the workflow. |
-| `pinned-dependencies` | OpenSSF Scorecard: Pinned-Dependencies | Every third-party GitHub Action (outside `actions/*` and `github/*`) is pinned to a full 40-char commit SHA, not a moving tag. The future home for container-image digest pinning, `curl \| bash` install-command pinning, and manifest/lockfile sync. Line waiver: `# governance: allow-pinned-dependencies <reason>` on the `uses:` line. |
 
 ## `governance-kit/docs`
 
@@ -94,11 +83,11 @@ Semantic, LLM-adjudicated invariants about *intent* and *architectural shape* �
 
 ## Presets (per-pack, unioned at init)
 
-Each pack declares only the preset tiers it contributes to; `governance init` unions the chosen preset across all six bundled packs. The union reproduces the directive sets below.
+Each pack declares only the preset tiers it contributes to; `governance init` unions the chosen preset across all five bundled packs. The union reproduces the directive sets below.
 
 | Preset | Directives (unioned across all bundled packs) |
 |---|---|
-| `minimal`  | `required-docs`, `repo-hygiene`, `managed-tree-integrity`, `secrets-hygiene`, `token-permissions`, `pinned-dependencies`, `internal-doc-links` |
+| `minimal`  | `required-docs`, `repo-hygiene`, `managed-tree-integrity`, `internal-doc-links` |
 | `standard` | *minimal* + `doc-freshness`, `commit-message-format`, `issue-templates`, `issues-tracked`, `receipt-per-issue`, `commit-issue-receipt-match`, `agent-token-accounting`, `agent-steering-accounting`, `toolchain-config-protection`, `doc-integrity` |
 | `strict`   | *standard* + `no-orphan-todos`, `no-unjustified-suppressions`, `no-legacy-fallbacks`, `no-path-bifurcation` |
 

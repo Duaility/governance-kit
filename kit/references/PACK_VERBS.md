@@ -1,4 +1,4 @@
-<!-- last-verified: 2026-06-11 -->
+<!-- last-verified: 2026-06-15 -->
 
 # governance pack * — verb flows
 
@@ -14,7 +14,7 @@ Every pack — kit-bundled, community-installed, or hand-authored in this repo �
 
 - **Installed packs** carry a `source:` field in `pack.yaml` and a lockfile entry with `source: gh`. The pack came from a fetched ref and `pack update` will re-pin it.
 - **Repo-local packs** have no `source:` field in `pack.yaml`. They appear in the lockfile with `source: local` (no ref/sha) so `reset` can still find their directive list. `pack update` skips them.
-- **The kit's bundled concern packs** (`governance-kit/{foundation,security,docs,commits,audit}`) are fetched the same way community packs are — from `gh:duaility/governance-kit/packs/<pack>@<rev>`. Their lockfile entries have `source: gh`. `pack update` re-pins them like any other community pack. (The retired `builtin` source type — phase 2 of #114, #117 — is no longer accepted by `lock-add`.)
+- **The kit's bundled concern packs** (`governance-kit/{foundation,docs,commits,audit,architecture}`) are fetched the same way community packs are — from `gh:duaility/governance-kit/packs/<pack>@<rev>`. Their lockfile entries have `source: gh`. `pack update` re-pins them like any other community pack. (The retired `builtin` source type — phase 2 of #114, #117 — is no longer accepted by `lock-add`.)
 
 The runner walks `.governance/packs/*/*/directives/*/check.sh` uniformly — it does not branch on installed-vs-local.
 
@@ -37,15 +37,15 @@ YAML, `version: "2"`. **Every** installed pack — community, kit-core, repo-loc
 ```yaml
 version: "2"
 packs:
-  - id: governance-kit/security
+  - id: governance-kit/docs
     version: "0.2"
     source: gh
-    ref: gh:duaility/governance-kit/packs/security@security/v0.2.0
+    ref: gh:duaility/governance-kit/packs/docs@docs/v0.2.0
     sha: b33ec7a05be6c157a63b5f1a22d0102a1bf5a50c
-    subpath: packs/security
+    subpath: packs/docs
     directives:
-      - secrets-hygiene
-      - token-permissions
+      - internal-doc-links
+      - doc-freshness
 
   - id: acme/soc2
     version: "0.3"

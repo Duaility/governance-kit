@@ -155,12 +155,11 @@ The skill itself is a two-file shim; every verb executes from the kit version th
 
 ## What's bundled
 
-Six concern packs ship in-tree and install with `governance init` at your chosen preset (`minimal` / `standard` / `strict`):
+Five concern packs ship in-tree and install with `governance init` at your chosen preset (`minimal` / `standard` / `strict`):
 
 | Pack | Covers | Preset |
 |---|---|---|
 | `governance-kit/foundation` | Required docs, repo hygiene, managed-tree integrity | minimal |
-| `governance-kit/security` | Secrets hygiene, workflow permissions, pinned actions | minimal |
 | `governance-kit/docs` | Internal link integrity, doc freshness | minimal–standard |
 | `governance-kit/commits` | Conventional Commits + issue suffix, TODO and suppression discipline | standard–strict |
 | `governance-kit/audit` | The agent audit chain — receipts, cost, steering, record integrity | standard |
@@ -380,7 +379,7 @@ Edits in the clone flow to every linked runtime live — handy when contributing
 
 |  | Governs | Blocks a bad commit | Rationale travels with the rule | Agent audit trail |
 |---|---|:---:|:---:|:---:|
-| **Governance Kit** | Repo state — docs, security, commits, receipts, architecture | Yes | Yes — constitution + evolution log | Yes — issue → receipt → commit → cost |
+| **Governance Kit** | Repo state — docs, commits, receipts, architecture | Yes | Yes — constitution + evolution log | Yes — issue → receipt → commit → cost |
 | pre-commit · husky · lefthook | Hook execution | Yes | No | No |
 | [spec-kit](https://github.com/github/spec-kit) | One feature's spec → implementation | No | Per-spec | No |
 | Agent instruction files alone | What agents are told, not what they do | No | No | No |
