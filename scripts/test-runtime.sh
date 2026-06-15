@@ -448,6 +448,96 @@ exit_code=$?
 set -e
 assert_eq "waiver is scoped to the named directive id" 0 "$exit_code"
 
+# ---- lib.sh: sub-agent attestation infra (issue #272) ---------------------
+
+printf '── lib.sh: extract_md_section / attestation_prompt / require_attestation ─\n'
+att_doc="$WORK/att.md"
+cat > "$att_doc" <<'EOF'
+# Receipt
+
+## What changed
+
+did a thing.
+
+## Audit
+
+- PASS — what changed matches the diff.
+- REFUTED — checklist drifted from the issue.
+
+## Out of scope
+
+None.
+EOF
+
+# extract_md_section returns only the named section body, stopping at next `## `.
+output=$(set +u; source "$LIB_SH"; extract_md_section "$att_doc" "Audit")
+assert_contains "extract_md_section returns the section body"      "PASS — what changed" "$output"
+assert_contains "extract_md_section keeps the second body line"    "REFUTED — checklist" "$output"
+if printf '%s' "$output" | grep -q 'Out of scope'; then
+    assert_eq "extract_md_section stops at the next heading" stop nostop
+else
+    assert_eq "extract_md_section stops at the next heading" stop stop
+fi
+# Case-insensitive heading match.
+output=$(set +u; source "$LIB_SH"; extract_md_section "$att_doc" "audit")
+assert_contains "extract_md_section matches heading case-insensitively" "PASS — what changed" "$output"
+
+# attestation_prompt renders the canonical envelope with numbered checks.
+output=$(set +u; source "$LIB_SH"; attestation_prompt "Audit" "the diff and the issue" "check one" "check two")
+assert_contains "attestation_prompt names the inputs"        "the diff and the issue" "$output"
+assert_contains "attestation_prompt numbers the first check" "(1) check one" "$output"
+assert_contains "attestation_prompt numbers the second check" "(2) check two" "$output"
+assert_contains "attestation_prompt names the target section" "into a '## Audit' section" "$output"
+assert_contains "attestation_prompt states the no-spawn invariant" "hook never spawns" "$output"
+
+# require_attestation: present + verdict-bearing section → no violation, returns 0.
+set +e
+output=$(
+    set +u
+    source "$LIB_SH"
+    directive_start "att-ok"
+    require_attestation "$att_doc" "Audit" "why." "the diff" "check one"
+    echo "rc=$?"
+    directive_end
+)
+exit_code=$?
+set -e
+assert_eq "require_attestation passes a well-formed section" 0 "$exit_code"
+assert_contains "require_attestation returns 0 on well-formed section" "rc=0" "$output"
+
+# require_attestation: missing section → violation carrying the why + prompt.
+missing_doc="$WORK/no-audit.md"
+printf '# Receipt\n\n## What changed\n\ndid a thing.\n' > "$missing_doc"
+set +e
+output=$(
+    set +u
+    source "$LIB_SH"
+    directive_start "att-missing"
+    require_attestation "$missing_doc" "Audit" "MECHANICAL-GAP." "the diff" "check one"
+    directive_end
+)
+exit_code=$?
+set -e
+assert_eq "require_attestation fails when the section is missing" 1 "$exit_code"
+assert_contains "missing-section violation carries the why"    "MECHANICAL-GAP." "$output"
+assert_contains "missing-section violation carries the prompt"  "Spawn a fresh-context sub-agent" "$output"
+
+# require_attestation: present but no PASS/REFUTED verdict → violation.
+noverdict_doc="$WORK/no-verdict.md"
+printf '# Receipt\n\n## Audit\n\nlooked fine to me.\n' > "$noverdict_doc"
+set +e
+output=$(
+    set +u
+    source "$LIB_SH"
+    directive_start "att-noverdict"
+    require_attestation "$noverdict_doc" "Audit" "why." "the diff" "check one"
+    directive_end
+)
+exit_code=$?
+set -e
+assert_eq "require_attestation fails when the section has no verdict" 1 "$exit_code"
+assert_contains "no-verdict violation explains the missing verdict" "records no PASS/REFUTED verdict" "$output"
+
 # ---- lib.sh: conf_file / conf_get / conf_rule_lines -----------------------
 
 printf '── lib.sh: conf_file / conf_get / conf_rule_lines ──────\n'

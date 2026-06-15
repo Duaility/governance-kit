@@ -80,6 +80,7 @@ governance-kit/
 │   │                            #   VERBS.md, DIRECTIVE_VERBS.md, PACK_VERBS.md,
 │   │                            #   DIRECTIVES_CATALOG.md, PACK_AUTHORING.md, NATIVE_TESTS.md,
 │   │                            #   DIRECTIVE_AUTHORING.md, UNINSTALL_MATRIX.md,
+│   │                            #   SUBAGENT_ATTESTATION.md,
 │   │                            #   INSTALL_SCHEMA.md, LOCK_SCHEMA.md.
 │   └── evals/                   # Behavioral fixtures for the verbs.
 ├── .governance/            # Directive tests for THIS repo (dogfood).
@@ -181,6 +182,7 @@ Edits to source files flow to both runtimes live.
 - [kit/references/DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md) — every ready-made directive and its check.
 - [kit/references/PACK_AUTHORING.md](kit/references/PACK_AUTHORING.md) — writing a third-party pack.
 - [kit/references/SWEEP_FLOW.md](kit/references/SWEEP_FLOW.md) — the off-commit-path LLM-judge lane (`surface: sweep`, issue #142).
+- [kit/references/SUBAGENT_ATTESTATION.md](kit/references/SUBAGENT_ATTESTATION.md) — the shared sub-agent-attestation infra: a directive gates a section a fresh-context sub-agent must populate, via the remediation loop (issue #272).
 - [kit/references/NATIVE_TESTS.md](kit/references/NATIVE_TESTS.md) — porting bash directives to pytest / jest / go test, husky / pre-commit.com snippets.
 - [kit/references/VERSIONING.md](kit/references/VERSIONING.md) — the two version axes (kit vs pack), the semver policy, the tag scheme, and the release procedure.
 - [README.md](README.md) — the public-facing overview.

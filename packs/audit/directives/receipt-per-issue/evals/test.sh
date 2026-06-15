@@ -451,6 +451,14 @@ bash .governance/run.sh
 
 The spec left the module boundary unspecified, so this was scoped to the
 loader only to keep the blast radius small.
+
+## Audit
+
+Fresh-context sub-agent audit against the diff and the issue:
+
+- PASS — `## What changed` faithfully describes the diff.
+- PASS — the checked item is realized in the diff.
+- PASS — the `## Checklist` mirrors the issue's checklist.
 EOF
 stage_all
 EVAL_LABEL="$EVAL_ID added-with-decisions" expect_pass "$CHECK"
@@ -481,6 +489,12 @@ npm test
 ## Decisions
 
 None.
+
+## Audit
+
+- PASS — `## What changed` matches the diff.
+- PASS — the checked item is in the diff.
+- PASS — checklist mirrors the issue.
 EOF
 stage_all
 EVAL_LABEL="$EVAL_ID added-decisions-none" expect_pass "$CHECK"
@@ -620,6 +634,12 @@ bash .governance/run.sh
 
 None.
 
+## Audit
+
+- PASS — `## What changed` matches the diff.
+- PASS — the checked item is in the diff.
+- PASS — checklist mirrors the issue.
+
 ## Accounting
 
 ### Costs
@@ -652,5 +672,264 @@ cat > receipts/issue-42-partial.md <<'EOF'
 EOF
 stage_all
 EVAL_LABEL="$EVAL_ID partial-narrative-not-stub" expect_fail "$CHECK"
+
+# ── `## Audit` section (issue #272), change-set scoped ──
+# A newly added receipt must carry a well-formed `## Audit` section — a
+# fresh-context sub-agent's PASS/REFUTED verdict against the diff and the issue.
+# Gated through the shared `require_attestation` infra in lib.sh.
+
+# fail — a newly added (staged) receipt that is otherwise complete but missing
+#        the `## Audit` section
+rm -f receipts/*.md
+cat > receipts/issue-50-no-audit.md <<'EOF'
+# No audit section
+
+## Checklist
+
+- [x] thing
+
+## What changed
+
+thing happened.
+
+## Out of scope
+
+None.
+
+## Verification
+
+```sh
+bash .governance/run.sh
+```
+
+## Decisions
+
+None.
+EOF
+stage_all
+EVAL_LABEL="$EVAL_ID added-missing-audit" expect_fail "$CHECK"
+
+# fail — `## Audit` section exists but records no PASS/REFUTED verdict (an empty
+#        or hand-waved block does not satisfy the attestation gate)
+rm -f receipts/*.md
+cat > receipts/issue-51-audit-no-verdict.md <<'EOF'
+# Audit without a verdict
+
+## Checklist
+
+- [x] thing
+
+## What changed
+
+thing happened.
+
+## Out of scope
+
+None.
+
+## Verification
+
+```sh
+bash .governance/run.sh
+```
+
+## Decisions
+
+None.
+
+## Audit
+
+I looked at the diff and it seems fine.
+EOF
+stage_all
+EVAL_LABEL="$EVAL_ID added-audit-no-verdict" expect_fail "$CHECK"
+
+# pass — a newly added receipt whose `## Audit` records a REFUTED verdict is
+#        still well-formed (the gate is presence + a verdict, not its truth)
+rm -f receipts/*.md
+cat > receipts/issue-52-audit-refuted.md <<'EOF'
+# Audit with a REFUTED verdict
+
+## Checklist
+
+- [x] thing
+
+## What changed
+
+thing happened.
+
+## Out of scope
+
+None.
+
+## Verification
+
+```sh
+bash .governance/run.sh
+```
+
+## Decisions
+
+None.
+
+## Audit
+
+- REFUTED — `## What changed` omits a touched file; see file-coverage.
+- PASS — the checked item is in the diff.
+- PASS — checklist mirrors the issue.
+EOF
+stage_all
+EVAL_LABEL="$EVAL_ID added-audit-refuted-ok" expect_pass "$CHECK"
+
+# ── Rule 6: file coverage (issue #272), change-set scoped ──
+# Every file changed in the change set must be named in some receipt added in
+# that change set. With no base branch the change set is the staged additions.
+
+# fail — a complete receipt is staged alongside a code file it never names
+rm -f receipts/*.md
+rm -rf src
+mkdir -p src
+printf 'def orphan():\n    return 1\n' > src/orphan.py
+cat > receipts/issue-53-scope-creep.md <<'EOF'
+# Scope creep
+
+## Checklist
+
+- [x] add the widget
+
+## What changed
+
+Added the widget loader.
+
+## Out of scope
+
+None.
+
+## Verification
+
+```sh
+bash .governance/run.sh
+```
+
+## Decisions
+
+None.
+
+## Audit
+
+- PASS — `## What changed` describes the diff.
+- PASS — the checked item is in the diff.
+- PASS — checklist mirrors the issue.
+EOF
+stage_all
+EVAL_LABEL="$EVAL_ID file-coverage-uncited" expect_fail "$CHECK"
+
+# pass — same change set, but the receipt now names the changed file
+rm -f receipts/*.md
+cat > receipts/issue-54-covers-file.md <<'EOF'
+# Covers the file
+
+## Checklist
+
+- [x] add src/orphan.py
+
+## What changed
+
+add `src/orphan.py` with the orphan helper.
+
+## Out of scope
+
+None.
+
+## Verification
+
+```sh
+bash .governance/run.sh
+```
+
+## Decisions
+
+None.
+
+## Audit
+
+- PASS — `## What changed` describes the diff (names src/orphan.py).
+- PASS — the checked item is in the diff.
+- PASS — checklist mirrors the issue.
+EOF
+stage_all
+EVAL_LABEL="$EVAL_ID file-coverage-cited" expect_pass "$CHECK"
+
+# pass — an auto-maintained ledger (COSTS.md) changed in the set is exempt from
+#        coverage even though no receipt names it
+rm -f receipts/*.md
+rm -rf src
+printf '# Costs\n\nledger row\n' > COSTS.md
+cat > receipts/issue-55-ledger-exempt.md <<'EOF'
+# Ledger exempt
+
+## Checklist
+
+- [x] do the thing
+
+## What changed
+
+do the thing.
+
+## Out of scope
+
+None.
+
+## Verification
+
+```sh
+bash .governance/run.sh
+```
+
+## Decisions
+
+None.
+
+## Audit
+
+- PASS — `## What changed` describes the diff.
+- PASS — the checked item is in the diff.
+- PASS — checklist mirrors the issue.
+EOF
+stage_all
+EVAL_LABEL="$EVAL_ID file-coverage-ledger-exempt" expect_pass "$CHECK"
+rm -f COSTS.md
+
+# pass — coverage is skipped when the change set adds no receipt to anchor it:
+#        a committed (pre-existing) receipt plus a staged code file the receipt
+#        does not name is not flagged (the receipt is not a staged addition, and
+#        with no base branch the branch walk contributes nothing)
+rm -f receipts/*.md
+cat > receipts/issue-56-committed.md <<'EOF'
+# Committed receipt
+
+## Checklist
+
+- [x] thing
+
+## What changed
+
+thing happened.
+
+## Out of scope
+
+None.
+
+## Verification
+
+ok
+EOF
+stage_all
+commit_quiet "docs: committed receipt for no-anchor coverage case"
+mkdir -p src
+printf 'def later():\n    return 2\n' > src/later.py
+stage_all
+EVAL_LABEL="$EVAL_ID file-coverage-no-anchor-skips" expect_pass "$CHECK"
+rm -rf src
 
 eval_done
