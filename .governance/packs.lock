@@ -4,6 +4,7 @@ packs:
   version: '0.1'
   source: local
   directives:
+  - architecture-map-holds
   - consumed-tree-integrity
 - id: governance-kit/architecture
   version: 0.2.1

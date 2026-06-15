@@ -2,6 +2,66 @@
 
 How `governance-kit` is organised, and how the pieces fit together.
 
+## Layer map
+
+The layer / responsibility model for `governance-kit` itself, carried as code so
+it diffs as text and is gated against drift by the repo-local
+`architecture-map-holds` directive. The **skill** installs the **kit**; the kit
+**consumes** the **packs**; the arrows only ever point downward.
+
+```mermaid
+flowchart LR
+  subgraph repo["governance-kit"]
+    direction TB
+    skill["governance skill — the installer<br/>install · update · uninstall<br/>skill/"]
+    kit["the kit — kit/vX.Y.Z — the product<br/>engine · flows · assets · all verbs<br/>kit/"]
+    packs["packs — governance-kit/&lt;concern&gt;/vX.Y.Z<br/>directive content, lock-pinned<br/>packs/"]
+    skill -->|installs · updates| kit
+    kit -->|consumes| packs
+  end
+  subgraph analogy["≈ a language toolchain manager"]
+    direction TB
+    rustup["≈ rustup — the version manager"]
+    toolchain["≈ the toolchain — compiler · libs · tools"]
+    lockfile["≈ the lockfile — pinned dependencies"]
+  end
+  skill -.->|same role| rustup
+  kit   -.->|same role| toolchain
+  packs -.->|same role| lockfile
+```
+
+> The repo decides its versions: `.governance/install.yaml` pins the kit ·
+> `.governance/packs.lock` pins the packs · the skill just honors the pin. In
+> rustup terms: `install.yaml` ≈ `rust-toolchain.toml`, `packs.lock` ≈
+> `Cargo.lock`.
+
+### What the gate checks
+
+`architecture-map-holds` (repo-local; `surface: repo-state`, runs on
+`pre-commit` and in CI) fails the build when the picture drifts from the real
+tree:
+
+| Diagram claim | Real path | Mechanically gated |
+|---|---|---|
+| skill = installer, carries no kit code/version | `skill/` (only `SKILL.md` + `bootstrap.py`) | yes — no kit version string and nothing but those two files under `skill/` |
+| kit = product | `kit/` | yes — path resolves and is named in the block |
+| packs = lock-pinned content | `packs/` | yes — path resolves and is named in the block |
+| repo pins kit + packs | `.governance/install.yaml` (`kit_version`), `.governance/packs.lock` | yes — both pins present and non-empty |
+| skill → kit → packs, no upward edge | the arrows above | yes — the block carries both downward edges and no upward edge |
+
+Every path the diagram names is tagged below so the check can confirm it still
+resolves; renaming a layer without updating the map fails the gate. The rustup
+analogy is prose, not a gated claim — it stays audit-only (issue #271's bucket
+ladder), as does "the kit hardcodes no pack version" (docs and examples
+legitimately mention pinned pack tags, so a mechanical form would only breed
+waivers).
+
+<!-- architecture-map-holds: each tagged token must (a) resolve to a real path
+     and (b) appear verbatim in the mermaid block above. Renames fail the gate. -->
+<!-- arch-map-path: skill/ -->
+<!-- arch-map-path: kit/ -->
+<!-- arch-map-path: packs/ -->
+
 ## Surfaces
 
 `governance-kit` ships one agent-runtime skill plus the pack tree.
