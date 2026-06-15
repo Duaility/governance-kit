@@ -120,6 +120,88 @@ has_file_waiver() {
         | grep -q "governance: allow-${directive} ${subcheck}"
 }
 
+# ── Sub-agent attestation sections (issues #271, #272) ──────────────────────
+# Some directives need a section a *fresh-context sub-agent* must populate — one
+# that read ground truth (the diff, the issue) the code-author's reasoning never
+# contaminated. That independence is the author≠auditor split happening at
+# author-time. A pre-commit hook can neither spawn a sub-agent nor judge its
+# output, so these directives follow the standard GDD remediation loop:
+#   * check.sh enforces only that the section is PRESENT and carries a verdict;
+#   * when it is missing, the *violation message is the authoring instruction* —
+#     the harness agent reads it, spawns the sub-agent, the sub-agent writes the
+#     section, the commit is retried;
+#   * the hook never spawns anything, and a bare/CI commit with no agent simply
+#     hard-fails on the missing section (correct — the audit step did not run).
+# check.sh can demand the attestation's PRESENCE, never manufacture or verify
+# its CONTENT; re-deriving the recorded verdict is the merge-time sweep lane's
+# job (deferred, out of scope here). These helpers are the shared infra so any
+# directive — not just one — can gate an attestation section the same way.
+
+# extract_md_section <file> <heading>
+#   Print the body of the `## <heading>` section (case-insensitive heading
+#   match), stopping at the next `## ` heading. The generic markdown-section
+#   reader shared by directives that inspect a named section.
+extract_md_section() {
+    local file="$1" heading="$2"
+    awk -v h="$heading" '
+        BEGIN { in_section = 0 }
+        /^##[[:space:]]+/ {
+            if (in_section) exit
+            line = $0
+            sub(/^##[[:space:]]+/, "", line)
+            sub(/[[:space:]]+$/, "", line)
+            if (tolower(line) == tolower(h)) {
+                in_section = 1
+                next
+            }
+        }
+        { if (in_section) print }
+    ' "$file"
+}
+
+# attestation_prompt <section> <inputs> <check-1> [<check-2> ...]
+#   Print the canonical sub-agent authoring instruction. One envelope so every
+#   attestation-backed directive emits the same recognizable instruction; the
+#   directive supplies only what varies — the section name, the <inputs> the
+#   sub-agent must be handed, and the numbered checks it must adjudicate.
+attestation_prompt() {
+    local section="$1" inputs="$2"
+    shift 2
+    local numbered="" i=1
+    local c
+    for c in "$@"; do
+        numbered+="($i) ${c}; "
+        i=$((i + 1))
+    done
+    numbered="${numbered%; }"
+    printf 'Spawn a fresh-context sub-agent with exactly these inputs — %s — and have it report PASS/REFUTED + evidence for each: %s. Default to REFUTED if uncertain. Write the findings into a '\''## %s'\'' section, then re-stage and re-commit. The hook never spawns the sub-agent itself.' \
+        "$inputs" "$numbered" "$section"
+}
+
+# require_attestation <file> <section> <why> <inputs> <check-1> [<check-2> ...]
+#   The deterministic gate. Records a `violation` when <file> lacks a
+#   well-formed `## <section>`:
+#     * absent          → <why> + the attestation_prompt authoring instruction;
+#     * present but with no PASS/REFUTED verdict → a "fill in the verdict"
+#       message.
+#   Returns 0 when the section is well-formed, 1 otherwise (callers may branch).
+#   Purely mechanical: presence + a verdict token, never the verdict's truth.
+require_attestation() {
+    local file="$1" section="$2" why="$3" inputs="$4"
+    shift 4
+    if ! grep -qE "^##[[:space:]]+${section}\b" "$file"; then
+        violation "$file — missing a '## ${section}' section. ${why} $(attestation_prompt "$section" "$inputs" "$@")"
+        return 1
+    fi
+    local body
+    body="$(extract_md_section "$file" "$section")"
+    if ! printf '%s\n' "$body" | grep -qiE '\b(PASS|REFUTED)\b'; then
+        violation "$file — '## ${section}' section records no PASS/REFUTED verdict; the sub-agent must report a verdict + evidence for each check this directive names."
+        return 1
+    fi
+    return 0
+}
+
 # ── Per-directive configuration ────────────────────────────────────────────
 # Configuration is exactly two artifacts, one writer each (issue #210):
 #   * the pack-owned `defaults.conf` next to the directive's `check.sh` — the
