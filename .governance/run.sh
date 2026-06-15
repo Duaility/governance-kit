@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# governance-kit:managed kit-version=0.9.0
+# governance-kit:managed kit-version=0.10.0
 # Governance test runner. Discovers every directive under ./packs/<owner>/<name>/.
 # Directives are folder-shaped — each directive is `directives/<id>/check.sh`.
 # Anything the directive needs (lib/, hooks/, runtimes/) lives in the same folder.
@@ -36,7 +36,7 @@ fi
 
 # Single-directive filter. A bare id (`run.sh required-docs`) runs every
 # directive with that id — across packs, all homonyms run. A pack-qualified id
-# (`run.sh governance-kit/security/secrets-hygiene`) runs exactly one. Identity
+# (`run.sh governance-kit/foundation/repo-hygiene`) runs exactly one. Identity
 # is `<owner>/<pack>/<id>`; the short id is a given name, not a global claim.
 if [[ $# -gt 0 ]]; then
     filter="$1"

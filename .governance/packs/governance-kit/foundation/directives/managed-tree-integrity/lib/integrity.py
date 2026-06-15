@@ -36,7 +36,8 @@ EXCLUDED_DIRS = ("evals", "install-assets", "__pycache__")
 # Seed-once sweep-lane assets (issue #259): the apply engines digest-record them
 # (via digestlib.managed_runtime_files), but they are *seeded* with the kit
 # version current at seed time and never re-stamped on a kit update — unlike the
-# four manifest-scalar runtime files, nothing re-renders them forward. Their
+# three manifest-scalar runtime files (run.sh, lib.sh, the CI workflow), nothing
+# re-renders them forward. Their
 # `kit-version=` marker therefore legitimately diverges from the manifest pin, so
 # they are exempt from the marker-version equality check below (issue #263). The
 # digest check still guards their content fully — the marker line is inside the
