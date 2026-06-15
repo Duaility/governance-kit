@@ -38,15 +38,14 @@
     },
     {
       "id": 3,
-      "prompt": "Run governance init for this repo. It's a Go service — keep the rule set tight, no stylistic stuff, and make sure security rules are included.",
-      "expected_output": "The Security directives from `governance-kit/security` (e.g. `secrets-hygiene`, `token-permissions`, `pinned-dependencies`) are enabled. Go-relevant directives are chosen over Python/JS-specific ones. Stylistic directives are NOT enabled. The skill's summary explains which categories were included and which were deliberately dropped.",
+      "prompt": "Run governance init for this repo. It's a Go service — keep the rule set tight and skip anything stylistic.",
+      "expected_output": "A tight, foundation-leaning rule set is enabled (e.g. `required-docs`, `repo-hygiene`, `managed-tree-integrity`, `internal-doc-links`). Go-relevant directives are chosen over Python/JS-specific ones. Stylistic directives are NOT enabled. The skill's summary explains which categories were included and which were deliberately dropped.",
       "files": ["files/go-service-repo/"],
       "assertions": [
-        "A directive folder for a secrets / key-material check exists under `.governance/packs/governance-kit/security/directives/` (e.g. `secrets-hygiene/check.sh`)",
-        "Workflow-hardening directives (`token-permissions`, `pinned-dependencies`) exist under `.governance/packs/governance-kit/security/directives/` or were explicitly skipped with a reason",
+        "Foundation directive folders exist under `.governance/packs/governance-kit/foundation/directives/` (e.g. `required-docs/check.sh`, `repo-hygiene/check.sh`)",
         "No directive folders targeting Python-only or JS-only patterns (e.g., `no-pdb`, `no-console-log`) were installed",
-        "The skill's summary explicitly names the Security category (or equivalent preset-derived directive set) as enabled and stylistic directives as deliberately excluded",
-        "`.governance/packs.lock` has a `governance-kit/security` entry whose `directives:` list reflects the Security-leaning selection",
+        "The skill's summary explicitly names the enabled categories (or equivalent preset-derived directive set) and stylistic directives as deliberately excluded",
+        "`.governance/packs.lock` reflects the tight selection across the bundled packs",
         "`bash .governance/run.sh` exits 0 on the seeded clean Go repo"
       ]
     },

@@ -1,4 +1,4 @@
-<!-- last-verified: 2026-04-24 -->
+<!-- last-verified: 2026-06-15 -->
 
 # AGENTS.md
 
@@ -39,7 +39,7 @@ Escape hatches: `SKIP_GOVERNANCE=1 git commit ...` or `git commit --no-verify` s
 
 ### The dogfood: a protected consumer
 
-This repo is a **normal consumer of its own product**: `.governance/` is exactly what `governance install` produces for a repo pinned at **real release tags**. The bundled concern packs (`governance-kit/{foundation,security,docs,commits,audit,architecture}`) are pinned in [.governance/packs.lock](.governance/packs.lock) at published `<pack>/vX.Y.Z` tags, and the vendored tree under `.governance/packs/` — plus the runtime files (`run.sh`, `lib.sh`, the hook dispatchers) — is materialized from those pins. It moves **only** in post-release `governance pack update` / `governance update` PRs, never by hand. So `.governance/` lags `packs/` and `kit/` by one release **by design**: every release thereby exercises the `update` flow.
+This repo is a **normal consumer of its own product**: `.governance/` is exactly what `governance install` produces for a repo pinned at **real release tags**. The bundled concern packs (`governance-kit/{foundation,docs,commits,audit,architecture}`) are pinned in [.governance/packs.lock](.governance/packs.lock) at published `<pack>/vX.Y.Z` tags, and the vendored tree under `.governance/packs/` — plus the runtime files (`run.sh`, `lib.sh`, the hook dispatchers) — is materialized from those pins. It moves **only** in post-release `governance pack update` / `governance update` PRs, never by hand. So `.governance/` lags `packs/` and `kit/` by one release **by design**: every release thereby exercises the `update` flow.
 
 **Do not hand-edit anything under `.governance/`.** Its integrity is guarded the way every consumer's is: the install/update verbs record a content digest of each managed unit (per-directive in `packs.lock`, per-runtime-file in `install.yaml`), and the bundled [`managed-tree-integrity`](packs/foundation/directives/managed-tree-integrity/) directive recomputes those digests on every commit — a hand-edit changes a digest and fails the check, offline, in any repo. (During the transition the repo-local `consumed-tree-integrity` directive still byte-matches the vendored tree against its pins; it is retired once `managed-tree-integrity` reaches the vendored tree at the next release.)
 
@@ -66,7 +66,7 @@ governance-kit/
 │   │   ├── catalog.schema.json      # JSON Schema for catalog entries.
 │   │   └── packs/lib/           # Shared pack tooling (packs.sh, install.sh, hooks.sh, …).
 ├── packs/                       # Kit-bundled concern packs (source of truth).
-│   └── <concern>/               # foundation, security, docs, commits, audit, architecture
+│   └── <concern>/               # foundation, docs, commits, audit, architecture
 │       ├── pack.yaml            # pack id + presets
 │       └── directives/
 │           └── <directive-id>/  # self-contained directive folder
@@ -108,8 +108,8 @@ Do not edit [CONSTITUTION.md](CONSTITUTION.md) by hand. Invoke the `governance` 
 
 ### Adding a new directive to the catalog
 
-Directives live inside **packs**, each at its own pack root. The kit ships six
-bundled concern packs — `governance-kit/{foundation,security,docs,commits,audit,architecture}`,
+Directives live inside **packs**, each at its own pack root. The kit ships five
+bundled concern packs — `governance-kit/{foundation,docs,commits,audit,architecture}`,
 each at `packs/<concern>/` (`architecture` holds the off-commit-path,
 LLM-adjudicated `surface: sweep` directives — see
 [kit/references/SWEEP_FLOW.md](kit/references/SWEEP_FLOW.md)). Community packs are authored in their own

@@ -1,4 +1,4 @@
-<!-- last-verified: 2026-06-09 -->
+<!-- last-verified: 2026-06-15 -->
 
 # Release flow
 
@@ -17,8 +17,8 @@ treat any out-of-band edit to a managed file's version marker as drift.
 
 ## When to cut which axis
 
-- **`<pack>`** (a concern-pack name: `foundation`, `security`, `docs`,
-  `commits`, `audit`) — a directive-content change has
+- **`<pack>`** (a concern-pack name: `foundation`, `docs`, `commits`,
+  `audit`, `architecture`) — a directive-content change has
   merged in that pack (new/changed/removed directive, preset edit, `check.sh`
   fix). Bumps that pack's `packs/<pack>/pack.yaml` `version` and cuts a
   `<pack>/vX.Y.Z` tag. Tag **lazily** — one invocation per pack whose subtree

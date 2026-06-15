@@ -21,10 +21,10 @@ falls back to the installed skill and records that provenance.
 Directives are grouped into **packs** — self-contained directories that bundle directives, their constitution snippets, and hook declarations. Five concern-scoped packs ship in-tree today, under `packs/<concern>/` (source-of-truth in this monorepo; consumers fetch via `gh:duaility/governance-kit/packs/<concern>@<rev>`):
 
 - **`governance-kit/foundation`** — `required-docs`, `repo-hygiene`, `managed-tree-integrity`.
-- **`governance-kit/security`** — `secrets-hygiene`, `token-permissions`, `pinned-dependencies`.
 - **`governance-kit/docs`** — `internal-doc-links`, `doc-freshness`.
 - **`governance-kit/commits`** — `commit-message-format`, `no-orphan-todos`, `no-unjustified-suppressions`.
 - **`governance-kit/audit`** — a trustworthy record of agent work: issue → receipt → commit traceability (`issue-templates` → `issues-tracked` → `receipt-per-issue` → `commit-issue-receipt-match`), cost + steering accounting (`agent-token-accounting`, `agent-steering-accounting`), and the tamper protection that keeps those records honest (`doc-integrity`, `toolchain-config-protection`).
+- **`governance-kit/architecture`** — `no-legacy-fallbacks`, `no-path-bifurcation` (off-commit-path `surface: sweep` directives, opt-in `strict`).
 
 `governance init` unions each pack's chosen preset across all bundled packs (see Step 3).
 
@@ -174,7 +174,7 @@ The loader is a bash wrapper around
 YAML. If `uv` is unavailable, stop and tell the user pack discovery
 requires `uv` (or install it before continuing).
 
-Every `<root>/<pack-dir>/pack.yaml` is a pack. Pack ids are scoped (`<author>/<slug>` — e.g. `governance-kit/security`, `acme/widgets`); the directory name is the slug half. Directive metadata lives inside each directive's folder (`<pack-dir>/directives/<directive-id>/directive.yaml`) — the loader surfaces it via `directives_for` and `directive_field`. For each pack, build an in-memory catalog of:
+Every `<root>/<pack-dir>/pack.yaml` is a pack. Pack ids are scoped (`<author>/<slug>` — e.g. `governance-kit/docs`, `acme/widgets`); the directory name is the slug half. Directive metadata lives inside each directive's folder (`<pack-dir>/directives/<directive-id>/directive.yaml`) — the loader surfaces it via `directives_for` and `directive_field`. For each pack, build an in-memory catalog of:
 
 - pack id, name, description, version (from `pack.yaml`)
 - declared presets (`minimal`, `standard`, `strict`, plus any pack-specific ones — from `pack.yaml`)

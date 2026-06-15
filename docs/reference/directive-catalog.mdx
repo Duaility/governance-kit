@@ -1,17 +1,17 @@
 ---
 title: 'Directive catalog'
-summary: 'Everything the six bundled governance-kit concern packs ship, organized by pack and preset.'
+summary: 'Everything the five bundled governance-kit concern packs ship, organized by pack and preset.'
 ---
 
 # Directive catalog
 
-Everything below ships in the kit's six bundled concern packs — `governance-kit/{foundation,security,docs,commits,audit,architecture}`. Community packs bring their own directives; this is what you get out of the box at `governance init`.
+Everything below ships in the kit's five bundled concern packs — `governance-kit/{foundation,docs,commits,audit,architecture}`. Community packs bring their own directives; this is what you get out of the box at `governance init`.
 
 ## Presets
 
 | Preset | What it adds |
 |---|---|
-| `minimal` | `required-docs`, `repo-hygiene`, `managed-tree-integrity`, `secrets-hygiene`, `token-permissions`, `pinned-dependencies`, `internal-doc-links` |
+| `minimal` | `required-docs`, `repo-hygiene`, `managed-tree-integrity`, `internal-doc-links` |
 | `standard` | *minimal* + `doc-freshness`, `commit-message-format`, and the full audit pack: `issue-templates`, `issues-tracked`, `receipt-per-issue`, `commit-issue-receipt-match`, `agent-token-accounting`, `agent-steering-accounting`, `doc-integrity`, `toolchain-config-protection` |
 | `strict` | *standard* + `no-orphan-todos`, `no-unjustified-suppressions`, and the opt-in `architecture` sweep pack |
 
@@ -29,17 +29,6 @@ Everything below ships in the kit's six bundled concern packs — `governance-ki
 
 ### repo-hygiene
 `minimal` · Five sub-checks: no merge-conflict markers; no files over the size limit (default 5 MB); no committed build artifacts (`node_modules/`, `dist/`, `*.pyc`, …); no debug statements (`console.log`, `debugger`, `pdb`); no source files over the line limit (default 500). Limits are env-tunable; waivers are line- or file-level.
-
-## governance-kit/security
-
-### secrets-hygiene
-`minimal` · Two sub-checks: a heuristic scan for high-confidence secret patterns (AWS, GCP, GitHub, Slack, Stripe, private keys) in tracked files, and `.env` being untracked + gitignored. The remediation order in the docs is deliberate: **rotate first, then remove** — a leaked credential is compromised the moment it is committed.
-
-### token-permissions
-`minimal` · Every GitHub Actions workflow declares a least-privilege `permissions:` block, avoiding default-token foot-guns.
-
-### pinned-dependencies
-`minimal` · Third-party GitHub Actions are pinned to a full 40-char commit SHA, not a mutable tag.
 
 ## governance-kit/docs
 
