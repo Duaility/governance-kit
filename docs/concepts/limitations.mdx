@@ -1,6 +1,6 @@
 ---
 title: 'Limitations'
-summary: 'Honest constraints — what the commit path can and cannot enforce, what the sweep lane does not promise, what the accounting depends on, and the V0 stability posture.'
+summary: 'Honest constraints — what the commit path can and cannot enforce, what the accounting depends on, and the V0 stability posture.'
 ---
 
 # Limitations
@@ -12,17 +12,11 @@ Knowing where the edges are is part of the trust story. These are the constraint
 Commit-path checks must be **deterministic, fast, and offline** — same repo state, same verdict, no network, target under a second. That ceiling is deliberate (a flaky hook is a skipped hook), but it means:
 
 - Rules that need external state (an API, a ticket system, a database) cannot be commit-path directives.
-- Rules about *intent and architectural shape* are beyond grep — they belong to the [sweep lane](/concepts/sweep-lane), which is advisory by design.
+- Rules about *intent and architectural shape* are beyond grep — for those, escalate to sub-agent attestations that record an accountable judgment at author-time.
 
 ## Local hooks are a convenience, not the contract
 
 `SKIP_GOVERNANCE=1` and `--no-verify` exist, on purpose, for local hotfixes. The contract is CI: every directive re-runs on every PR. If your threat model requires that no non-compliant commit can ever be *created* locally, Governance Kit does not provide that — it guarantees non-compliant work cannot *merge*.
-
-## The sweep lane is advisory and model-dependent
-
-- Verdicts come from an LLM judge: calibrated against fixtures with a precision floor, budget-capped, and pinned to a capability tier — but not deterministic the way a grep is.
-- A scheduled sweep needs a model-API token in CI; without one, only the deterministic echo stub runs (useful for tests, not for enforcement).
-- Findings arrive as a digest issue, not a blocked commit. Promotion to a gate is a future, per-directive decision contingent on precision history.
 
 ## The accounting depends on runtime cooperation
 
@@ -43,3 +37,5 @@ Governance Kit is pre-1.0. The two semver axes are honored (see [Versioning](/co
 - **Not a linter** — formatting opinions belong in formatters; directives encode governance.
 - **Not a spec tool** — [spec-kit](https://github.com/github/spec-kit)-style workflows answer "what should this feature do?"; Governance Kit answers "what must every commit satisfy?". They compose.
 - **Not an agent firewall** — it shapes and audits what agents commit; it does not sandbox what they execute.
+
+Next: the [Verbs reference](/reference/verbs) — every lifecycle operation in one place.

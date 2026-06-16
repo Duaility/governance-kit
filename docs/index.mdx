@@ -1,44 +1,31 @@
 ---
 title: 'Governance Kit'
-summary: 'Governance Kit is the governance layer for AI coding agents — every rule ships with an executable test, every commit is checked, and every agent-authored change leaves a git-native audit trail.'
+summary: 'The governance layer for AI coding agents — every rule ships with an executable test, every commit is checked, and every agent-authored change leaves a git-native audit trail.'
 ---
 
 # Governance Kit
 
 > **The governance layer for AI coding agents.**
 
-**Governance Kit is governance-driven development (GDD).** Your repository's rules live in a versioned `CONSTITUTION.md`, every rule ships with an executable test, and agents — not humans — do the work of keeping the repo compliant.
-
-It installs as an [Agent Skill](https://agentskills.io) into Claude Code, Codex, Cursor, and 40+ skills-compatible runtimes. One skill, one entry point: the `governance` verb surface.
+Your repository's rules live in a versioned `CONSTITUTION.md`, every rule ships with an executable test, and agents — not humans — do the work of keeping the repo compliant. It installs as an [Agent Skill](https://agentskills.io) into Claude Code, Codex, Cursor, and 40+ skills-compatible runtimes — one skill, one entry point: the `governance` verb surface.
 
 <Columns cols={3}>
   <Card title="Quickstart" href="/guide/quickstart" icon="rocket">
-    Install the skill, bootstrap a repo, watch a gate fire.
+    Install the skill, bootstrap a repo, watch a gate fire — about 60 seconds.
+  </Card>
+  <Card title="What is Governance Kit?" href="/guide/introduction" icon="circle-help">
+    The problem it solves and the stance behind it.
   </Card>
   <Card title="Mental models" href="/guide/mental-models" icon="brain">
     The handful of ideas everything else is built on.
   </Card>
-  <Card title="The audit chain" href="/concepts/audit-chain" icon="link">
-    issue → receipt → commit → cost, made mechanical.
-  </Card>
 </Columns>
 
-## The stance in one line
+## How it works
 
 > Describe the state, continuously check reality, and let agents reconcile the difference.
 
 This is declarative reconciliation — the Kubernetes/Terraform model — applied to a repository:
-
-| | In Governance Kit |
-|---|---|
-| **Desired state** | `CONSTITUTION.md` — directives, rationale, exceptions, evolution log |
-| **Current state** | The working tree, staged diff, commit message, receipts |
-| **Controller** | `.governance/run.sh` + git hook dispatchers + CI |
-| **Reconciler** | The agent — reads the gap and its rationale, fixes the repo, re-runs |
-
-A failed check is not a scolding; it is a *gap report*. It names the directive, the offending file and line, and the rationale. A frontier-model agent reading that rationale generalizes to cases the rule's author never encoded.
-
-## How it works
 
 ```mermaid
 flowchart LR
@@ -49,38 +36,21 @@ flowchart LR
   A -->|"commit, re-run"| R
 ```
 
-## Why it exists
+A failed check is not a scolding; it is a *gap report*. It names the directive, the offending file and line, and the rationale — and a frontier-model agent reading that rationale generalizes to cases the rule's author never encoded. Why this matters when agents author most of the changes: [What is Governance Kit?](/guide/introduction)
 
-When coding agents take control, the problems change — OpenAI's [harness engineering](https://openai.com/index/harness-engineering/) article names the new failure set from running an agent-first codebase. The hard problem is no longer "tell one agent what to do in one session"; it is keeping the repository understandable across many branches, many agents, and many handoffs. Two things stop scaling at agent throughput, and Governance Kit answers both with repo-native artifacts:
-
-<Columns cols={2}>
-  <Card title="Steering" icon="compass">
-    Your guidance has to reach the *next* agent, on the *next* branch, without you in the room. A directive in `CONSTITUTION.md` does; a chat message doesn't.
-  </Card>
-  <Card title="Visibility" icon="receipt">
-    When agents ship the diffs, you need a readable trail. Receipts record what agents were told, what they did, and what it cost.
-  </Card>
-</Columns>
-
-## Explore
+## Explore the docs
 
 <Columns cols={2}>
-  <Card title="The constitution & directives" href="/concepts/constitution" icon="scroll">
-    What a directive is made of and how amendments stay in lockstep.
+  <Card title="Get started" href="/guide/quickstart" icon="rocket">
+    Install, bootstrap, and learn the mental models. Start here on your first visit.
   </Card>
-  <Card title="Packs, pins & vendoring" href="/concepts/packs" icon="package">
-    Where directives come from and how they're trusted.
+  <Card title="Concepts" href="/concepts/constitution" icon="book-open">
+    How it works under the hood — the constitution, packs, the runtime, and the audit chain.
   </Card>
-  <Card title="The sweep lane" href="/concepts/sweep-lane" icon="radar">
-    LLM-judged architectural rules, off the commit path.
+  <Card title="Guides" href="/guide/configuration" icon="wrench">
+    Operate, integrate, and extend — configuration, native test runners, and authoring your own packs.
   </Card>
-  <Card title="Verbs" href="/reference/verbs" icon="terminal">
-    Every lifecycle operation in one place.
-  </Card>
-  <Card title="Directive catalog" href="/reference/directive-catalog" icon="list-checks">
-    Everything the bundled packs ship, by preset.
-  </Card>
-  <Card title="Authoring directives" href="/reference/authoring-directives" icon="pen-tool">
-    Turn a lesson into a rule the repo enforces forever.
+  <Card title="Reference" href="/reference/verbs" icon="list-checks">
+    Every verb, every bundled directive, and the file schemas.
   </Card>
 </Columns>

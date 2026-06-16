@@ -77,10 +77,6 @@ See [The audit chain](/concepts/audit-chain) for how these compose.
 ### toolchain-config-protection
 `standard` · A commit that touches linter / formatter / type-checker / CI / git-hook config must carry a `governance: allow-toolchain-config <reason>` body line. Stops the "edit the rule, not the code" move (loosen eslint, relax a ruff `select`, weaken a workflow's `permissions`) from passing silently in a green build. Protected paths default to a multi-ecosystem list in the directive's `defaults.conf`, customizable via the conf overlay (bare line adds, `!<pattern>` drops a default).
 
-## The sweep lane
-
-The kit also ships the off-commit-path [sweep lane](/concepts/sweep-lane) — the `surface: sweep` directive contract, the vendored engine, and the scheduled workflow — but bundles **no sweep directives**. Sweep directives are authored in repo-local or community packs (this repo dogfoods `no-legacy-fallbacks` and `no-path-bifurcation` in its repo-local `duaility/governance-kit` pack). Installing any sweep directive also installs the scheduled workflow and the vendored engine.
-
 ## Waivers
 
 All commit-path directives honor the in-source waiver format where exceptions make sense:

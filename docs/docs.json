@@ -46,18 +46,33 @@
         "language": "en",
         "tabs": [
           {
-            "tab": "Documentation",
+            "tab": "Get started",
             "groups": [
               {
-                "group": "Get started",
+                "group": "Welcome",
                 "pages": [
                   "index",
-                  "guide/introduction",
-                  "guide/quickstart",
-                  "guide/installation",
-                  "guide/mental-models"
+                  "guide/introduction"
                 ]
               },
+              {
+                "group": "Set up",
+                "pages": [
+                  "guide/quickstart",
+                  "guide/installation"
+                ]
+              },
+              {
+                "group": "Orient",
+                "pages": [
+                  "guide/mental-models"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "Concepts",
+            "groups": [
               {
                 "group": "The constitution",
                 "pages": [
@@ -66,56 +81,65 @@
                 ]
               },
               {
-                "group": "Packs",
+                "group": "Packs & versioning",
                 "pages": [
-                  "concepts/packs"
+                  "concepts/packs",
+                  "concepts/versioning"
                 ]
               },
               {
                 "group": "The audit chain",
                 "pages": [
-                  "concepts/audit-chain"
+                  "concepts/audit-chain",
+                  "concepts/limitations"
                 ]
-              },
+              }
+            ]
+          },
+          {
+            "tab": "Guides",
+            "groups": [
               {
-                "group": "The sweep lane",
+                "group": "Operate",
                 "pages": [
-                  "concepts/sweep-lane"
+                  "guide/configuration",
+                  "guide/troubleshooting"
                 ]
               },
               {
-                "group": "Integrations",
+                "group": "Integrate",
                 "pages": [
                   "reference/native-tests"
                 ]
               },
               {
-                "group": "Configuration",
+                "group": "Extend",
                 "pages": [
-                  "guide/configuration"
-                ]
-              },
-              {
-                "group": "Reference",
-                "pages": [
-                  "reference/verbs",
-                  "reference/directive-catalog",
-                  "reference/schemas",
                   "reference/authoring-directives",
                   "reference/authoring-packs"
                 ]
-              },
+              }
+            ]
+          },
+          {
+            "tab": "Reference",
+            "groups": [
               {
-                "group": "Architecture",
+                "group": "Commands",
                 "pages": [
-                  "concepts/versioning",
-                  "concepts/limitations"
+                  "reference/verbs"
                 ]
               },
               {
-                "group": "Help",
+                "group": "Directives",
                 "pages": [
-                  "guide/troubleshooting"
+                  "reference/directive-catalog"
+                ]
+              },
+              {
+                "group": "File formats",
+                "pages": [
+                  "reference/schemas"
                 ]
               }
             ]

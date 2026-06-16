@@ -90,4 +90,4 @@ Local hooks are a convenience; **CI is the contract**:
 - **Pending-commit mode** (in the hook) — validate the commit being made right now.
 - **Walker mode** (in CI) — walk the commits between the merge-base and `HEAD`, validating each. This is what makes the rules hold on the trunk even when a local hook was skipped, and what makes them survive squash-merges (which is why accounting uses stable keys rather than commit SHAs — see [the audit chain](/concepts/audit-chain)).
 
-Next: [The audit chain & ledgers](/concepts/audit-chain) — the part built specifically for agent-authored commits.
+Next: [Packs, pins & vendoring](/concepts/packs) — where directives come from and how they're trusted.
