@@ -5,9 +5,9 @@ summary: 'Install the skill into your agent, bootstrap a repo with governance in
 
 # Quickstart
 
-Three steps: install the skill into your agent, bootstrap a repo, make a bad commit to watch the gate fire.
+First-time setup, from zero to a firing governance gate — about 60 seconds. Three steps: install the skill into your agent, bootstrap a repo, then make a bad commit and watch the gate catch it.
 
-## Prerequisites
+## What you need
 
 - A git repository.
 - An agent runtime that supports Agent Skills (Claude Code, Codex, Cursor, …).
@@ -57,7 +57,7 @@ claude
 |---|---|
 | `minimal` | Foundation + doc links: required docs, repo hygiene, managed-tree integrity, resolving internal links. |
 | `standard` | `minimal` + commit discipline, kit-version sync, doc freshness, and the full [agent audit chain](/concepts/audit-chain): receipts, issue anchors, token and steering accounting, doc integrity. |
-| `strict` | `standard` + TODO and suppression discipline. The opt-in [sweep lane](/concepts/sweep-lane) ships in the kit but bundles no sweep directives — add them via a repo-local or community pack. |
+| `strict` | `standard` + TODO and suppression discipline. |
 
 `standard` is the intended default for agent-heavy repos — it is the preset that turns on the issue → receipt → commit → cost chain.
 
@@ -77,6 +77,23 @@ Run the whole suite by hand any time:
 bash .governance/run.sh                  # everything
 bash .governance/run.sh doc-freshness    # one directive
 ```
+
+## What to do next
+
+<Columns cols={2}>
+  <Card title="Mental models" href="/guide/mental-models" icon="brain">
+    The handful of ideas the rest of the docs build on.
+  </Card>
+  <Card title="The constitution" href="/concepts/constitution" icon="scroll">
+    What a directive is made of and how amendments stay in lockstep.
+  </Card>
+  <Card title="The audit chain" href="/concepts/audit-chain" icon="link">
+    issue → receipt → commit → cost, made mechanical.
+  </Card>
+  <Card title="Verbs" href="/reference/verbs" icon="terminal">
+    Every lifecycle operation, end to end.
+  </Card>
+</Columns>
 
 ## Escape hatches
 

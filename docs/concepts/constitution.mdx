@@ -130,4 +130,4 @@ Directives deliberately have no `depends_on:` and no execution order. Each is an
 
 The payoff is the convergence loop: fix the currently-failing directive, re-run, the next gate fires, fix that, re-run — until green. Some directives only *start* firing once an earlier one is satisfied; that cascade is by design.
 
-Next: [Packs, pins & vendoring](/concepts/packs) — where directives come from and how they're trusted.
+Next: [The runtime](/concepts/runtime) — what actually happens when you type `git commit`.

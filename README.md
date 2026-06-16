@@ -52,7 +52,7 @@ Prompts can steer one session. Governance kit makes the repo itself carry the ru
 flowchart LR
     H["Human says the invariant<br/>once, in repo language"]
     P["Pack captures it<br/>directive + rationale + evals"]
-    G{"Git hook / CI / sweep"}
+    G{"Git hook / CI"}
     A["Agent repairs the repo<br/>using the failure as instruction"]
     R["Repo carries the durable record<br/>constitution + receipt + trailers"]
 
@@ -88,7 +88,6 @@ The key power is the depth of invariants you can express. Start with determinist
 | **Change set** | "A CI config change needs a reason in the commit." "A receipt for issue #42 must mention the files this PR actually changed." | Diff-aware hooks plus CI's merge-base walk. |
 | **Ledger** | "For each agent-authored commit, show the issue, receipt, token cost, and human steering count." | Git trailers and receipt accounting rows, cross-checked by directives. |
 | **Sub-agent attestation** | "Before merging a cross-layer refactor, have a fresh reader compare the diff to the architecture map." "Before accepting a receipt, have a fresh reader verify it matches the issue and diff." | Hook fails with a fresh-context sub-agent prompt; agent records a PASS/REFUTED section; hook verifies presence. |
-| **Sweep** | "We removed the legacy payment path; alert us if a later PR brings it back." "Report when local and hosted behavior drift apart." | Scheduled LLM judge triages commits and files digest issues; never blocks the commit path. |
 
 That range matters. Many agent failures are not "forgot to run formatter." They are semantic: the agent split a path you wanted unified, moved shared logic into the wrong layer, claimed verification that does not match the diff, or preserved a legacy branch after being asked to remove it. Governance kit gives each kind of rule an enforcement surface that matches its nature.
 
@@ -98,11 +97,11 @@ That range matters. Many agent failures are not "forgot to run formatter." They 
 - **Agent-readable failures** — violations name the rule, the specific gap, and the rationale, so the next agent turn has useful context.
 - **Custom governance packs** — teams can publish `acme/backend`, `acme/soc2`, or `duaility/governance-kit` packs and pin them per repo.
 - **Auditable agent work** — issue receipts, token cost, steering counts, and tamper protection live in git, not in transient chat logs.
-- **Semantic escalation path** — when grep is too weak, use sub-agent attestations at author-time or sweep directives off the commit path.
+- **Semantic escalation path** — when grep is too weak, escalate to sub-agent attestations that record accountable judgment at author-time.
 
 ## Packs make rules portable
 
-A pack is a versioned bundle of invariants. Each directive is a self-contained folder: metadata, executable check or sweep triage, constitution text, defaults, helper code, and pass/fail evals. Install a pack, and the target repo receives the rule, the rationale, the hook wiring, and the lockfile pin together.
+A pack is a versioned bundle of invariants. Each directive is a self-contained folder: metadata, executable check, constitution text, defaults, helper code, and pass/fail evals. Install a pack, and the target repo receives the rule, the rationale, the hook wiring, and the lockfile pin together.
 
 ```mermaid
 flowchart TB
@@ -169,7 +168,7 @@ flowchart LR
     class R,G record
 ```
 
-The hook does not spawn the sub-agent and does not pretend to prove the verdict is true. It proves the independent audit was recorded. The truth of high-stakes semantic verdicts can be re-derived later by the sweep lane. This is deliberately honest: deterministic checks stay deterministic; semantic checks record accountable judgment.
+The hook does not spawn the sub-agent and does not pretend to prove the verdict is true. It proves the independent audit was recorded. This is deliberately honest: deterministic checks stay deterministic; semantic checks record accountable judgment.
 
 ## Get started (60 seconds)
 
@@ -196,7 +195,7 @@ What you installed is a thin shim — two files. The kit itself (rules, packs, t
 
 ## Proof — this repo governs itself
 
-- **17 synchronous directive checks gate this repo** — the same packs `governance init` installs, plus a repo-local pack; two more sweep-lane rules adjudicate merged commits off the commit path
+- **17 synchronous directive checks gate this repo** — the same packs `governance init` installs, plus a repo-local pack
 - **It dogfoods semantic invariants** — `ARCHITECTURE.md` is itself gated by an architecture-map directive, and every PR receipt now carries fresh-context attestations such as `## Audit` and `## Layer boundaries`
 - **The committed `.governance/` tree is an honest customer of the last release** — pinned at real published tags, moved only by the real `pack update` / `update` verb, so every release exercises the update path
 - **Its integrity is self-enforced** — the `managed-tree-integrity` directive recomputes the content digests recorded at install time on every commit, so a hand-edit to any vendored check or runtime file fails the gate, offline
@@ -367,44 +366,6 @@ flowchart LR
 
 Ships in the `governance-kit/audit` pack, `standard` preset.
 
-## The sweep lane
-
-Some rules are about *intent* — "no legacy fallbacks", "don't bifurcate the code path" — the kind a `git grep` fundamentally cannot reach. Those run off the commit path entirely: a scheduled workflow sweeps the day's commits, triages with a cheap grep, adjudicates candidate hunks with a budget-capped LLM judge, and files **one digest issue**. Findings re-enter as issue → agent → PR — a false positive can never break a gate, because there is no gate.
-
-```mermaid
-flowchart TD
-    subgraph CommitPath["Commit path"]
-        H["pre-commit / CI gates"]
-        M["merge"]
-    end
-
-    subgraph Sweep["Off-commit-path sweep"]
-        W["scheduled workflow"]
-        P["select new commits<br/>since last digest"]
-        T["cheap triage<br/>candidate hunks only"]
-        J{"LLM judge<br/>budget-capped verdicts"}
-        D["one digest issue<br/>deduped findings"]
-    end
-
-    H --> M
-    M -.->|"later"| W
-    W --> P --> T --> J --> D
-    D --> A["agent fixes via normal issue -> PR flow"]
-    A --> H
-    D -.->|"never blocks"| M
-
-    classDef gate fill:#3f3586,stroke:#8b7ff0,color:#eeeaff
-    classDef sweep fill:#075b4a,stroke:#36d6af,color:#dcfff4
-    classDef judge fill:#7b2b17,stroke:#ef9673,color:#fff0e8
-    classDef issue fill:#0e4e85,stroke:#5aa8e9,color:#e9f5ff
-    class H,M gate
-    class W,P,T sweep
-    class J judge
-    class D,A issue
-```
-
-The judge stays advisory until its digest precision earns a promotion, and directives pin a model *tier*, not a model id. Opt-in via the `strict` preset. Full walkthrough: [SWEEP_FLOW.md](kit/references/SWEEP_FLOW.md).
-
 ## Lifecycle
 
 ```
@@ -515,7 +476,7 @@ Edits in the clone flow to every linked runtime live — handy when contributing
 |---|---|
 | [Philosophy](kit/references/PHILOSOPHY.md) — rules over prompts, receipts over plans | [Versioning](kit/references/VERSIONING.md) — two semver axes, tag scheme |
 | [Directives catalog](kit/references/DIRECTIVES_CATALOG.md) — every ready-made check | [Release flow](kit/references/RELEASE_FLOW.md) — how releases are cut |
-| [Pack authoring](kit/references/PACK_AUTHORING.md) — write your own pack | [Sweep flow](kit/references/SWEEP_FLOW.md) — the LLM-judge lane |
+| [Pack authoring](kit/references/PACK_AUTHORING.md) — write your own pack | [Sub-agent attestations](kit/references/SUBAGENT_ATTESTATION.md) — semantic checks via fresh-context audit |
 | [Native tests](kit/references/NATIVE_TESTS.md) — port checks to pytest / jest / husky | [Directive amend flow](kit/references/DIRECTIVE_AMEND_FLOW.md) — how amendments land |
 | [AGENTS.md](AGENTS.md) — working in this repo | [Install schema](kit/references/INSTALL_SCHEMA.md) · [lock schema](kit/references/LOCK_SCHEMA.md) |
 

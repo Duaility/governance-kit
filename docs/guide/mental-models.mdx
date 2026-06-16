@@ -78,7 +78,7 @@ Every directive in `CONSTITUTION.md` has a matching `check.sh`, and **amendments
 
 — committed together. There is no drift between "what we said the rule is" and "what the repo actually enforces," because they are the same artifact.
 
-A corollary: things that *can't* be mechanically checked are **principles**, not directives. They live in the constitution too, but their enforcement gate is human judgment at PR review. The kit is honest about the boundary — and for the semantic rules in between, there is the off-commit-path [sweep lane](/concepts/sweep-lane).
+A corollary: things that *can't* be mechanically checked are **principles**, not directives. They live in the constitution too, but their enforcement gate is human judgment at PR review. The kit is honest about that boundary.
 
 ## 4. Steer at the rule layer, not the turn layer
 
@@ -128,7 +128,6 @@ Waivers are intentional, local, and visible in `git blame` — an auditable reco
 | **Preset** | A named directive selection a pack declares (`minimal` / `standard` / `strict`). |
 | **Evolution Log** | Append-only history in `CONSTITUTION.md` recording every governance change with date and author. |
 | **Receipt** | Per-issue attestation file under `receipts/`, crosswalking claims to evidence and carrying the issue's cost and steering accounting. |
-| **Sweep** | The off-commit-path directive surface: LLM-adjudicated, advisory, filed as digest issues. |
 | **Drift** | Misalignment between things that should agree — constitution vs. test, doc vs. code, lockfile vs. tree. |
 | **System of record** | The tracked files that define how the repo works *now*. |
 
