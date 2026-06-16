@@ -2,14 +2,14 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.png">
-  <img src="docs/assets/banner-light.png" alt="Governance Kit" width="640">
+  <img src="docs/assets/banner-light.png" alt="Governance kit" width="640">
 </picture>
 
 <p align="center">The governance layer for AI coding agents</p>
 
 </div>
 
-<p align="center"><strong>rules with tests · enforced on every commit · audit trail for every agent change · four bundled packs · MIT</strong></p>
+<p align="center"><strong>executable repo rules · enforced on every commit · audit trail for every agent change · four bundled packs · MIT</strong></p>
 
 <p align="center">
   <a href="https://github.com/Duaility/governance-kit/actions/workflows/governance.yml"><img src="https://github.com/Duaility/governance-kit/actions/workflows/governance.yml/badge.svg" alt="governance"></a>
@@ -36,17 +36,17 @@
 
 ## The core idea
 
-Governance Kit turns the things you keep telling coding agents into **repo-native invariants**.
+Governance kit turns the things you keep telling coding agents into **repo-native invariants**.
 
-Not style preferences. Not one-off prompts. Invariants:
+Not style preferences. Not one-off prompts. The kind of rules a developer would expect the repo to enforce every time:
 
-- every toolchain change must explain why
-- every receipt must prove the changed files it claims
-- every architecture-layer change must be checked by an independent reader
-- no agent may silently weaken the harness that reviews it
-- no legacy fallback may reappear after you removed it
+- if someone changes lint, test, CI, or hook config, the commit must explain why
+- if a receipt says a file changed, that file must actually be in the diff
+- if a PR crosses a declared layer boundary, an independent reader must check the claim against the diff
+- if an agent edits the governance harness, the edit must be visible and reviewable
+- if a migration removes an old path, the next commit cannot quietly add the fallback back
 
-Prompts can steer one session. Governance Kit makes the repo itself carry the rule, the rationale, the executable check, and the audit trail. The next agent does not need to remember what happened in chat; it gets a failing check with the reason attached.
+Prompts can steer one session. Governance kit makes the repo itself carry the rule, the rationale, the executable check, and the audit trail. When another agent resumes the work later, it does not need the old chat transcript to know the constraint; the repo gives it a failing check with the reason attached.
 
 ```mermaid
 flowchart LR
@@ -61,11 +61,22 @@ flowchart LR
     A --> G
     G -- "passes" --> R
     R -.->|"next agent reads"| G
+
+    classDef human fill:#3f3586,stroke:#8b7ff0,color:#eeeaff
+    classDef directive fill:#075b4a,stroke:#36d6af,color:#dcfff4
+    classDef gate fill:#7b2b17,stroke:#ef9673,color:#fff0e8
+    classDef agent fill:#0e4e85,stroke:#5aa8e9,color:#e9f5ff
+    classDef record fill:#3f403a,stroke:#a5a49b,color:#efeee8
+    class H human
+    class P directive
+    class G gate
+    class A agent
+    class R record
 ```
 
-This is the [harness-engineering](https://openai.com/index/harness-engineering/) move: coherence comes from executable rails around the agent, not from ever-larger instruction blobs. Governance Kit packages that stance for ordinary repositories, then adds versioned packs and git-native receipts so teams can share, pin, review, and evolve those rails.
+This is the [harness-engineering](https://openai.com/index/harness-engineering/) move: coherence comes from executable rails around the agent, not from ever-larger instruction blobs. Governance kit packages that stance for ordinary repositories, then adds versioned packs and git-native receipts so teams can share, pin, review, and evolve those rails.
 
-Governance Kit installs into [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), Cursor, OpenCode, and other Agent Skills-compatible runtimes via [`npx skills`](https://github.com/vercel-labs/skills). The installed skill is only the thin entry point; the repo pins the kit and pack versions that actually run.
+Governance kit installs into [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), Cursor, OpenCode, and other Agent Skills-compatible runtimes via [`npx skills`](https://github.com/vercel-labs/skills). The installed skill is only the thin entry point; the repo pins the kit and pack versions that actually run.
 
 ## The invariant ladder
 
@@ -73,13 +84,13 @@ The key power is the depth of invariants you can express. Start with determinist
 
 | Depth | What the user can say | How it runs |
 |---|---|---|
-| **Repo state** | "These files must exist." "Internal links must resolve." "The managed governance tree must not be hand-edited." | Cheap `check.sh` over the tree, run locally and in CI. |
-| **Change set** | "If this commit changes toolchain config, it must explain why." "Every changed file must be named in a receipt." | Diff-aware hooks plus CI's merge-base walk. |
-| **Ledger** | "Every agent change must connect issue → receipt → commit → cost → steering." | Git trailers and receipt accounting rows, cross-checked by directives. |
-| **Sub-agent attestation** | "An independent reader must verify this receipt matches the diff." "A layer-boundary change must be checked against the architecture map." | Hook fails with a fresh-context sub-agent prompt; agent records a PASS/REFUTED section; hook verifies presence. |
-| **Sweep** | "No legacy fallback paths." "Do not bifurcate this code path." "Local behavior must mirror remote behavior." | Scheduled LLM judge triages commits and files digest issues; never blocks the commit path. |
+| **Repo state** | "Every repo needs a README, license, security contact, and architecture note." "Do not commit build output or merge markers." | Cheap `check.sh` over the tree, run locally and in CI. |
+| **Change set** | "A CI config change needs a reason in the commit." "A receipt for issue #42 must mention the files this PR actually changed." | Diff-aware hooks plus CI's merge-base walk. |
+| **Ledger** | "For each agent-authored commit, show the issue, receipt, token cost, and human steering count." | Git trailers and receipt accounting rows, cross-checked by directives. |
+| **Sub-agent attestation** | "Before merging a cross-layer refactor, have a fresh reader compare the diff to the architecture map." "Before accepting a receipt, have a fresh reader verify it matches the issue and diff." | Hook fails with a fresh-context sub-agent prompt; agent records a PASS/REFUTED section; hook verifies presence. |
+| **Sweep** | "We removed the legacy payment path; alert us if a later PR brings it back." "Report when local and hosted behavior drift apart." | Scheduled LLM judge triages commits and files digest issues; never blocks the commit path. |
 
-That range matters. Many agent failures are not "forgot to run formatter." They are semantic: the agent split a path you wanted unified, put kit logic into a pack, claimed verification that does not match the diff, or preserved a legacy branch after being asked to remove it. Governance Kit gives each kind of rule an enforcement surface that matches its nature.
+That range matters. Many agent failures are not "forgot to run formatter." They are semantic: the agent split a path you wanted unified, moved shared logic into the wrong layer, claimed verification that does not match the diff, or preserved a legacy branch after being asked to remove it. Governance kit gives each kind of rule an enforcement surface that matches its nature.
 
 ## What developers get
 
@@ -112,6 +123,15 @@ flowchart TB
     LOCK --> VENDOR
     VENDOR --> CONST
     VENDOR --> HOOKS
+
+    classDef author fill:#3f3586,stroke:#8b7ff0,color:#eeeaff
+    classDef pack fill:#075b4a,stroke:#36d6af,color:#dcfff4
+    classDef pin fill:#0e4e85,stroke:#5aa8e9,color:#e9f5ff
+    classDef runtime fill:#7b2b17,stroke:#ef9673,color:#fff0e8
+    class D,PY author
+    class LOCK pin
+    class VENDOR pack
+    class CONST,HOOKS runtime
 ```
 
 Bundled packs cover foundation, docs, commits, and the agent audit chain. Custom packs are where the project becomes specific to your organization: architecture boundaries, service ownership, migration rules, compliance evidence, review rituals, or repeated "please never do that again" corrections.
@@ -127,7 +147,7 @@ Examples of rules that fit naturally as packs:
 
 ## Sub-agent attestations: semantic checks without pretending bash is smart
 
-Some invariants need a judgment against ground truth. A shell script can check that a receipt has a `## Audit` section; it cannot honestly decide whether the receipt describes the diff. Governance Kit handles that by making the missing section itself the remediation instruction.
+Some invariants need a judgment against ground truth. A shell script can check that a receipt has a `## Audit` section; it cannot honestly decide whether the receipt describes the diff. Governance kit handles that by making the missing section itself the remediation instruction.
 
 ```mermaid
 flowchart LR
@@ -207,7 +227,7 @@ The skill itself is a two-file shim; every verb executes from the kit version th
 
 **Skip it if you…**
 
-- are spec-driving one feature at a time — that's [spec-kit](https://github.com/github/spec-kit); Governance Kit is the layer above
+- are spec-driving one feature at a time — that's [spec-kit](https://github.com/github/spec-kit); governance kit is the layer above
 - only want hook execution — pre-commit / husky already do that, and every `check.sh` lifts into them directly ([NATIVE_TESTS.md](kit/references/NATIVE_TESTS.md))
 - write all code by hand, solo, and don't need an audit trail
 
@@ -331,6 +351,13 @@ flowchart LR
     C -- "tallies" --> ST
     CO -- "survives squash in" --> R
     ST -- "survives squash in" --> R
+
+    classDef work fill:#3f3586,stroke:#8b7ff0,color:#eeeaff
+    classDef history fill:#075b4a,stroke:#36d6af,color:#dcfff4
+    classDef accounting fill:#0e4e85,stroke:#5aa8e9,color:#e9f5ff
+    class I,R work
+    class C history
+    class CO,ST accounting
 ```
 
 - **Directive provenance** — every `CONSTITUTION.md` line is git-blameable to the commit and check that introduced it; the Evolution Log summarizes every amendment
@@ -365,6 +392,15 @@ flowchart TD
     D --> A["agent fixes via normal issue -> PR flow"]
     A --> H
     D -.->|"never blocks"| M
+
+    classDef gate fill:#3f3586,stroke:#8b7ff0,color:#eeeaff
+    classDef sweep fill:#075b4a,stroke:#36d6af,color:#dcfff4
+    classDef judge fill:#7b2b17,stroke:#ef9673,color:#fff0e8
+    classDef issue fill:#0e4e85,stroke:#5aa8e9,color:#e9f5ff
+    class H,M gate
+    class W,P,T sweep
+    class J judge
+    class D,A issue
 ```
 
 The judge stays advisory until its digest precision earns a promotion, and directives pin a model *tier*, not a model id. Opt-in via the `strict` preset. Full walkthrough: [SWEEP_FLOW.md](kit/references/SWEEP_FLOW.md).
@@ -469,7 +505,7 @@ ln -s "$(pwd)/skill" ~/.claude/skills/governance   # Claude Code
 ln -s "$(pwd)/skill" ~/.codex/skills/governance    # Codex
 ```
 
-Edits in the clone flow to every linked runtime live — handy when contributing to Governance Kit itself.
+Edits in the clone flow to every linked runtime live — handy when contributing to governance kit itself.
 
 </details>
 
@@ -487,12 +523,12 @@ Edits in the clone flow to every linked runtime live — handy when contributing
 
 |  | Governs | Blocks a bad commit | Rationale travels with the rule | Agent audit trail |
 |---|---|:---:|:---:|:---:|
-| **Governance Kit** | Repo state — docs, commits, receipts | Yes | Yes — constitution + evolution log | Yes — issue → receipt → commit → cost |
+| **governance kit** | Repo state — docs, commits, receipts | Yes | Yes — constitution + evolution log | Yes — issue → receipt → commit → cost |
 | pre-commit · husky · lefthook | Hook execution | Yes | No | No |
 | [spec-kit](https://github.com/github/spec-kit) | One feature's spec → implementation | No | Per-spec | No |
 | Agent instruction files alone | What agents are told, not what they do | No | No | No |
 
-> **Complements, not competitors.** If you're spec-driving features for an agent to implement, spec-kit is the right fit — Governance Kit is the layer above, keeping the rules your agent must satisfy on every commit from drifting out of sync with the code, the tests, or each other. And every `check.sh` is plain bash: drop them into pre-commit or husky directly if you only want the enforcement half ([NATIVE_TESTS.md](kit/references/NATIVE_TESTS.md)).
+> **Complements, not competitors.** If you're spec-driving features for an agent to implement, spec-kit is the right fit — governance kit is the layer above, keeping the rules your agent must satisfy on every commit from drifting out of sync with the code, the tests, or each other. And every `check.sh` is plain bash: drop them into pre-commit or husky directly if you only want the enforcement half ([NATIVE_TESTS.md](kit/references/NATIVE_TESTS.md)).
 
 ## Contributing
 
