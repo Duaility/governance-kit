@@ -9,7 +9,7 @@
 
 </div>
 
-<p align="center"><strong>stop re-teaching agents · prevent unwanted rewrites · expose token spend · keep durable rules in git · MIT</strong></p>
+<p align="center"><strong>keep every agent coherent with your repo · stop re-teaching them · expose token spend · rules live in git · MIT</strong></p>
 
 <p align="center">
   <a href="https://github.com/Duaility/governance-kit/actions/workflows/governance.yml"><img src="https://github.com/Duaility/governance-kit/actions/workflows/governance.yml/badge.svg" alt="governance"></a>
@@ -36,19 +36,19 @@
 
 ## The core idea
 
-If you use coding agents heavily, you know the pattern.
+If you use coding agents heavily, you know the real failure mode. The agent does not fail the task; it completes it in a way that is locally fine and globally wrong.
 
-You ask Claude Code to make one small change. It touches six files, invents a new pattern, and the feature starts drifting. Tomorrow you ask Codex to continue the same branch, and it has no memory of the correction you gave Claude. Another agent rewrites a working module instead of making the surgical edit. A third spends real money exploring the wrong direction, but the only record is buried in a transcript you will never read again.
+It lands the feature but routes the logic through the wrong layer, reinvents a pattern you already have, preserves a fallback you meant to delete, or widens a boundary you wanted held. The tests pass; the architecture drifts. Tomorrow you ask Codex, Claude Code, Cursor, or another agent to continue the same branch, and it has no memory of the correction you gave the last one.
 
-Governance kit turns those repeated corrections into **repo-native invariants**. The rules stop living in your head, your prompt, or one agent's context window. They live in git, next to the code, with executable checks that run on every commit.
+Governance kit turns those repeated corrections into **repo-native invariants**. The rules stop living in your head, your prompt, or one agent's context window. They live in git, next to the code, with executable checks that run on every commit and failure messages an agent can act on.
 
 Examples of rules developers need once agents do real work:
 
-- define the slice before coding: goal, non-goals, allowed files, and checks
-- keep the diff inside that slice unless the human approves the expanded surface
-- block "small fixes" that become rewrites or duplicate abstractions
+- catch boundary drift before anyone debates code quality
+- stop a "small fix" from becoming a rewrite or a duplicate abstraction
+- keep shared logic in the layer that owns it
+- delete legacy paths instead of hiding them behind compatibility branches
 - make receipts say what changed, what was tested, and what risk remains
-- audit boundary drift before debating code quality
 - record token cost and human steering in git, not in a chat transcript
 
 Prompts steer one session. Governance kit makes the repo carry the rule, the rationale, the executable check, and the audit trail. When the next agent resumes the work, it does not need the old transcript to know what matters; the repo gives it a failing check with the reason attached.
@@ -79,7 +79,9 @@ flowchart LR
     class R record
 ```
 
-This is the [harness-engineering](https://openai.com/index/harness-engineering/) move: coherence comes from executable rails around the agent, not from ever-larger instruction blobs. Governance kit packages that stance for ordinary repositories, then adds versioned packs and git-native receipts so developers can share, pin, review, and evolve those rails.
+This is the [harness-engineering](https://openai.com/index/harness-engineering/) move applied to everyday repositories: agents can do more work on their own, so the human job shifts toward designing the environment they work inside. Coherence comes from repo-local knowledge, structural tests, architecture boundaries, and taste invariants that execute, not from ever-larger instruction blobs.
+
+Governance kit packages that stance as versioned packs and git-native receipts. You encode an architectural or taste judgment once, then every agent on the repo gets the same executable boundary.
 
 Governance kit installs into [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), Cursor, OpenCode, and other Agent Skills-compatible runtimes via [`npx skills`](https://github.com/vercel-labs/skills). The installed skill is only the thin entry point; the repo pins the kit and pack versions that actually run, so different agents in the same project hit the same rules.
 
@@ -94,12 +96,13 @@ The key power is the depth of invariants you can express. Start with determinist
 | **Ledger** | "For each agent-authored commit, show the issue, receipt, token cost, and human steering count." | Git trailers and receipt accounting rows, cross-checked by directives. |
 | **Sub-agent attestation** | "Before merging a cross-layer refactor, have a fresh reader compare the diff to the architecture map." "Before accepting a receipt, have a fresh reader verify it matches the issue and diff." | Hook fails with a fresh-context sub-agent prompt; agent records a PASS/REFUTED section; hook verifies presence. |
 
-That range matters. Most painful agent failures are not "forgot to run formatter." They are semantic: the agent split a path you wanted unified, moved shared logic into the wrong layer, claimed verification that does not match the diff, preserved a legacy branch after being asked to remove it, or burned tokens without leaving a usable trail. Governance kit gives each kind of rule an enforcement surface that matches its nature.
+That range matters: the failures that hurt are rarely mechanical ("forgot the formatter"). They are semantic. The agent split a path you wanted unified, moved shared logic into the wrong layer, claimed verification that does not match the diff, preserved a legacy branch after being asked to remove it, or burned tokens without leaving a usable trail. Governance kit gives each kind of rule an enforcement surface that matches its nature.
 
 ## What developers get
 
-- **Less repeated steering** - encode "do not rewrite this," "keep this path unified," or "update the receipt with evidence" once, then let hooks and CI repeat it for every agent.
+- **Architectural coherence** - encode "this layer owns the logic," "this path stays unified," or "delete the fallback" once, then let hooks and CI repeat it for every agent.
 - **Shared behavior across agents** - Claude Code, Codex, Cursor, OpenCode, and humans all hit the same repo-pinned checks instead of inheriting different chat histories.
+- **Less repeated steering** - turn review comments and repeated corrections into durable directives instead of pasting the same warning into every new session.
 - **Cost transparency** - token spend and human steering can be recorded in the issue receipt, so expensive turns and repeated corrections become visible review data.
 - **Executable constitution** - `CONSTITUTION.md` is readable policy, but every directive has executable enforcement beside it.
 - **Agent-readable failures** - violations name the rule, the specific gap, and the rationale, so the next agent turn has useful context.
