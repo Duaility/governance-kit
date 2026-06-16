@@ -20,9 +20,10 @@
 
 <p align="center">
   <a href="#get-started-60-seconds">Install</a> ·
-  <a href="#why">Why</a> ·
+  <a href="#the-core-idea">Idea</a> ·
+  <a href="#the-invariant-ladder">Invariants</a> ·
+  <a href="#packs-make-rules-portable">Packs</a> ·
   <a href="#proof--this-repo-governs-itself">Proof</a> ·
-  <a href="#whats-bundled">Packs</a> ·
   <a href="#documentation">Docs</a> ·
   <a href="AGENTS.md">Contributing</a>
 </p>
@@ -33,53 +34,122 @@
 
 ---
 
-When an AI agent commits to your repo, it reads what's there and extends it — including the patterns that shouldn't be there. Across enough sessions, branches, and handoffs, your repo drifts: docs that contradict code, rules that live only in a closed chat window, the next agent inheriting a mess the previous one left. More instructions in the prompt don't fix this. The session ends, the context vanishes, and the next agent starts from whatever the repo looks like now.
+## The core idea
 
-OpenAI described this failure mode — and a way out — in their [harness engineering](https://openai.com/index/harness-engineering/) post, written while running an agent-first codebase at scale. The key insight: coherence comes from a *harness*, not better prompts. Rules that carry their own executable tests survive session boundaries. A failing check that surfaces the rule's rationale at the moment of violation reaches the next agent without a human relay. Humans steer; agents execute; the harness keeps the gap from growing.
+Governance Kit turns the things you keep telling coding agents into **repo-native invariants**.
 
-Governance Kit packages that stance as an installable kit — and adds one layer. Rules live in **packs**: versioned, composable bundles you pin per repo, share across teams, or author locally to fit your stack. Every agent-authored commit leaves a git-native trail: issue → receipt → token cost → steering tally. The kit installs into [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), Cursor, OpenCode, and 40+ agent runtimes via [`npx skills`](https://github.com/vercel-labs/skills).
+Not style preferences. Not one-off prompts. Invariants:
 
-- **Constitution** — `CONSTITUTION.md` declares the state your repo must satisfy; every directive ships with its `check.sh`, so the rule and its test evolve as one commit
-- **Packs** — versioned directive bundles you compose, pin, and swap; four are bundled, and you can author repo-local packs to capture rules specific to your stack
-- **Audit chain** — every agent-authored change links an issue, a receipt, a token cost, and a steering tally — all git-native, all checkable
-- **Sweep lane** — LLM-adjudicated architectural rules that grep can't reach, running off the commit path so a false positive never breaks a gate
+- every toolchain change must explain why
+- every receipt must prove the changed files it claims
+- every architecture-layer change must be checked by an independent reader
+- no agent may silently weaken the harness that reviews it
+- no legacy fallback may reappear after you removed it
 
-<details>
-<summary><b>How each design choice maps to a named failure mode</b></summary>
-
-| The agent-first failure mode | The design answer |
-|---|---|
-| Monolithic instruction files "rot instantly" — a single blob can't be mechanically checked, "so drift is inevitable" | A constitution where **every rule ships its executable test**. Doc freshness, link integrity, and record tampering are themselves directives — the rules can't decay silently. |
-| Agents "replicate patterns that already exist in the repository — even uneven or suboptimal ones" | **Enforce invariants, not implementations.** Directives describe state; hooks + CI re-evaluate every one on every commit. The [sweep lane](#the-sweep-lane) runs the scan-for-deviations, file-targeted-issues garbage-collection loop. |
-| Knowledge in chat threads and people's heads is "not accessible to the system" | **Git-native ledgers.** Rationale, evolution log, receipts, steering rows — every rule, exception, and correction lands in the repo, readable by the next agent run. |
-| "Our bottleneck became human QA capacity" | **You review receipts, not diffs.** Each issue's receipt crosswalks claims to changes and verification, with a token price tag and a steering tally attached. |
-| Context is scarce — "a giant instruction file crowds out the task" | **Progressive disclosure, enforced.** A failing check injects one directive's id + rationale at exactly the moment it's violated — not a 500-line prompt on every turn. |
-
-</details>
-
-## How it works (30 seconds)
-
-Governance Kit treats governance as repo state and reconciles it on every commit:
+Prompts can steer one session. Governance Kit makes the repo itself carry the rule, the rationale, the executable check, and the audit trail. The next agent does not need to remember what happened in chat; it gets a failing check with the reason attached.
 
 ```mermaid
 flowchart LR
-    C[CONSTITUTION.md<br/>desired repo state]
-    G{Governance checks}
-    A[Agent fixes the gap]
-    R[(Repo<br/>current state)]
+    H["Human says the invariant<br/>once, in repo language"]
+    P["Pack captures it<br/>directive + rationale + evals"]
+    G{"Git hook / CI / sweep"}
+    A["Agent repairs the repo<br/>using the failure as instruction"]
+    R["Repo carries the durable record<br/>constitution + receipt + trailers"]
 
-    C --> G
-    R --> G
-    G -->|"gap + rationale"| A
-    A -->|"commit"| R
-    G -->|"pass"| OK([Ready to merge])
+    H --> P --> G
+    G -- "fails with why" --> A
+    A --> G
+    G -- "passes" --> R
+    R -.->|"next agent reads"| G
 ```
 
-- **A directive is an invariant, not a step** — rule, rationale, test, and log entry land as one commit and can't silently diverge
-- **A failed check names the gap and the why** — an agent reading the rationale generalizes to cases the author never encoded
-- **You read ledgers, not transcripts** — receipts and the evolution log are the record of what your agent fleet shipped
+This is the [harness-engineering](https://openai.com/index/harness-engineering/) move: coherence comes from executable rails around the agent, not from ever-larger instruction blobs. Governance Kit packages that stance for ordinary repositories, then adds versioned packs and git-native receipts so teams can share, pin, review, and evolve those rails.
 
-One line: **describe the state, continuously check reality, and let agents reconcile the difference.**
+Governance Kit installs into [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), Cursor, OpenCode, and other Agent Skills-compatible runtimes via [`npx skills`](https://github.com/vercel-labs/skills). The installed skill is only the thin entry point; the repo pins the kit and pack versions that actually run.
+
+## The invariant ladder
+
+The key power is the depth of invariants you can express. Start with deterministic checks; escalate only when the rule genuinely needs context or judgment.
+
+| Depth | What the user can say | How it runs |
+|---|---|---|
+| **Repo state** | "These files must exist." "Internal links must resolve." "The managed governance tree must not be hand-edited." | Cheap `check.sh` over the tree, run locally and in CI. |
+| **Change set** | "If this commit changes toolchain config, it must explain why." "Every changed file must be named in a receipt." | Diff-aware hooks plus CI's merge-base walk. |
+| **Ledger** | "Every agent change must connect issue → receipt → commit → cost → steering." | Git trailers and receipt accounting rows, cross-checked by directives. |
+| **Sub-agent attestation** | "An independent reader must verify this receipt matches the diff." "A layer-boundary change must be checked against the architecture map." | Hook fails with a fresh-context sub-agent prompt; agent records a PASS/REFUTED section; hook verifies presence. |
+| **Sweep** | "No legacy fallback paths." "Do not bifurcate this code path." "Local behavior must mirror remote behavior." | Scheduled LLM judge triages commits and files digest issues; never blocks the commit path. |
+
+That range matters. Many agent failures are not "forgot to run formatter." They are semantic: the agent split a path you wanted unified, put kit logic into a pack, claimed verification that does not match the diff, or preserved a legacy branch after being asked to remove it. Governance Kit gives each kind of rule an enforcement surface that matches its nature.
+
+## What developers get
+
+- **Executable constitution** — `CONSTITUTION.md` is readable policy, but every directive has executable enforcement beside it.
+- **Agent-readable failures** — violations name the rule, the specific gap, and the rationale, so the next agent turn has useful context.
+- **Custom governance packs** — teams can publish `acme/backend`, `acme/soc2`, or `duaility/governance-kit` packs and pin them per repo.
+- **Auditable agent work** — issue receipts, token cost, steering counts, and tamper protection live in git, not in transient chat logs.
+- **Semantic escalation path** — when grep is too weak, use sub-agent attestations at author-time or sweep directives off the commit path.
+
+## Packs make rules portable
+
+A pack is a versioned bundle of invariants. Each directive is a self-contained folder: metadata, executable check or sweep triage, constitution text, defaults, helper code, and pass/fail evals. Install a pack, and the target repo receives the rule, the rationale, the hook wiring, and the lockfile pin together.
+
+```mermaid
+flowchart TB
+    subgraph Author["Pack author"]
+        D["directives/&lt;id&gt;<br/>directive.yaml<br/>check.sh or triage.sh<br/>constitution.md<br/>evals/test.sh"]
+        PY["pack.yaml<br/>presets + version + min kit"]
+    end
+
+    subgraph Consumer["Target repo"]
+        LOCK[".governance/packs.lock<br/>exact pack pin"]
+        VENDOR[".governance/packs/...<br/>vendored directive code"]
+        CONST["CONSTITUTION.md<br/>rendered directive rationale"]
+        HOOKS[".githooks/* + CI<br/>generated dispatchers"]
+    end
+
+    D --> PY
+    PY -- "governance pack add / update" --> LOCK
+    LOCK --> VENDOR
+    VENDOR --> CONST
+    VENDOR --> HOOKS
+```
+
+Bundled packs cover foundation, docs, commits, and the agent audit chain. Custom packs are where the project becomes specific to your organization: architecture boundaries, service ownership, migration rules, compliance evidence, review rituals, or repeated "please never do that again" corrections.
+
+Examples of rules that fit naturally as packs:
+
+| Pack idea | Invariants it could carry |
+|---|---|
+| `acme/platform` | "No service reaches across the platform boundary." "Generated clients are refreshed with API schema changes." |
+| `acme/security` | "Auth changes update threat-model evidence." "Privileged workflows explain permissions changes." |
+| `acme/migration-2026` | "No new writes hit the legacy store." "Fallback paths are deleted, not hidden behind flags." |
+| `acme/mobile` | "User-visible copy changes update localization receipts." "Feature-flag removals clean up both client and server paths." |
+
+## Sub-agent attestations: semantic checks without pretending bash is smart
+
+Some invariants need a judgment against ground truth. A shell script can check that a receipt has a `## Audit` section; it cannot honestly decide whether the receipt describes the diff. Governance Kit handles that by making the missing section itself the remediation instruction.
+
+```mermaid
+flowchart LR
+    F["Hook fails<br/>missing attestation"]
+    P["Failure prints<br/>the exact audit prompt"]
+    A["Fresh-context sub-agent<br/>reads only ground truth"]
+    R["Receipt records<br/>PASS / REFUTED + evidence"]
+    G["Retry passes<br/>section + verdict exist"]
+
+    F --> P --> A --> R --> G
+
+    classDef fail fill:#7b2b17,stroke:#ef9673,color:#fff0e8
+    classDef prompt fill:#3f403a,stroke:#a5a49b,color:#efeee8
+    classDef audit fill:#075b4a,stroke:#36d6af,color:#dcfff4
+    classDef record fill:#0e4e85,stroke:#5aa8e9,color:#e9f5ff
+    class F fail
+    class P prompt
+    class A audit
+    class R,G record
+```
+
+The hook does not spawn the sub-agent and does not pretend to prove the verdict is true. It proves the independent audit was recorded. The truth of high-stakes semantic verdicts can be re-derived later by the sweep lane. This is deliberately honest: deterministic checks stay deterministic; semantic checks record accountable judgment.
 
 ## Get started (60 seconds)
 
@@ -106,7 +176,8 @@ What you installed is a thin shim — two files. The kit itself (rules, packs, t
 
 ## Proof — this repo governs itself
 
-- **18 directives gate every commit here** — the same packs `governance init` installs, plus a repo-local pack; two more sweep-lane rules adjudicate merged commits off the commit path
+- **17 synchronous directive checks gate this repo** — the same packs `governance init` installs, plus a repo-local pack; two more sweep-lane rules adjudicate merged commits off the commit path
+- **It dogfoods semantic invariants** — `ARCHITECTURE.md` is itself gated by an architecture-map directive, and every PR receipt now carries fresh-context attestations such as `## Audit` and `## Layer boundaries`
 - **The committed `.governance/` tree is an honest customer of the last release** — pinned at real published tags, moved only by the real `pack update` / `update` verb, so every release exercises the update path
 - **Its integrity is self-enforced** — the `managed-tree-integrity` directive recomputes the content digests recorded at install time on every commit, so a hand-edit to any vendored check or runtime file fails the gate, offline
 
@@ -128,9 +199,11 @@ The skill itself is a two-file shim; every verb executes from the kit version th
 
 **Great fit if you…**
 
-- run agent-heavy teams where the rules must survive handoffs across branches, sessions, and agents
+- keep repeating the same architectural or process corrections to coding agents
+- run agent-heavy teams where rules must survive handoffs across branches, sessions, and agents
+- want organization-specific rules packaged as reusable, versioned packs
 - want every agent-authored change to carry a price tag and a steering record
-- want rules, their tests, and their history to evolve as one reviewable commit
+- want semantic checks that admit when they need independent judgment instead of pretending grep is enough
 
 **Skip it if you…**
 
@@ -176,9 +249,6 @@ Full catalog: [DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md).
 | `foundation` | `required-docs` | `README.md`, `LICENSE`, `SECURITY.md`, `ARCHITECTURE.md` exist with non-empty bodies. | minimal |
 | `foundation` | `managed-tree-integrity` | The vendored `.governance/` tree matches the content digests recorded at install/update time — hand-edits to any check or runtime file fail the gate, offline. Subsumes the kit-version-marker check. | minimal |
 | `foundation` | `repo-hygiene` | No merge markers, oversized files, build artefacts, or debug statements. | minimal |
-| `security` | `secrets-hygiene` | No high-confidence secret patterns (AWS keys, GitHub tokens, Stripe live keys, …) in tracked files; `.env` gitignored. | minimal |
-| `security` | `token-permissions` | GitHub Actions workflows declare a least-privilege `permissions:` block. | minimal |
-| `security` | `pinned-dependencies` | Third-party actions are pinned to a full commit SHA. | minimal |
 | `docs` | `internal-doc-links` | Internal markdown links resolve; opt-in, every doc stays reachable from a root. | minimal |
 | `docs` | `doc-freshness` | Opted-in docs carry an in-window `last-verified` date marker. | standard |
 | `commits` | `commit-message-format` | Conventional Commits with an issue suffix (`<type>(scope)?: <subject> (#N)`). | standard |
@@ -191,7 +261,7 @@ Full catalog: [DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md).
 |---|---|---|---|
 | `audit` | `issue-templates` | `.github/ISSUE_TEMPLATE/` carries `config.yml` (blank issues off), `proposal.yml`, `bug.yml` with the required handoff fields. | standard |
 | `audit` | `issues-tracked` | `QUALITY.md` exists at repo root with `## Open` and `## Resolved` sections. | standard |
-| `audit` | `receipt-per-issue` | Every `receipts/*.md` has a unique `issue-<N>` filename token, the four required sections, and each `- [x]` checklist item crosswalks into `## What changed` or `## Verification`. | standard |
+| `audit` | `receipt-per-issue` | Every `receipts/*.md` has a unique `issue-<N>` filename token, required narrative/audit sections, and checked items that crosswalk into the receipt's evidence. | standard |
 | `audit` | `commit-issue-receipt-match` | Every non-merge commit's issue anchor (`(#N)` or `Issue: #N`) matches an `issue-<N>` token on a touched receipt. | standard |
 | `audit` | `agent-token-accounting` | Every commit carries token + cost trailers and a matching cost row in the issue's receipt, keyed by `Cost-Key`. | standard |
 | `audit` | `agent-steering-accounting` | Every commit stamps `Steer-Count` / `Steer-Types` / `Steer-Tiers` and appends steering rows to the issue's receipt. **`always_install: true`** — records human correction text verbatim; redact via the directive's classifier hook rather than skipping it. | standard |
@@ -241,15 +311,26 @@ If you're trusting agents to ship code, you need to see what they were told, wha
 
 ```mermaid
 flowchart LR
-    I["<b>Issue #N</b><br/>the work order"]
-    R["<b>Receipt</b><br/>claims crosswalked<br/>to evidence"]
-    C["<b>Commit</b><br/>cost + steering<br/>trailers"]
-    CO["<b>Cost row</b><br/>joined by Cost-Key —<br/>survives the squash"]
+    subgraph Work["Work order"]
+        I["Issue #N<br/>context + acceptance criteria"]
+        R["receipts/issue-N.md<br/>claims + verification + audit"]
+    end
 
-    I --> R --> C --> CO
+    subgraph History["Git history"]
+        C["commit<br/>Issue + Cost-Key + steering trailers"]
+    end
 
-    classDef chain fill:#0d4f86,stroke:#0d4f86,color:#ffffff
-    class I,R,C,CO chain
+    subgraph Accounting["Append-only accounting"]
+        CO["cost row<br/>tokens + USD"]
+        ST["steering row<br/>human corrections"]
+    end
+
+    I -- "defines" --> R
+    R -- "must be touched by" --> C
+    C -- "joins by Cost-Key" --> CO
+    C -- "tallies" --> ST
+    CO -- "survives squash in" --> R
+    ST -- "survives squash in" --> R
 ```
 
 - **Directive provenance** — every `CONSTITUTION.md` line is git-blameable to the commit and check that introduced it; the Evolution Log summarizes every amendment
@@ -265,15 +346,25 @@ Some rules are about *intent* — "no legacy fallbacks", "don't bifurcate the co
 
 ```mermaid
 flowchart TD
-    W[Scheduled workflow<br/>daily cron — off the commit path]
-    P[Pick commit range<br/>resume from last digest]
-    T[Triage with grep<br/>narrow to candidate hunks]
-    J{Adjudicate each hunk<br/>budget-capped, one verdict}
-    D[File one digest issue<br/>dedupe + confidence filter]
-    L([Issue → agent → PR<br/>advisory, never blocks])
+    subgraph CommitPath["Commit path"]
+        H["pre-commit / CI gates"]
+        M["merge"]
+    end
 
-    W --> P --> T --> J --> D --> L
-    D -.->|"next run resumes here"| P
+    subgraph Sweep["Off-commit-path sweep"]
+        W["scheduled workflow"]
+        P["select new commits<br/>since last digest"]
+        T["cheap triage<br/>candidate hunks only"]
+        J{"LLM judge<br/>budget-capped verdicts"}
+        D["one digest issue<br/>deduped findings"]
+    end
+
+    H --> M
+    M -.->|"later"| W
+    W --> P --> T --> J --> D
+    D --> A["agent fixes via normal issue -> PR flow"]
+    A --> H
+    D -.->|"never blocks"| M
 ```
 
 The judge stays advisory until its digest precision earns a promotion, and directives pin a model *tier*, not a model id. Opt-in via the `strict` preset. Full walkthrough: [SWEEP_FLOW.md](kit/references/SWEEP_FLOW.md).
@@ -293,31 +384,56 @@ The mental model — an installer, a product, its content. Like a language toolc
 
 ```mermaid
 flowchart TB
-    S["<b>governance skill — the installer</b><br/>install · update · uninstall"]
-    K["<b>the kit — kit/vX.Y.Z — the product</b><br/>engines · flows · templates · every verb"]
-    P["<b>packs — pack/vX.Y.Z — the content</b><br/>directive code, lock-pinned"]
-    PIN["<b>the repo decides its versions</b><br/>install.yaml pins the kit · packs.lock pins the packs · the skill honors the pin"]
-    RU["≈ rustup<br/>the version manager"]
-    TC["≈ the toolchain<br/>compiler · libs · tools"]
-    LF["≈ the lockfile<br/>pinned dependencies"]
+    T["the model — an installer, a product, its content. like a language toolchain manager."]
 
-    S -->|"installs · updates"| K
-    K -->|"consumes"| P
-    P ~~~ PIN
+    subgraph R1[" "]
+        direction LR
+        S["governance skill — the installer<br/>install · update · uninstall"]
+        RU["≈ rustup<br/>the version manager"]
+    end
+
+    subgraph R2[" "]
+        direction LR
+        K["the kit — kit/vX.Y.Z — the product<br/>engine · flows · assets · all verbs"]
+        TC["≈ the toolchain<br/>compiler · libs · tools"]
+    end
+
+    subgraph R3[" "]
+        direction LR
+        P["packs — pack/vX.Y.Z — the content<br/>directive content, lock-pinned"]
+        LF["≈ the lockfile<br/>pinned dependencies"]
+    end
+
+    PIN["the repo decides its versions<br/>install.yaml pins the kit · packs.lock pins the packs · the skill honors the pin"]
+    LEGEND["purple = installer · teal = product · coral = content · gray = familiar analogy"]
+
+    T ~~~ S
     S -.- RU
+    S -->|"installs · updates"| K
     K -.- TC
+    K -->|"consumes"| P
     P -.- LF
+    P ~~~ PIN
+    LF ~~~ PIN
+    PIN ~~~ LEGEND
 
-    classDef installer fill:#4938a8,stroke:#4938a8,color:#ffffff
-    classDef product fill:#0c7a52,stroke:#0c7a52,color:#ffffff
-    classDef content fill:#9c3a1d,stroke:#9c3a1d,color:#ffffff
-    classDef analogy fill:#44443e,stroke:#44443e,color:#e8e8e3
-    classDef pin fill:#0d4f86,stroke:#0d4f86,color:#ffffff
+    style R1 fill:transparent,stroke:transparent
+    style R2 fill:transparent,stroke:transparent
+    style R3 fill:transparent,stroke:transparent
+    classDef title fill:transparent,stroke:transparent,color:#d8d5cb,font-weight:bold
+    classDef installer fill:#3f3586,stroke:#8b7ff0,color:#eeeaff
+    classDef product fill:#075b4a,stroke:#36d6af,color:#dcfff4
+    classDef content fill:#7b2b17,stroke:#ef9673,color:#fff0e8
+    classDef analogy fill:#3f403a,stroke:#a5a49b,color:#efeee8
+    classDef pin fill:#0e4e85,stroke:#5aa8e9,color:#e9f5ff
+    classDef legend fill:transparent,stroke:transparent,color:#d8d5cb
+    class T title
     class S installer
     class K product
     class P content
     class RU,TC,LF analogy
     class PIN pin
+    class LEGEND legend
 ```
 
 The two version axes are independent (the Helm `Chart.version` vs `appVersion` model — [VERSIONING.md](kit/references/VERSIONING.md)): the **kit** is the framework (runtime, hook generators, engines, schemas; tagged `kit/vX.Y.Z`), **packs** are the directive content (each on its own `pack.yaml` version). `.governance/packs.lock` pins what runs; the check code is vendored into `.governance/packs/` and committed, so a pack bump shows the real `check.sh` diff, not just a SHA.
@@ -397,7 +513,7 @@ Version lines are written **only** by [`scripts/release.sh`](scripts/release.sh)
 
 ```sh
 bash scripts/release.sh <kit|PACK> <X.Y.Z> --dry-run   # preview — bump, re-stamps, tag, CHANGELOG
-bash scripts/release.sh security 0.2.0                 # cut a pack release
+bash scripts/release.sh docs 0.2.2                     # cut a pack release
 bash scripts/release.sh kit 0.6.0 --push               # cut a kit release and push branch + tag
 ```
 
