@@ -3,39 +3,20 @@
 #
 # Walks the active agent runtime's session JSONL, extracts steering events
 # (interrupts, classifier-confirmed corrections), and appends one row per
-# *new* event to receipts. `git add`s the ledger so the rows land in
-# this commit's tree, then writes a handoff env file for prepare-commit-msg
-# to stamp the always-on summary triple from.
+# *new* event to the issue's receipt. `git add`s the ledger so the rows land
+# in this commit's tree. This is a side-effect hook only — issue #293 retired
+# the summary trailers, so there is no longer a handoff or a prepare-commit-msg
+# stamp; check.sh validates the resulting ledger shape.
 #
-# Always-on contract: when a runtime + transcript are detected, the handoff
-# is written even on commits with zero new events, and prepare-commit-msg
-# stamps the actual counts. When no runtime is detected (or pre-commit is
-# bypassed), this hook is a silent no-op and no handoff is written —
-# prepare-commit-msg then falls back to `Steer-Count: 0` / `Steer-Types:
-# none` / `Steer-Tiers: none`. Either way every non-merge, non-revert
-# commit lands with the summary triple stamped — a `git log`-skimmable
-# assertion that the directive ran. The directive is independent of
-# agent-token-accounting; the contract holds whether or not the commit
-# carries an `Agent:` trailer.
-#
-# Why pre-commit, not prepare-commit-msg: by the time prepare-commit-msg
-# runs, git has already snapshotted the tree. `git add` from there lands
-# in the next commit's index, not this one. Same shape as
+# Why pre-commit, not a later hook: pre-commit runs before git snapshots the
+# tree, so the `git add` of the receipt rows lands in the CURRENT commit. From
+# a post-snapshot hook it would land in the next commit's index. Same shape as
 # agent-token-accounting/hooks/pre-commit.sh.
 #
-# Dedup: the extractor returns *every* event on the session. We skip the
-# first N, where N is the count of rows already in receipts for this
-# session. Append-only ordering of the ledger plus the JSONL's chronological
-# order makes this exact.
-#
-# Retry safety (issue #66): the summary trailers are derived from the
-# *staged* receipts diff at handoff time, not from the events the
-# extractor newly appended. On a retry after a failed commit-msg check,
-# pre-commit's first attempt has already appended N rows and `git add`ed
-# them; the extractor sees zero new events the second time around, but
-# the staged diff still carries those N rows, so the handoff stamps
-# `Steer-Count: N`. The retry's commit-msg check then sees a consistent
-# row count and trailer count without the user manually re-stamping.
+# Dedup (issue #229): the extractor returns *every* event on the session; we
+# append only those whose (session, ordinal) identity isn't already recorded.
+# Best-effort by design — a transient extractor failure logs and exits 0
+# rather than blocking the commit.
 #
 # Bash 3.2 compatible — no associative arrays, no namerefs. macOS ships
 # bash 3.2.x at /bin/bash, and `#!/usr/bin/env bash` resolves to it on a
@@ -58,9 +39,9 @@ if [[ "${CLAUDECODE:-}" == "1" ]]; then
 fi
 # Codex / other runtimes: future runtimes/<name>.sh adapters will land here.
 
-# Not in an agent-runtime session — pre-commit is a no-op (no transcript
-# to extract events from, no rows to append). prepare-commit-msg will
-# still fire and stamp the zero-defaults so the universal contract holds.
+# Not in an agent-runtime session — pre-commit is a no-op (no transcript to
+# extract events from, no rows to append). A human / manual commit records no
+# steering; check.sh still validates whatever rows already exist.
 [[ -z "$RUNTIME" ]] && exit 0
 
 ROOT="$(git rev-parse --show-toplevel)"
@@ -71,7 +52,6 @@ RULE_DIR="$(cd "$HERE/.." && pwd)"
 RECEIPTS_DIR="$ROOT/receipts"
 LIB="$RULE_DIR/lib"
 RUNTIMES="$RULE_DIR/runtimes"
-HANDOFF="$(git rev-parse --git-path governance-pending-steering.env)"
 
 # ── Resolve the transcript ─────────────────────────────────────
 case "$RUNTIME" in
@@ -236,72 +216,7 @@ if (( NEW_EVENTS_COUNT > 0 )); then
     git add "$RECEIPT"
 fi
 
-# ── Derive the summary triple from the staged receipt diff ──
-# Re-deriving from the diff (rather than from the events newly appended in
-# *this* invocation) is what makes the retry-after-failed-commit-msg case
-# work: on a retry, the rows appended by the first attempt are still
-# staged, so they show up in `git diff --cached` and the handoff stamps
-# the right Steer-Count. See issue #66.
-#
-# The receipt diff also carries cost rows and prose; we keep only steering
-# data rows — a `+| ... |` line whose first cell starts with `steer-`.
-STAGED_TSV=""
-if [[ -n "$RECEIPT" ]]; then
-    STAGED_TSV="$(git diff --cached -- "$RECEIPT" 2>/dev/null | python3 -c '
-import sys
-for line in sys.stdin:
-    line = line.rstrip("\n")
-    if not line.startswith("+") or line.startswith("+++"):
-        continue
-    body = line[1:].strip()
-    if not body.startswith("|"):
-        continue
-    cells = [c.strip() for c in body.split("|")[1:-1]]
-    # 9 = v2 steering row (+ ordinal, timestamp); 7 = legacy v1 (issue #229).
-    if len(cells) not in (7, 9):
-        continue
-    key = cells[0]
-    # Skip the table header ("steer-key" also starts with "steer-").
-    if key == "steer-key" or not key.startswith("steer-"):
-        continue
-    print(f"{cells[3]}\t{cells[4]}")
-')"
-fi
-
-STAGED_COUNT="$(printf '%s' "$STAGED_TSV" | awk 'NF' | wc -l | tr -d ' ')"
-TYPES_RAW="$(printf '%s' "$STAGED_TSV" | awk -F'\t' 'NF { print $1 }')"
-TIERS_RAW="$(printf '%s' "$STAGED_TSV" | awk -F'\t' 'NF { print $2 }')"
-
-# Format raw newline-separated values into `key=N,key=N` (sorted for
-# determinism — squash-merge rebases shouldn't reorder them). Empty input
-# maps to "none".
-format_counts() {
-    local raw="$1"
-    if [[ -z "$raw" ]]; then
-        printf 'none'
-        return
-    fi
-    printf '%s' "$raw" \
-        | awk 'NF { print }' \
-        | sort \
-        | uniq -c \
-        | awk 'BEGIN { sep="" } { printf("%s%s=%s", sep, $2, $1); sep="," } END { print "" }'
-}
-
-TYPES_SUMMARY="$(format_counts "$TYPES_RAW")"
-TIERS_SUMMARY="$(format_counts "$TIERS_RAW")"
-
-# ── Hand off to prepare-commit-msg ────────────────────────────
-# Always written when a runtime + transcript are detected, even on
-# zero-event commits. prepare-commit-msg uses these to stamp the
-# always-on summary triple.
-{
-    printf "AGENT_STEERING_COUNT='%s'\n" "$STAGED_COUNT"
-    printf "AGENT_STEERING_TYPES='%s'\n" "$TYPES_SUMMARY"
-    printf "AGENT_STEERING_TIERS='%s'\n" "$TIERS_SUMMARY"
-} > "$HANDOFF"
-
-printf 'agent-steering: runtime=%s session=%s new=%d staged=%d total=%d\n' \
-    "$RUNTIME" "$SESSION_ID" "$NEW_EVENTS_COUNT" "$STAGED_COUNT" "$TOTAL_EVENTS" >&2
+printf 'agent-steering: runtime=%s session=%s new=%d total=%d\n' \
+    "$RUNTIME" "$SESSION_ID" "$NEW_EVENTS_COUNT" "$TOTAL_EVENTS" >&2
 
 exit 0

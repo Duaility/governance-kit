@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Directive: Each tracked receipts/*.md file satisfies these shape rules:
-#   1. Filename matches `issue-<N>-<slug>.md` where <slug> is one or more
-#      kebab-case tokens (lowercase letters, digits, hyphens), and no two
-#      receipts share the same issue number.
+#   1. Filename matches `issue-<N>[-<slug>].md`. A receipt ADDED in the change
+#      set must carry a kebab-case <slug> (lowercase letters, digits, hyphens) —
+#      the bare `issue-<N>.md` form is rejected for new receipts. Accounting-only
+#      stubs (the hooks create them slugless) and pre-existing (grandfathered)
+#      receipts may use the bare form. No two receipts share the same issue number.
 #   2. Body contains four required Markdown sections — `## Checklist`,
 #      `## What changed`, `## Out of scope`, `## Verification` — checked on
 #      every tracked receipt.
@@ -248,7 +250,19 @@ for f in "${receipt_files[@]}"; do
     # validates the shape; this is best-effort for the message text).
     issue_ref="${base#issue-}"; issue_ref="${issue_ref%%[-.]*}"
     [[ "$issue_ref" =~ ^[0-9]+$ ]] || issue_ref="<N>"
-    if [[ "$base" =~ ^issue-([0-9]+)(-[a-z0-9]+(-[a-z0-9]+)*)?\.md$ ]]; then
+    # Slug policy: a receipt ADDED in this change set must carry a kebab-case
+    # slug — `issue-<N>-<slug>.md`. The bare `issue-<N>.md` form is accepted only
+    # for accounting-only stubs (the hooks create them slugless; the agent adds a
+    # slug when fleshing out the narrative) and for pre-existing receipts on HEAD,
+    # which are grandfathered. Same forward-only change-set scope as rules 4–7.
+    if receipt_in_scope "$f" && ! is_accounting_stub "$f"; then
+        fname_re='^issue-([0-9]+)-[a-z0-9]+(-[a-z0-9]+)*\.md$'
+        fname_msg="$f — a newly added receipt filename must match 'issue-<N>-<slug>.md' with a kebab-case slug (lowercase letters, digits, hyphens) — e.g. receipts/issue-63-replace-plans.md"
+    else
+        fname_re='^issue-([0-9]+)(-[a-z0-9]+(-[a-z0-9]+)*)?\.md$'
+        fname_msg="$f — receipt filename must match 'issue-<N>.md' or 'issue-<N>-<slug>.md' with a kebab-case slug (lowercase letters, digits, hyphens) — e.g. receipts/issue-63-replace-plans.md"
+    fi
+    if [[ "$base" =~ $fname_re ]]; then
         num="${BASH_REMATCH[1]}"
         dup_of=""
         for i in "${!seen_nums[@]}"; do
@@ -264,7 +278,7 @@ for f in "${receipt_files[@]}"; do
             seen_files+=("$f")
         fi
     else
-        violation "$f — receipt filename must match 'issue-<N>.md' or 'issue-<N>-<slug>.md' with a kebab-case slug (lowercase letters, digits, hyphens) — e.g. receipts/issue-63-replace-plans.md"
+        violation "$fname_msg"
     fi
 
     # Accounting-only stub: the agent-token/steering pre-commit hooks create
