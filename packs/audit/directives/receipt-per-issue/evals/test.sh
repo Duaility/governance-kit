@@ -112,8 +112,9 @@ stage_all
 commit_quiet "docs: untokened receipt"
 EVAL_LABEL="$EVAL_ID no-token" expect_fail "$CHECK"
 
-# pass — slugless `issue-<N>.md` is a valid filename (issue #201: the
-#        accounting hooks create slugless receipts; the slug is optional).
+# pass — a grandfathered (committed, NOT in the change set) slugless
+#        `issue-<N>.md` stays valid: the slug requirement applies only to
+#        receipts ADDED in the change set; pre-existing receipts are exempt.
 rm receipts/rogue.md
 cat > receipts/issue-9.md <<'EOF'
 # No slug
@@ -136,7 +137,81 @@ ok
 EOF
 stage_all
 commit_quiet "docs: slugless receipt"
-EVAL_LABEL="$EVAL_ID slugless-ok" expect_pass "$CHECK"
+EVAL_LABEL="$EVAL_ID grandfathered-slugless-ok" expect_pass "$CHECK"
+
+# fail — a NEW (staged, in the change set) non-stub receipt must carry a slug;
+#        the bare `issue-<N>.md` form is rejected for newly added receipts. The
+#        body is otherwise valid (in-scope sections present) so the slug is the
+#        only violation. issue-9.md (committed above) is left untouched.
+cat > receipts/issue-12.md <<'EOF'
+# New slugless
+
+## Checklist
+
+- [x] Stuff
+
+## What changed
+
+Stuff.
+
+## Out of scope
+
+None.
+
+## Verification
+
+```sh
+bash .governance/run.sh
+```
+
+## Decisions
+
+None.
+
+## Audit
+
+- PASS — `## What changed` matches the diff.
+EOF
+stage_all
+EVAL_LABEL="$EVAL_ID new-receipt-needs-slug" expect_fail "$CHECK"
+
+# pass — the same NEW receipt with a kebab-case slug is accepted.
+rm -f receipts/issue-12.md
+cat > receipts/issue-12-add-slug.md <<'EOF'
+# New with slug
+
+## Checklist
+
+- [x] Stuff
+
+## What changed
+
+Stuff.
+
+## Out of scope
+
+None.
+
+## Verification
+
+```sh
+bash .governance/run.sh
+```
+
+## Decisions
+
+None.
+
+## Audit
+
+- PASS — `## What changed` matches the diff.
+EOF
+stage_all
+EVAL_LABEL="$EVAL_ID new-receipt-with-slug" expect_pass "$CHECK"
+# Restore the post-slugless-ok state: unstage + drop the scratch receipt so
+# issue-9.md (committed) is the only receipt and the tree is clean.
+git reset -q -- receipts/issue-12-add-slug.md 2>/dev/null || true
+rm -f receipts/issue-12-add-slug.md
 
 # fail — slug contains uppercase (not kebab-case)
 rm receipts/issue-9.md
