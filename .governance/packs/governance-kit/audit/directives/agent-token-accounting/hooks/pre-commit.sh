@@ -3,13 +3,14 @@
 #
 # This is what makes `git commit` the baseline for agent-authored commits.
 # The pre-commit hook runs it before governance tests; if the commit is
-# agent-authored, it appends the ledger row and `git add`s it (so the row
-# lands in the CURRENT commit's tree), then writes a handoff file that
-# prepare-commit-msg reads to stamp matching trailers onto the message.
+# agent-authored, it appends the cost row to the issue's receipt and `git add`s
+# it (so the row lands in the CURRENT commit's tree). check.sh then reconciles
+# the receipt's recorded cumulative against the transcript at commit-msg time
+# (issue #293) — no trailers are stamped.
 #
-# Why not do this in prepare-commit-msg directly: by the time that hook runs,
-# git has already snapshotted the tree for the commit. `git add` from there
-# lands in the NEXT commit's index, not this one.
+# Why pre-commit and not a later hook: pre-commit runs before git snapshots the
+# tree, so the `git add` of the receipt row lands in the CURRENT commit. From a
+# post-snapshot hook it would land in the NEXT commit's index instead.
 #
 # Runtime detection is automatic from the environment:
 #   CLAUDECODE=1                 → claude-code
@@ -26,9 +27,9 @@
 # explicitly to skip inference (useful for editor-mode commits where argv has
 # no -m).
 #
-# All receipt parsing / summing / appending goes through
-# sibling lib/ledger.py — bash here only handles git plumbing,
-# environment detection, argv walking, and the env-file handoff.
+# All receipt parsing / summing / appending goes through sibling lib/ledger.py;
+# runtime detection + transcript cumulative through lib/runtime.sh (shared with
+# check.sh). Bash here handles git plumbing, argv walking, and row append.
 # Per-runtime transcript readers live in sibling runtimes/<runtime>.sh.
 
 set -u
@@ -37,19 +38,6 @@ if [[ "${SKIP_GOVERNANCE:-0}" == "1" ]]; then
     exit 0
 fi
 
-# ── Detect runtime ─────────────────────────────────────────────
-RUNTIME=""
-if [[ -n "${AGENT_NAME:-}" ]]; then
-    RUNTIME="manual"
-elif [[ "${CLAUDECODE:-}" == "1" ]]; then
-    RUNTIME="claude-code"
-elif [[ -n "${CODEX_THREAD_ID:-}" ]]; then
-    RUNTIME="codex"
-fi
-
-# Not an agent commit — exit silently. Humans committing manually hit this path.
-[[ -z "$RUNTIME" ]] && exit 0
-
 ROOT="$(git rev-parse --show-toplevel)"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 RULE_DIR="$(cd "$HERE/.." && pwd)"
@@ -57,10 +45,24 @@ RULE_DIR="$(cd "$HERE/.." && pwd)"
 # COSTS.md. The receipt is resolved from the issue anchor below.
 RECEIPTS_DIR="$ROOT/receipts"
 LIB="$RULE_DIR/lib"
-RUNTIMES="$RULE_DIR/runtimes"
-# In a worktree `.git` is a pointer file, not a directory. Use rev-parse
-# to locate the real per-worktree git dir so the handoff file writes cleanly.
-HANDOFF="$(git rev-parse --git-path governance-pending.env)"
+
+# ── Detect runtime + resolve the session's cumulative counters ──
+# Shared with check.sh's commit-time endpoint reconciliation (issue #293) via
+# lib/runtime.sh: the writer (here) records the transcript cumulative in the
+# cost row; the checker re-reads the same coordinate to prove the row landed.
+# shellcheck disable=SC1090
+source "$LIB/runtime.sh"
+resolve_runtime_cumulative
+rc=$?
+# rc == 1: no agent runtime — a human commit. Exit silently (no row to write).
+[[ $rc -eq 1 ]] && exit 0
+if [[ $rc -eq 2 ]]; then
+    echo "✗ agent-token-accounting: runtime '$RUNTIME' detected but its transcript / cumulative counters were unreadable" >&2
+    exit 1
+fi
+# rc == 0: RUNTIME / SESSION_ID / CUM_* / MODEL are set. The ledger's agent name
+# is the user's AGENT_NAME for the manual runtime, else the runtime id itself.
+AGENT_NAME="${AGENT_NAME:-$RUNTIME}"
 
 # ── Read git's argv to recover the -m / --message subject ─────
 # This script runs as: git → pre-commit hook → bash agent-accounting.sh.
@@ -132,59 +134,6 @@ elif [[ "$ARGV" =~ --message=(.+) ]]; then
     SUBJECT="${BASH_REMATCH[1]}"
 fi
 
-# ── Runtime dispatch: get session id + cumulative tokens + model ───
-SESSION_ID=""
-CUM_INPUT=0
-CUM_CACHE_CREATE=0
-CUM_CACHE_READ=0
-CUM_OUTPUT=0
-MODEL=""
-case "$RUNTIME" in
-    claude-code)
-        if ! out="$("$RUNTIMES/claude-code.sh")"; then
-            echo "✗ claude-code: transcript not found or unreadable" >&2
-            exit 1
-        fi
-        read -r SESSION_ID CUM_INPUT CUM_CACHE_CREATE CUM_CACHE_READ CUM_OUTPUT MODEL <<<"$out"
-        AGENT_NAME="claude-code"
-        ;;
-    codex)
-        if ! out="$("$RUNTIMES/codex.sh")"; then
-            echo "✗ codex: transcript not found or unreadable" >&2
-            exit 1
-        fi
-        read -r SESSION_ID CUM_INPUT CUM_CACHE_CREATE CUM_CACHE_READ CUM_OUTPUT MODEL <<<"$out"
-        AGENT_NAME="codex"
-        ;;
-    manual)
-        require() {
-            if [[ -z "${!1:-}" ]]; then
-                echo "✗ AGENT_NAME=$AGENT_NAME set manually but \$$1 is unset" >&2
-                exit 1
-            fi
-        }
-        require AGENT_SESSION_ID
-        require AGENT_CUM_INPUT
-        require AGENT_CUM_OUTPUT
-        SESSION_ID="$AGENT_SESSION_ID"
-        CUM_INPUT="$AGENT_CUM_INPUT"
-        CUM_CACHE_CREATE="${AGENT_CUM_CACHE_CREATE:-0}"
-        CUM_CACHE_READ="${AGENT_CUM_CACHE_READ:-0}"
-        CUM_OUTPUT="$AGENT_CUM_OUTPUT"
-        MODEL="${AGENT_MODEL:-unknown}"
-        ;;
-esac
-# Normalize missing/blank model to a sentinel the ledger recognizes as unpriced.
-MODEL="${MODEL:-unknown}"
-
-for var in CUM_INPUT CUM_CACHE_CREATE CUM_CACHE_READ CUM_OUTPUT; do
-    val="${!var}"
-    if ! [[ "$val" =~ ^[0-9]+$ ]]; then
-        echo "✗ $var must be a non-negative integer (got '$val')" >&2
-        exit 1
-    fi
-done
-
 # ── Resolve the receipt this issue's accounting rows belong in ──
 # Prefer an existing issue-N.md / issue-N-<slug>.md; create-if-absent lands
 # the slugless issue-N.md, which the agent later fleshes out (or renames).
@@ -214,12 +163,6 @@ TOKEN_OUTPUT=$(( CUM_OUTPUT        - PREV_OUTPUT        ))
 (( TOKEN_CACHE_READ    < 0 )) && TOKEN_CACHE_READ=0
 (( TOKEN_OUTPUT        < 0 )) && TOKEN_OUTPUT=0
 
-# Trailer contract: Token-Input = new-work tokens = input + cache_create.
-# cache_read is NOT in the trailer — it's the same bytes re-read, not new work.
-TRAILER_INPUT=$(( TOKEN_INPUT + TOKEN_CACHE_CREATE ))
-TRAILER_OUTPUT=$TOKEN_OUTPUT
-TRAILER_TOTAL=$(( TRAILER_INPUT + TRAILER_OUTPUT ))
-
 # ── Compute cost-key ──────────────────────────────────────────
 # Opaque key: <agent>-<session-short>-<epoch>-<n>. The per-(prefix) counter
 # <n> closes the same-second collision window — two commits in one session
@@ -232,11 +175,7 @@ KEY_PREFIX="${AGENT_NAME}-${SESSION_SHORT}-${EPOCH}-"
 COST_INDEX="$(python3 "$LIB/ledger.py" next-cost-index "$RECEIPTS_DIR" "$KEY_PREFIX")"
 COST_KEY="${AGENT_COST_KEY:-${KEY_PREFIX}${COST_INDEX}}"
 
-# ── Compute cost-usd once; feed both ledger row and trailer ───
-# Keeping this shell-side (instead of letting ledger.py recompute) means
-# the handoff to prepare-commit-msg carries the same 4-decimal string the
-# ledger will write — no cross-check divergence possible.
-#
+# ── Compute cost-usd for the ledger row ───────────────────────
 # Cost-USD is required on every new commit. If the runtime model can't be
 # priced (no family-prefix fallback matches), `rates.py cost` exits 3 with
 # a human-readable reason on stderr; we surface that and block the commit.
@@ -276,18 +215,6 @@ git add "$RECEIPT"
 # sum-by-session path did once its own row was staged.
 python3 "$LIB/ledger.py" checkpoint-set "$CHECKPOINT" "$SESSION_ID" \
     "$CUM_INPUT" "$CUM_CACHE_CREATE" "$CUM_CACHE_READ" "$CUM_OUTPUT"
-
-# ── Hand off to prepare-commit-msg via env file ───────────────
-cat > "$HANDOFF" <<EOF
-AGENT_NAME='$AGENT_NAME'
-AGENT_SESSION_ID='$SESSION_ID'
-AGENT_ISSUE='$ISSUE'
-AGENT_TOKEN_INPUT='$TRAILER_INPUT'
-AGENT_TOKEN_OUTPUT='$TRAILER_OUTPUT'
-AGENT_TOKEN_TOTAL='$TRAILER_TOTAL'
-AGENT_COST_KEY='$COST_KEY'
-AGENT_COST_USD='$COST_USD'
-EOF
 
 printf 'agent-accounting: runtime=%s model=%s session=%s input=+%d cache_create=+%d cache_read=+%d output=+%d cost-key=%s cost-usd=%s\n' \
     "$RUNTIME" "$MODEL" "$SESSION_ID" "$TOKEN_INPUT" "$TOKEN_CACHE_CREATE" "$TOKEN_CACHE_READ" "$TOKEN_OUTPUT" "$COST_KEY" "$COST_USD" >&2

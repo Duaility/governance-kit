@@ -50,6 +50,9 @@ Markdown section/table plumbing lives in sibling `receipt_io.py`; pricing in
     validate-dir    <receipts_dir>            → all receipts + global uniqueness
                                                  + cumulative reconciliation/monotonicity
     find-by-cost-key <receipts_dir> <key>     → "<in> <cc> <cr> <out> <nw> <usd>"
+    session-cum     <receipts_dir> <session>  → "<cum_in> <cum_cc> <cum_cr> <cum_out>"
+                                                 (recorded endpoint for the commit-
+                                                  time transcript reconciliation, #293)
 """
 
 from __future__ import annotations
@@ -269,6 +272,32 @@ def find_by_cost_key(rows: list[LedgerRow], cost_key: str) -> list[LedgerRow]:
     return [r for r in rows if r.cost_key == cost_key]
 
 
+def session_cum(rows: list[LedgerRow], session: str) -> tuple[int, int, int, int]:
+    """The session's recorded cumulative coordinate: the (cum_input,
+    cum_cache_create, cum_cache_read, cum_output) of the v4 row with the
+    greatest `cum_total` for `session`, or (0, 0, 0, 0) if the session has no
+    v4 row.
+
+    This is the receipt-side endpoint the commit-time check reconciles against
+    the transcript's live cumulative counters. The trailer-free completeness
+    guarantee (issue #293): a ledger whose recorded cumulative lags the
+    transcript is the signature of an agent commit whose cost row was never
+    written. Because rows store absolute coordinates (not deltas), the latest
+    row's cumulative is the whole session's recorded total."""
+    best: LedgerRow | None = None
+    for r in rows:
+        if r.session != session or not r.has_cum:
+            continue
+        if best is None or r.cum_total > best.cum_total:  # type: ignore[operator]
+            best = r
+    if best is None:
+        return (0, 0, 0, 0)
+    return (
+        best.cum_input or 0, best.cum_cache_create or 0,
+        best.cum_cache_read or 0, best.cum_output or 0,
+    )
+
+
 def resolve_receipt(receipts_dir: str | Path, issue_number: str) -> str:
     """The receipt path a cost row for issue N belongs in: an existing
     `issue-N.md` / `issue-N-<slug>.md` (first, deterministically, if several),
@@ -420,6 +449,14 @@ def _cmd_validate_dir(args: list[str]) -> int:
     return 1 if violations else 0
 
 
+def _cmd_session_cum(args: list[str]) -> int:
+    if len(args) != 2:
+        _die("session-cum takes: <receipts_dir> <session>")
+    ci, ccc, ccr, co = session_cum(parse_all_costs(args[0]), args[1])
+    print(f"{ci} {ccc} {ccr} {co}")
+    return 0
+
+
 def _cmd_find_by_cost_key(args: list[str]) -> int:
     if len(args) != 2:
         _die("find-by-cost-key takes: <receipts_dir> <cost_key>")
@@ -443,6 +480,7 @@ _COMMANDS = {
     "validate": _cmd_validate,
     "validate-dir": _cmd_validate_dir,
     "find-by-cost-key": _cmd_find_by_cost_key,
+    "session-cum": _cmd_session_cum,
 }
 
 

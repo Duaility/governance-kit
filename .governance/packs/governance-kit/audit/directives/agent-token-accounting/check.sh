@@ -1,78 +1,49 @@
 #!/usr/bin/env bash
-# Directive: Every non-merge, non-revert commit carries full token-accounting
-# trailers and a matching row under `## Accounting` → `### Costs` in the
-# issue's receipt (`receipts/issue-<N>.md`). This repo is agent-driven only —
-# an untrailered commit is a bug, not an allowed mode.
+# Directive: every agent-authored commit's token cost is recorded in the
+# issue's receipt (`receipts/issue-<N>.md`, under `## Accounting` → `### Costs`)
+# and the receipt's recorded cumulative never silently falls behind the
+# transcript. This repo is agent-driven only — an unaccounted commit is a bug.
 #
-# Rows live in per-issue receipts, not a central COSTS.md (issue #201): the
-# receipt is conflict-free (only its own PR branch writes it) and naturally
-# sealed (frozen on the trunk by doc-integrity). The legacy COSTS.md is sealed
-# history that this check no longer reads.
+# Issue #293 retired the per-commit token trailers
+# (Agent/Issue/Session/Token-*/Cost-Key/Cost-USD). They were a denormalised
+# copy of the receipt cost row stamped onto the commit, kept honest by a
+# bidirectional cross-check whose only consumer was the cross-check itself. The
+# receipt is the durable, doc-integrity-frozen ledger; completeness is now
+# proven by reading the transcript directly instead of a stamped copy:
 #
-# Required trailers on every in-scope commit:
-#   Agent:         free-form runtime identifier (codex, claude-code, cursor, ...)
-#   Issue:         #123 — the GitHub issue anchor
-#   Session:       the runtime's session / thread id
-#   Token-Input:   non-negative integer (= input + cache_create)
-#   Token-Output:  non-negative integer (= output)
-#   Token-Total:   non-negative integer, == Token-Input + Token-Output
-#   Cost-Key:      <agent>-<session-short>-<epoch>-<n>, globally unique across
-#                  receipts/*.md. Opaque — a join token, not a parseable id.
-#   Cost-USD:      4-decimal dollar figure, cross-checked against the receipt
-#                  row's cost_usd column. An unpriced model blocks the commit
-#                  upstream in the pre-commit hook — Cost-USD is not optional.
+#   Endpoint reconciliation (Mode A, commit time): when an agent runtime is
+#   detected, re-derive the session's cumulative token counters from the
+#   transcript and assert the receipt's recorded `cum-*` for that session
+#   equals it. Because cost rows store *absolute* coordinates, a ledger that
+#   lags the transcript is exactly the signature of a commit whose cost row was
+#   never written — the failure mode the mandatory `Agent:` trailer used to
+#   catch. The pre-commit hook writes the row (and advances the per-session
+#   checkpoint) just before this runs, so a clean commit reconciles by
+#   construction; a `--no-verify` / hook-skipped commit lags and fails here.
 #
-# Receipt Costs sub-table format — one row per agent-authored commit:
-#   | cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | note |
-#
-# Where:
-#   model      = runtime-reported model id (e.g. claude-sonnet-4-5)
-#   new-work   == input + cache_create + output (self-checking, cache_read
-#                 excluded — same bytes re-read, not new effort). Matches
-#                 Token-Total in the trailer by construction.
-#   cost-usd   = rates.lookup(model) (see lib/rates.py) · token columns.
-#                Non-empty on every new v3 row; family-prefix fallback in
-#                the rate table makes the unpriced case a hard failure at
-#                commit time, not a silent blank.
-# Legacy rows are accepted: v2 (10 cols, no model/cost-usd), v1 (8 cols,
-# no cache split either), and v3 rows predating the cost-mandate whose
-# `model` cell is empty. For those, `model`/`cost_usd` stay empty and the
-# old `total` value is read as `new_work`.
+# Receipt Costs sub-table format — v4, one row per agent-authored commit:
+#   | cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | cum-input | cum-cache-create | cum-cache-read | cum-output | note |
+# Legacy v3 (12 cols) / v2 / v1 rows still parse and validate to their rules;
+# they carry no `cum-*` and are excluded from reconciliation / monotonicity.
 #
 # Modes:
-#   Mode A — commit-msg hook:  bash agent-token-accounting.sh <path-to-msg-file>
-#       Skips revert commits (subject starts with `Revert "`); merge commits
-#       don't go through commit-msg.
-#   Mode B — CI / run.sh:      bash agent-token-accounting.sh
-#       Walks default-branch merge-base → HEAD and validates every non-merge,
-#       non-revert commit. Merge commits (>1 parent) and revert commits
-#       (subject starts with `Revert "`) are exempt. When the range is empty
-#       (`base..HEAD` is empty — typically on `main` itself after a
-#       squash-merge), Mode B validates HEAD's trailers on its own.
-#       Squash-merge commits land on `main` via GitHub's server and bypass
-#       the local commit-msg hook, so without this single-commit fallback
-#       the squashed commit's per-Cost-Key trailer blocks would go
-#       unchecked. Also validates every receipt's Costs sub-table shape
-#       independently, so post-squash repos still get accounting integrity.
+#   Mode A — commit-msg hook:  bash check.sh <path-to-msg-file>
+#       Runs the repo-wide receipt-shape check (below) then, when a runtime is
+#       detected, the endpoint reconciliation for the active session. Skips
+#       revert commits. The endpoint check is *commit-time only* — running it
+#       off the commit path (e.g. a mid-session `run.sh`) would false-fail
+#       because the transcript legitimately leads the not-yet-committed work.
+#   Mode B — CI / run.sh:      bash check.sh
+#       Receipt-shape check only: every receipt's Costs sub-table is well-formed
+#       (shape + global cost-key uniqueness + cumulative reconciliation /
+#       monotonicity). Per-commit completeness is a write-time property — on the
+#       trunk the receipt *is* the record, and its internal consistency is what
+#       CI guards.
 #
-# Per-block validation: the trailer set above repeats once per sub-commit
-# in a squash-merge body (one (Token-*, Cost-Key, Cost-USD) tuple per
-# folded sub-commit). lib/trailers.py splits the body into trailer-only
-# paragraphs and cross-checks every (block, receipt row) pair anchored
-# by Cost-Key — last-wins parsing across the whole body would keep only
-# the trailing sub-commit's trailers and silently skip the rest.
-#
-# No self-bootstrap exemption: `governance init` is responsible for making
-# the install commit pass this directive on the first try (dry-run + inline
-# fix + normal `git commit` with the populators active). The only sanctioned
-# bypass is the `unsupported-runtime` body waiver below, which is a
-# subsequent-commit fallback for runtimes that have no `runtimes/<name>.sh`
-# adapter — not a bootstrap accommodation.
-#
-# Ledger parsing, trailer parsing, and cross-check math are in sibling
-# lib/ledger.py and lib/trailers.py — the directive folder is self-contained.
-# This script is the bash shell — detect mode, walk commits, aggregate
-# violations.
+# Ledger parsing / append / queries live in sibling lib/ledger.py; receipt
+# validation in lib/validate.py; cumulative reconciliation + checkpoint in
+# lib/reconcile.py; pricing in lib/rates.py; runtime detection + transcript
+# cumulative in lib/runtime.sh (shared with hooks/pre-commit.sh).
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$(dirname "$0")/../../../../../lib.sh"
@@ -83,15 +54,15 @@ ROOT="$(git rev-parse --show-toplevel)"
 RECEIPTS_DIR="$ROOT/receipts"
 LIB="$HERE/lib"
 
-if [[ ! -f "$LIB/ledger.py" || ! -f "$LIB/trailers.py" ]]; then
-    violation "directive folder is missing lib/{ledger,trailers}.py — cannot validate"
+if [[ ! -f "$LIB/ledger.py" || ! -f "$LIB/runtime.sh" ]]; then
+    violation "directive folder is missing lib/ledger.py or lib/runtime.sh — cannot validate"
     directive_end
 fi
 
 # ──────────────────────────────────────────────────────────────
-# Receipt-accounting integrity check (independent of any commits). Runs
-# first so repo-wide shape problems (bad row shape, duplicate cost-keys
-# across receipts) get reported even on human-only branches.
+# Receipt-accounting integrity check (independent of any commit). Runs in both
+# modes so repo-wide shape problems (bad row shape, duplicate cost-keys,
+# double-counted deltas, non-monotonic cumulatives) are reported everywhere.
 # ──────────────────────────────────────────────────────────────
 if [[ -d "$RECEIPTS_DIR" ]]; then
     while IFS= read -r v; do
@@ -100,56 +71,16 @@ if [[ -d "$RECEIPTS_DIR" ]]; then
     done < <(python3 "$LIB/ledger.py" validate-dir "$RECEIPTS_DIR" || true)
 fi
 
-# ──────────────────────────────────────────────────────────────
-# Per-commit validation — shared between Mode A and Mode B.
-# Args: <label>  <msg> (on stdin)
-# ──────────────────────────────────────────────────────────────
-validate_commit_message() {
-    local label="$1"
-    local msg
-    msg="$(cat)"
-
-    # Unsupported-runtime waiver — bypass the trailer + ledger requirement
-    # when the agent's runtime has no runtimes/<name>.sh adapter. Requires a
-    # non-empty reason after the colon so the gap is grep-able from
-    # `git log --grep='allow-agent-token-accounting'`.
-    if printf '%s\n' "$msg" | grep -qE '^governance:[[:space:]]+allow-agent-token-accounting[[:space:]]+unsupported-runtime:'; then
-        local reason
-        reason="$(printf '%s\n' "$msg" \
-            | sed -nE 's/^governance:[[:space:]]+allow-agent-token-accounting[[:space:]]+unsupported-runtime:[[:space:]]*(.+)$/\1/p' \
-            | head -n1 \
-            | sed -E 's/[[:space:]]+$//')"
-        if [[ -z "$reason" ]]; then
-            violation "$label — unsupported-runtime waiver requires a reason after the colon (e.g. 'governance: allow-agent-token-accounting unsupported-runtime: cursor runtime not yet supported')"
-        fi
-        return 0
-    fi
-
-    # Mandatory: every in-scope commit must carry an Agent: trailer.
-    # Caller is responsible for filtering out merge / revert commits before
-    # invoking this function.
-    if ! printf '%s\n' "$msg" | grep -qE '^Agent:[[:space:]]'; then
-        violation "$label — missing required Agent: trailer (every non-merge, non-revert commit must carry token-accounting trailers; run \`git commit\` through the runtime-aware pre-commit hook, or use a 'governance: allow-agent-token-accounting unsupported-runtime: <reason>' waiver if the runtime has no runtimes/<name>.sh adapter)"
-        return 0
-    fi
-
-    # Per-block validation: lib/trailers.py walks every trailer block in
-    # the body (one per sub-commit on a squash-merge), looks up each
-    # block's Cost-Key across receipts/*.md, and cross-checks the row's
-    # columns against the block's Token-*/Cost-USD trailers. Each block is
-    # reported independently — a single squashed body can flag N rows.
-    local v
-    while IFS= read -r v; do
-        [[ -z "$v" ]] && continue
-        violation "$v"
-    done < <(
-        printf '%s' "$msg" | python3 "$LIB/trailers.py" validate-blocks \
-            "$label" "$RECEIPTS_DIR" - 2>/dev/null || true
-    )
+# Returns 0 if the commit message carries a valid escape-hatch waiver.
+# `governance: allow-agent-token-accounting <reason>` — reason required. Covers
+# the rare legitimate out-of-hook commit and unrecoverable-predecessor repairs.
+msg_has_waiver() {
+    printf '%s\n' "$1" \
+        | grep -qE '^[[:space:]]*(<!--)?[[:space:]]*governance:[[:space:]]*allow-agent-token-accounting[[:space:]]+.+'
 }
 
 # ──────────────────────────────────────────────────────────────
-# Mode A — commit-msg hook
+# Mode A — commit-msg hook: endpoint reconciliation for the active session.
 # ──────────────────────────────────────────────────────────────
 if [[ $# -gt 0 ]]; then
     msg_file="$1"
@@ -158,74 +89,41 @@ if [[ $# -gt 0 ]]; then
         directive_end
     fi
     # Skip revert commits — git's auto-format starts with `Revert "..."`.
-    # Merge commits don't go through commit-msg, so no parent check here.
     pending_subject=$(grep -vE '^[[:space:]]*($|#)' "$msg_file" | head -n1)
     if [[ "$pending_subject" == Revert\ \"* ]]; then
         directive_end
     fi
-    validate_commit_message "pending commit" <"$msg_file"
-    directive_end
-fi
-
-# ──────────────────────────────────────────────────────────────
-# Mode B — CI / run.sh — walk base..HEAD
-# ──────────────────────────────────────────────────────────────
-base=""
-for candidate in origin/main origin/master main master; do
-    if git rev-parse --verify "$candidate" >/dev/null 2>&1; then
-        mb=$(git merge-base HEAD "$candidate" 2>/dev/null || echo "")
-        if [[ -n "$mb" && "$mb" != "$(git rev-parse HEAD)" ]]; then
-            base="$mb"
-            break
-        fi
+    msg="$(cat "$msg_file")"
+    if msg_has_waiver "$msg"; then
+        directive_end
     fi
-done
 
-is_exempt_commit() {
-    # Returns 0 (true) if the SHA is a merge commit or a revert commit.
-    local sha="$1"
-    local parents subject
-    parents=$(git log -1 --format=%P "$sha" 2>/dev/null || echo "")
-    # Multi-parent → merge commit.
-    if [[ "$parents" == *' '* ]]; then
-        return 0
+    # shellcheck disable=SC1090
+    source "$LIB/runtime.sh"
+    resolve_runtime_cumulative
+    rc=$?
+    if [[ $rc -eq 1 ]]; then
+        # No agent runtime detected — a human / manual-git commit. Nothing to
+        # reconcile (no transcript, no cost to account). Pass.
+        directive_end
     fi
-    subject=$(git log -1 --format=%s "$sha" 2>/dev/null || echo "")
-    if [[ "$subject" == Revert\ \"* ]]; then
-        return 0
+    if [[ $rc -eq 2 ]]; then
+        violation "pending commit — agent runtime '$RUNTIME' detected but its transcript/cumulative counters were unreadable; the pre-commit cost row could not be verified (set CLAUDE_TRANSCRIPT_PATH, or use a 'governance: allow-agent-token-accounting <reason>' waiver)"
+        directive_end
     fi
-    return 1
-}
 
-if [[ -z "$base" ]]; then
-    # No new work on this branch relative to the default — but on `main`
-    # itself, HEAD is the freshly-landed (often squash-merge) commit whose
-    # trailer blocks are the durable record. A squash-merge bypasses the
-    # local commit-msg hook (it runs on GitHub's server), so without this
-    # single-commit fallback its per-Cost-Key blocks go unchecked.
-    # Validate HEAD on its own so the per-block contract still applies
-    # post-merge. `--verify` is what distinguishes "HEAD resolves to a
-    # commit" from the empty-repo case (where `git rev-parse HEAD` prints
-    # the literal string "HEAD" on stdout and exits 128).
-    if git rev-parse --verify HEAD >/dev/null 2>&1; then
-        head_sha=$(git rev-parse HEAD)
-        if ! is_exempt_commit "$head_sha"; then
-            msg=$(git log -1 --format=%B "$head_sha")
-            validate_commit_message "$head_sha" <<<"$msg"
-        fi
+    # rc == 0: compare the receipt's recorded cumulative for this session
+    # against the transcript's live cumulative. Equality holds by construction
+    # once the pre-commit hook has written this commit's row.
+    read -r R_IN R_CC R_CR R_OUT < <(python3 "$LIB/ledger.py" session-cum "$RECEIPTS_DIR" "$SESSION_ID")
+    if [[ "$R_IN" != "$CUM_INPUT" || "$R_CC" != "$CUM_CACHE_CREATE" \
+       || "$R_CR" != "$CUM_CACHE_READ" || "$R_OUT" != "$CUM_OUTPUT" ]]; then
+        violation "pending commit — token ledger for session '${SESSION_ID:0:16}…' records cumulative (input=$R_IN cache_create=$R_CC cache_read=$R_CR output=$R_OUT) but the transcript is at (input=$CUM_INPUT cache_create=$CUM_CACHE_CREATE cache_read=$CUM_CACHE_READ output=$CUM_OUTPUT) — this commit's cost row was not written to its receipt. Commit through the runtime-aware pre-commit hook (a plain \`git commit\`, not --no-verify / SKIP_GOVERNANCE), or add a 'governance: allow-agent-token-accounting <reason>' waiver."
     fi
     directive_end
 fi
 
-while IFS= read -r sha; do
-    [[ -z "$sha" ]] && continue
-    if is_exempt_commit "$sha"; then
-        continue
-    fi
-    msg=$(git log -1 --format=%B "$sha")
-    # Here-string keeps validate_commit_message in the current shell so
-    # `violation` calls actually bubble up (a pipe would subshell them).
-    validate_commit_message "$sha" <<<"$msg"
-done < <(git log "$base..HEAD" --format='%H')
-
+# ──────────────────────────────────────────────────────────────
+# Mode B — CI / run.sh: receipt-shape integrity only (ran above).
+# ──────────────────────────────────────────────────────────────
 directive_end

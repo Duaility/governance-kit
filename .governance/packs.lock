@@ -10,13 +10,13 @@ packs:
   - no-legacy-fallbacks
   - no-path-bifurcation
 - id: governance-kit/audit
-  version: 0.5.0
+  version: 0.6.0
   source: gh
-  ref: gh:duaility/governance-kit/packs/audit@audit/v0.5.0
-  sha: 0d82881bd6082a7a44214b5280b9f0da0b691b02
+  ref: gh:duaility/governance-kit/packs/audit@audit/v0.6.0
+  sha: 5ea729ef5a731a7cd6f308fa803957fbe990edc4
   subpath: packs/audit
   min_governance_kit: 0.9.0
-  installed_at: '2026-06-15T17:54:36Z'
+  installed_at: '2026-06-16T16:56:00Z'
   directives:
   - agent-steering-accounting
   - agent-token-accounting
@@ -27,13 +27,13 @@ packs:
   - receipt-per-issue
   - toolchain-config-protection
   digest:
-    agent-steering-accounting: 9673969a342e99569bbbd37c45d08d463a8a2816944518f931a497a1f8e19fbb
-    agent-token-accounting: 3245527e058c593a9ba0da3f9eb362fc51c01d5b1b00105bd57ffb3cb50be821
-    commit-issue-receipt-match: 436b58a8adaab6f25dbd2d20894d8f31d943cdd52656459a5c61b4ce3d7049a9
+    agent-steering-accounting: ef13de25fe606348b83672f36f0383813c79876005c31c8f17260538fbaa0e76
+    agent-token-accounting: c25c66a1f27ffd7e089656a18ee768f662d18403b919e29876e1773c3d9425a4
+    commit-issue-receipt-match: e7206c5289e7b970b043e1d93c97c7b503a1aac286a40780b7219ac4f4e52f69
     doc-integrity: 692497a5555f1c6ce07172cda164c24f1157ff1c386cd45d748a42939108fad1
     issue-templates: ba3e7c6de380ff2f12a922be349dda4d04014f0da6f349e4d26037a2fc576abe
     issues-tracked: 70d7fb36352cfe69bd5a932862cd4c98ec3697a01981e18c96bb9236b476e72c
-    receipt-per-issue: 81b8a37146b6d0da6cc292b1ef6c3ac3e1b1fed66905dc1f65c81ef7069a0bed
+    receipt-per-issue: 4ece1e55b3019060e0f66f33969fccc8d5d55fc877050ca3a415dcd577e5b8a0
     toolchain-config-protection: b0ed3d7f5d4bd2358de40f124c428e343df34a98864d8a15a9c56489943a862c
 - id: governance-kit/commits
   version: 0.2.1
