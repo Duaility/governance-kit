@@ -5,11 +5,11 @@
   <img src="docs/assets/banner-light.png" alt="Governance kit" width="640">
 </picture>
 
-<p align="center">The governance layer for AI coding agents</p>
+<p align="center">Give every coding agent the same repo memory</p>
 
 </div>
 
-<p align="center"><strong>executable repo rules · enforced on every commit · audit trail for every agent change · four bundled packs · MIT</strong></p>
+<p align="center"><strong>stop re-teaching agents · prevent unwanted rewrites · expose token spend · keep durable rules in git · MIT</strong></p>
 
 <p align="center">
   <a href="https://github.com/Duaility/governance-kit/actions/workflows/governance.yml"><img src="https://github.com/Duaility/governance-kit/actions/workflows/governance.yml/badge.svg" alt="governance"></a>
@@ -36,17 +36,22 @@
 
 ## The core idea
 
-Governance kit turns the things you keep telling coding agents into **repo-native invariants**.
+If you use coding agents heavily, you know the pattern.
 
-Not style preferences. Not one-off prompts. The kind of rules a developer would expect the repo to enforce every time:
+You ask Claude Code to make one small change. It touches six files, invents a new pattern, and the feature starts drifting. Tomorrow you ask Codex to continue the same branch, and it has no memory of the correction you gave Claude. Another agent rewrites a working module instead of making the surgical edit. A third spends real money exploring the wrong direction, but the only record is buried in a transcript you will never read again.
 
-- if someone changes lint, test, CI, or hook config, the commit must explain why
-- if a receipt says a file changed, that file must actually be in the diff
-- if a PR crosses a declared layer boundary, an independent reader must check the claim against the diff
-- if an agent edits the governance harness, the edit must be visible and reviewable
-- if a migration removes an old path, the next commit cannot quietly add the fallback back
+Governance kit turns those repeated corrections into **repo-native invariants**. The rules stop living in your head, your prompt, or one agent's context window. They live in git, next to the code, with executable checks that run on every commit.
 
-Prompts can steer one session. Governance kit makes the repo itself carry the rule, the rationale, the executable check, and the audit trail. When another agent resumes the work later, it does not need the old chat transcript to know the constraint; the repo gives it a failing check with the reason attached.
+Examples of rules developers need once agents do real work:
+
+- define the slice before coding: goal, non-goals, allowed files, and checks
+- keep the diff inside that slice unless the human approves the expanded surface
+- block "small fixes" that become rewrites or duplicate abstractions
+- make receipts say what changed, what was tested, and what risk remains
+- audit boundary drift before debating code quality
+- record token cost and human steering in git, not in a chat transcript
+
+Prompts steer one session. Governance kit makes the repo carry the rule, the rationale, the executable check, and the audit trail. When the next agent resumes the work, it does not need the old transcript to know what matters; the repo gives it a failing check with the reason attached.
 
 ```mermaid
 flowchart LR
@@ -74,9 +79,9 @@ flowchart LR
     class R record
 ```
 
-This is the [harness-engineering](https://openai.com/index/harness-engineering/) move: coherence comes from executable rails around the agent, not from ever-larger instruction blobs. Governance kit packages that stance for ordinary repositories, then adds versioned packs and git-native receipts so teams can share, pin, review, and evolve those rails.
+This is the [harness-engineering](https://openai.com/index/harness-engineering/) move: coherence comes from executable rails around the agent, not from ever-larger instruction blobs. Governance kit packages that stance for ordinary repositories, then adds versioned packs and git-native receipts so developers can share, pin, review, and evolve those rails.
 
-Governance kit installs into [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), Cursor, OpenCode, and other Agent Skills-compatible runtimes via [`npx skills`](https://github.com/vercel-labs/skills). The installed skill is only the thin entry point; the repo pins the kit and pack versions that actually run.
+Governance kit installs into [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), Cursor, OpenCode, and other Agent Skills-compatible runtimes via [`npx skills`](https://github.com/vercel-labs/skills). The installed skill is only the thin entry point; the repo pins the kit and pack versions that actually run, so different agents in the same project hit the same rules.
 
 ## The invariant ladder
 
@@ -89,15 +94,16 @@ The key power is the depth of invariants you can express. Start with determinist
 | **Ledger** | "For each agent-authored commit, show the issue, receipt, token cost, and human steering count." | Git trailers and receipt accounting rows, cross-checked by directives. |
 | **Sub-agent attestation** | "Before merging a cross-layer refactor, have a fresh reader compare the diff to the architecture map." "Before accepting a receipt, have a fresh reader verify it matches the issue and diff." | Hook fails with a fresh-context sub-agent prompt; agent records a PASS/REFUTED section; hook verifies presence. |
 
-That range matters. Many agent failures are not "forgot to run formatter." They are semantic: the agent split a path you wanted unified, moved shared logic into the wrong layer, claimed verification that does not match the diff, or preserved a legacy branch after being asked to remove it. Governance kit gives each kind of rule an enforcement surface that matches its nature.
+That range matters. Most painful agent failures are not "forgot to run formatter." They are semantic: the agent split a path you wanted unified, moved shared logic into the wrong layer, claimed verification that does not match the diff, preserved a legacy branch after being asked to remove it, or burned tokens without leaving a usable trail. Governance kit gives each kind of rule an enforcement surface that matches its nature.
 
 ## What developers get
 
-- **Executable constitution** — `CONSTITUTION.md` is readable policy, but every directive has executable enforcement beside it.
-- **Agent-readable failures** — violations name the rule, the specific gap, and the rationale, so the next agent turn has useful context.
-- **Custom governance packs** — teams can publish `acme/backend`, `acme/soc2`, or `duaility/governance-kit` packs and pin them per repo.
-- **Auditable agent work** — issue receipts, token cost, steering counts, and tamper protection live in git, not in transient chat logs.
-- **Semantic escalation path** — when grep is too weak, escalate to sub-agent attestations that record accountable judgment at author-time.
+- **Less repeated steering** - encode "do not rewrite this," "keep this path unified," or "update the receipt with evidence" once, then let hooks and CI repeat it for every agent.
+- **Shared behavior across agents** - Claude Code, Codex, Cursor, OpenCode, and humans all hit the same repo-pinned checks instead of inheriting different chat histories.
+- **Cost transparency** - token spend and human steering can be recorded in the issue receipt, so expensive turns and repeated corrections become visible review data.
+- **Executable constitution** - `CONSTITUTION.md` is readable policy, but every directive has executable enforcement beside it.
+- **Agent-readable failures** - violations name the rule, the specific gap, and the rationale, so the next agent turn has useful context.
+- **Custom governance packs** - teams can publish `acme/backend`, `acme/soc2`, or `duaility/governance-kit` packs and pin them per repo.
 
 ## Packs make rules portable
 
@@ -189,7 +195,7 @@ git commit -m "stuff"
        Conventional Commits with an issue suffix (<type>(scope)?: <subject> (#123))
 ```
 
-The agent reads the directive id + rationale and self-corrects on the next attempt.
+The agent reads the directive id + rationale and self-corrects on the next attempt. The rule is no longer a reminder you have to paste into every new session.
 
 What you installed is a thin shim — two files. The kit itself (rules, packs, templates, every other verb) is fetched from the released `kit/vX.Y.Z` tag and pinned per repo. See [Lifecycle](#lifecycle).
 
@@ -219,16 +225,17 @@ The skill itself is a two-file shim; every verb executes from the kit version th
 **Great fit if you…**
 
 - keep repeating the same architectural or process corrections to coding agents
-- run agent-heavy teams where rules must survive handoffs across branches, sessions, and agents
-- want organization-specific rules packaged as reusable, versioned packs
+- switch between Claude Code, Codex, Cursor, OpenCode, or human edits in the same repo
+- have watched an agent rewrite stable code, revive a deleted fallback, or move logic into the wrong layer
 - want every agent-authored change to carry a price tag and a steering record
+- want organization-specific rules packaged as reusable, versioned packs
 - want semantic checks that admit when they need independent judgment instead of pretending grep is enough
 
 **Skip it if you…**
 
 - are spec-driving one feature at a time — that's [spec-kit](https://github.com/github/spec-kit); governance kit is the layer above
 - only want hook execution — pre-commit / husky already do that, and every `check.sh` lifts into them directly ([NATIVE_TESTS.md](kit/references/NATIVE_TESTS.md))
-- write all code by hand, solo, and don't need an audit trail
+- write all code by hand, solo, and do not need an audit trail
 
 <details>
 <summary><b>Integrations — run the checks from the toolchain you already have</b></summary>
@@ -326,7 +333,7 @@ Directives that need more carry optional siblings — `lib/` (shared bash/Python
 
 ## The audit chain
 
-If you're trusting agents to ship code, you need to see what they were told, what they did, what it cost, and how much you had to steer. Four git-native artifacts compose into a chain, and breaking any link fails the next push:
+If you are trusting agents to ship code, you need to see what they were asked to do, what they actually changed, what it cost, and how much human correction it took. Four git-native artifacts compose into a chain, and breaking any link fails the next push:
 
 ```mermaid
 flowchart LR
