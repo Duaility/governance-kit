@@ -1,4 +1,4 @@
-# governance-kit:managed kit-version=0.10.0
+# governance-kit:managed kit-version=0.10.1
 name: Governance sweep
 
 # The semantic-sweep lane (issue #142). This runs the LLM-judge engine OFF the

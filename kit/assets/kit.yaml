@@ -10,4 +10,4 @@
 # each packs/<pack>/pack.yaml `version`); they declare `min_governance_kit` to
 # express the floor kit they require. See kit/references/VERSIONING.md for the
 # semver policy, the axis contract, and the release procedure.
-version: "0.10.0"
+version: "0.10.1"

@@ -22,6 +22,17 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [kit/v0.10.1] - 2026-06-16
+
+### Changed
+- drop accounting trailers; reconcile ledger (#293) (#294)
+- restructure docs into tabbed navigation and drop in-progress sweep references (#291) (#292)
+- clarify developer-facing kit story (#288)
+- refine first-time developer story (#288)
+- sync dogfood to kit 0.10.0 + packs; drop security (#286) (#287)
+- audit v0.4.0 → v0.5.0
+- foundation v0.4.1 → v0.4.2
+
 ## [audit/v0.5.0] - 2026-06-15
 
 ### Added
