@@ -1,6 +1,6 @@
-# agent-token-accounting — Every non-merge, non-revert commit carries token trailers + a matching cost row in the issue's receipt (receipts/issue-<N>.md).
+# agent-token-accounting — Each agent commit's token cost lands in the issue's receipt; a commit-time check reconciles the receipt's recorded cumulative against the transcript (no commit trailers).
 category: AgentDiscipline
 recommended: true
-summary: Every non-merge, non-revert commit carries token trailers + a matching cost row in the issue's receipt (receipts/issue-<N>.md).
+summary: Each agent commit's token cost lands in the issue's receipt (receipts/issue-<N>.md); a commit-time check reconciles the receipt's recorded cumulative against the transcript (no commit trailers).
 surface: change-set
 hook: commit-msg

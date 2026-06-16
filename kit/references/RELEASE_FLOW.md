@@ -58,7 +58,7 @@ bash scripts/release.sh <kit|PACK> <X.Y.Z> [--dry-run] [--push]
    an axis emits a minimal section (the curated historical entries already cover
    pre-tag changes).
 6. **Commit + tag.** `chore(release): <axis> v<old> → v<new>`, made through the
-   hook path so accounting trailers attach, then an annotated tag
+   hook path so the accounting row attaches, then an annotated tag
    `kit/vX.Y.Z` / `<pack>/vX.Y.Z`. A release commit is mechanical — it has no
    feature issue and touches no receipt — so `release.sh` writes in-body
    `governance: allow-commit-message-format` and `allow-commit-issue-receipt-match`

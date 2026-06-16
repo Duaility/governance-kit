@@ -362,9 +362,9 @@ EOF
     bash .governance/run.sh
     bash -n .githooks/pre-commit .githooks/commit-msg .githooks/prepare-commit-msg .githooks/post-commit
     # Format-rejection ping: confirm the commit-msg dispatcher fires on a
-    # malformed subject. A "good" synthetic message is no longer testable in
-    # isolation — the standard preset now bundles agent-token-accounting,
-    # which demands real runtime trailers + a matching COSTS.md row.
+    # malformed subject. The bundled commit-message-format directive rejects a
+    # subject with no Conventional-Commits shape / no `(#N)` anchor; the
+    # accounting directives no-op here (no agent runtime in this contract).
     printf 'feat: missing issue\n' > bad-msg.txt
     .githooks/commit-msg bad-msg.txt && exit 1
     rm bad-msg.txt
