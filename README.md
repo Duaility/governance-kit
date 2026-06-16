@@ -281,9 +281,9 @@ Full catalog: [DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md).
 | `audit` | `issue-templates` | `.github/ISSUE_TEMPLATE/` carries `config.yml` (blank issues off), `proposal.yml`, `bug.yml` with the required handoff fields. | standard |
 | `audit` | `issues-tracked` | `QUALITY.md` exists at repo root with `## Open` and `## Resolved` sections. | standard |
 | `audit` | `receipt-per-issue` | Every `receipts/*.md` has a unique `issue-<N>` filename token, required narrative/audit sections, and checked items that crosswalk into the receipt's evidence. | standard |
-| `audit` | `commit-issue-receipt-match` | Every non-merge commit's issue anchor (`(#N)` or `Issue: #N`) matches an `issue-<N>` token on a touched receipt. | standard |
-| `audit` | `agent-token-accounting` | Every commit carries token + cost trailers and a matching cost row in the issue's receipt, keyed by `Cost-Key`. | standard |
-| `audit` | `agent-steering-accounting` | Every commit stamps `Steer-Count` / `Steer-Types` / `Steer-Tiers` and appends steering rows to the issue's receipt. **`always_install: true`** — records human correction text verbatim; redact via the directive's classifier hook rather than skipping it. | standard |
+| `audit` | `commit-issue-receipt-match` | Every non-merge commit adds or updates a `receipts/issue-<N>.md` — the touched receipt path is the commit's issue anchor (file-first). | standard |
+| `audit` | `agent-token-accounting` | Every agent commit's token cost lands as a row in the issue's receipt; a commit-time check reconciles the receipt's recorded cumulative against the transcript (no commit trailers). | standard |
+| `audit` | `agent-steering-accounting` | Detected human-steering events (interrupts, corrections) are recorded in the issue's receipt; `check.sh` validates the ledger shape. **`always_install: true`** — records human correction text verbatim; redact via the directive's classifier hook rather than skipping it. | standard |
 | `audit` | `doc-integrity` | **`always_install: true`** — system-of-record documents are tamper-proof: receipts freeze once on the trunk, frozen sections (`QUALITY.md` Resolved, the Evolution Log) keep their baseline lines verbatim. Branch-authored content stays editable until it merges. | standard |
 | `audit` | `toolchain-config-protection` | A commit changing lint / format / type-check / CI / hook config carries a `governance: allow-toolchain-config <reason>` body line. | standard |
 
@@ -336,32 +336,37 @@ flowchart LR
     end
 
     subgraph History["Git history"]
-        C["commit<br/>Issue + Cost-Key + steering trailers"]
+        C["commit<br/>touches the issue's receipt"]
     end
 
-    subgraph Accounting["Append-only accounting"]
-        CO["cost row<br/>tokens + USD"]
+    subgraph Accounting["## Accounting (in the receipt)"]
+        CO["cost row<br/>tokens + USD + cumulative"]
         ST["steering row<br/>human corrections"]
     end
 
+    T["runtime transcript<br/>session cumulative + events"]
+
     I -- "defines" --> R
     R -- "must be touched by" --> C
-    C -- "joins by Cost-Key" --> CO
-    C -- "tallies" --> ST
-    CO -- "survives squash in" --> R
-    ST -- "survives squash in" --> R
+    T -- "written into" --> CO
+    T -- "written into" --> ST
+    CO -- "commit-time check reconciles vs" --> T
+    CO -- "lives in" --> R
+    ST -- "lives in" --> R
 
     classDef work fill:#3f3586,stroke:#8b7ff0,color:#eeeaff
     classDef history fill:#075b4a,stroke:#36d6af,color:#dcfff4
     classDef accounting fill:#0e4e85,stroke:#5aa8e9,color:#e9f5ff
+    classDef source fill:#5a3a1e,stroke:#d99a4e,color:#fff3e0
     class I,R work
     class C history
     class CO,ST accounting
+    class T source
 ```
 
 - **Directive provenance** — every `CONSTITUTION.md` line is git-blameable to the commit and check that introduced it; the Evolution Log summarizes every amendment
 - **Receipts** — one per issue; every checked box must crosswalk into `## What changed` or `## Verification`, so boxes can't flip silently. The reviewer reads the receipt, not the diff
-- **Token cost** — every commit carries cost trailers and a matching row in the issue's receipt; every change has a price tag
+- **Token cost** — every agent commit's token cost lands as a row in the issue's receipt, reconciled at commit time against the runtime transcript; every change has a price tag
 - **Steering** — every commit tallies the human interrupts and redirects it needed; see at a glance which commits ran on autopilot
 
 Ships in the `governance-kit/audit` pack, `standard` preset.

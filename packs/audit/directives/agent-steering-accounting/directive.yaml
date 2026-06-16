@@ -1,8 +1,8 @@
-# agent-steering-accounting — Detected human steering events recorded in the issue's receipt (## Accounting → ### Steering), summarised by per-commit Steer-Count/Types/Tiers trailers.
+# agent-steering-accounting — Detected human steering events (interrupts, classifier-confirmed corrections) recorded in the issue's receipt under ## Accounting → ### Steering.
 category: AgentDiscipline
 recommended: true
 always_install: true
-summary: Per-issue steering ledger (interrupts and classifier-confirmed corrections) homed in receipts/issue-<N>.md under ## Accounting; per-commit summary trailers (Steer-Count/Types/Tiers) tally the rows added by each commit.
+summary: Per-issue steering ledger (interrupts and classifier-confirmed corrections) homed in receipts/issue-<N>.md under ## Accounting → ### Steering; check.sh validates the ledger shape (no commit trailers).
 surface: change-set
 hook: commit-msg
 reads:

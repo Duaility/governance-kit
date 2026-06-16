@@ -433,13 +433,12 @@ git commit -m "feat(governance): bootstrap governance-driven development (#<N>)"
 
 What happens on this commit:
 
-- **`hooks/pre-commit.sh` populators** fire normally. `agent-token-accounting` reads the active session transcript via `runtimes/<runtime>.sh`, resolves the bootstrap issue number, appends the matching cost row to that issue's receipt (`receipts/issue-<N>.md`, under `## Accounting` — creating the receipt with just that section if absent), and writes the handoff env file. `agent-steering-accounting` does the same for the steering row.
-- **`hooks/prepare-commit-msg.sh` stampers** consume the handoff and stamp the eight token trailers + the three steering trailers onto the install commit's message.
-- **`commit-msg` validators** all pass — the tree is clean (Step 8), the trailers are stamped (populators ran), and the receipt is in place (Step 8.2).
+- **`hooks/pre-commit.sh` populators** fire normally. `agent-token-accounting` reads the active session transcript via `lib/runtime.sh` → `runtimes/<runtime>.sh`, resolves the bootstrap issue number, and appends the matching cost row (with its absolute `cum-*` coordinates) to that issue's receipt (`receipts/issue-<N>.md`, under `## Accounting` — creating the receipt with just that section if absent). `agent-steering-accounting` does the same for any steering rows. There are no commit trailers to stamp (issue #293 retired them).
+- **`commit-msg` validators** all pass — the tree is clean (Step 8) and the receipt is in place (Step 8.2). `agent-token-accounting` reconciles the receipt's recorded cumulative against the transcript (equal by construction, since the pre-commit hook just wrote the row); `agent-steering-accounting` validates the ledger shape.
 
-The install commit lands with **real token trailers and a real cost row in the bootstrap issue's receipt** — the directives are satisfied with data, not with exemptions.
+The install commit lands with a **real cost row in the bootstrap issue's receipt**, reconciled against the transcript — the directives are satisfied with data, not with exemptions, and no trailers are stamped onto the message.
 
-**Runtime-not-detected fallback.** If `init` was invoked from a shell with no `CLAUDECODE` / `CODEX_THREAD_ID` (etc.), the token-accounting populator can't read a transcript and stamps nothing. Add `governance: allow-agent-token-accounting unsupported-runtime: bootstrapped from non-agent shell` to the commit body before running `git commit`. The validator then bypasses the trailer requirement for this commit only — and `git log --grep='allow-agent-token-accounting'` keeps the gap visible forever. The steering side needs no equivalent (its populator always stamps a zero-default triple via `prepare-commit-msg.sh`).
+**Runtime-not-detected fallback.** If `init` was invoked from a shell with no `CLAUDECODE` / `CODEX_THREAD_ID` (etc.), the token-accounting populator can't read a transcript and writes no row — and the commit-msg endpoint reconciliation no-ops too (no runtime, nothing to reconcile), so the install commit passes with **no waiver needed**. The steering side likewise no-ops. The accounting simply records nothing for a non-agent bootstrap commit, which is correct.
 
 Print a concise summary:
 

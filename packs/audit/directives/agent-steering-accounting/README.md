@@ -1,6 +1,6 @@
 # Agent Steering Accounting
 
-Opt-in governance directive that gives the repo a durable, auditable ledger of
+Governance directive that gives the repo a durable, auditable ledger of
 **human steering events** for agent-authored commits — the moments where the
 operator interrupted a turn or typed a message classified as a course
 correction by the active runtime's CLI (with a regex fallback when the CLI is
@@ -14,16 +14,26 @@ toggles for tiers.
 This is the human-side counterpart to [`agent-token-accounting`](../agent-token-accounting/README.md).
 That directive captures *machine* cost (token consumption, dollars). This one
 captures *steering* cost (where the agent's instructions or directives drifted
-from operator intent and the operator had to correct it). Both records now home
+from operator intent and the operator had to correct it). Both records home
 their rows in the commit's per-issue receipt — `receipts/issue-<N>.md`, under a
 `## Accounting` section (cost rows in `### Costs`, steering rows in
-`### Steering`) — instead of a central ledger at repo root. Both survive squash
-merges via mirrored commit trailers, and both are layered the same way:
-trailers for branch-time provenance, the Markdown table for the durable record,
-a stable join key in both, and a governance directive that cross-checks the
-two. Homing rows in the receipt keeps the record conflict-free (only the PR
-branch that owns the issue writes it) and bounded, and it is naturally sealed
-once the receipt merges (frozen on the trunk by `doc-integrity`).
+`### Steering`) — instead of a central ledger at repo root. Homing rows in the
+receipt keeps the record conflict-free (only the PR branch that owns the issue
+writes it) and bounded, and it is naturally sealed once the receipt merges
+(frozen on the trunk by `doc-integrity`). The receipt is also squash-robust by
+construction: the rows are files in the diff, not commit-message metadata.
+
+> **No commit trailers (issue #293).** Earlier versions stamped an always-on
+> summary triple (`Steer-Count`/`Steer-Types`/`Steer-Tiers`) onto every commit
+> and cross-checked the stamp against the rows the commit staged. The triple was
+> a `git log`-skimmable copy of facts already in the receipt rows, and its only
+> enforced contract — "stamped count == staged rows" — is vacuous once the stamp
+> is gone. Steering completeness was always best-effort regardless (the
+> extractor is non-blocking — a transient classifier failure logs and exits 0
+> rather than blocking a commit), so the directive never guaranteed "every
+> transcript event is recorded", only that whatever rows exist are valid. That
+> invariant is exactly what `check.sh`'s `validate-dir` enforces, and it now
+> stands on its own.
 
 ## Why it's layered this way
 
@@ -37,8 +47,7 @@ Direct alternatives all break under squash:
 
 What works: durable rows in the commit's per-issue receipt
 `receipts/issue-<N>.md` (under `## Accounting` → `### Steering`) keyed by
-`steer-key`, with the row → commit join carried by the `commit |` column, plus
-a per-commit summary trailer triple cross-checked by
+`steer-key`, validated for shape by
 `.governance/packs/<owner>/<repo>/directives/agent-steering-accounting/check.sh`.
 The previously-central `STEERING.md` is now sealed legacy history (a
 `doc-integrity` frozen-file) — it stops receiving writes; no migration.
@@ -46,64 +55,6 @@ The previously-central `STEERING.md` is now sealed legacy history (a
 Every accounted steering event must resolve to an issue (the `(#N)` anchor on
 the commit subject). The hook refuses to write events it can't attribute to an
 issue — there are no issue-less rows.
-
-## Trailer schema
-
-Every non-merge, non-revert commit stamps the always-on summary triple.
-The directive is independent of `agent-token-accounting` — installation is
-the gate, not the presence of an `Agent:` trailer:
-
-```
-Steer-Count: 3
-Steer-Types: correction=2,interrupt=1
-Steer-Tiers: classifier=2,structural=1
-```
-
-A zero-event commit still carries the triple as the explicit zero-assertion:
-
-```
-Steer-Count: 0
-Steer-Types: none
-Steer-Tiers: none
-```
-
-Why summary-only, and why always-on:
-
-- **`Steer-Count` / `Steer-Types` / `Steer-Tiers`** are the headline
-  reviewers skim in `git log` — same role `Token-Total` and `Cost-USD`
-  play for the cost ledger. They survive squash merges and let you sort
-  commits by steering volume without joining against the receipt rows.
-  `Types` and `Tiers` are sorted `key=N,key=N` (or the literal `none`
-  on a zero-event commit). The numbers must agree with the rows the
-  commit adds to its receipt's `### Steering` table: `Steer-Count` equals
-  the row count, and the breakdowns tally those rows' `type` / `tier` columns.
-- **Per-event `Steer-Key:` trailers were retired** in #66. The row →
-  commit join uses the receipt row's `commit |` column instead — one
-  `git grep` scoped to `receipts/*.md` gets every event for a given commit
-  subject, without the trailers having to mirror the rows. Dropping the
-  per-event trailers also fixes a retry-after-failed-commit-msg bug
-  where the second `git commit` invocation re-stamped zero `Steer-Key:`
-  trailers because the rows the first attempt appended already counted as
-  "already-recorded" events.
-- **Always-on**: silence on a no-event commit was indistinguishable from
-  "the directive crashed", "the directive wasn't installed", or "no
-  runtime was detected". A positive `Steer-Count: 0` collapses those
-  three failure modes into a single visible assertion: the directive ran,
-  the transcript was readable, the count is zero.
-
-There is no `Agent:`-trailer carve-out — the contract applies to every
-non-merge, non-revert commit. When pre-commit doesn't run (no recognised
-runtime, no transcript, or `SKIP_GOVERNANCE=1`), `prepare-commit-msg.sh`
-falls back to stamping `Steer-Count: 0` / `Steer-Types: none` /
-`Steer-Tiers: none` so the triple is always present at commit-msg time.
-The failure modes are: a commit lacking the summary triple, the summary
-count disagrees with the rows the commit adds to its receipt, the
-breakdowns disagree with those rows' `type` / `tier` columns, or a
-newly-added row's `commit |` cell doesn't match the pending subject
-(Mode A only — squash merges may rewrite the subject after the row was
-stamped, so Mode B's CI walk skips that comparison). Historical commits in
-the repo's log may still carry `Steer-Key:` trailers; the new check
-ignores them.
 
 ## Row schema
 
@@ -162,8 +113,7 @@ sentinel, not a heuristic over user prose. **Tool denials were intentionally
 removed**: a user clicking "deny" on a tool call is most often "I'll do that
 myself" / "wrong tool", not an intent redirect, and the substring sentinel
 for the canonical denial phrase produced false positives whenever an agent
-read this directive's own source code or documentation (the phrase appears
-in both as part of describing the directive).
+read this directive's own source code or documentation.
 
 ### Tier 2 — semantic correction
 
@@ -200,9 +150,8 @@ the obvious cases until the CLI is reachable again. This is the *default*
 phrase list and is tunable per repo — see **Configuration** below.
 
 There is no env-var gate inside the directive — installation is the gate.
-Repos that don't want correction-tier rows simply don't install the
-directive. (The config knobs below *tune* detection; they are not feature
-gates and cannot turn the directive off.)
+(The config knobs below *tune* detection; they are not feature gates and
+cannot turn the directive off.)
 
 ## Configuration
 
@@ -211,26 +160,21 @@ every configurable directive uses: a pack-owned `defaults.conf` ships in the
 directive folder (the live defaults AND their docs, refreshed by `governance
 pack update`, never hand-edited), and the user-owned overlay
 `.governance/conf/governance-kit/audit/agent-steering-accounting.conf` holds
-only your deltas (seeded once at install from a generic kit stub that points at
-the defaults.conf, never clobbered by an update). `lib/conf.py` mirrors the bash
-`conf_list` / `conf_get` helpers so the Python classifier and extractor read the
-same effective values, including reading the `CANDIDATE_MAX_LEN` default from
-the same `defaults.conf`.
+only your deltas. `lib/conf.py` mirrors the bash `conf_list` / `conf_get`
+helpers so the Python classifier and extractor read the same effective values.
 
 - **Lexical-fallback trigger phrases** — the redirect-trigger list shown above,
   used only on the silent `lexical` path when the runtime CLI is unreachable.
   In the overlay, a bare line **adds** a phrase, `!phrase` **drops** one of the
-  defaults (gitignore-style negation), matching is case-insensitive and anchored
-  at the start of the user message on a word boundary, and multi-word phrases
-  match verbatim. Clearing the whole list disables the lexical fallback (it
-  never matches) rather than matching everything.
+  defaults (gitignore-style negation). Clearing the whole list disables the
+  lexical fallback (it never matches) rather than matching everything.
 - **`CANDIDATE_MAX_LEN`** — the maximum user-message length (chars) still
   considered a classification candidate; longer messages are clipped before the
   CLI call. Default `2000`. Set `CANDIDATE_MAX_LEN=<int>` in the overlay, or the
   env var `GOVERNANCE_CANDIDATE_MAX_LEN` (which wins). A non-integer value fails
   loudly rather than silently reverting.
 
-Neither knob touches `check.sh`: they shape only *which events the stamping path
+Neither knob touches `check.sh`: they shape only *which events the extractor
 records*, never the directive's pass/fail verdict. The ledger contract enums
 (`type` ∈ `interrupt`/`correction`, `tier` ∈ `structural`/`classifier`/`lexical`)
 are the accounting schema, not configuration, and stay fixed.
@@ -247,17 +191,17 @@ by tier:
   intent. The verbatim user message is *not* committed; only the LLM's
   ≤80-char summary lands in `user-reason`.
 - **`lexical`** — verbatim user message, recorded only when the runtime CLI
-  is unreachable and the regex fallback ran. This path is silent — there is
-  no separate env-var gate.
+  is unreachable and the regex fallback ran. This path is silent.
 
-**Do not install this directive on a public repo without thinking through
-what those messages could leak.** The directive is opt-in only — it ships in
-`governance-kit/audit` but is deliberately excluded from every preset
-(`minimal`, `standard`, `strict`). Installing the directive commits to
-recording every tier listed above; there are no per-tier opt-outs at runtime.
+The directive is mandatory (`always_install: true`) — in this kit's model every
+commit is agent-authored, so steering-accounting is part of the audit chain, not
+an extra. Public-repo operators handle the privacy tradeoff by layering
+redaction inside the classifier hook (the verbatim text only enters the receipt
+after `lib/extract.py` and `lib/ledger.py` write the row), **not** by skipping
+the directive — skipping it would leave a documented hole in the audit chain.
 For mixed-audience repos, the lowest-leak path is to keep the runtime CLI
-reachable so the `classifier` tier (summary, not verbatim) is the path that
-actually runs.
+reachable so the `classifier` tier (summary, not verbatim) is the path that runs.
+**Think through what those messages could leak before working in a public repo.**
 
 ## Installing
 
@@ -275,16 +219,16 @@ chmod +x .governance/packs/governance-kit/audit/directives/agent-steering-accoun
 There is no ledger file to seed at install — rows live in per-issue receipts,
 and the pre-commit hook creates the receipt (an accounting-only stub with just
 a `## Accounting` section) on demand the first time a commit for that issue
-needs one. The directive ships no `STEERING.md` install-asset.
+needs one. The directive ships no `STEERING.md` install-asset and no
+`prepare-commit-msg` hook (issue #293 retired the summary trailers).
 
 Then add an `agent-steering-accounting` Directives subsection to
 `CONSTITUTION.md` via the `governance directive add` verb.
 
 Stdlib-only Python 3, no `pip install` required. The only runtime dependency
 is `python3` on `$PATH`. The shared markdown section/table plumbing lives in
-`lib/receipt_io.py`, and `lib/report.py` aggregates the Accounting sections
-across `receipts/*.md` for per-issue + grand totals (run
-`python3 <dir>/report.py <receipts_dir> [--json]`).
+`lib/receipt_io.py`, and `lib/report.py` (in the token directive) aggregates the
+Accounting sections across `receipts/*.md`.
 
 ## How a commit flows
 
@@ -302,7 +246,8 @@ pre-commit ──► .governance/packs/<owner>/<repo>/directives/agent-steering-
       │          4. python3 lib/extract.py <transcript> --cache <path>
       │             — emits TSV: ordinal, ts, type, tier, user-reason.
       │             Tier-2 always runs; classifier vs lexical depends on
-      │             whether the runtime CLI is on $PATH.
+      │             whether the runtime CLI is on $PATH. A transient extractor
+      │             failure logs and exits 0 (non-blocking — best-effort).
       │          5. Identity dedup (issue #229): read the (session) ordinals
       │             already recorded across receipts/*.md (lib/ledger.py
       │             existing-ordinals); keep only events whose ordinal isn't
@@ -312,41 +257,25 @@ pre-commit ──► .governance/packs/<owner>/<repo>/directives/agent-steering-
       │          7. Append the new rows via lib/ledger.py append-row to
       │             receipts/issue-<N>.md under `## Accounting` → `### Steering`
       │             (creating the stub receipt if absent), one steer-key per
-      │             row: steer-<session-short>-<epoch>-<idx>, each carrying its
-      │             ordinal + timestamp.
+      │             row, each carrying its ordinal + timestamp.
       │          8. git add the receipt (so rows land in this commit's tree).
-      │          9. Write handoff env file at
-      │             $(git rev-parse --git-path governance-pending-steering.env).
       │
       ▼
-(governance tests run — check.sh sees the new rows in-tree)
+git snapshots the tree (the rows are already staged)
       │
       ▼
-prepare-commit-msg ──► sources the handoff env if present, stamps the
-                       summary triple (Steer-Count / Steer-Types /
-                       Steer-Tiers), removes the handoff file. When no
-                       handoff exists (no runtime, no transcript, or
-                       pre-commit didn't run) it falls back to stamping
-                       `Steer-Count: 0` / `none` / `none` so the universal
-                       contract holds for every commit.
+commit-msg ──► check.sh: lib/ledger.py validate-dir over receipts/*.md —
+               per-row shape, type/tier sets, receipt-homed issue, append-only
+               epoch order, per-session ordinal strict-increase, global
+               steer-key uniqueness, cross-receipt (session, ordinal) identity.
       │
       ▼
-commit-msg ──► .governance/packs/<owner>/<repo>/directives/agent-steering-accounting/check.sh <msg>
-                  Mode A. Cross-checks:
-                    - every in-scope commit carries the full summary triple
-                    - Steer-Count equals the count of rows the commit adds
-                      to its receipt's `### Steering` table
-                    - Steer-Types / Steer-Tiers tally those rows' columns
-                      and total to Steer-Count
-                    - each newly-added row's `commit |` cell matches the
-                      pending subject
+commit lands
 ```
 
-In CI / `bash .governance/run.sh`, the same `check.sh` runs in Mode B,
-walking `merge-base..HEAD` with the same summary-vs-row contract on each
-non-merge, non-revert commit. The row.commit-cell == subject check is
-skipped in Mode B because squash merges can rewrite the subject after the
-row was stamped.
+In CI / `bash .governance/run.sh`, the same `check.sh` runs `validate-dir` over
+the repo's receipts — the only contract the directive enforces now that the
+summary trailers are retired.
 
 ## Dedup boundary
 
@@ -355,12 +284,11 @@ with a stable per-session `ordinal` (its 1-based position in the deterministic
 event stream). The hook records only events whose `(session, ordinal)` isn't
 already present across `receipts/*.md` — an identity test, not the old
 positional "skip the first N recorded rows" (issue #229). The positional scheme
-re-appended and misattributed events across branches in the same session,
-because "N already recorded" counted only the rows visible in the current
-branch's tree; the ordinal makes dedup branch-independent and makes a
-cross-branch duplicate *detectable* — the same `(session, ordinal)` landing in
-two receipts is flagged by `check.sh`'s `validate-dir`, alongside the
-append-only epoch-ordering and per-session ordinal-monotonicity checks.
+re-appended and misattributed events across branches in the same session; the
+ordinal makes dedup branch-independent and makes a cross-branch duplicate
+*detectable* — the same `(session, ordinal)` landing in two receipts is flagged
+by `check.sh`'s `validate-dir`, alongside the append-only epoch-ordering and
+per-session ordinal-monotonicity checks.
 
 ## Runtime support
 
@@ -373,16 +301,14 @@ no-ops for this directive (no transcript discovered, no rows appended).
 ## Escape hatches
 
 - `SKIP_GOVERNANCE=1 git commit ...` — local hook bypass (extractor doesn't
-  run, no rows appended). CI re-enforces row/trailer cross-checks.
+  run, no rows appended). CI re-runs the ledger-shape check.
 - `git commit --no-verify` — same effect: skips the local hooks entirely.
+- `governance: allow-agent-steering-accounting <reason>` — a body waiver
+  (reason required) for an irreparable `(session, ordinal)` duplicate already
+  merged to the trunk. Audit trail: `git log --grep='allow-agent-steering-accounting'`.
 
-No bootstrap waiver lives in `check.sh`. `prepare-commit-msg.sh` always
-stamps the summary triple (with zero defaults when no runtime is
-detected), so a normal `git commit` from `governance init`'s Step 9
-satisfies the directive without any per-commit accommodation. There is
-no "unsupported-runtime" fallback waiver on the steering side either —
-the zero-default triple covers that case naturally. The directive's
-install step is the only gate.
+No bootstrap waiver lives in `check.sh`: it only validates receipt-ledger shape,
+which an install commit with no steering rows trivially passes.
 
 ## Out of scope (deferred follow-ups)
 
@@ -390,5 +316,4 @@ install step is the only gate.
   different transcript parser; the CLI hook in `_detect_cli` already picks
   up `codex` when present.
 - Cross-session aggregation / dashboards.
-- Inclusion in any default preset of the `governance-kit/audit` pack or any default preset.
 - Backfilling historical steering events from old session JSONLs.

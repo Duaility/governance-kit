@@ -10,12 +10,12 @@
 #   2. Any file at `directives/<id>/hooks/<kind>.sh` inside the directive
 #      folder — a directive-owned side-effect helper for that hook kind. The
 #      agent-token-accounting directive, for example, validates in
-#      commit-msg but ALSO writes the ledger row from pre-commit and
-#      stamps trailers from prepare-commit-msg; both side effects are
-#      shipped as sibling `hooks/pre-commit.sh` and
-#      `hooks/prepare-commit-msg.sh` inside the directive folder, so the
-#      generator wires them in without the generator itself knowing
-#      anything about that directive.
+#      commit-msg but ALSO writes the ledger row from pre-commit; that side
+#      effect ships as a sibling `hooks/pre-commit.sh` inside the directive
+#      folder, so the generator wires it in without knowing anything about
+#      that directive. (The generator still emits a prepare-commit-msg
+#      dispatcher for any future directive that ships one; the bundled
+#      directives no longer do — issue #293 retired the accounting trailers.)
 #
 # Every generated hook carries an ownership marker on line 2:
 #   # governance-kit:managed kit-version=<v>

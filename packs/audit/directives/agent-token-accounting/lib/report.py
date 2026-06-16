@@ -7,8 +7,8 @@ the write path conflict-free, but cross-issue questions ("what did we spend in
 total?", "which issues cost the most?") no longer have one file to read. This
 script answers them by walking every receipt's `### Costs` / `### Steering`
 sub-tables and aggregating — so nobody is tempted to reintroduce a central
-ledger just to run a sum. `git log`'s Cost-USD / Steer-Count trailers remain
-the other queryable source.
+ledger just to run a sum. (Issue #293 retired the commit-trailer copy of this
+data, so the receipts are now the single queryable source.)
 
 Stdlib-only. Reuses the cost-row parser from sibling `ledger.py`; parses the
 steering sub-table inline (its parser lives in the other directive).

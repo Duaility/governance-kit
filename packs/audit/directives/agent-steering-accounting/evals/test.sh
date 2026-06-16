@@ -40,74 +40,33 @@ else
         "$EVAL_ID" "$(uname -s)"
 fi
 
-# Steering rows now live in receipts/issue-<N>.md under ## Accounting →
-# ### Steering (issue #201). All fixture rows belong to issue #1.
-RECEIPT="receipts/issue-1.md"
-SESSION_ID="abc123def456fixture"
-SS="abc123def456"
-EPOCH=1800000000
+# Issue #293 retired the per-commit summary trailers. The directive's only
+# contract now is the ledger-shape check (validate-dir), which check.sh runs in
+# both modes. Steering rows live in receipts/issue-<N>.md under ## Accounting →
+# ### Steering (issue #201).
+STEER_LEDGER=".governance/packs/governance-kit/audit/directives/$EVAL_ID/lib/ledger.py"
+SS2="sess229abcdef"
 
-agent_block() {
-    printf 'Agent: claude-code\n'
-    printf 'Session: %s\n' "$SESSION_ID"
+reset_ledger() {
+    rm -rf receipts
+    git add -A receipts 2>/dev/null || true
+    git commit --quiet --no-verify -m "chore: reset receipts" >/dev/null 2>&1 || true
 }
 
-write_msg() {
-    # write_msg <file> <subject> [count] [types-summary] [tiers-summary]
-    local file="$1" subject="$2"
-    local count="${3:-0}"
-    local types="${4:-none}"
-    local tiers="${5:-none}"
-    {
-        printf '%s\n\n' "$subject"
-        printf 'Body line.\n\n'
-        agent_block
-        printf 'Steer-Count: %s\n' "$count"
-        printf 'Steer-Types: %s\n' "$types"
-        printf 'Steer-Tiers: %s\n' "$tiers"
-    } > "$file"
-}
-
-write_msg_raw() {
-    local file="$1" subject="$2" body="$3"
-    {
-        printf '%s\n\n' "$subject"
-        printf 'Body line.\n\n'
-        agent_block
-        printf '%s\n' "$body"
-    } > "$file"
-}
-
-write_msg_human() {
-    local file="$1" subject="$2"
-    local count="${3:-0}"
-    local types="${4:-none}"
-    local tiers="${5:-none}"
-    {
-        printf '%s\n\n' "$subject"
-        printf 'Body line.\n\n'
-        printf 'Steer-Count: %s\n' "$count"
-        printf 'Steer-Types: %s\n' "$types"
-        printf 'Steer-Tiers: %s\n' "$tiers"
-    } > "$file"
-}
-
-write_msg_human_bare() {
-    local file="$1" subject="$2"
-    {
-        printf '%s\n\n' "$subject"
-        printf 'Body line.\n'
-    } > "$file"
-}
-
-ensure_receipt() {
-    # Seed receipts/issue-1.md with the ## Accounting → ### Steering shape if
-    # absent, so direct row appends (including malformed fixtures the ledger
-    # CLI would refuse to mint) land in the right sub-table.
+add_v2() {
+    # add_v2 <receipt> <steer-key> <issue> <type> <tier> <ordinal> <timestamp>
     mkdir -p receipts
-    if [[ ! -f "$RECEIPT" ]]; then
-        cat > "$RECEIPT" <<EOF
-# Receipt: issue 1
+    python3 "$STEER_LEDGER" append-row "$1" "$2" "$SS2" "$3" "$4" "$5" "" "feat: v2 row" "$6" "$7"
+}
+
+seed_raw() {
+    # seed_raw <issue-file-basename> <raw-table-row> — write a malformed row the
+    # ledger CLI would refuse to mint, so check.sh's validate-dir can reject it.
+    mkdir -p receipts
+    local file="receipts/$1"
+    if [[ ! -f "$file" ]]; then
+        cat > "$file" <<'EOF'
+# Receipt
 
 ## Accounting
 
@@ -117,228 +76,60 @@ ensure_receipt() {
 | --- | --- | --- | --- | --- | --- | --- |
 EOF
     fi
+    printf '%s\n' "$2" >> "$file"
 }
 
-append_row() {
-    # append_row <steer-key> <type> <reason> [commit-cell] [tier]
-    local key="$1" typ="$2" reason="$3" commit_cell="${4:-feat: x}" tier="${5:-structural}"
-    ensure_receipt
-    printf '| %s | %s | #1 | %s | %s | %s | %s |\n' \
-        "$key" "$SESSION_ID" "$typ" "$tier" "$reason" "$commit_cell" >> "$RECEIPT"
-}
-
-reset_ledger() {
-    rm -rf receipts
-    git add -A receipts 2>/dev/null || true
-    git commit --quiet --no-verify -m "chore: reset receipts" >/dev/null 2>&1 || true
-}
-
-# ──────────────────────────────────────────────────────────────
-# Case 1 — pass: agent commit, zero events, summary triple stamped
-# ──────────────────────────────────────────────────────────────
-write_msg /tmp/msg-no-events "feat: no steering"
-EVAL_LABEL="$EVAL_ID no-events" expect_pass "$CHECK" /tmp/msg-no-events
-
-# ──────────────────────────────────────────────────────────────
-# Case 2 — pass: clean (row staged + summary triple agrees)
-# ──────────────────────────────────────────────────────────────
-KEY1="steer-${SS}-${EPOCH}-1"
-append_row "$KEY1" "interrupt" "" "feat: with steering"
-git add receipts
-write_msg /tmp/msg-pass "feat: with steering" 1 "interrupt=1" "structural=1"
-EVAL_LABEL="$EVAL_ID pass-clean" expect_pass "$CHECK" /tmp/msg-pass
-git commit --quiet --no-verify -m "feat: persisted clean row"
-
-# ──────────────────────────────────────────────────────────────
-# Case 3 — fail: receipt rows out of order (append-only invariant)
-# ──────────────────────────────────────────────────────────────
+# ── Case 1 — pass: no receipts at all (nothing to validate) ──
 reset_ledger
-append_row "steer-${SS}-1800000100-1" "interrupt" "later epoch first"
-append_row "steer-${SS}-1700000000-1" "interrupt" "earlier epoch second"
-git add receipts
-write_msg /tmp/msg-reorder "feat: reordered ledger" 2 "interrupt=2" "structural=2"
-EVAL_LABEL="$EVAL_ID reordered" expect_fail "$CHECK" /tmp/msg-reorder
+EVAL_LABEL="$EVAL_ID empty-repo" expect_pass "$CHECK"
 
-# ──────────────────────────────────────────────────────────────
-# Case 4 — fail: Steer-Count disagrees with newly-added row count
-# ──────────────────────────────────────────────────────────────
+# ── Case 2 — pass: clean v2 rows across receipts validate cleanly ──
 reset_ledger
-KEY_A="steer-${SS}-${EPOCH}-1"
-append_row "$KEY_A" "interrupt" "ok" "feat: bad count"
-git add receipts
-write_msg /tmp/msg-bad-count "feat: bad count" 99 "interrupt=99" "structural=99"
-EVAL_LABEL="$EVAL_ID bad-count" expect_fail "$CHECK" /tmp/msg-bad-count
+add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002000-1" "#1" interrupt  structural 1 "2026-06-12T00:00:01Z"
+add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002001-2" "#1" correction classifier 2 "2026-06-12T00:00:02Z"
+add_v2 "receipts/issue-2.md" "steer-${SS2:0:12}-1800002002-1" "#2" interrupt  structural 3 "2026-06-12T00:00:03Z"
+EVAL_LABEL="$EVAL_ID clean-v2-rows" expect_pass "$CHECK"
 
-# ──────────────────────────────────────────────────────────────
-# Case 5 — fail: summary trailers missing entirely (Agent: present)
-# ──────────────────────────────────────────────────────────────
-write_msg_raw /tmp/msg-no-summary "feat: no summary" ""
-EVAL_LABEL="$EVAL_ID missing-summary" expect_fail "$CHECK" /tmp/msg-no-summary
-
-# ──────────────────────────────────────────────────────────────
-# Case 6 — fail: Steer-Types breakdown disagrees with matched row's type
-# ──────────────────────────────────────────────────────────────
-write_msg /tmp/msg-bad-types "feat: bad count" 1 "correction=1" "structural=1"
-EVAL_LABEL="$EVAL_ID bad-types" expect_fail "$CHECK" /tmp/msg-bad-types
-
-# ──────────────────────────────────────────────────────────────
-# Case 7 — pass: commit with no `Agent:` trailer still satisfies the
-# universal contract when the summary triple is stamped.
-# ──────────────────────────────────────────────────────────────
+# ── Case 3 — fail: retired `tool-denial` type ──
 reset_ledger
-write_msg_human /tmp/msg-no-agent "fix: standalone steering"
-EVAL_LABEL="$EVAL_ID no-agent-with-triple" expect_pass "$CHECK" /tmp/msg-no-agent
+seed_raw "issue-1.md" "| steer-x-1800000200-1 | $SS2 | #1 | tool-denial | structural | should be rejected | feat: retired type |"
+EVAL_LABEL="$EVAL_ID retired-tool-denial-type" expect_fail "$CHECK"
 
-# ──────────────────────────────────────────────────────────────
-# Case 8 — fail: Steer-Count: 0 but Steer-Types totals to 1
-# ──────────────────────────────────────────────────────────────
-write_msg_raw /tmp/msg-zero-mismatch "feat: zero mismatch" \
-    "Steer-Count: 0
-Steer-Types: interrupt=1
-Steer-Tiers: structural=1"
-EVAL_LABEL="$EVAL_ID zero-mismatch" expect_fail "$CHECK" /tmp/msg-zero-mismatch
-
-# ──────────────────────────────────────────────────────────────
-# Case 9 — fail: receipt row uses retired `tool-denial` type
-# ──────────────────────────────────────────────────────────────
+# ── Case 4 — fail: a steering row with an empty issue (issue #201, decision 6) ──
 reset_ledger
-KEY_DEN="steer-${SS}-1800000200-1"
-append_row "$KEY_DEN" "tool-denial" "should be rejected" "feat: retired type"
-git add receipts
-write_msg /tmp/msg-retired-type "feat: retired type" 1 "tool-denial=1" "structural=1"
-EVAL_LABEL="$EVAL_ID retired-tool-denial-type" expect_fail "$CHECK" /tmp/msg-retired-type
+seed_raw "issue-1.md" "| steer-x-1800000250-1 | $SS2 |  | interrupt | structural | no issue | feat: x |"
+EVAL_LABEL="$EVAL_ID issueless-row-rejected" expect_fail "$CHECK"
 
-# ──────────────────────────────────────────────────────────────
-# Case 9b — fail: a steering row with an empty issue (issue #201, decision 6:
-# every accounted event must resolve to an issue — no issue-less rows).
-# ──────────────────────────────────────────────────────────────
+# ── Case 5 — fail: cross-branch duplicate (session, ordinal) post-merge ──
+# Branch B re-recorded branch A's event under its own receipt; post-merge both
+# carry the same (session, ordinal). Pre-fix (positional dedup) this was
+# structurally undetectable (issue #229).
 reset_ledger
-ensure_receipt
-printf '| steer-%s-1800000250-1 | %s |  | interrupt | structural | no issue | feat: x |\n' \
-    "$SS" "$SESSION_ID" >> "$RECEIPT"
-git add receipts
-write_msg /tmp/msg-no-issue "feat: issueless steering" 1 "interrupt=1" "structural=1"
-EVAL_LABEL="$EVAL_ID issueless-row-rejected" expect_fail "$CHECK" /tmp/msg-no-issue
+add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002100-1" "#1" interrupt structural 1 "2026-06-12T01:00:01Z"
+add_v2 "receipts/issue-2.md" "steer-${SS2:0:12}-1800002200-1" "#2" interrupt structural 1 "2026-06-12T01:00:01Z"
+EVAL_LABEL="$EVAL_ID cross-branch-duplicate" expect_fail "$CHECK"
 
-# ──────────────────────────────────────────────────────────────
-# Case 10 — pass: retry-after-failed-commit-msg (#66)
-# ──────────────────────────────────────────────────────────────
+# ── Case 6 — fail: non-monotonic ordinals within a session ──
 reset_ledger
-KEY_RETRY="steer-${SS}-1800000300-1"
-append_row "$KEY_RETRY" "correction" "redirected" "feat: retry case"
-git add receipts
-write_msg /tmp/msg-retry "feat: retry case" 1 "correction=1" "structural=1"
-EVAL_LABEL="$EVAL_ID retry-after-failed-commit-msg" expect_pass "$CHECK" /tmp/msg-retry
+add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002300-1" "#1" interrupt structural 5 "2026-06-12T02:00:05Z"
+add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002301-2" "#1" interrupt structural 2 "2026-06-12T02:00:02Z"
+EVAL_LABEL="$EVAL_ID non-monotonic-ordinals" expect_fail "$CHECK"
 
-# ──────────────────────────────────────────────────────────────
-# Case 11 — fail: commit with no `Agent:` trailer AND no summary triple.
-# ──────────────────────────────────────────────────────────────
+# ── Case 7 — identity dedup boundary: existing-ordinals reports recorded ones ──
 reset_ledger
-write_msg_human_bare /tmp/msg-bare "chore: bare commit"
-EVAL_LABEL="$EVAL_ID bare-commit-no-triple" expect_fail "$CHECK" /tmp/msg-bare
-
-# ──────────────────────────────────────────────────────────────
-# Case 12 — pass: per-commit waiver bypasses the trailer + ledger checks.
-# ──────────────────────────────────────────────────────────────
-reset_ledger
-{
-    printf 'fix(ledger): repair epoch ordering\n\n'
-    printf 'Body line.\n\n'
-    printf 'governance: allow-agent-steering-accounting reorder-repair after squash-merge inversion\n'
-} > /tmp/msg-waiver
-EVAL_LABEL="$EVAL_ID waiver-bypasses-cross-checks" expect_pass "$CHECK" /tmp/msg-waiver
-
-# ──────────────────────────────────────────────────────────────
-# Case 13 — fail: waiver token with no reason.
-# ──────────────────────────────────────────────────────────────
-{
-    printf 'fix(ledger): bare waiver\n\n'
-    printf 'Body line.\n\n'
-    printf 'governance: allow-agent-steering-accounting\n'
-} > /tmp/msg-waiver-bare
-EVAL_LABEL="$EVAL_ID waiver-without-reason-fails" expect_fail "$CHECK" /tmp/msg-waiver-bare
-
-# ──────────────────────────────────────────────────────────────
-# Case 14 — pass: Mode B on `main` validates HEAD's trailers (no base).
-# ──────────────────────────────────────────────────────────────
-reset_ledger
-KEY_OK="steer-${SS}-1800000900-1"
-append_row "$KEY_OK" "interrupt" "" "feat: post-squash on main"
-git add receipts
-{
-    printf 'feat: post-squash on main\n\n'
-    printf 'Body.\n\n'
-    agent_block
-    printf 'Steer-Count: 1\n'
-    printf 'Steer-Types: interrupt=1\n'
-    printf 'Steer-Tiers: structural=1\n'
-} > /tmp/msg-mode-b-pass
-git commit --quiet --no-verify -F /tmp/msg-mode-b-pass
-EVAL_LABEL="$EVAL_ID mode-b-on-main-valid" expect_pass "$CHECK"
-
-# ──────────────────────────────────────────────────────────────
-# Case 15 — fail: Mode B on `main` with a missing summary triple on HEAD.
-# ──────────────────────────────────────────────────────────────
-reset_ledger
-{
-    printf 'chore: bad squash-merge commit\n\n'
-    printf 'Body without summary trailers.\n'
-} > /tmp/msg-mode-b-fail
-git commit --allow-empty --quiet --no-verify -F /tmp/msg-mode-b-fail
-EVAL_LABEL="$EVAL_ID mode-b-on-main-missing-triple" expect_fail "$CHECK"
-
-# ──────────────────────────────────────────────────────────────
-# Case 16 — pass: squash-merge body with two stacked trailer triples (#136).
-# ──────────────────────────────────────────────────────────────
-reset_ledger
-KEY_S1="steer-${SS}-1800001000-1"
-KEY_S2="steer-${SS}-1800001100-1"
-append_row "$KEY_S1" "interrupt" "" "feat: squashed pair"
-append_row "$KEY_S2" "correction" "" "feat: squashed pair"
-git add receipts
-{
-    printf 'feat: squashed pair\n\n'
-    printf 'Body line.\n\n'
-    agent_block
-    printf 'Steer-Count: 1\n'
-    printf 'Steer-Types: interrupt=1\n'
-    printf 'Steer-Tiers: structural=1\n\n'
-    printf 'Steer-Count: 1\n'
-    printf 'Steer-Types: correction=1\n'
-    printf 'Steer-Tiers: structural=1\n'
-} > /tmp/msg-squash-aggregate
-git commit --quiet --no-verify -F /tmp/msg-squash-aggregate
-EVAL_LABEL="$EVAL_ID squash-merge-sums-stacked-triples" expect_pass "$CHECK"
-
-# ──────────────────────────────────────────────────────────────
-# Case 17 — pass: squashed body where the trailing sub-commit's triple is
-# the all-zero default (sum-across-occurrences, not last-wins).
-# ──────────────────────────────────────────────────────────────
-reset_ledger
-KEY_S3="steer-${SS}-1800001200-1"
-KEY_S4="steer-${SS}-1800001300-1"
-append_row "$KEY_S3" "interrupt" "" "feat: squashed with trailing zero"
-append_row "$KEY_S4" "interrupt" "" "feat: squashed with trailing zero"
-git add receipts
-{
-    printf 'feat: squashed with trailing zero\n\n'
-    printf 'Body line.\n\n'
-    agent_block
-    printf 'Steer-Count: 2\n'
-    printf 'Steer-Types: interrupt=2\n'
-    printf 'Steer-Tiers: structural=2\n\n'
-    printf 'Steer-Count: 0\n'
-    printf 'Steer-Types: none\n'
-    printf 'Steer-Tiers: none\n'
-} > /tmp/msg-squash-trailing-zero
-git commit --quiet --no-verify -F /tmp/msg-squash-trailing-zero
-EVAL_LABEL="$EVAL_ID squash-merge-trailing-zero-block" expect_pass "$CHECK"
-
+eval_assertions=$(( eval_assertions + 1 ))
+add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002400-1" "#1" interrupt structural 1 "2026-06-12T03:00:01Z"
+add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002401-2" "#1" interrupt structural 3 "2026-06-12T03:00:03Z"
+ORDS="$(python3 "$STEER_LEDGER" existing-ordinals receipts "$SS2" | tr '\n' ',' )"
+if [[ "$ORDS" == "1,3," ]]; then
+    printf '    ✓ %s — existing-ordinals reports the recorded identity set (dedup boundary)\n' "$EVAL_ID"
+else
+    printf '    ✗ %s — existing-ordinals returned %q (expected 1,3,)\n' "$EVAL_ID" "$ORDS" >&2
+    eval_failures=$(( eval_failures + 1 ))
+fi
 reset_ledger
 
-# ──────────────────────────────────────────────────────────────
-# Case 18 — conf overlay drives the lexical fallback list + CANDIDATE_MAX_LEN.
-# ──────────────────────────────────────────────────────────────
+# ── Case 8 — conf overlay drives the lexical fallback list + CANDIDATE_MAX_LEN ──
 eval_assertions=$(( eval_assertions + 1 ))
 CONF_LIB=".governance/packs/governance-kit/audit/directives/$EVAL_ID/lib"
 mkdir -p .governance/conf
@@ -395,76 +186,6 @@ else
     eval_failures=$(( eval_failures + 1 ))
 fi
 rm -f $EVAL_CONF
-
-# ──────────────────────────────────────────────────────────────
-# v2 schema (issue #229): ordinal + timestamp columns, identity dedup.
-# These exercise the ledger CLI / validate-dir directly for clean isolation.
-# ──────────────────────────────────────────────────────────────
-STEER_LEDGER=".governance/packs/governance-kit/audit/directives/$EVAL_ID/lib/ledger.py"
-SS2="sess229abcdef"
-add_v2() {
-    # add_v2 <receipt> <steer-key> <issue> <type> <tier> <ordinal> <timestamp>
-    mkdir -p receipts
-    python3 "$STEER_LEDGER" append-row "$1" "$2" "$SS2" "$3" "$4" "$5" "" "feat: v2 row" "$6" "$7"
-}
-
-# ── Case 19 — pass: v2 rows with distinct ordinals validate cleanly ──
-reset_ledger
-eval_assertions=$(( eval_assertions + 1 ))
-add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002000-1" "#1" interrupt  structural 1 "2026-06-12T00:00:01Z"
-add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002001-2" "#1" correction classifier 2 "2026-06-12T00:00:02Z"
-add_v2 "receipts/issue-2.md" "steer-${SS2:0:12}-1800002002-1" "#2" interrupt  structural 3 "2026-06-12T00:00:03Z"
-if python3 "$STEER_LEDGER" validate-dir receipts >/dev/null 2>&1; then
-    printf '    ✓ %s — v2 rows (ordinal+timestamp) across receipts validate clean\n' "$EVAL_ID"
-else
-    printf '    ✗ %s — clean v2 rows false-flagged\n' "$EVAL_ID" >&2
-    eval_failures=$(( eval_failures + 1 ))
-fi
-
-# ── Case 20 — fail: cross-branch duplicate (session, ordinal) is detectable ──
-# The blocker scenario: branch B re-records branch A's event under its own
-# receipt because the positional dedup couldn't see A's row. Post-merge both
-# receipts carry the same (session, ordinal) — the validator flags it. Pre-fix
-# (positional, no ordinal) this duplicate was structurally undetectable.
-reset_ledger
-eval_assertions=$(( eval_assertions + 1 ))
-add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002100-1" "#1" interrupt structural 1 "2026-06-12T01:00:01Z"
-add_v2 "receipts/issue-2.md" "steer-${SS2:0:12}-1800002200-1" "#2" interrupt structural 1 "2026-06-12T01:00:01Z"
-DUP_OUT="$(python3 "$STEER_LEDGER" validate-dir receipts 2>&1)"; DUP_RC=$?
-if [[ $DUP_RC -ne 0 ]] \
-    && printf '%s' "$DUP_OUT" | grep -qi "recorded twice" \
-    && printf '%s' "$DUP_OUT" | grep -q "ordinal 1"; then
-    printf '    ✓ %s — cross-branch duplicate (session, ordinal) flagged post-merge\n' "$EVAL_ID"
-else
-    printf '    ✗ %s — duplicate (session, ordinal) not flagged (rc=%s)\n%s\n' "$EVAL_ID" "$DUP_RC" "$DUP_OUT" >&2
-    eval_failures=$(( eval_failures + 1 ))
-fi
-
-# ── Case 21 — fail: non-monotonic ordinals within a session ──
-reset_ledger
-eval_assertions=$(( eval_assertions + 1 ))
-add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002300-1" "#1" interrupt structural 5 "2026-06-12T02:00:05Z"
-add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002301-2" "#1" interrupt structural 2 "2026-06-12T02:00:02Z"
-MONO_OUT="$(python3 "$STEER_LEDGER" validate-dir receipts 2>&1)"; MONO_RC=$?
-if [[ $MONO_RC -ne 0 ]] && printf '%s' "$MONO_OUT" | grep -qi "not greater than the previous ordinal"; then
-    printf '    ✓ %s — non-monotonic ordinals flagged\n' "$EVAL_ID"
-else
-    printf '    ✗ %s — non-monotonic ordinals missed (rc=%s)\n%s\n' "$EVAL_ID" "$MONO_RC" "$MONO_OUT" >&2
-    eval_failures=$(( eval_failures + 1 ))
-fi
-
-# ── Case 22 — identity dedup boundary: existing-ordinals reports recorded ones ──
-reset_ledger
-eval_assertions=$(( eval_assertions + 1 ))
-add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002400-1" "#1" interrupt structural 1 "2026-06-12T03:00:01Z"
-add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002401-2" "#1" interrupt structural 3 "2026-06-12T03:00:03Z"
-ORDS="$(python3 "$STEER_LEDGER" existing-ordinals receipts "$SS2" | tr '\n' ',' )"
-if [[ "$ORDS" == "1,3," ]]; then
-    printf '    ✓ %s — existing-ordinals reports the recorded identity set (dedup boundary)\n' "$EVAL_ID"
-else
-    printf '    ✗ %s — existing-ordinals returned %q (expected 1,3,)\n' "$EVAL_ID" "$ORDS" >&2
-    eval_failures=$(( eval_failures + 1 ))
-fi
 reset_ledger
 
 eval_done
