@@ -26,12 +26,13 @@
 id: governance-kit/audit
 name: Agent audit-chain governance directives
 version: "0.6.1"
-# Floor raised to 0.9.0 (#272): receipt-per-issue's `## Audit` rule is built on
-# the shared sub-agent-attestation helpers (`require_attestation`,
-# `attestation_prompt`, `extract_md_section`) added to kit-owned lib.sh. 0.9.0 is
-# the in-source kit line that carries them; the helpers first ship to consumers
-# in the kit's next minor release.
-min_governance_kit: "0.9.0"
+# Floor 0.10.0 (#272, corrected #319): receipt-per-issue's `## Audit` rule is
+# built on the shared sub-agent-attestation helpers (`require_attestation`,
+# `attestation_prompt`, `extract_md_section`) added to kit-owned lib.sh. They
+# were authored on the 0.9.0 source line but first SHIP to consumers in
+# kit/v0.10.0 — so the floor is the first-shipped version (a consumer on 0.9.x
+# passes a 0.9.0 floor yet lacks the helpers). See kit/references/LIB_API.md.
+min_governance_kit: "0.10.0"
 description: A trustworthy record of agent work — issue → receipt → commit → cost → steering, kept tamper-proof.
 author: governance-kit
 

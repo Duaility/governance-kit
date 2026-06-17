@@ -79,8 +79,8 @@ governance-kit/
 │   │                            #   DIRECTIVE_AMEND_FLOW.md, SWEEP_FLOW.md,
 │   │                            #   VERBS.md, DIRECTIVE_VERBS.md, PACK_VERBS.md,
 │   │                            #   DIRECTIVES_CATALOG.md, PACK_AUTHORING.md, NATIVE_TESTS.md,
-│   │                            #   DIRECTIVE_AUTHORING.md, UNINSTALL_MATRIX.md,
-│   │                            #   SUBAGENT_ATTESTATION.md,
+│   │                            #   DIRECTIVE_AUTHORING.md, LIB_API.md,
+│   │                            #   UNINSTALL_MATRIX.md, SUBAGENT_ATTESTATION.md,
 │   │                            #   INSTALL_SCHEMA.md, LOCK_SCHEMA.md.
 │   └── evals/                   # Behavioral fixtures for the verbs.
 ├── .governance/            # Directive tests for THIS repo (dogfood).
@@ -195,6 +195,8 @@ Edits to source files flow to both runtimes live.
 - [CONSTITUTION.md](CONSTITUTION.md) — the live directive set and amendment process.
 - [kit/references/DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md) — every ready-made directive and its check.
 - [kit/references/PACK_AUTHORING.md](kit/references/PACK_AUTHORING.md) — writing a third-party pack.
+- [kit/references/DIRECTIVE_AUTHORING.md](kit/references/DIRECTIVE_AUTHORING.md) — the craft guide for writing a good directive check.
+- [kit/references/LIB_API.md](kit/references/LIB_API.md) — the canonical `lib.sh` helper API every `check.sh` can call, and the version-floor obligation.
 - [kit/references/SWEEP_FLOW.md](kit/references/SWEEP_FLOW.md) — the off-commit-path LLM-judge lane (`surface: sweep`, issue #142).
 - [kit/references/SUBAGENT_ATTESTATION.md](kit/references/SUBAGENT_ATTESTATION.md) — the shared sub-agent-attestation infra: a directive gates a section a fresh-context sub-agent must populate, via the remediation loop (issue #272).
 - [kit/references/NATIVE_TESTS.md](kit/references/NATIVE_TESTS.md) — porting bash directives to pytest / jest / go test, husky / pre-commit.com snippets.
