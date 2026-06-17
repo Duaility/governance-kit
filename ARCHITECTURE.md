@@ -79,12 +79,11 @@ The skill is a self-contained directory with frontmatter
 
 ## Directive packs
 
-Each pack is a directory. Four concern-scoped packs ship in-tree under
+Each pack is a directory. Three concern-scoped packs ship in-tree under
 `packs/<concern>/`:
 
-- `governance-kit/foundation` — `required-docs`, `repo-hygiene`,
-  `managed-tree-integrity`.
-- `governance-kit/docs` — `internal-doc-links`, `doc-freshness`.
+- `governance-kit/foundation` — `required-docs`, `internal-doc-links`,
+  `repo-hygiene`, `managed-tree-integrity`.
 - `governance-kit/commits` — `commit-message-format`, `no-orphan-todos`,
   `no-unjustified-suppressions`.
 - `governance-kit/audit` — a trustworthy record of agent work: issue → receipt

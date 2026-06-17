@@ -107,7 +107,7 @@ in their own repos and tag plain `vX.Y.Z`.
 Consumers then pin a **readable, immutable** ref instead of an opaque SHA:
 
 ```sh
-governance pack add gh:duaility/governance-kit/packs/docs@<tag>
+governance pack add gh:duaility/governance-kit/packs/foundation@<tag>
 ```
 
 A tag resolves to a SHA at `pack add`/`pack update` time and is recorded in the

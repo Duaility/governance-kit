@@ -167,6 +167,15 @@ Version lines are written **only** by [`scripts/release.sh`](scripts/release.sh)
 
 Conventional Commits are enforced. Prefixes: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `build`, `ci`, `revert`, `style`. A `commit-msg` hook validates the pending subject line.
 
+### Documentation: two surfaces, one job each
+
+The repo carries two documentation surfaces. They are **not** interchangeable — put each fact in exactly one home, and link rather than copy.
+
+- **`kit/references/*.md` — the spec & contributor surface.** Normative runbooks the kit/agent *executes* at run time (`INIT_FLOW.md`, `UPDATE_FLOW.md`, `UNINSTALL_FLOW.md`, …), verb specs, schemas, authoring contracts, versioning policy, `PHILOSOPHY.md`. Shipped inside the kit artifact and versioned with the `kit/vX.Y.Z` tag. **This is the source of truth for *how the kit behaves*** — when the site and a reference disagree, the reference wins. Keep it operational; do not add marketing/narrative prose here.
+- **`docs/` → the published site ([duaility.github.io/governance-kit](https://duaility.github.io/governance-kit)).** Human narrative: onboarding (`guide/*`), concept explainers (`concepts/*`), troubleshooting, limitations. Deployed from `main` by [docs.yml](.github/workflows/docs.yml). **This is the source of truth for *understanding and getting started*.** Where a page needs the authoritative spec, it carries a "Canonical spec" callout linking the relevant `kit/references` file rather than restating drift-prone detail.
+
+Rule of thumb: a *normative claim about behavior* (a flag, a schema field, a flow step) belongs in `kit/references` and is linked from the site; a *narrative explanation* (why this matters, how to get started) belongs on the site and links down to the reference. The README is the landing page that routes to both.
+
 ## Linking the skills into a runtime
 
 This repo's skills are made available to local agent runtimes via symlinks:

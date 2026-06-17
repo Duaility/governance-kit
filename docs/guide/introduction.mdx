@@ -43,7 +43,7 @@ A failed check is not a scolding; it is a *gap report*. It names the directive, 
 Every directive is a self-contained folder — test, prose, metadata, and fixtures travel together:
 
 ```
-doc-freshness/
+internal-doc-links/
 ├── directive.yaml    # category, summary, surface, hook
 ├── check.sh          # the executable test (pre-commit + CI)
 ├── constitution.md   # Directive / Rationale / Enforced by / Exceptions
@@ -53,17 +53,17 @@ doc-freshness/
 The `constitution.md` carries the *why*:
 
 ```markdown
-### doc-freshness
+### internal-doc-links
 
-- **Directive**: Docs opted into the doc-freshness config carry a
-  `<!-- last-verified: YYYY-MM-DD -->` marker dated within the last 90 days.
-- **Rationale**: Critical runbooks and onboarding docs decay. A periodic
-  "someone re-read this" checkpoint keeps them honest.
-- **Enforced by**: .governance/packs/governance-kit/docs/directives/doc-freshness/check.sh
-- **Exceptions**: Remove a doc from the config overlay to opt it out.
+- **Directive**: Every relative-path markdown link resolves to a real file;
+  opt in to also require every doc stay reachable from a declared root.
+- **Rationale**: A broken link rots silently — the doc still renders but lies,
+  and an agent that follows it bails.
+- **Enforced by**: .governance/packs/governance-kit/foundation/directives/internal-doc-links/check.sh
+- **Exceptions**: Line-level waiver on the broken-link line.
 ```
 
-A bare hook would only check the date format. The rationale tells the next agent — and the next human — what the date is *for*.
+A bare check would only confirm the links point somewhere. The rationale tells the next agent — and the next human — why a connected doc graph *matters*.
 
 ## What it is not
 

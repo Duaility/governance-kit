@@ -6,7 +6,7 @@
 #               (the "no dead links" half). Always on.
 #   reachable — every tracked doc is reachable by following internal links from
 #               an entry-point ("root") doc declared in
-#               `.governance/conf/governance-kit/docs/internal-doc-links.conf`. The "no orphan docs"
+#               `.governance/conf/governance-kit/foundation/internal-doc-links.conf`. The "no orphan docs"
 #               half. NO-OP unless that config file exists and names ≥1 root.
 #
 # Why one directive: `resolve` proves the links you have point somewhere real;
@@ -99,7 +99,7 @@ while IFS= read -r file; do
 done < <(git ls-files -- '*.md' '*.markdown' ':!vendor/**' ':!node_modules/**' 2>/dev/null || true)
 
 # ── sub-check: reachable ──────────────────────────────────────
-# No-op unless .governance/conf/governance-kit/docs/internal-doc-links.conf exists and names ≥1 root.
+# No-op unless .governance/conf/governance-kit/foundation/internal-doc-links.conf exists and names ≥1 root.
 if CONF="$(conf_file internal-doc-links)"; then
     roots=()
     conf_excludes=()
@@ -158,7 +158,7 @@ if CONF="$(conf_file internal-doc-links)"; then
         done
 
         if [[ ${#QUEUE[@]} -eq 0 ]]; then
-            violation "reachable — none of the configured roots [${roots[*]}] are tracked .md files (check .governance/conf/governance-kit/docs/internal-doc-links.conf)"
+            violation "reachable — none of the configured roots [${roots[*]}] are tracked .md files (check .governance/conf/governance-kit/foundation/internal-doc-links.conf)"
         else
             while [[ ${#QUEUE[@]} -gt 0 ]]; do
                 cur="${QUEUE[0]}"
@@ -197,7 +197,7 @@ if CONF="$(conf_file internal-doc-links)"; then
                 if head -n 10 "$f" 2>/dev/null | grep -q "governance: allow-internal-doc-links reachable"; then
                     continue
                 fi
-                violation "reachable — $f is an orphaned doc, unreachable from any configured root (link it from a doc in the graph, add an 'exclude' line to .governance/conf/governance-kit/docs/internal-doc-links.conf, or add a 'governance: allow-internal-doc-links reachable <reason>' comment in its first 10 lines)"
+                violation "reachable — $f is an orphaned doc, unreachable from any configured root (link it from a doc in the graph, add an 'exclude' line to .governance/conf/governance-kit/foundation/internal-doc-links.conf, or add a 'governance: allow-internal-doc-links reachable <reason>' comment in its first 10 lines)"
             done < <(git ls-files -- '*.md' '*.markdown' 2>/dev/null || true)
         fi
     fi

@@ -37,15 +37,15 @@ YAML, `version: "2"`. **Every** installed pack — community, kit-core, repo-loc
 ```yaml
 version: "2"
 packs:
-  - id: governance-kit/docs
-    version: "0.2"
+  - id: governance-kit/foundation
+    version: "0.4"
     source: gh
-    ref: gh:duaility/governance-kit/packs/docs@docs/v0.2.0
+    ref: gh:duaility/governance-kit/packs/foundation@foundation/v0.4.0
     sha: b33ec7a05be6c157a63b5f1a22d0102a1bf5a50c
-    subpath: packs/docs
+    subpath: packs/foundation
     directives:
+      - required-docs
       - internal-doc-links
-      - doc-freshness
 
   - id: acme/soc2
     version: "0.3"

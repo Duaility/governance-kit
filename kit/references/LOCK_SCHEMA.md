@@ -9,17 +9,17 @@
 ```yaml
 version: "2"
 packs:
-  - id: governance-kit/docs
-    version: "0.2"
+  - id: governance-kit/foundation
+    version: "0.4"
     source: gh
-    ref: gh:duaility/governance-kit/packs/docs@docs/v0.2.0
+    ref: gh:duaility/governance-kit/packs/foundation@foundation/v0.4.0
     sha: b33ec7a05be6c157a63b5f1a22d0102a1bf5a50c
-    subpath: packs/docs
+    subpath: packs/foundation
     min_governance_kit: ""
     installed_at: 2026-05-08T13:00:00Z
     directives:
+      - required-docs
       - internal-doc-links
-      - doc-freshness
 
   - id: acme/soc2
     version: "0.3"
@@ -46,7 +46,7 @@ Every entry carries a `source` field. It controls which other fields are present
 
 | `source` | Meaning | Required fields | Forbidden fields |
 |---|---|---|---|
-| `gh` | Pack fetched from `github.com/<owner>/<repo>` via `pack add`. Used for both community packs **and** the kit's own bundled concern packs (post-#117, phase 2 of #114 — e.g. `gh:duaility/governance-kit/packs/docs`). | `id`, `version`, `source`, `ref`, `sha`, `directives`, `installed_at` | — |
+| `gh` | Pack fetched from `github.com/<owner>/<repo>` via `pack add`. Used for both community packs **and** the kit's own bundled concern packs (post-#117, phase 2 of #114 — e.g. `gh:duaility/governance-kit/packs/foundation`). | `id`, `version`, `source`, `ref`, `sha`, `directives`, `installed_at` | — |
 | `local` | Repo-local hand-authored pack (no `source:` in `pack.yaml`). | `id`, `version`, `directives` | `ref`, `sha`, `installed_at`, `subpath`, `min_governance_kit` |
 
 The `builtin` source type was retired in #117. `governance-kit/core` is now fetched the same way community packs are, so `pack update` works uniformly across the entire pack set.

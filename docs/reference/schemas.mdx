@@ -5,6 +5,10 @@ summary: 'The three files that define a repo governance state — install.yaml, 
 
 # File schemas
 
+<Note>
+  **Canonical spec:** this page summarizes the files for humans. The authoritative, versioned schemas live in [`kit/references/INSTALL_SCHEMA.md`](https://github.com/Duaility/governance-kit/blob/main/kit/references/INSTALL_SCHEMA.md) and [`kit/references/LOCK_SCHEMA.md`](https://github.com/Duaility/governance-kit/blob/main/kit/references/LOCK_SCHEMA.md) — consult those for the exact field set. If the two ever disagree, the reference wins.
+</Note>
+
 Three files define a repo's governance state. Two are machine-written records (`install.yaml`, `packs.lock`); one is per-directive metadata (`directive.yaml`). None are hand-edited — the verbs and their tooling are the only writers.
 
 ## `.governance/install.yaml` — the install receipt

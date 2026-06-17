@@ -27,6 +27,15 @@ docs/
 
 Anything in `docs/` that isn't `.md` / `.mdx` / `.json` is copied verbatim to the deploy root.
 
+## What belongs here vs. `kit/references/`
+
+This site is **one of two doc surfaces** and they are not interchangeable (see [AGENTS.md → "Documentation: two surfaces"](../../AGENTS.md)):
+
+- **`kit/references/*.md`** is the **source of truth for *how the kit behaves*** — verb specs, flow runbooks, schemas, authoring contracts, versioning policy. It ships inside the kit artifact and the agent executes it at run time. When this site and a reference disagree, **the reference wins.**
+- **This site** owns the **human narrative** — onboarding, concepts, troubleshooting. It exists because the references are not a friendly first read.
+
+Rule: a *normative claim about behavior* (a flag, a schema field, a flow step) lives in `kit/references` and is linked from here — do not re-state it as a parallel spec, because the two hand-authored copies drift. Pages that necessarily summarize a spec carry a **`<Note>` "Canonical spec"** callout linking the relevant `kit/references` file (see `docs/reference/*.mdx`). Keep those pages overviews, not second specs.
+
 ## Renderer layout
 
 ```
