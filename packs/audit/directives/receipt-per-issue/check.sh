@@ -320,19 +320,26 @@ for f in "${receipt_files[@]}"; do
                 violation "$f — newly added receipt's '## Verification' has no fenced code block; include at least one runnable command a reviewer can re-run (e.g. a \`\`\`sh … \`\`\` block), not just prose"
             fi
         fi
-        # `## Audit` (issue #272): a newly added receipt must carry a
+        # `## Audit` (issues #272, #325): a newly added receipt must carry a
         # fresh-context sub-agent's adversarial verdict against the diff and the
-        # issue — the substance the closed-loop crosswalk never touches. Gated
-        # through the shared `require_attestation` infra (lib.sh): the hook only
-        # demands a present, verdict-bearing section, and its violation message
-        # IS the authoring instruction. The harness agent spawns the sub-agent;
-        # the hook never spawns anything itself.
-        require_attestation "$f" "Audit" \
-            "The mechanical checks prove this receipt is internally consistent, never that it matches reality (they read neither the diff nor the issue)." \
-            "the diff (\`git diff\`), this receipt, and the linked issue (\`gh issue view $issue_ref\`)" \
-            "'## What changed' faithfully describes the diff (no misrepresentation, no omission)" \
-            "each '- [x]' item is realized in the diff" \
-            "the '## Checklist' mirrors the issue's checklist"
+        # issue — the substance the closed-loop crosswalk never touches. The
+        # judgment task is declared once in directive.yaml's `subagent:` block;
+        # `subagent_attest` reads it, gates the section's presence + verdict, and
+        # registers it (isolation: shared) so the run-level orchestrator batches
+        # it with any other pending shared attestation into one sub-agent. The
+        # hook never spawns anything itself; a bare/CI run with no agent simply
+        # hard-fails on the missing section. On an older lib.sh (no
+        # subagent_attest) fall back to the per-section require_attestation gate.
+        if declare -F subagent_attest >/dev/null 2>&1; then
+            subagent_attest "$f"
+        else
+            require_attestation "$f" "Audit" \
+                "The mechanical checks prove this receipt is internally consistent, never that it matches reality (they read neither the diff nor the issue)." \
+                "the diff (\`git diff\`), this receipt, and the linked issue (\`gh issue view $issue_ref\`)" \
+                "'## What changed' faithfully describes the diff (no misrepresentation, no omission)" \
+                "each '- [x]' item is realized in the diff" \
+                "the '## Checklist' mirrors the issue's checklist"
+        fi
     fi
 
     # Crosswalk: only meaningful if all sections exist; otherwise the missing-

@@ -38,15 +38,15 @@ source "$(dirname "$0")/../../../../../lib.sh"
 directive_start "layer-boundaries"
 require_git
 
-# Runtime-dependency guard. This directive is the second consumer of the shared
-# sub-agent-attestation infra (issue #272): it calls `require_attestation`, which
-# the kit ships in the runtime `lib.sh` from the release that carries that infra.
-# On an older runtime (`.governance/lib.sh` synced from a kit predating it) the
-# helper is undefined — enforcing here would either crash or silently false-pass.
-# So skip cleanly when the helper is absent; the directive auto-activates the
-# moment this repo updates to a kit whose `lib.sh` defines it. (governance-kit's
-# own dogfood is pinned at kit v0.9.0, which predates the helper; see issue #280.)
-if ! declare -F require_attestation >/dev/null 2>&1; then
+# Runtime-dependency guard. This directive declares a `subagent:` block and
+# gates it through `subagent_attest` (issue #325), which the kit ships in the
+# runtime `lib.sh` from the release that carries that infra. On an older runtime
+# (`.governance/lib.sh` synced from a kit predating it) the helper is undefined —
+# enforcing here would either crash or silently false-pass. So skip cleanly when
+# it is absent; the directive auto-activates the moment this repo updates to a
+# kit whose `lib.sh` defines it. (The dogfood lags the source by one release by
+# design, so this no-ops on this repo's own commits until the next kit sync.)
+if ! declare -F subagent_attest >/dev/null 2>&1; then
     directive_end
 fi
 
@@ -61,6 +61,8 @@ LAYER_DOC="$(conf_get layer-boundaries LAYER_DOC "$DEFAULTS")"
 if [[ -z "$LAYER_DOC" || ! -f "$ROOT/$LAYER_DOC" ]]; then
     directive_end
 fi
+# Expose the resolved doc to subagent_attest's `layer-map` input resolution.
+export GOVERNANCE_LAYER_DOC="$LAYER_DOC"
 
 # The receipt is the attestation host; without one there is nowhere to record a
 # verdict, and the change-set scoping below would find nothing.
@@ -136,12 +138,11 @@ while IFS= read -r f; do
     [[ -f "$f" ]] || continue
     is_accounting_stub "$f" && continue
     has_layer_waiver "$f" && continue
-    require_attestation "$f" "Layer boundaries" \
-        "The mechanical checks cannot tell whether changed code belongs to the layer it sits in — whether kit/engine logic landed under a pack, or a lower layer took an upward dependency. That is a judgment about each change's role, not its path." \
-        "the diff (\`git diff\`) and the declared layer model in \`$LAYER_DOC\`" \
-        "every file added or changed sits in the layer its role belongs to — no kit/engine logic placed under a pack, no pack-specific content placed in the kit" \
-        "no dependency points the wrong way across a layer edge — a lower layer must not reach into a higher one" \
-        "new shared logic lives in the layer that owns it rather than being duplicated into a consumer layer"
+    # The judgment task is declared once in directive.yaml's `subagent:` block.
+    # subagent_attest reads it, gates the section's presence + verdict, and
+    # registers it (isolation: shared) so the run-level orchestrator batches it
+    # with receipt-per-issue's `## Audit` into a single sub-agent per commit.
+    subagent_attest "$f"
 done <<< "$ADDED_RECEIPTS"
 
 directive_end

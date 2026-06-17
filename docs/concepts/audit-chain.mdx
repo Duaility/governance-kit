@@ -71,7 +71,7 @@ Because rows store positions on a monotonic counter rather than quantities, doub
 
 ## Steering accounting: where the human grabbed the wheel
 
-`agent-steering-accounting` records **human steering events** — interrupts and classifier-confirmed corrections — as rows under `## Accounting` → `### Steering` in the issue's receipt:
+`agent-steering-accounting` records **human steering events** — interrupts and corrections — as rows under `## Accounting` → `### Steering` in the issue's receipt:
 
 ```
 | steer-key | session | issue | type | tier | user-reason | commit | ordinal | timestamp |
@@ -79,10 +79,10 @@ Because rows store positions on a monotonic counter rather than quantities, doub
 
 `ordinal` and `timestamp` are the event's absolute transcript coordinates: `ordinal` is its 1-based position in the session's deterministic event stream, and dedup is identity-based — a given `(session, ordinal)` is appended exactly once, ever, which is what makes a cross-branch re-append detectable after a merge.
 
-Detection is two-tier: **structural** (runtime interrupt sentinels — near-zero false positives) and **semantic** (user messages after assistant turns, classified as corrections by the runtime's headless CLI, with a regex pre-filter as the fallback when the CLI is unreachable). Tool *denials* are excluded by design — a "deny" click is usually "I'll do it myself", not an intent redirect. The point is rule-layer steering: where humans repeatedly steer is the signal for which directives are missing or misaligned.
+Deciding whether a message is a *correction* is a model judgment, so it is made by a **fresh-context sub-agent** handed the session transcript — a `subagent:` attestation (the same mechanism as the receipt `## Audit` and `## Layer boundaries` verdicts), batched into one sub-agent per commit. This replaced an in-hook `claude -p` classifier whose throwaway transcript polluted token accounting and made the commit hook online (issue #325); the commit hook now makes **no** network call. The sub-agent records each event and writes a `## Steering` `PASS`/`REFUTED` verdict; `check.sh` gates that verdict's presence and validates the ledger shape. Tool *denials* are excluded by design — a "deny" click is usually "I'll do it myself", not an intent redirect. The point is rule-layer steering: where humans repeatedly steer is the signal for which directives are missing or misaligned.
 
 <Note>
-This directive (and `doc-integrity`) is `always_install: true` — the audit model depends on it unconditionally. `user-reason` records correction text **verbatim** in the receipt, so it becomes part of the repo's public history. Redact via its classifier hook rather than switching it off, and think hard before installing on a public repo.
+This directive (and `doc-integrity`) is `always_install: true` — the audit model depends on it unconditionally. `user-reason` records operator-intent text in the receipt, so it becomes part of the repo's public history. Think hard before installing on a public repo.
 </Note>
 
 ## doc-integrity: the record cannot be quietly rewritten

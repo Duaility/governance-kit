@@ -14,6 +14,18 @@ commits, triages with a cheap grep, adjudicates the candidate hunks with a
 model, and files one digest issue. Findings then enter the repo through the same
 door as human corrections: **issue → agent → PR**.
 
+> **Sweep is the high-tier mode of one sub-agent judgment (issue #325).** A
+> sub-agent attestation (commit time, low tier, *record* — see
+> [SUBAGENT_ATTESTATION.md](SUBAGENT_ATTESTATION.md)) and a sweep (merge/scheduled,
+> high tier, *verify*) are the **same** tiered, rubric-framed model judgment.
+> Issue #325 unified the attestation lane behind a single `subagent:` declaration
+> in `directive.yaml` (`inputs`, `checks`, `isolation`, `section`,
+> `tiers: { attest: low, sweep: high }`). Wiring this engine to read that block
+> directly — so a sweep directive declares `subagent:` instead of a parallel
+> `triage.sh` + `constitution.md` rubric — is the immediate follow-up; the schema
+> is designed so the sweep lane consumes the same declaration unchanged. Until
+> then, sweep directives still ship `triage.sh` + `constitution.md` as below.
+
 ## Why off the commit path
 
 A false positive on the commit path is catastrophic: one wrong block →

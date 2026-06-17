@@ -46,20 +46,25 @@ is load-bearing, not trivia.
 | `has_waiver` | `has_waiver <file> <line_no> <directive-id>` | True when that line carries `governance: allow-<directive-id>`. The per-line escape hatch — `has_waiver "$file" "$line" "<id>" && continue` inside a per-line scan. | 0.3.5 |
 | `has_file_waiver` | `has_file_waiver <file> <directive-id> <subcheck>` | True when the file's first 10 lines carry `governance: allow-<directive-id> <subcheck>`. The **whole-file** waiver, for sub-checks whose violation is the file itself rather than a line. The `<subcheck>` name lets several file-level sub-checks share one `allow-<directive-id>` prefix without colliding. | 0.3.5 |
 
-### Sub-agent attestation
+### Sub-agent judgment (attest)
 
 The independent-auditor pattern — a section a fresh-context sub-agent must
-populate against ground truth (the diff, the linked issue) the hook itself
-cannot read. Full design in
-[SUBAGENT_ATTESTATION.md](SUBAGENT_ATTESTATION.md); the attestation
+populate against ground truth (the diff, the linked issue, the session
+transcript) the hook itself cannot read. Since issue #325 the task is declared
+once in the directive's `directive.yaml` `subagent:` block and the commit-time
+orchestrator **batches** every `isolation: shared` section into one sub-agent.
+Full design in [SUBAGENT_ATTESTATION.md](SUBAGENT_ATTESTATION.md); the attestation
 [pattern-class in DIRECTIVE_AUTHORING.md](DIRECTIVE_AUTHORING.md#attestation--sub-agent-verdict-checks)
 shows when to reach for it.
 
 | Function | Signature | What it does | Since |
 |---|---|---|---|
 | `extract_md_section` | `extract_md_section <file> <heading>` | Print the body of the `## <heading>` section (case-insensitive), stopping at the next `## `. The generic markdown-section reader. | 0.10.0 |
-| `attestation_prompt` | `attestation_prompt <section> <inputs> <check-1> [<check-2> ...]` | Print the canonical fresh-context sub-agent authoring instruction. One envelope so every attestation-backed directive emits the same recognizable prompt; you supply only the section name, the `<inputs>` the sub-agent must be handed, and the numbered checks it must adjudicate. | 0.10.0 |
-| `require_attestation` | `require_attestation <file> <section> <why> <inputs> <check-1> [...]` | The deterministic gate. Records a `violation` when `<file>` lacks a well-formed `## <section>`: absent → `<why>` plus the `attestation_prompt` instruction; present but carrying no `PASS`/`REFUTED` token → a "fill in the verdict" message. Returns `0` on a well-formed section, `1` otherwise (callers may branch). Purely mechanical: presence + a verdict token, **never** the verdict's truth. | 0.10.0 |
+| `attestation_prompt` | `attestation_prompt <section> <inputs> <check-1> [<check-2> ...]` | Print the canonical single-section fresh-context sub-agent authoring instruction. One envelope so every attestation-backed directive emits the same recognizable prompt; you supply only the section name, the `<inputs>` the sub-agent must be handed, and the numbered checks it must adjudicate. | 0.10.0 |
+| `require_attestation` | `require_attestation <file> <section> <why> <inputs> <check-1> [...]` | The original per-directive gate. Records a `violation` when `<file>` lacks a well-formed `## <section>`: absent → `<why>` plus the `attestation_prompt` instruction; present but carrying no `PASS`/`REFUTED` token → a "fill in the verdict" message. Returns `0` on a well-formed section, `1` otherwise. Purely mechanical: presence + a verdict token, **never** the verdict's truth. Still the fallback when a directive can't declare a `subagent:` block. | 0.10.0 |
+| `subagent_attest` | `subagent_attest <receipt>` | The declaration-driven gate. Reads the sibling `directive.yaml`'s `subagent:` block (section, isolation, inputs, checks), runs the same presence + verdict gate, and — when the section is pending — registers it into the shared ledger so `attestation_remediation` can batch it. Returns `0`/`1` like `require_attestation`. | 0.11.0 |
+| `attestation_remediation` | `attestation_remediation [<ledger>]` | The run-level orchestrator. Reads the pending-attestation ledger and emits **one** grouped remediation instruction: a single sub-agent for all `isolation: shared` sections (handed the union of inputs), plus one isolated sub-agent per `isolation: isolated` section. Invoked once by `run.sh` and the pre-commit dispatcher; silent no-op when nothing is pending. | 0.11.0 |
+| `resolve_subagent_input` | `resolve_subagent_input <token> <receipt>` | Map a typed input token (`diff`, `receipt`, `issue`, `transcript`, `layer-map`) to the concrete handle phrase the sub-agent is handed; unknown tokens pass through verbatim. | 0.11.0 |
 
 ### Per-directive configuration
 

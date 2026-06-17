@@ -105,14 +105,15 @@ Bad fit:
 
 Use this when the directive's real question is *does this artifact correspond to reality* — does the receipt match the diff, does the change honor a declared architectural invariant — which a hook structurally cannot answer, because the ground truth (the diff, the linked issue, the running system) is exactly what a pre-commit hook does not read. A form-checked directive can prove an artifact is internally consistent; it cannot prove it is *true*.
 
-The pattern closes that gap with an **independent reader**: a fresh-context sub-agent, handed only the ground truth, writes a verdict into a `## <Section>` of the artifact, and `check.sh` gates that section for *presence and a verdict token* — never for the verdict's truth (re-deriving the verdict is the merge-time sweep lane's job).
+The pattern closes that gap with an **independent reader**: a fresh-context sub-agent, handed only the ground truth, writes a verdict into a `## <Section>` of the artifact, and `check.sh` gates that section for *presence and a verdict token* — never for the verdict's truth (re-deriving the verdict is the merge-time sweep lane's job). Attest (commit) and sweep (merge) are two modes of one **sub-agent judgment** mechanism — same rubric, two tiers — so you declare the task once (issue #325).
 
 Implementation guidance:
 
-- Source `lib.sh` and call `require_attestation <file> <section> <why> <inputs> <check-1> [...]`. It records the violation when the section is missing or carries no `PASS`/`REFUTED` token, and the violation message *is* the sub-agent authoring instruction (built by `attestation_prompt`) — the standard GDD remediation loop, no hook ever spawns anything.
+- Declare the task once in `directive.yaml`'s `subagent:` block — `inputs` (typed tokens), `checks` (the rubric), `isolation` (`shared` to batch, `isolated` to force its own sub-agent), `section`, `tiers`. Then in a change-set-scoped block of `check.sh`, source `lib.sh` and call `subagent_attest "$f"`: it gates the section's presence + `PASS`/`REFUTED` token and registers it so the run-level `attestation_remediation` orchestrator emits one grouped sub-agent instruction (shared sections batched into a single spawn). No hook ever spawns anything.
+- Falling back: a directive that can't declare a block (or must run on an older runtime `lib.sh`) calls `require_attestation <file> <section> <why> <inputs> <check-1> [...]` directly, which emits its own self-contained authoring instruction. Guard with `declare -F subagent_attest` to prefer the batched path when available.
 - Scope the requirement to the change set: new work owes the new discipline; the historical corpus is grandfathered.
-- A directive using these helpers must floor `min_governance_kit` at the kit version that first ships them (`0.10.0` — first-shipped, not the `0.9` source line; see the [helper API reference](https://github.com/Duaility/governance-kit/blob/main/kit/references/LIB_API.md#version-floor-obligation)).
-- Full design, the remediation loop, and a worked wiring example: [SUBAGENT_ATTESTATION.md](https://github.com/Duaility/governance-kit/blob/main/kit/references/SUBAGENT_ATTESTATION.md).
+- A directive using these helpers must floor `min_governance_kit` at the kit version that first ships them (`require_attestation` → `0.10.0`; `subagent_attest`/`attestation_remediation` → the release carrying #325 — first-shipped, not the source-line marker; see the [helper API reference](https://github.com/Duaility/governance-kit/blob/main/kit/references/LIB_API.md#version-floor-obligation)). If `check.sh` falls back to `require_attestation` when the newer helper is absent, the floor can stay at `0.10.0`.
+- Full design, the `subagent:` schema, the remediation loop, and a worked wiring example: [SUBAGENT_ATTESTATION.md](https://github.com/Duaility/governance-kit/blob/main/kit/references/SUBAGENT_ATTESTATION.md).
 
 ### Semantic / LLM-judged checks (`surface: sweep`)
 

@@ -275,6 +275,9 @@ pre_commit_text="$(cat "$target_hooks/pre-commit")"
 assert_contains "pre-commit defines directive_dirs_for_hook helper" 'directive_dirs_for_hook()' "$pre_commit_text"
 assert_contains "pre-commit invokes check helper for pre-commit kind" 'directive_dirs_for_hook pre-commit check' "$pre_commit_text"
 assert_contains "pre-commit invokes hook helper for pre-commit kind" 'directive_dirs_for_hook pre-commit helper' "$pre_commit_text"
+# Sub-agent attestation orchestration (issue #325): the dispatcher runs the
+# grouped remediation once after the check loop.
+assert_contains "pre-commit wires the attestation orchestrator" 'attestation_remediation "$ATTEST_LEDGER"' "$pre_commit_text"
 
 commit_msg_text="$(cat "$target_hooks/commit-msg")"
 assert_contains "commit-msg passes \$MSG_FILE to check.sh" '"$dir/check.sh" "$MSG_FILE"' "$commit_msg_text"
