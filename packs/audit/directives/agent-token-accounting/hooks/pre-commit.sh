@@ -4,9 +4,10 @@
 # This is what makes `git commit` the baseline for agent-authored commits.
 # The pre-commit hook runs it before governance tests; if the commit is
 # agent-authored, it appends the cost row to the issue's receipt and `git add`s
-# it (so the row lands in the CURRENT commit's tree). check.sh then reconciles
-# the receipt's recorded cumulative against the transcript at commit-msg time
-# (issue #293) — no trailers are stamped.
+# it (so the row lands in the CURRENT commit's tree). It then writes a frozen
+# endpoint file keyed by the staged tree id; check.sh reconciles the staged row
+# against that endpoint at commit-msg time (issues #293, #305) — no trailers are
+# stamped.
 #
 # Why pre-commit and not a later hook: pre-commit runs before git snapshots the
 # tree, so the `git add` of the receipt row lands in the CURRENT commit. From a
@@ -28,9 +29,10 @@
 # no -m).
 #
 # All receipt parsing / summing / appending goes through sibling lib/ledger.py;
-# runtime detection + transcript cumulative through lib/runtime.sh (shared with
-# check.sh). Bash here handles git plumbing, argv walking, and row append.
-# Per-runtime transcript readers live in sibling runtimes/<runtime>.sh.
+# runtime detection + transcript cumulative through lib/runtime.sh. Endpoint
+# persistence lives in lib/endpoint.py. Bash here handles git plumbing, argv
+# walking, and row append. Per-runtime transcript readers live in sibling
+# runtimes/<runtime>.sh.
 
 set -u
 
@@ -47,9 +49,9 @@ RECEIPTS_DIR="$ROOT/receipts"
 LIB="$RULE_DIR/lib"
 
 # ── Detect runtime + resolve the session's cumulative counters ──
-# Shared with check.sh's commit-time endpoint reconciliation (issue #293) via
-# lib/runtime.sh: the writer (here) records the transcript cumulative in the
-# cost row; the checker re-reads the same coordinate to prove the row landed.
+# lib/runtime.sh resolves the writer's sampled cumulative coordinate. check.sh
+# only uses runtime detection before verifying the frozen staged-tree endpoint;
+# it deliberately does not compare against a later live transcript coordinate.
 # shellcheck disable=SC1090
 source "$LIB/runtime.sh"
 resolve_runtime_cumulative
@@ -208,6 +210,17 @@ python3 "$LIB/ledger.py" append-row \
     "$CUM_INPUT" "$CUM_CACHE_CREATE" "$CUM_CACHE_READ" "$CUM_OUTPUT" \
     "$SUBJECT"
 git add "$RECEIPT"
+
+# ── Freeze the endpoint for commit-msg reconciliation ──────────
+# The live transcript can advance after this writer runs. Key the endpoint by
+# the post-row staged tree so commit-msg verifies exactly the coordinate this
+# writer used, without accepting a stale endpoint from an earlier attempt.
+TREE_ID="$(git write-tree)"
+ENDPOINT="$(git rev-parse --git-path "governance-token-endpoints/${TREE_ID}.json")"
+RECEIPT_REL="${RECEIPT#$ROOT/}"
+python3 "$LIB/endpoint.py" write "$ENDPOINT" "$SESSION_ID" \
+    "$CUM_INPUT" "$CUM_CACHE_CREATE" "$CUM_CACHE_READ" "$CUM_OUTPUT" \
+    "$RECEIPT_REL" "$COST_KEY"
 
 # ── Advance the per-session checkpoint to this commit's cumulative ──
 # Written after the row lands so a retry (transcript cumulative unchanged) sees

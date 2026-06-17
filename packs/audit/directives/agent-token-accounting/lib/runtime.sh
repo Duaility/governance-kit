@@ -1,15 +1,12 @@
 #!/usr/bin/env bash
 # Shared runtime detection + cumulative-token resolution for
 # agent-token-accounting. Sourced by hooks/pre-commit.sh (the write path) and
-# check.sh (the commit-time endpoint reconciliation, issue #293).
+# check.sh (runtime detection before commit-time endpoint reconciliation).
 #
-# Both the writer and the checker must read the *same* transcript-side
-# cumulative coordinate: the writer records it in the receipt's cost row, and
-# the checker re-derives it to prove the receipt did not silently fall behind.
-# This is the source-of-truth read that replaces the retired
-# Agent/Issue/Session/Token-*/Cost-* commit trailers — instead of stamping a
-# copy of the transcript onto the commit and cross-checking the copy, the check
-# reads the transcript directly.
+# The writer reads the transcript cumulative and freezes that coordinate under
+# a staged-tree endpoint. The checker calls this only to decide whether an
+# agent runtime is active; it then verifies the staged receipt row against the
+# frozen endpoint rather than a moving live transcript.
 #
 # resolve_runtime_cumulative
 #   Detects the active agent runtime from the environment and resolves the
