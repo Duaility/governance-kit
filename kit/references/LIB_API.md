@@ -18,31 +18,33 @@ source "$(dirname "$0")/../../../../../lib.sh"
 
 ## The functions
 
-Grouped by job. **Since** is the kit source line the helper was authored
-against — see [Version-floor obligation](#version-floor-obligation) below for why
-that column is load-bearing, not trivia.
+Grouped by job. **Since** is the first released kit version that **ships** the
+helper to consumers (`kit/vX.Y.Z`) — not the in-development source line it was
+authored on, which is one release lower and would under-floor a pack. See
+[Version-floor obligation](#version-floor-obligation) below for why that column
+is load-bearing, not trivia.
 
 ### Lifecycle — every `check.sh` uses these
 
 | Function | Signature | What it does | Since |
 |---|---|---|---|
-| `directive_start` | `directive_start <directive-id>` | Open a directive. Resets the violation counter; the id must match the directive folder name. Pair with `directive_end`. | 0.3 |
-| `violation` | `violation <message>` | Record one violation. The message must carry the location and the fix — `"path:line — what's wrong"`, never `"bad code"`. Call once per problem found; they are batched and printed by `directive_end`. | 0.3 |
-| `directive_end` | `directive_end` | Print the `✓`/`✗` summary (and, on failure, the directive's `**Rationale**:` pulled from its sibling `constitution.md`) and **exit** `0` (clean) or `1` (violations). Owns the exit status — never call `exit` yourself. | 0.3 |
+| `directive_start` | `directive_start <directive-id>` | Open a directive. Resets the violation counter; the id must match the directive folder name. Pair with `directive_end`. | 0.3.5 |
+| `violation` | `violation <message>` | Record one violation. The message must carry the location and the fix — `"path:line — what's wrong"`, never `"bad code"`. Call once per problem found; they are batched and printed by `directive_end`. | 0.3.5 |
+| `directive_end` | `directive_end` | Print the `✓`/`✗` summary (and, on failure, the directive's `**Rationale**:` pulled from its sibling `constitution.md`) and **exit** `0` (clean) or `1` (violations). Owns the exit status — never call `exit` yourself. | 0.3.5 |
 
 ### Git / repo state
 
 | Function | Signature | What it does | Since |
 |---|---|---|---|
-| `require_git` | `require_git` | Skip the directive (print `⊘` and exit `0`) when not inside a git work tree. Call it before any `git ls-files` / `git grep`, so a check sourced outside a repo no-ops instead of erroring. | 0.3 |
-| `tracked_files` | `tracked_files [<pathspec>...]` | Emit git-tracked files (respects `.gitignore`), optionally filtered by a pathspec — `tracked_files '*.py'`, `tracked_files ':!vendor/**'`. **Use this instead of `ls`, `find`, or a hand-rolled `git ls-files` loop** — those pull in gitignored files and directories. | 0.3 |
+| `require_git` | `require_git` | Skip the directive (print `⊘` and exit `0`) when not inside a git work tree. Call it before any `git ls-files` / `git grep`, so a check sourced outside a repo no-ops instead of erroring. | 0.3.5 |
+| `tracked_files` | `tracked_files [<pathspec>...]` | Emit git-tracked files (respects `.gitignore`), optionally filtered by a pathspec — `tracked_files '*.py'`, `tracked_files ':!vendor/**'`. **Use this instead of `ls`, `find`, or a hand-rolled `git ls-files` loop** — those pull in gitignored files and directories. | 0.3.5 |
 
 ### Waivers
 
 | Function | Signature | What it does | Since |
 |---|---|---|---|
-| `has_waiver` | `has_waiver <file> <line_no> <directive-id>` | True when that line carries `governance: allow-<directive-id>`. The per-line escape hatch — `has_waiver "$file" "$line" "<id>" && continue` inside a per-line scan. | 0.3 |
-| `has_file_waiver` | `has_file_waiver <file> <directive-id> <subcheck>` | True when the file's first 10 lines carry `governance: allow-<directive-id> <subcheck>`. The **whole-file** waiver, for sub-checks whose violation is the file itself rather than a line. The `<subcheck>` name lets several file-level sub-checks share one `allow-<directive-id>` prefix without colliding. | 0.3 |
+| `has_waiver` | `has_waiver <file> <line_no> <directive-id>` | True when that line carries `governance: allow-<directive-id>`. The per-line escape hatch — `has_waiver "$file" "$line" "<id>" && continue` inside a per-line scan. | 0.3.5 |
+| `has_file_waiver` | `has_file_waiver <file> <directive-id> <subcheck>` | True when the file's first 10 lines carry `governance: allow-<directive-id> <subcheck>`. The **whole-file** waiver, for sub-checks whose violation is the file itself rather than a line. The `<subcheck>` name lets several file-level sub-checks share one `allow-<directive-id>` prefix without colliding. | 0.3.5 |
 
 ### Sub-agent attestation
 
@@ -55,9 +57,9 @@ shows when to reach for it.
 
 | Function | Signature | What it does | Since |
 |---|---|---|---|
-| `extract_md_section` | `extract_md_section <file> <heading>` | Print the body of the `## <heading>` section (case-insensitive), stopping at the next `## `. The generic markdown-section reader. | 0.9 |
-| `attestation_prompt` | `attestation_prompt <section> <inputs> <check-1> [<check-2> ...]` | Print the canonical fresh-context sub-agent authoring instruction. One envelope so every attestation-backed directive emits the same recognizable prompt; you supply only the section name, the `<inputs>` the sub-agent must be handed, and the numbered checks it must adjudicate. | 0.9 |
-| `require_attestation` | `require_attestation <file> <section> <why> <inputs> <check-1> [...]` | The deterministic gate. Records a `violation` when `<file>` lacks a well-formed `## <section>`: absent → `<why>` plus the `attestation_prompt` instruction; present but carrying no `PASS`/`REFUTED` token → a "fill in the verdict" message. Returns `0` on a well-formed section, `1` otherwise (callers may branch). Purely mechanical: presence + a verdict token, **never** the verdict's truth. | 0.9 |
+| `extract_md_section` | `extract_md_section <file> <heading>` | Print the body of the `## <heading>` section (case-insensitive), stopping at the next `## `. The generic markdown-section reader. | 0.10.0 |
+| `attestation_prompt` | `attestation_prompt <section> <inputs> <check-1> [<check-2> ...]` | Print the canonical fresh-context sub-agent authoring instruction. One envelope so every attestation-backed directive emits the same recognizable prompt; you supply only the section name, the `<inputs>` the sub-agent must be handed, and the numbered checks it must adjudicate. | 0.10.0 |
+| `require_attestation` | `require_attestation <file> <section> <why> <inputs> <check-1> [...]` | The deterministic gate. Records a `violation` when `<file>` lacks a well-formed `## <section>`: absent → `<why>` plus the `attestation_prompt` instruction; present but carrying no `PASS`/`REFUTED` token → a "fill in the verdict" message. Returns `0` on a well-formed section, `1` otherwise (callers may branch). Purely mechanical: presence + a verdict token, **never** the verdict's truth. | 0.10.0 |
 
 ### Per-directive configuration
 
@@ -69,10 +71,10 @@ add/remove/override grammar: [PACK_AUTHORING.md](PACK_AUTHORING.md#per-directive
 
 | Function | Signature | What it does | Since |
 |---|---|---|---|
-| `conf_file` | `conf_file <directive-id>` | Print the directive's user-overlay path and return `0` if it exists; return `1` (printing nothing) otherwise. Conf-driven directives typically treat a missing overlay as "nothing opted in" and no-op. | 0.5 |
-| `conf_get` | `conf_get <directive-id> <KEY> <defaults-file>` | Resolve a scalar knob. Precedence: env `GOVERNANCE_<KEY>` > the overlay's `KEY=` line > the `defaults.conf` `KEY=` row. Pass `"$(dirname "$0")/defaults.conf"` as `<defaults-file>` — the `defaults.conf` row **is** the default (there is no in-code constant), so a read knob with no row fails loud. | 0.5 |
-| `conf_rule_lines` | `conf_rule_lines <directive-id>` | Emit the user overlay's directive-defined rule lines — trimmed, with `#` comments, blank lines, and `KEY=value` scalar lines stripped. Emits nothing when no overlay exists. | 0.5 |
-| `conf_list` | `conf_list <directive-id> <defaults-file>` | Emit the effective list: the `defaults.conf` items with the overlay layered on top — a bare line **adds**, `!<item>` **removes** a default (gitignore-style negation), `KEY=value` is ignored (read scalars with `conf_get`). Pass `"$(dirname "$0")/defaults.conf"`. | 0.5 |
+| `conf_file` | `conf_file <directive-id>` | Print the directive's user-overlay path and return `0` if it exists; return `1` (printing nothing) otherwise. Conf-driven directives typically treat a missing overlay as "nothing opted in" and no-op. | 0.6.0 |
+| `conf_get` | `conf_get <directive-id> <KEY> <defaults-file>` | Resolve a scalar knob. Precedence: env `GOVERNANCE_<KEY>` > the overlay's `KEY=` line > the `defaults.conf` `KEY=` row. Pass `"$(dirname "$0")/defaults.conf"` as `<defaults-file>` — the `defaults.conf` row **is** the default (there is no in-code constant), so a read knob with no row fails loud. | 0.6.0 |
+| `conf_rule_lines` | `conf_rule_lines <directive-id>` | Emit the user overlay's directive-defined rule lines — trimmed, with `#` comments, blank lines, and `KEY=value` scalar lines stripped. Emits nothing when no overlay exists. | 0.6.0 |
+| `conf_list` | `conf_list <directive-id> <defaults-file>` | Emit the effective list: the `defaults.conf` items with the overlay layered on top — a bare line **adds**, `!<item>` **removes** a default (gitignore-style negation), `KEY=value` is ignored (read scalars with `conf_get`). Pass `"$(dirname "$0")/defaults.conf"`. | 0.6.0 |
 
 ## Use these, don't reinvent
 
@@ -101,13 +103,15 @@ uses a helper introduced at kit v*X* **must floor `min_governance_kit` at *X***
 (the **Since** column). Read the floor straight off the table.
 
 The worked example is the attestation trio: `require_attestation` and its
-siblings landed on the kit's `0.9` source line (issue #272), which is exactly
-why the `governance-kit/audit` pack declares `min_governance_kit: "0.9.0"`. A
-community pack that calls `require_attestation` while flooring at, say, `0.5`
-installs cleanly into a `0.5`–`0.8` kit and then fails at commit time with
-`require_attestation: command not found` — a silent breakage the floor exists to
-prevent. (This bites arbitrary consumers, not the dogfood, which always runs the
-latest kit.)
+siblings were authored on the kit's `0.9` source line (issue #272) but first
+**shipped** to consumers in `kit/v0.10.0`, so the floor is `0.10.0` — which is
+why the `governance-kit/audit` pack declares `min_governance_kit: "0.10.0"`. The
+distinction matters: a community pack that calls `require_attestation` while
+flooring at `0.9` (the source line) installs cleanly into a `0.9.x` kit — which
+predates the tag that ships the helper — and then fails at commit time with
+`require_attestation: command not found`. Always read the floor off the **Since**
+column (first-shipped), never off the source-line marker. (This bites arbitrary
+consumers, not the dogfood, which always runs the latest kit.)
 
 See [VERSIONING.md](VERSIONING.md) for the kit-vs-pack version axes and
 [PACK_AUTHORING.md](PACK_AUTHORING.md#versioning) for where `min_governance_kit`

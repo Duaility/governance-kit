@@ -111,7 +111,7 @@ Implementation guidance:
 
 - Source `lib.sh` and call `require_attestation <file> <section> <why> <inputs> <check-1> [...]`. It records the violation when the section is missing or carries no `PASS`/`REFUTED` token, and the violation message *is* the sub-agent authoring instruction (built by `attestation_prompt`) — the standard GDD remediation loop, no hook ever spawns anything.
 - Scope the requirement to the change set: new work owes the new discipline; the historical corpus is grandfathered.
-- A directive using these helpers must floor `min_governance_kit` at the kit version they landed in (`0.9` — see the [helper API reference](https://github.com/Duaility/governance-kit/blob/main/kit/references/LIB_API.md#version-floor-obligation)).
+- A directive using these helpers must floor `min_governance_kit` at the kit version that first ships them (`0.10.0` — first-shipped, not the `0.9` source line; see the [helper API reference](https://github.com/Duaility/governance-kit/blob/main/kit/references/LIB_API.md#version-floor-obligation)).
 - Full design, the remediation loop, and a worked wiring example: [SUBAGENT_ATTESTATION.md](https://github.com/Duaility/governance-kit/blob/main/kit/references/SUBAGENT_ATTESTATION.md).
 
 ### Semantic / LLM-judged checks (`surface: sweep`)
