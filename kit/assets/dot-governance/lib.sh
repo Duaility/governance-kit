@@ -164,6 +164,9 @@ extract_md_section() {
 #   attestation-backed directive emits the same recognizable instruction; the
 #   directive supplies only what varies — the section name, the <inputs> the
 #   sub-agent must be handed, and the numbered checks it must adjudicate.
+#   The envelope asks for a small, low-cost model (low capability tier): this is
+#   a bounded read-and-record audit whose verdict the merge-time sweep lane
+#   re-derives, so the expensive model belongs there, not here (cost, issue #321).
 attestation_prompt() {
     local section="$1" inputs="$2"
     shift 2
@@ -174,7 +177,7 @@ attestation_prompt() {
         i=$((i + 1))
     done
     numbered="${numbered%; }"
-    printf 'Spawn a fresh-context sub-agent with exactly these inputs — %s — and have it report PASS/REFUTED + evidence for each: %s. Default to REFUTED if uncertain. Write the findings into a '\''## %s'\'' section, then re-stage and re-commit. The hook never spawns the sub-agent itself.' \
+    printf 'Spawn a fresh-context sub-agent — on a small, low-cost model (the low capability tier, e.g. Claude Haiku or a comparable GPT-mini-class model; this is a bounded read-and-record audit, and its verdict is independently re-derived by the merge-time sweep lane) — with exactly these inputs — %s — and have it report a verdict + evidence for each, rendering each verdict as exactly the token PASS or REFUTED: %s. Default to REFUTED if uncertain. Write the findings into a '\''## %s'\'' section, then re-stage and re-commit. The hook never spawns the sub-agent itself.' \
         "$inputs" "$numbered" "$section"
 }
 
