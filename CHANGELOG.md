@@ -22,6 +22,11 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [commits/v0.2.2] - 2026-06-18
+
+### Changed
+- surface the lib.sh helper API and route authoring flows through it (#319) (#320)
+
 ## [foundation/v0.5.1] - 2026-06-18
 
 ### Changed

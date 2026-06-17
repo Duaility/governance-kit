@@ -10,7 +10,7 @@
 
 id: governance-kit/commits
 name: Commit hygiene governance directives
-version: "0.2.1"
+version: "0.2.2"
 min_governance_kit: "0.6.0"
 description: Commit-message format and in-source marker hygiene.
 author: governance-kit
