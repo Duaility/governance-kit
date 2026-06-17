@@ -22,6 +22,21 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [kit/v0.10.2] - 2026-06-17
+
+### Fixed
+- freeze token accounting endpoint (#305)
+
+### Changed
+- audit v0.6.0 → v0.6.1
+- foundation v0.4.2 → v0.5.0
+- unify doc surfaces and fold docs pack into foundation (#309) (#310)
+- sharpen core idea and rates (#307)
+- tighten messaging and replace lifecycle diagram with SVG (#303) (#304)
+- sharpen agent positioning (#299)
+- sync dogfood to kit 0.10.1 + audit 0.6.0 (#298)
+- audit v0.5.0 → v0.6.0
+
 ## [audit/v0.6.1] - 2026-06-17
 
 ### Fixed
