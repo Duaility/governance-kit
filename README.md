@@ -36,14 +36,24 @@
 
 ## The core idea
 
-If you use coding agents heavily, you know the real failure mode. The agent does not fail the task; it completes it in a way that is locally fine and globally wrong.
+If you use coding agents heavily, you know the failure mode is not just "the agent wrote bad code." Agent-first development changes the shape of the codebase unless the repo itself gives agents a map, feedback loops, and enforceable boundaries.
 
-It lands the feature but routes the logic through the wrong layer, reinvents a pattern you already have, preserves a fallback you meant to delete, or widens a boundary you wanted held. The tests pass; the architecture drifts. Tomorrow you ask Codex, Claude Code, Cursor, or another agent to continue the same branch, and it has no memory of the correction you gave the last one.
+The agent can land the feature and still make the system worse. It routes logic through the wrong layer, reinvents a pattern you already have, preserves a fallback you meant to delete, or widens a boundary you wanted held. The tests pass; the architecture drifts. Tomorrow you ask Codex, Claude Code, Cursor, or another agent to continue the same branch, and it has no memory of the correction you gave the last one.
 
-Governance kit turns those repeated corrections into **repo-native invariants**. The rules stop living in your head, your prompt, or one agent's context window. They live in git, next to the code, with executable checks that run on every commit and failure messages an agent can act on.
+The problems compound:
+
+- **Context is scarce** - a giant `AGENTS.md` crowds out the task, code, and relevant docs; agents need a map, not a manual.
+- **Guidance rots** - stale rules in prompts or docs become attractive nuisances unless they are owned, linked, refreshed, and checked.
+- **Invisible knowledge does not exist** - architecture decisions, product taste, review comments, and "please never do that again" corrections have to become repo-local artifacts.
+- **Throughput amplifies entropy** - agents replicate whatever patterns they see, including uneven abstractions and old mistakes, faster than humans can clean them up manually.
+- **Local success can be global drift** - a passing diff can still violate layering, boundary shape, naming, verification discipline, or deletion intent.
+
+Governance kit turns those operating lessons into **repo-native invariants**. The rules stop living in your head, your prompt, one agent's context window, or one oversized instruction file. They live in git, next to the code, with executable checks that run on every commit and failure messages an agent can act on.
 
 Examples of rules developers need once agents do real work:
 
+- keep `AGENTS.md` short and make it point to the real system of record
+- keep docs fresh, linked, and scoped so agents can find the right context
 - catch boundary drift before anyone debates code quality
 - stop a "small fix" from becoming a rewrite or a duplicate abstraction
 - keep shared logic in the layer that owns it
@@ -51,7 +61,7 @@ Examples of rules developers need once agents do real work:
 - make receipts say what changed, what was tested, and what risk remains
 - record token cost and human steering in git, not in a chat transcript
 
-Prompts steer one session. Governance kit makes the repo carry the rule, the rationale, the executable check, and the audit trail. When the next agent resumes the work, it does not need the old transcript to know what matters; the repo gives it a failing check with the reason attached.
+Prompts steer one session. Governance kit makes the repo carry the rule, the rationale, the executable check, and the audit trail. When the next agent resumes the work, it does not need the old transcript to know what matters; the repo gives it a map and, when needed, a failing check with the reason attached.
 
 ```mermaid
 flowchart LR
@@ -79,7 +89,7 @@ flowchart LR
     class R record
 ```
 
-This is the [harness-engineering](https://openai.com/index/harness-engineering/) move applied to everyday repositories: agents can do more work on their own, so the human job shifts toward designing the environment they work inside. Coherence comes from repo-local knowledge, structural tests, architecture boundaries, and taste invariants that execute, not from ever-larger instruction blobs.
+This is the [harness-engineering](https://openai.com/index/harness-engineering/) move applied to everyday repositories: agents can do more work on their own, so the human job shifts toward designing the environment they work inside. Coherence comes from repo-local knowledge, structural tests, architecture boundaries, taste invariants, and cleanup loops that execute, not from ever-larger instruction blobs.
 
 Governance kit packages that stance as versioned packs and git-native receipts. You encode an architectural or taste judgment once, then every agent on the repo gets the same executable boundary.
 
@@ -100,9 +110,11 @@ That range matters: the failures that hurt are rarely mechanical ("forgot the fo
 
 ## What developers get
 
+- **Repo knowledge as a map** - keep the agent entry point short, then make the deeper docs discoverable, fresh, linked, and mechanically checked.
 - **Architectural coherence** - encode "this layer owns the logic," "this path stays unified," or "delete the fallback" once, then let hooks and CI repeat it for every agent.
 - **Shared behavior across agents** - Claude Code, Codex, Cursor, OpenCode, and humans all hit the same repo-pinned checks instead of inheriting different chat histories.
 - **Less repeated steering** - turn review comments and repeated corrections into durable directives instead of pasting the same warning into every new session.
+- **Continuous entropy control** - promote recurring cleanup work into directives, receipts, and pack-owned rules before bad patterns spread.
 - **Cost transparency** - token spend and human steering can be recorded in the issue receipt, so expensive turns and repeated corrections become visible review data.
 - **Executable constitution** - `CONSTITUTION.md` is readable policy, but every directive has executable enforcement beside it.
 - **Agent-readable failures** - violations name the rule, the specific gap, and the rationale, so the next agent turn has useful context.
