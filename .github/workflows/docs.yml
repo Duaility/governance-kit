@@ -40,6 +40,8 @@ jobs:
         with:
           node-version: "24"
       - run: npm install --no-audit --no-fund
+      - name: Check generated reference is in sync with kit/references
+        run: npm run docs:gen:check
       - name: Build docs site
         run: npm run docs:build
         env:

@@ -4,7 +4,9 @@
   "type": "module",
   "description": "Static documentation site for governance-kit. Mintlify-format docs.json + MDX, rendered by a custom generator (scripts/docs-site/) and deployed to GitHub Pages.",
   "scripts": {
-    "docs:build": "node scripts/docs-site/build.mjs && node scripts/docs-site/source-index.mjs && pagefind --site dist/docs-site --output-path dist/docs-site/pagefind && node scripts/docs-site/pagefind-normalize.mjs",
+    "docs:gen": "node scripts/docs-site/gen-reference.mjs",
+    "docs:gen:check": "node scripts/docs-site/gen-reference.mjs --check",
+    "docs:build": "node scripts/docs-site/gen-reference.mjs && node scripts/docs-site/build.mjs && node scripts/docs-site/source-index.mjs && pagefind --site dist/docs-site --output-path dist/docs-site/pagefind && node scripts/docs-site/pagefind-normalize.mjs",
     "docs:serve": "python3 -m http.server 4173 --bind 127.0.0.1 -d dist/docs-site",
     "docs:smoke": "node scripts/docs-site/smoke.mjs"
   },
