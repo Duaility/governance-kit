@@ -9,7 +9,7 @@
 
 </div>
 
-<p align="center"><strong>stop re-teaching agents · prevent unwanted rewrites · expose token spend · keep durable rules in git · MIT</strong></p>
+<p align="center"><strong>keep every agent coherent with your repo · stop re-teaching them · expose token spend · rules live in git · MIT</strong></p>
 
 <p align="center">
   <a href="https://github.com/Duaility/governance-kit/actions/workflows/governance.yml"><img src="https://github.com/Duaility/governance-kit/actions/workflows/governance.yml/badge.svg" alt="governance"></a>
@@ -36,22 +36,24 @@
 
 ## The core idea
 
-If you use coding agents heavily, you know the pattern.
+If you use coding agents heavily, you know the real failure mode. The agent doesn't fail the task — it completes it, in a way that's locally fine and globally wrong.
 
-You ask Claude Code to make one small change. It touches six files, invents a new pattern, and the feature starts drifting. Tomorrow you ask Codex to continue the same branch, and it has no memory of the correction you gave Claude. Another agent rewrites a working module instead of making the surgical edit. A third spends real money exploring the wrong direction, but the only record is buried in a transcript you will never read again.
+It lands the feature but routes the logic through the wrong layer, reinvents a pattern you already have, or widens a boundary you wanted held. The objective passes; the architecture drifts. It half-follows the constraints you wrote into `AGENTS.md` or `CLAUDE.md`, missing the ones that matter or optimizing for the wrong ones. And the next agent on the branch has no memory of the correction you gave the last, so you give it again.
+
+The obvious fix is to write the rule into the instruction file so it sticks. But that file only grows, and a wall of instructions crowds out the task, the code, and the docs the agent needs in context. More instructions buy less control.
 
 Governance kit turns those repeated corrections into **repo-native invariants**. The rules stop living in your head, your prompt, or one agent's context window. They live in git, next to the code, with executable checks that run on every commit.
 
-Examples of rules developers need once agents do real work:
+Invariants keep the work coherent; **receipts** keep it accountable. When an agent finishes, what it changed, what it cost, and how often you had to correct it normally disappears when the session ends — so governance kit pins that record to the issue as a receipt in git, where the next reviewer, human or agent, can actually use it.
 
-- define the slice before coding: goal, non-goals, allowed files, and checks
-- keep the diff inside that slice unless the human approves the expanded surface
-- block "small fixes" that become rewrites or duplicate abstractions
+Examples of what the repo carries once agents do real work:
+
+- catch boundary drift before anyone debates code quality
+- stop a "small fix" from turning into a rewrite or a duplicate abstraction
 - make receipts say what changed, what was tested, and what risk remains
-- audit boundary drift before debating code quality
 - record token cost and human steering in git, not in a chat transcript
 
-Prompts steer one session. Governance kit makes the repo carry the rule, the rationale, the executable check, and the audit trail. When the next agent resumes the work, it does not need the old transcript to know what matters; the repo gives it a failing check with the reason attached.
+Prompts steer one session, and only by filling its context window. Governance kit makes the repo — not the prompt — carry the rule, the rationale, the executable check, and the audit trail, so the agent spends its context on the task. The next agent doesn't need the old transcript or a swollen rulebook; the one constraint it's about to break arrives as a failing check, reason attached, exactly when it's relevant.
 
 ```mermaid
 flowchart LR
@@ -94,12 +96,10 @@ The key power is the depth of invariants you can express. Start with determinist
 | **Ledger** | "For each agent-authored commit, show the issue, receipt, token cost, and human steering count." | Git trailers and receipt accounting rows, cross-checked by directives. |
 | **Sub-agent attestation** | "Before merging a cross-layer refactor, have a fresh reader compare the diff to the architecture map." "Before accepting a receipt, have a fresh reader verify it matches the issue and diff." | Hook fails with a fresh-context sub-agent prompt; agent records a PASS/REFUTED section; hook verifies presence. |
 
-That range matters. Most painful agent failures are not "forgot to run formatter." They are semantic: the agent split a path you wanted unified, moved shared logic into the wrong layer, claimed verification that does not match the diff, preserved a legacy branch after being asked to remove it, or burned tokens without leaving a usable trail. Governance kit gives each kind of rule an enforcement surface that matches its nature.
+That range matters: the failures that hurt are rarely mechanical ("forgot the formatter") — they're semantic, and no single enforcement style catches both. Governance kit matches each rule to a surface — cheap deterministic checks for the mechanical, fresh-context attestation for the judgment calls.
 
 ## What developers get
 
-- **Less repeated steering** - encode "do not rewrite this," "keep this path unified," or "update the receipt with evidence" once, then let hooks and CI repeat it for every agent.
-- **Shared behavior across agents** - Claude Code, Codex, Cursor, OpenCode, and humans all hit the same repo-pinned checks instead of inheriting different chat histories.
 - **Cost transparency** - token spend and human steering can be recorded in the issue receipt, so expensive turns and repeated corrections become visible review data.
 - **Executable constitution** - `CONSTITUTION.md` is readable policy, but every directive has executable enforcement beside it.
 - **Agent-readable failures** - violations name the rule, the specific gap, and the rationale, so the next agent turn has useful context.
@@ -333,47 +333,26 @@ Directives that need more carry optional siblings — `lib/` (shared bash/Python
 
 ## The audit chain
 
-If you are trusting agents to ship code, you need to see what they were asked to do, what they actually changed, what it cost, and how much human correction it took. Four git-native artifacts compose into a chain, and breaking any link fails the next push:
+A receipt is only worth reading if it can't quietly drift from what happened — so it sits in a chain. The issue defines the work, the receipt records it, and every non-merge commit must touch that receipt; break a link and the next push fails. The cost and steering rows aren't hand-typed either: a commit-time check reconciles them against the runtime transcript.
 
 ```mermaid
 flowchart LR
-    subgraph Work["Work order"]
-        I["Issue #N<br/>context + acceptance criteria"]
-        R["receipts/issue-N.md<br/>claims + verification + audit"]
-    end
+    I["Issue #N<br/>the work order"] --> R["receipt<br/>issue-N.md"] --> C["commit<br/>touches the receipt"] --> P(["push / CI gate"])
+    T["runtime transcript"] -. "cost + steering,<br/>reconciled at commit" .-> R
 
-    subgraph History["Git history"]
-        C["commit<br/>touches the issue's receipt"]
-    end
-
-    subgraph Accounting["## Accounting (in the receipt)"]
-        CO["cost row<br/>tokens + USD + cumulative"]
-        ST["steering row<br/>human corrections"]
-    end
-
-    T["runtime transcript<br/>session cumulative + events"]
-
-    I -- "defines" --> R
-    R -- "must be touched by" --> C
-    T -- "written into" --> CO
-    T -- "written into" --> ST
-    CO -- "commit-time check reconciles vs" --> T
-    CO -- "lives in" --> R
-    ST -- "lives in" --> R
-
-    classDef work fill:#3f3586,stroke:#8b7ff0,color:#eeeaff
-    classDef history fill:#075b4a,stroke:#36d6af,color:#dcfff4
-    classDef accounting fill:#0e4e85,stroke:#5aa8e9,color:#e9f5ff
-    classDef source fill:#5a3a1e,stroke:#d99a4e,color:#fff3e0
-    class I,R work
-    class C history
-    class CO,ST accounting
-    class T source
+    classDef chain fill:#0e4e85,stroke:#5aa8e9,color:#e9f5ff
+    classDef hub fill:#075b4a,stroke:#36d6af,color:#dcfff4
+    classDef src fill:#3f403a,stroke:#a5a49b,color:#efeee8
+    class I,C,P chain
+    class R hub
+    class T src
 ```
+
+Four records, all in git, each enforced by a directive:
 
 - **Directive provenance** — every `CONSTITUTION.md` line is git-blameable to the commit and check that introduced it; the Evolution Log summarizes every amendment
 - **Receipts** — one per issue; every checked box must crosswalk into `## What changed` or `## Verification`, so boxes can't flip silently. The reviewer reads the receipt, not the diff
-- **Token cost** — every agent commit's token cost lands as a row in the issue's receipt, reconciled at commit time against the runtime transcript; every change has a price tag
+- **Token cost** — every agent commit's token cost lands as a row in the issue's receipt, so every change carries a price tag
 - **Steering** — every commit tallies the human interrupts and redirects it needed; see at a glance which commits ran on autopilot
 
 Ships in the `governance-kit/audit` pack, `standard` preset.
@@ -389,61 +368,14 @@ governance reset {--directive <id>|--pack <id>|--all}  # restore drifted directi
 governance uninstall [--dry-run|--soft|--hard]         # tear-down
 ```
 
-The mental model — an installer, a product, its content. Like a language toolchain manager:
+<div align="center">
 
-```mermaid
-flowchart TB
-    T["the model — an installer, a product, its content. like a language toolchain manager."]
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/lifecycle-dark.svg">
+  <img src="docs/assets/lifecycle-light.svg" alt="Governance lifecycle as a language-toolchain model: the governance skill is the installer (like rustup), the kit is the product (like the toolchain), packs are the content (like the lockfile), and the repo pins every version via install.yaml and packs.lock" width="840">
+</picture>
 
-    subgraph R1[" "]
-        direction LR
-        S["governance skill — the installer<br/>install · update · uninstall"]
-        RU["≈ rustup<br/>the version manager"]
-    end
-
-    subgraph R2[" "]
-        direction LR
-        K["the kit — kit/vX.Y.Z — the product<br/>engine · flows · assets · all verbs"]
-        TC["≈ the toolchain<br/>compiler · libs · tools"]
-    end
-
-    subgraph R3[" "]
-        direction LR
-        P["packs — pack/vX.Y.Z — the content<br/>directive content, lock-pinned"]
-        LF["≈ the lockfile<br/>pinned dependencies"]
-    end
-
-    PIN["the repo decides its versions<br/>install.yaml pins the kit · packs.lock pins the packs · the skill honors the pin"]
-    LEGEND["purple = installer · teal = product · coral = content · gray = familiar analogy"]
-
-    T ~~~ S
-    S -.- RU
-    S -->|"installs · updates"| K
-    K -.- TC
-    K -->|"consumes"| P
-    P -.- LF
-    P ~~~ PIN
-    LF ~~~ PIN
-    PIN ~~~ LEGEND
-
-    style R1 fill:transparent,stroke:transparent
-    style R2 fill:transparent,stroke:transparent
-    style R3 fill:transparent,stroke:transparent
-    classDef title fill:transparent,stroke:transparent,color:#d8d5cb,font-weight:bold
-    classDef installer fill:#3f3586,stroke:#8b7ff0,color:#eeeaff
-    classDef product fill:#075b4a,stroke:#36d6af,color:#dcfff4
-    classDef content fill:#7b2b17,stroke:#ef9673,color:#fff0e8
-    classDef analogy fill:#3f403a,stroke:#a5a49b,color:#efeee8
-    classDef pin fill:#0e4e85,stroke:#5aa8e9,color:#e9f5ff
-    classDef legend fill:transparent,stroke:transparent,color:#d8d5cb
-    class T title
-    class S installer
-    class K product
-    class P content
-    class RU,TC,LF analogy
-    class PIN pin
-    class LEGEND legend
-```
+</div>
 
 The two version axes are independent (the Helm `Chart.version` vs `appVersion` model — [VERSIONING.md](kit/references/VERSIONING.md)): the **kit** is the framework (runtime, hook generators, engines, schemas; tagged `kit/vX.Y.Z`), **packs** are the directive content (each on its own `pack.yaml` version). `.governance/packs.lock` pins what runs; the check code is vendored into `.governance/packs/` and committed, so a pack bump shows the real `check.sh` diff, not just a SHA.
 
