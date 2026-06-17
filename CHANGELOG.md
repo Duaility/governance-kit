@@ -22,6 +22,11 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [foundation/v0.5.0] - 2026-06-17
+
+### Changed
+- unify doc surfaces and fold docs pack into foundation (#309) (#310)
+
 ## [audit/v0.6.0] - 2026-06-16
 
 ### Changed
