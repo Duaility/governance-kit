@@ -54,8 +54,10 @@
 #      (the audit step did not run), and demanding presence is all the hook can
 #      do without an LLM judge on the commit path.
 #
-#      The sub-agent prompt (what the harness agent runs, with the diff, this
-#      receipt, and `gh issue view <N>` as the only inputs):
+#      The sub-agent prompt (what the harness agent runs on a small, low-cost
+#      model — the shared attestation_prompt envelope requests the low capability
+#      tier; see kit/references/SUBAGENT_ATTESTATION.md "Model tier" — with the
+#      diff, this receipt, and `gh issue view <N>` as the only inputs):
 #        You are auditing a receipt against ground truth. For each check report
 #        PASS or REFUTED plus evidence: (1) `## What changed` faithfully
 #        describes the diff — no misrepresentation, no omission; (2) each

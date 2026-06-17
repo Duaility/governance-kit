@@ -67,7 +67,8 @@ Any directive's `check.sh` can source `lib.sh` and call:
   generic markdown-section reader.
 - **`attestation_prompt <section> <inputs> <check-1> [<check-2> ...]`** — print
   the canonical sub-agent authoring instruction: spawn a fresh-context
-  sub-agent with `<inputs>`, report PASS/REFUTED + evidence for each numbered
+  sub-agent **on a small, low-cost model** (see [Model tier](#model-tier-use-a-small-model) below),
+  with `<inputs>`, report PASS/REFUTED + evidence for each numbered
   check, default to REFUTED if uncertain, write into `## <section>`, and the
   hook never spawns anything. One envelope so every attestation-backed
   directive emits the same recognizable instruction.
@@ -80,6 +81,31 @@ Any directive's `check.sh` can source `lib.sh` and call:
 
 The verdict token the gate looks for is `PASS` or `REFUTED` (case-insensitive),
 so the sub-agent prompt should instruct the auditor to render exactly those.
+
+## Model tier: use a small model
+
+The author-time attestation is a **bounded read-and-record audit**, not the
+final word on truth. The commit-path gate only checks the section is *present
+and verdict-bearing*; the verdict's correctness is independently re-derived by
+the merge-time **sweep lane** (`surface: sweep`), which picks its own
+`model_tier`. So the expensive reasoning belongs there — the author-time pass
+should run on a **small, low-cost model** (the *low* capability tier — e.g.
+Claude Haiku or a comparable GPT-mini-class model). This is a deliberate cost
+optimization (issue #321): the audit fires on every newly added attested
+artifact, and over-provisioning it with a large model buys little when a cheap
+model can read the diff, compare it to the artifact, and record a verdict.
+
+`attestation_prompt` bakes this request into the instruction it emits, so every
+attestation-backed directive inherits the small-model guidance from one surface
+— there is no per-directive knob. Two practical notes:
+
+- The guidance names a **capability tier**, not a pinned model id (mirroring the
+  sweep lane's `model_tier`), so a model upgrade within the tier doesn't silently
+  change behavior.
+- Small models occasionally fumble strict output formatting. The prompt asks the
+  auditor to render the verdict as literally `PASS` or `REFUTED`, and the gate
+  matches that token case-insensitively anywhere in the section — so a verbose or
+  slightly-off-format audit still passes as long as it records the token.
 
 ## Wiring a directive onto it
 
