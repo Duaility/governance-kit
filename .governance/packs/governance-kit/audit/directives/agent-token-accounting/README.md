@@ -16,8 +16,9 @@ Naive anchors all break:
 The model that works:
 
 1. **The per-issue receipt** `receipts/issue-<N>.md` is the single durable record. Cost rows land under its `## Accounting` → `### Costs` sub-table, resolved from the commit's `(#N)` anchor. Homing rows in the receipt — instead of one central `COSTS.md` — keeps the record conflict-free (only the PR branch that owns the issue writes its receipt) and bounded (the file grows with one issue, not the whole repo's history), and it is naturally sealed once the receipt merges (frozen on the trunk by `doc-integrity`).
-2. **Absolute cumulative coordinates** (`cum-*`) make a row claim a *position* on a monotonic counter, not a quantity — so completeness can be proven by comparing the receipt's recorded position to the transcript's live position, with no per-commit marker stamped anywhere.
-3. **The governance directive** reconciles the two at commit time and fails loudly when the receipt lags the transcript (a row that was never written).
+2. **Absolute cumulative coordinates** (`cum-*`) make a row claim a *position* on a monotonic counter, not a quantity.
+3. **A frozen staged-tree endpoint** under `.git/governance-token-endpoints/<tree>.json` records the exact cumulative coordinate the pre-commit writer sampled after it stages the receipt row.
+4. **The governance directive** reconciles the staged receipt row against that frozen endpoint at commit time and fails loudly when the endpoint is missing or the row does not match it.
 
 The previously-central `COSTS.md` is now sealed legacy history (a `doc-integrity` frozen-file) — it stops receiving writes; existing rows stay put, no migration. New rows go to receipts.
 
@@ -28,8 +29,9 @@ The previously-central `COSTS.md` is now sealed legacy history (a `doc-integrity
 > bidirectional cross-check whose only consumer was the cross-check itself —
 > plus a Mode-B HEAD-fallback to re-validate it after a server-side squash
 > discarded the source commits. The receipt is already the ledger; completeness
-> is now proven by reading the transcript directly (endpoint reconciliation,
-> below) rather than by stamping and re-verifying a copy. The cost is real but
+> is now proven by freezing the pre-commit writer's sampled endpoint and
+> verifying the staged row against it (endpoint reconciliation, below), rather
+> than by stamping and re-verifying a copy. The cost is real but
 > narrow: per-commit attribution for a `--no-verify` commit (no transcript in CI
 > to reconcile against) is no longer recoverable — but the absolute coordinates
 > preserve session-*total* fidelity, so a missing intermediate commit's tokens
@@ -38,22 +40,27 @@ The previously-central `COSTS.md` is now sealed legacy history (a `doc-integrity
 ## Endpoint reconciliation
 
 The trailer-free completeness check. At commit time, with an agent runtime
-detected, `check.sh` re-derives the session's cumulative token counters from the
-transcript (via `lib/runtime.sh`, the same reader the pre-commit writer uses)
-and asserts the receipt's recorded cumulative for that session equals it:
+detected, `check.sh` recomputes the staged tree id with `git write-tree`, reads
+the frozen endpoint at `.git/governance-token-endpoints/<tree>.json`, and
+asserts that the staged receipt row named by the endpoint's `cost_key` carries
+the same session and cumulative coordinate:
 
 ```
-receipt session-cum  ==  transcript cumulative   →  pass
-receipt session-cum  <   transcript cumulative   →  fail (a cost row was never written)
+staged receipt row == frozen endpoint   →  pass
+missing endpoint                         →  fail (pre-commit accounting did not run)
+row mismatch                             →  fail (the staged row is not the sampled coordinate)
 ```
 
 Because the pre-commit hook writes this commit's row (and advances the
-per-session checkpoint) just before the commit-msg check runs, a clean commit
-reconciles by construction. A commit that skipped the hook (`--no-verify`,
-`SKIP_GOVERNANCE=1`) lags and fails here. The check is **commit-time only** —
-running it off the commit path (e.g. a mid-session `run.sh`) would false-fail,
-because the transcript legitimately leads the not-yet-committed work; in Mode B
-(CI) only the repo-wide receipt-shape check runs.
+per-session checkpoint) before the commit-msg check runs, a clean commit
+reconciles by construction. If the live transcript advances between pre-commit
+and commit-msg, the already-written row still passes because the endpoint is the
+frozen coordinate for this commit attempt; the later movement belongs to a later
+row. A commit that skipped the hook (`--no-verify`, `SKIP_GOVERNANCE=1`) has no
+matching endpoint and fails here. The check is **commit-time only** — running it
+off the commit path (e.g. a mid-session `run.sh`) would false-fail because no
+staged-tree endpoint is expected there; in Mode B (CI) only the repo-wide
+receipt-shape check runs.
 
 ## Row schema
 
@@ -84,8 +91,8 @@ fact:
   monotonic counter, not a *quantity*, so the delta columns above are derived
   claims that the validator can prove (`delta == cum(n) − cum(n−1)`) once a
   session's consecutive rows are co-visible. Each `cum-*` is ≥ its own delta.
-  The latest row's `cum-*` is also the endpoint the commit-time check reconciles
-  against the live transcript.
+  The latest row's `cum-*` is also the coordinate the pre-commit hook freezes
+  into the staged-tree endpoint for commit-time reconciliation.
 - `cost-usd` — the true dollar cost for this row, computed from `model` via
   the directive's `lib/rates.py` and **all four** token columns
   (`cache-read` included — that's the only place cache rent appears).
@@ -209,18 +216,22 @@ pre-commit ──► .governance/packs/<owner>/<repo>/directives/agent-token-acc
       │             absolute `cum-*` coordinates) to `receipts/issue-<N>.md`
       │             under `## Accounting` → `### Costs` (lib/ledger.py
       │             `append-row`, creating the stub receipt if absent),
-      │             `git add` the receipt, then advance the checkpoint
+      │             `git add` the receipt, compute the staged tree id with
+      │             `git write-tree`, write
+      │             `.git/governance-token-endpoints/<tree>.json` with the
+      │             sampled coordinate and cost-key, then advance the checkpoint
       │             (`checkpoint-set`) to this commit's cumulative
       │
       ▼
 git snapshots the tree (the receipt row is already staged)
       │
       ▼
-commit-msg ──► check.sh: endpoint reconciliation. Re-derives the transcript
-               cumulative via lib/runtime.sh and asserts the receipt's recorded
-               cum-* for the session (ledger.py session-cum) equals it. Mismatch
-               → the row was never written → fail. Also runs validate-dir for
-               repo-wide receipt-shape integrity.
+commit-msg ──► check.sh: endpoint reconciliation. Detects the active runtime,
+               recomputes the staged tree id, reads the frozen endpoint, and
+               asserts the staged receipt row named by the endpoint's cost-key
+               has the same session + cum-* coordinate. Missing endpoint or
+               mismatch → fail. Also runs validate-dir for repo-wide
+               receipt-shape integrity.
       │
       ▼
 commit lands
@@ -232,9 +243,11 @@ tree git is about to snapshot; from any post-snapshot hook it would land in the
 cumulative ... but the transcript is at ...` means the pre-commit row write was
 skipped or failed.
 
-The checkpoint path is resolved via `git rev-parse --git-path
-governance-token-checkpoints.json` — that's deliberate. In a worktree `.git` is
-a pointer file, not a directory; hardcoding `$ROOT/.git/…` breaks silently.
+The checkpoint and endpoint paths are resolved via `git rev-parse --git-path`
+(`governance-token-checkpoints.json` and
+`governance-token-endpoints/<tree>.json`) — that's deliberate. In a worktree
+`.git` is a pointer file, not a directory; hardcoding `$ROOT/.git/…` breaks
+silently.
 
 ### Runtime detection
 
@@ -329,13 +342,14 @@ All paths below are rooted at the installed directive folder
 | `runtimes/<runtime>.sh` | Transcript discovery + 4-field token sum + model extraction for one specific runtime. Prints 6 space-separated values. |
 | `defaults.conf` | Pack-owned default rate card — one `rate <model> <base> <cache_create> <cache_read> <output>` row per model (per-MTok USD), same format as the user overlay. `governance pack update` refreshes it. Loaded by `lib/rates.py`. |
 | `lib/rates.py` | Per-MTok USD rate lookup + `compute_cost_usd(model, i, cc, cr, o)`. Loads the rate card from `defaults.conf` and merges the per-repo overlay over it (overrides win). Tolerant model lookup: lowercase, strip date suffix, longest-prefix match with family fallbacks. Unknown model → `None` → `rates cost` exits 3 → pre-commit blocks. |
-| `lib/ledger.py` | Stdlib-only library that owns the row schema: `LedgerRow`, `parse`, `append_row` (recomputes `new_work`, looks up `cost_usd`, writes the delta + `cum-*` columns, creating the stub if absent), `session_cum` (the receipt-side endpoint for reconciliation), `find_by_cost_key`, and the CLI dispatch. Handles v4 (16) + legacy v3/v2/v1 shapes. |
+| `lib/ledger.py` | Stdlib-only library that owns the row schema: `LedgerRow`, `parse`, `append_row` (recomputes `new_work`, looks up `cost_usd`, writes the delta + `cum-*` columns, creating the stub if absent), `session_cum` (query helper), `find_by_cost_key`, and the CLI dispatch. Handles v4 (16) + legacy v3/v2/v1 shapes. |
+| `lib/endpoint.py` | Stdlib-only frozen-endpoint helper. The writer stores the sampled `session`, `cum-*`, `receipt`, and `cost_key` under `governance-token-endpoints/<tree>.json`; the checker verifies that the staged receipt row still matches it. |
 | `lib/validate.py` | Receipt validation (issue #229): per-row shape (v3 + v4), global cost-key uniqueness, and `validate_dir` (which also runs the cumulative checks from `reconcile.py`). `ledger.py` lazy-imports it. |
 | `lib/reconcile.py` | The cumulative concerns: the per-session **checkpoint** (`checkpoint_get`/`checkpoint_set`, a git-dir JSON the write path reads to derive the delta) and **reconciliation** (`reconcile_sessions` — per-session monotonicity over `cum-*`, plus `delta == cum(n) − cum(n−1)` against the true co-visible predecessor; pairs whose predecessor isn't in the tree are skipped). |
 | `lib/receipt_io.py` | Shared markdown section/table plumbing used by both `lib/ledger.py` and `lib/report.py`. |
 | `lib/report.py` | Aggregates the Accounting sections across `receipts/*.md` for per-issue and grand totals. Run: `python3 <dir>/report.py <receipts_dir> [--json]`. |
-| `hooks/pre-commit.sh` | Bash glue: sources `lib/runtime.sh` for detection + cumulative, parses the issue from parent argv, generates the cost-key. Shells out to `lib/ledger.py` for `checkpoint-get` (per-commit delta), `append-row` (delta + `cum-*` write + `git add`), and `checkpoint-set` (advance the checkpoint) — **all before** git snapshots the tree. Wired into `.githooks/pre-commit`. |
-| `check.sh` (commit-msg + CI) | Always runs `lib/ledger.py validate-dir` (repo-wide shape, global cost-key uniqueness, cumulative reconciliation / monotonicity). In Mode A (commit-msg), when a runtime is detected, additionally reconciles the receipt's recorded `cum-*` for the session against the transcript's live cumulative — a lag means a cost row was never written. Recognises one body waiver: `governance: allow-agent-token-accounting <reason>`. Mode B (CI) runs the receipt-shape check only — per-commit completeness is a write-time property; on the trunk the receipt is the record. |
+| `hooks/pre-commit.sh` | Bash glue: sources `lib/runtime.sh` for detection + cumulative, parses the issue from parent argv, generates the cost-key. Shells out to `lib/ledger.py` for `checkpoint-get` (per-commit delta), `append-row` (delta + `cum-*` write + `git add`), `lib/endpoint.py` for the staged-tree frozen endpoint, and `checkpoint-set` (advance the checkpoint) — **all before** git snapshots the tree. Wired into `.githooks/pre-commit`. |
+| `check.sh` (commit-msg + CI) | Always runs `lib/ledger.py validate-dir` (repo-wide shape, global cost-key uniqueness, cumulative reconciliation / monotonicity). In Mode A (commit-msg), when a runtime is detected, additionally requires a frozen endpoint for the staged tree and verifies the staged receipt row matches it. Recognises one body waiver: `governance: allow-agent-token-accounting <reason>`. Mode B (CI) runs the receipt-shape check only — per-commit completeness is a write-time property; on the trunk the receipt is the record. |
 
 ## What it doesn't try to do
 

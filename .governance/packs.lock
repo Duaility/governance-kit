@@ -10,13 +10,13 @@ packs:
   - no-legacy-fallbacks
   - no-path-bifurcation
 - id: governance-kit/audit
-  version: 0.6.0
+  version: 0.6.1
   source: gh
-  ref: gh:duaility/governance-kit/packs/audit@audit/v0.6.0
-  sha: 5ea729ef5a731a7cd6f308fa803957fbe990edc4
+  ref: gh:duaility/governance-kit/packs/audit@audit/v0.6.1
+  sha: 272449f25d79c6088cec61366a0987ce6f6ec801
   subpath: packs/audit
   min_governance_kit: 0.9.0
-  installed_at: '2026-06-16T16:56:00Z'
+  installed_at: '2026-06-17T10:48:17Z'
   directives:
   - agent-steering-accounting
   - agent-token-accounting
@@ -28,7 +28,7 @@ packs:
   - toolchain-config-protection
   digest:
     agent-steering-accounting: ef13de25fe606348b83672f36f0383813c79876005c31c8f17260538fbaa0e76
-    agent-token-accounting: c25c66a1f27ffd7e089656a18ee768f662d18403b919e29876e1773c3d9425a4
+    agent-token-accounting: 58d5d66ea11f11f775f0063e917ab482f82db4fab61439df47646c97b06f2129
     commit-issue-receipt-match: e7206c5289e7b970b043e1d93c97c7b503a1aac286a40780b7219ac4f4e52f69
     doc-integrity: 692497a5555f1c6ce07172cda164c24f1157ff1c386cd45d748a42939108fad1
     issue-templates: ba3e7c6de380ff2f12a922be349dda4d04014f0da6f349e4d26037a2fc576abe
@@ -45,30 +45,21 @@ packs:
   installed_at: '2026-06-12T12:44:47Z'
   directives:
   - commit-message-format
-- id: governance-kit/docs
-  version: 0.2.1
-  source: gh
-  ref: gh:duaility/governance-kit/packs/docs@docs/v0.2.1
-  sha: a71d160a2049db862639808cb0ef54f5b0cad522
-  subpath: packs/docs
-  min_governance_kit: '0.3'
-  installed_at: '2026-06-12T12:44:31Z'
-  directives:
-  - doc-freshness
-  - internal-doc-links
 - id: governance-kit/foundation
-  version: 0.4.2
+  version: 0.5.0
   source: gh
-  ref: gh:duaility/governance-kit/packs/foundation@foundation/v0.4.2
-  sha: d5151191b0b2242ca63dac847401886ef4bbe0a6
+  ref: gh:duaility/governance-kit/packs/foundation@foundation/v0.5.0
+  sha: f9f9fe91424312084cb277e445a552bc19e68955
   subpath: packs/foundation
   min_governance_kit: '0.3'
-  installed_at: '2026-06-15T17:54:17Z'
+  installed_at: '2026-06-17T10:47:45Z'
   directives:
+  - internal-doc-links
   - managed-tree-integrity
   - repo-hygiene
   - required-docs
   digest:
+    internal-doc-links: 1c8cc0ba358eea3190664ceb05c96c4f608c4171029a4ed374480541750be1f5
     managed-tree-integrity: 9f516add12805fea75f4b1f8ee83b42eb38f66f65522d6b7d5fd663bef1b9dd5
     repo-hygiene: bcc6d10bef0a216d1698d6406ef87559268639132632cbd68ca544a0bd843a44
     required-docs: 97d5963e146c39cae9243e4c63cf9cee092497800b81abd3e2c071fc74052833
