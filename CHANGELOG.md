@@ -22,6 +22,15 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [audit/v0.7.0] - 2026-06-18
+
+### Added
+- unify sub-agent judgment, steering-as-attestation, deterministic token session (#325) (#326)
+
+### Changed
+- request a low-cost model for sub-agent attestation audits (#321) (#322)
+- surface the lib.sh helper API and route authoring flows through it (#319) (#320)
+
 ## [kit/v0.11.0] - 2026-06-18
 
 ### Added
