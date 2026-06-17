@@ -16,8 +16,11 @@
 # per-commit delta.
 #
 # Environment overrides:
-#   CLAUDE_TRANSCRIPT_PATH   absolute path to the session JSONL
-#   CLAUDE_PROJECTS_DIR      override ~/.claude/projects
+#   CLAUDE_TRANSCRIPT_PATH    absolute path to the session JSONL
+#   CLAUDE_PROJECTS_DIR       override ~/.claude/projects
+#   CLAUDE_CODE_SESSION_ID    the live session id (exported into the hook env by
+#                             Claude Code) — names the transcript exactly, so we
+#                             never have to guess by mtime when it is present.
 
 set -u
 
@@ -30,6 +33,31 @@ encode_path() {
 }
 
 TRANSCRIPT="${CLAUDE_TRANSCRIPT_PATH:-}"
+
+# Deterministic resolution (issue #325): Claude Code exports
+# CLAUDE_CODE_SESSION_ID into the hook environment, and the active session's
+# transcript is `<projects>/<encoded-cwd>/<session-id>.jsonl`. Naming the file
+# directly removes the newest-mtime guess that, in the same commit, could grab a
+# *throwaway* transcript (e.g. one written by a headless `claude -p` shell-out)
+# instead of the real session — recording a near-zero cost row for a long
+# session. Probe both the repo-root and the cwd encodings before falling back.
+if [[ -z "$TRANSCRIPT" && -n "${CLAUDE_CODE_SESSION_ID:-}" ]]; then
+    for candidate in "$REPO_ROOT" "$PWD"; do
+        f="$CLAUDE_PROJECTS/$(encode_path "$candidate")/${CLAUDE_CODE_SESSION_ID}.jsonl"
+        if [[ -f "$f" ]]; then
+            TRANSCRIPT="$f"
+            break
+        fi
+    done
+    # Last resort under a known session id: the encoded-cwd dir didn't match
+    # (cross-worktree commit), so find the file named for this exact session
+    # anywhere under CLAUDE_PROJECTS. Still identity-pinned — never an mtime guess.
+    if [[ -z "$TRANSCRIPT" && -d "$CLAUDE_PROJECTS" ]]; then
+        f="$(find "$CLAUDE_PROJECTS" -type f -name "${CLAUDE_CODE_SESSION_ID}.jsonl" 2>/dev/null | head -n1)"
+        [[ -n "$f" && -f "$f" ]] && TRANSCRIPT="$f"
+    fi
+fi
+
 if [[ -z "$TRANSCRIPT" ]]; then
     for candidate in "$REPO_ROOT" "$PWD"; do
         dir="$CLAUDE_PROJECTS/$(encode_path "$candidate")"
@@ -43,12 +71,12 @@ fi
 # Cross-worktree fallback: the cwd-encoded lookup above misses when the
 # user starts a Claude session in worktree A and runs `git commit` from
 # worktree B (different `git rev-parse --show-toplevel`, so a different
-# encoded project dir). When CLAUDECODE=1 confirms a live session, the
-# active transcript is being written to *now* — so the most recently
-# modified `.jsonl` anywhere under CLAUDE_PROJECTS is almost always it.
-# A 10-minute mtime window keeps long-closed sessions out. If multiple
-# Claude sessions are running concurrently, set CLAUDE_TRANSCRIPT_PATH
-# explicitly to disambiguate.
+# encoded project dir) AND no CLAUDE_CODE_SESSION_ID is exported. When
+# CLAUDECODE=1 confirms a live session, the active transcript is being
+# written to *now* — so the most recently modified `.jsonl` anywhere under
+# CLAUDE_PROJECTS is almost always it. A 10-minute mtime window keeps
+# long-closed sessions out. If multiple Claude sessions are running
+# concurrently, set CLAUDE_TRANSCRIPT_PATH explicitly to disambiguate.
 if [[ -z "$TRANSCRIPT" && "${CLAUDECODE:-}" == "1" && -d "$CLAUDE_PROJECTS" ]]; then
     candidate=""
     while IFS= read -r f; do

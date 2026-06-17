@@ -10,3 +10,17 @@ recommended: false
 summary: "Per change set, a fresh-context sub-agent attests (PASS/REFUTED) that the diff honors the declared layer boundaries — no kit/engine logic landing under a pack, no upward dependency. Recorded in the newly added receipt's '## Layer boundaries' section; the hook gates presence + verdict, never the verdict's truth."
 surface: change-set
 hook: pre-commit
+# Sub-agent judgment (issue #325): the `## Layer boundaries` attestation is
+# declared once here. check.sh gates it via subagent_attest; the shared
+# orchestrator batches it (isolation: shared) with receipt-per-issue's `## Audit`
+# into one sub-agent per commit. The `layer-map` input resolves to GOVERNANCE_LAYER_DOC
+# (which check.sh exports from LAYER_DOC).
+subagent:
+  inputs:  [diff, layer-map]
+  checks:
+    - "every file added or changed sits in the layer its role belongs to — no kit/engine logic placed under a pack, no pack-specific content placed in the kit"
+    - "no dependency points the wrong way across a layer edge — a lower layer must not reach into a higher one"
+    - "new shared logic lives in the layer that owns it rather than being duplicated into a consumer layer"
+  isolation: shared
+  section: Layer boundaries
+  tiers: { attest: low, sweep: high }

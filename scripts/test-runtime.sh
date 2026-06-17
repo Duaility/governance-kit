@@ -538,6 +538,83 @@ set -e
 assert_eq "require_attestation fails when the section has no verdict" 1 "$exit_code"
 assert_contains "no-verdict violation explains the missing verdict" "records no PASS/REFUTED verdict" "$output"
 
+# ---- lib.sh: subagent_attest + attestation_remediation (issue #325) --------
+
+printf '── lib.sh: subagent_attest / attestation_remediation ───\n'
+sa_dir="$WORK/sa-directive"
+mkdir -p "$sa_dir"
+cat > "$sa_dir/directive.yaml" <<'EOF'
+surface: change-set
+hook: pre-commit
+subagent:
+  inputs:  [diff, receipt, issue]
+  checks:
+    - "What changed matches the diff"
+    - "checklist mirrors the issue"
+  isolation: shared
+  section: Audit
+  tiers: { attest: low, sweep: high }
+EOF
+cat > "$sa_dir/check.sh" <<EOF
+set -u
+source "$LIB_SH"
+directive_start sa
+subagent_attest "\$1"
+directive_end
+EOF
+
+# _subagent_yaml parses the declared block (scalars + lists, no PyYAML).
+output=$(set +u; source "$LIB_SH"; _subagent_yaml "$sa_dir/directive.yaml" section)
+assert_eq "_subagent_yaml reads the section scalar" "Audit" "$output"
+output=$(set +u; source "$LIB_SH"; _subagent_yaml "$sa_dir/directive.yaml" isolation)
+assert_eq "_subagent_yaml reads the isolation scalar" "shared" "$output"
+output=$(set +u; source "$LIB_SH"; _subagent_yaml "$sa_dir/directive.yaml" inputs | tr '\n' ',')
+assert_eq "_subagent_yaml reads the inputs flow list" "diff,receipt,issue," "$output"
+output=$(set +u; source "$LIB_SH"; _subagent_yaml "$sa_dir/directive.yaml" checks | head -1)
+assert_eq "_subagent_yaml reads a block-list check" "What changed matches the diff" "$output"
+
+# Missing section → gate fails, and the pending attestation is registered.
+sa_receipt="$WORK/issue-9-x.md"
+printf '# r\n\n## What changed\n\nx\n' > "$sa_receipt"
+sa_ledger="$WORK/sa-ledger.tsv"; : > "$sa_ledger"
+set +e
+output=$(set +u; export GOVERNANCE_ATTEST_LEDGER="$sa_ledger"; cd "$sa_dir"; bash check.sh "$sa_receipt" 2>&1)
+exit_code=$?
+set -e
+assert_eq "subagent_attest fails on a missing section" 1 "$exit_code"
+assert_contains "subagent_attest names the missing section" "missing a '## Audit' section" "$output"
+assert_contains "subagent_attest registers a shared record" "shared" "$(cat "$sa_ledger")"
+
+# attestation_remediation emits ONE grouped envelope with the numbered checks.
+output=$(set +u; source "$LIB_SH"; attestation_remediation "$sa_ledger" 2>&1)
+assert_contains "remediation emits the grouped envelope" "Spawn ONE fresh-context sub-agent" "$output"
+assert_contains "remediation names the target section" "write the '## Audit' section" "$output"
+assert_contains "remediation numbers the first check" "(1) What changed matches the diff" "$output"
+assert_contains "remediation numbers the second check" "(2) checklist mirrors the issue" "$output"
+assert_contains "remediation unions the resolved inputs" "the diff (\`git diff\`)" "$output"
+
+# An isolated record gets its own sub-agent instruction (US-joined inner fields).
+printf 'isolated\t%s\tSteering\t%s\t%s\n' \
+    "$WORK/issue-9-x.md" \
+    "the session transcript"$'\x1f'"this receipt" \
+    "every event recorded" >> "$sa_ledger"
+output=$(set +u; source "$LIB_SH"; attestation_remediation "$sa_ledger" 2>&1)
+assert_contains "remediation adds an isolated sub-agent" "Spawn a separate fresh-context sub-agent (isolated" "$output"
+
+# Present + verdict → gate passes and nothing is registered.
+printf '# r\n\n## Audit\n\n- PASS — ok\n' > "$sa_receipt"
+: > "$sa_ledger"
+set +e
+output=$(set +u; export GOVERNANCE_ATTEST_LEDGER="$sa_ledger"; cd "$sa_dir"; bash check.sh "$sa_receipt"; echo "rc=$?")
+set -e
+assert_contains "subagent_attest passes a verdict-bearing section" "rc=0" "$output"
+assert_eq "no registration when the section is well-formed" "" "$(cat "$sa_ledger")"
+
+# Empty ledger → the orchestrator is a silent no-op.
+: > "$sa_ledger"
+output=$(set +u; source "$LIB_SH"; attestation_remediation "$sa_ledger" 2>&1)
+assert_eq "remediation is silent with no pending attestations" "" "$output"
+
 # ---- lib.sh: conf_file / conf_get / conf_rule_lines -----------------------
 
 printf '── lib.sh: conf_file / conf_get / conf_rule_lines ──────\n'

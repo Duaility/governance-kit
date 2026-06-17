@@ -16,9 +16,10 @@
 # `agent-steering-accounting` and `doc-integrity` are mandatory
 # (`always_install: true`): in this kit's model every commit is agent-authored,
 # so the provenance trail and its tamper-protection are part of the baseline,
-# not an extra. STEERING.md captures verbatim operator text — repos that need
-# redaction layer that on top via the directive's classifier hook rather than
-# by skipping the directive.
+# not an extra. Steering events are recorded by a fresh-context sub-agent
+# (a `subagent:` attestation handed the session transcript — no in-hook
+# `claude -p`, issue #325); the receipt rows carry operator-intent text, so
+# weigh leakage before a public repo rather than skipping the directive.
 #
 # Directive metadata lives inside each directive's folder under
 # `directives/<id>/`. Presets are per-pack and unioned at init.

@@ -205,6 +205,300 @@ require_attestation() {
     return 0
 }
 
+# ── Sub-agent judgment: one declaration, batched orchestration (issue #325) ──
+# Attestation (commit-time) and the sweep lane (merge/scheduled) are the same
+# judgment task at two tiers and two times. A directive declares that task ONCE,
+# in a `subagent:` block in its directive.yaml:
+#
+#   subagent:
+#     inputs:  [diff, receipt, issue]   # typed tokens → the handles the judge gets
+#     checks:
+#       - "every '- [x]' item is realized in the diff"
+#       - "the '## Checklist' mirrors the issue's checklist"
+#     isolation: shared                 # shared (default) | isolated
+#     section: Audit                    # the receipt section the verdict lands in
+#     tiers:   { attest: low, sweep: high }
+#
+# The commit-mode consumer (attest) is two pieces, and `require_attestation`
+# above stays exactly as the per-directive presence+verdict gate:
+#   * `subagent_attest <receipt>` is the gate a migrated check.sh calls. It reads
+#     the sibling directive.yaml's `subagent:` block, runs the same presence +
+#     PASS/REFUTED check (so CI still fails per-section, independently), and when
+#     the section is pending REGISTERS it into a shared ledger.
+#   * `attestation_remediation` is the orchestrator. run.sh / the pre-commit
+#     dispatcher runs it ONCE after every check.sh; it reads the ledger and emits
+#     a single grouped remediation instruction — one sub-agent for all
+#     `isolation: shared` sections (handed the union of their inputs), plus one
+#     isolated sub-agent per `isolation: isolated` section. Worst case (all
+#     isolated) = one spawn per section, as before; best case (all shared) = one
+#     spawn per commit.
+# The author≠auditor independence (the auditor is always a fresh context, never
+# the harness) is preserved in every case; only inter-attestation independence is
+# traded by batching, which a directive opts out of with `isolation: isolated`.
+
+# _subagent_yaml <directive.yaml> <key>
+#   Print the value(s) of `subagent.<key>`. List keys (inputs, checks) print one
+#   item per line; scalar keys (section, isolation) print a single line; absent →
+#   nothing. Stdlib python parses only the constrained block shape above (flow
+#   `[a, b]` or block `- a` lists; bare scalars) — no PyYAML dependency.
+_subagent_yaml() {
+    python3 - "$1" "$2" <<'PY'
+import sys
+path, key = sys.argv[1], sys.argv[2]
+try:
+    raw = open(path, encoding="utf-8").read().splitlines()
+except OSError:
+    sys.exit(0)
+
+# Locate the top-level `subagent:` key and slice its indented block.
+start = None
+for i, ln in enumerate(raw):
+    if ln.strip() == "subagent:" and (len(ln) - len(ln.lstrip())) == 0:
+        start = i
+        break
+if start is None:
+    sys.exit(0)
+block = []
+for ln in raw[start + 1:]:
+    if not ln.strip():
+        block.append(ln)
+        continue
+    if (len(ln) - len(ln.lstrip())) == 0:
+        break
+    block.append(ln)
+
+def strip_scalar(s):
+    s = s.strip()
+    if len(s) >= 2 and s[0] in "\"'" and s[-1] == s[0]:
+        s = s[1:-1]
+    return s
+
+# Find `<indent>key:` at the block's own base indent.
+key_idx = None
+key_indent = None
+for i, ln in enumerate(block):
+    if not ln.strip() or ln.lstrip().startswith("#"):
+        continue
+    indent = len(ln) - len(ln.lstrip())
+    stripped = ln.strip()
+    if stripped == f"{key}:" or stripped.startswith(f"{key}:"):
+        key_idx = i
+        key_indent = indent
+        break
+if key_idx is None:
+    sys.exit(0)
+
+rest = block[key_idx].strip()[len(key) + 1:].strip()
+items = []
+if rest.startswith("["):
+    inner = rest[1:rest.rfind("]")] if "]" in rest else rest[1:]
+    for part in inner.split(","):
+        part = strip_scalar(part)
+        if part:
+            items.append(part)
+elif rest.startswith("{"):
+    sys.exit(0)  # flow map (e.g. tiers) — not consumed by the commit lane
+elif rest:
+    print(strip_scalar(rest))
+    sys.exit(0)
+else:
+    # Block list: following lines more-indented than the key, each `- item`.
+    for ln in block[key_idx + 1:]:
+        if not ln.strip():
+            continue
+        indent = len(ln) - len(ln.lstrip())
+        if indent <= key_indent:
+            break
+        s = ln.strip()
+        if s.startswith("- "):
+            items.append(strip_scalar(s[2:]))
+        elif s == "-":
+            items.append("")
+for it in items:
+    print(it)
+PY
+}
+
+# resolve_subagent_input <token> <receipt-file>
+#   Map a typed input token to the concrete handle phrase the sub-agent is handed.
+#   `receipt`/`issue` derive from the receipt path; `layer-map` reads
+#   GOVERNANCE_LAYER_DOC (the caller exports it from its conf). Unknown tokens
+#   pass through verbatim so a directive can name a bespoke input.
+resolve_subagent_input() {
+    local token="$1" receipt="${2:-}"
+    local n=""
+    case "$receipt" in
+        *issue-*) n="${receipt##*issue-}"; n="${n%%[-.]*}" ;;
+    esac
+    [[ "$n" =~ ^[0-9]+$ ]] || n="<N>"
+    case "$token" in
+        diff)       printf 'the diff (`git diff`)' ;;
+        receipt)    printf 'this receipt (`%s`)' "$receipt" ;;
+        issue)      printf 'the linked issue (`gh issue view #%s`)' "$n" ;;
+        transcript) printf 'the session transcript (the JSONL named `$CLAUDE_CODE_SESSION_ID.jsonl` under your Claude Code projects dir)' ;;
+        layer-map)  printf 'the declared layer model in `%s`' "${GOVERNANCE_LAYER_DOC:-ARCHITECTURE.md}" ;;
+        *)          printf '%s' "$token" ;;
+    esac
+}
+
+# _subagent_register <isolation> <receipt> <section> <inputs-US> <checks-US>
+#   Append one pending-attestation record to the shared ledger, if the harness
+#   set GOVERNANCE_ATTEST_LEDGER. No ledger → no-op (the per-section gate already
+#   recorded its violation, so CI / a bare commit still fails correctly; the
+#   grouped instruction is the orchestrated convenience layered on top).
+_SUBAGENT_US=$'\x1f'
+_subagent_register() {
+    [[ -n "${GOVERNANCE_ATTEST_LEDGER:-}" ]] || return 0
+    printf '%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" >> "$GOVERNANCE_ATTEST_LEDGER"
+}
+
+# subagent_attest <receipt-file>
+#   The migrated per-directive gate. Reads the sibling directive.yaml's
+#   `subagent:` block, enforces the section is present + verdict-bearing (records
+#   a violation otherwise — the deterministic gate, unchanged in spirit from
+#   require_attestation), and registers any pending section for the orchestrator.
+#   Returns 0 when the section is well-formed, 1 otherwise.
+subagent_attest() {
+    local file="$1"
+    local yaml; yaml="$(dirname "$0")/directive.yaml"
+    if [[ ! -f "$yaml" ]]; then
+        violation "$file — directive.yaml not found beside check.sh; cannot resolve the subagent declaration"
+        return 1
+    fi
+    local section isolation
+    section="$(_subagent_yaml "$yaml" section)"
+    isolation="$(_subagent_yaml "$yaml" isolation)"
+    [[ -n "$isolation" ]] || isolation="shared"
+    if [[ -z "$section" ]]; then
+        violation "$file — directive.yaml declares no 'subagent.section'; cannot gate the attestation"
+        return 1
+    fi
+
+    # Resolve the declared inputs to handle phrases and join with US separators.
+    local inputs_joined="" tok phrase
+    while IFS= read -r tok; do
+        [[ -z "$tok" ]] && continue
+        phrase="$(resolve_subagent_input "$tok" "$file")"
+        if [[ -z "$inputs_joined" ]]; then inputs_joined="$phrase"
+        else inputs_joined="$inputs_joined$_SUBAGENT_US$phrase"; fi
+    done < <(_subagent_yaml "$yaml" inputs)
+
+    # Join the declared checks with US separators.
+    local checks_joined="" c
+    while IFS= read -r c; do
+        [[ -z "$c" ]] && continue
+        if [[ -z "$checks_joined" ]]; then checks_joined="$c"
+        else checks_joined="$checks_joined$_SUBAGENT_US$c"; fi
+    done < <(_subagent_yaml "$yaml" checks)
+
+    # The gate: section present + a PASS/REFUTED verdict. On a miss, record a
+    # terse violation (the consolidated authoring instruction comes from the
+    # orchestrator) and register the pending section.
+    if ! grep -qE "^##[[:space:]]+${section}\b" "$file"; then
+        violation "$file — missing a '## ${section}' section; a fresh-context sub-agent must record its verdict here (see the grouped sub-agent instruction below)."
+        _subagent_register "$isolation" "$file" "$section" "$inputs_joined" "$checks_joined"
+        return 1
+    fi
+    local body; body="$(extract_md_section "$file" "$section")"
+    if ! printf '%s\n' "$body" | grep -qiE '\b(PASS|REFUTED)\b'; then
+        violation "$file — '## ${section}' records no PASS/REFUTED verdict; the sub-agent must report a verdict + evidence for each named check (see the grouped sub-agent instruction below)."
+        _subagent_register "$isolation" "$file" "$section" "$inputs_joined" "$checks_joined"
+        return 1
+    fi
+    return 0
+}
+
+# attestation_remediation [<ledger-file>]
+#   The shared orchestrator. Run once (by run.sh / the pre-commit dispatcher)
+#   after every check.sh. Reads the pending-attestation ledger and emits ONE
+#   grouped remediation instruction to stderr: a single sub-agent for all
+#   `isolation: shared` sections (handed the union of their inputs), plus one
+#   isolated sub-agent per `isolation: isolated` section. No pending records →
+#   silent no-op. The hook never spawns the sub-agent itself — the harness agent
+#   reads this instruction and spawns it.
+attestation_remediation() {
+    local ledger="${1:-${GOVERNANCE_ATTEST_LEDGER:-}}"
+    [[ -n "$ledger" && -s "$ledger" ]] || return 0
+    # The ledger is TSV — `isolation \t receipt \t section \t inputs \t checks` —
+    # whose inputs/checks fields are US-joined (\x1f). Formatting the grouped
+    # instruction is pure text munging over strings full of backticks and quotes;
+    # stdlib python does it without the quoting hazards of bash, and python3 is
+    # already present whenever an attestation registered (those directives run it).
+    python3 - "$ledger" >&2 <<'PY'
+import sys
+
+US = "\x1f"
+shared, isolated = [], []
+try:
+    rows = open(sys.argv[1], encoding="utf-8").read().splitlines()
+except OSError:
+    sys.exit(0)
+for line in rows:
+    if not line.strip():
+        continue
+    parts = line.split("\t")
+    if len(parts) < 5:
+        continue
+    iso, receipt, section, inputs, checks = parts[0], parts[1], parts[2], parts[3], parts[4]
+    rec = {
+        "receipt": receipt,
+        "section": section,
+        "inputs": [p for p in inputs.split(US) if p],
+        "checks": [c for c in checks.split(US) if c],
+    }
+    (isolated if iso == "isolated" else shared).append(rec)
+
+if not shared and not isolated:
+    sys.exit(0)
+
+def numbered(checks):
+    return "; ".join(f"({i}) {c}" for i, c in enumerate(checks, 1))
+
+out = []
+out.append("")
+out.append("─" * 40)
+out.append("⚖ Sub-agent attestation(s) pending — populate each section below, then re-stage and re-commit.")
+
+if shared:
+    union, seen = [], set()
+    for r in shared:
+        for ip in r["inputs"]:
+            if ip not in seen:
+                seen.add(ip)
+                union.append(ip)
+    out.append("")
+    out.append(
+        "Spawn ONE fresh-context sub-agent on a small, low-cost model (the low "
+        "capability tier, e.g. Claude Haiku or a comparable GPT-mini-class model — "
+        "this is a bounded read-and-record audit whose verdict the merge-time sweep "
+        "lane independently re-derives). Hand it exactly these inputs: "
+        + ", ".join(union)
+        + ". Render a verdict + evidence for every check below, rendering each "
+        "verdict as exactly the token PASS or REFUTED; default to REFUTED if "
+        "uncertain. Write each group's findings into the named section of the "
+        "named receipt:"
+    )
+    for r in shared:
+        out.append(f"  • In `{r['receipt']}`, write the '## {r['section']}' section: {numbered(r['checks'])}")
+
+for r in isolated:
+    out.append("")
+    out.append(
+        "Spawn a separate fresh-context sub-agent (isolated — no shared context) on "
+        "a small, low-cost model. Hand it exactly these inputs: "
+        + ", ".join(r["inputs"])
+        + f". Render a verdict + evidence for each, as exactly PASS or REFUTED "
+        f"(default REFUTED if uncertain), into the '## {r['section']}' section of "
+        f"`{r['receipt']}`: {numbered(r['checks'])}"
+    )
+
+out.append("")
+out.append("The hook never spawns the sub-agent itself.")
+out.append("─" * 40)
+print("\n".join(out))
+PY
+}
+
 # ── Per-directive configuration ────────────────────────────────────────────
 # Configuration is exactly two artifacts, one writer each (issue #210):
 #   * the pack-owned `defaults.conf` next to the directive's `check.sh` — the

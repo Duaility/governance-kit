@@ -15,35 +15,12 @@ command -v python3 >/dev/null 2>&1 || {
 fixture_init
 install_directive "$PACK_DIR" "$EVAL_ID"
 
-# ──────────────────────────────────────────────────────────────
-# Case 0 — sanity: lib/argv.py round-trips UTF-8 commit subjects (#140).
-# ──────────────────────────────────────────────────────────────
-if [[ "$(uname -s)" == "Darwin" ]]; then
-    eval_assertions=$(( eval_assertions + 1 ))
-    ARGV_HELPER=".governance/packs/governance-kit/audit/directives/$EVAL_ID/lib/argv.py"
-    /bin/sh -c 'while :; do sleep 1; done' steering-argv-probe \
-        $'feat: em-dash \xe2\x80\x94 arrow \xe2\x86\x92 (#1)' &
-    PROBE_PID=$!
-    sleep 0.3
-    if probe_out="$(LC_ALL=C python3 "$ARGV_HELPER" "$PROBE_PID" 2>/dev/null)" \
-        && printf '%s' "$probe_out" | grep -q $'\xe2\x80\x94' \
-        && printf '%s' "$probe_out" | grep -q $'\xe2\x86\x92'; then
-        printf '    ✓ %s — argv.py preserves UTF-8 argv on macOS (#140)\n' "$EVAL_ID"
-    else
-        printf '    ✗ %s — argv.py mangled UTF-8 — issue #140 regression\n' "$EVAL_ID"
-        eval_failures=$(( eval_failures + 1 ))
-    fi
-    kill "$PROBE_PID" 2>/dev/null
-    wait "$PROBE_PID" 2>/dev/null
-else
-    printf '    ⊘ %s — argv.py macOS round-trip skipped (uname=%s)\n' \
-        "$EVAL_ID" "$(uname -s)"
-fi
-
-# Issue #293 retired the per-commit summary trailers. The directive's only
-# contract now is the ledger-shape check (validate-dir), which check.sh runs in
-# both modes. Steering rows live in receipts/issue-<N>.md under ## Accounting →
-# ### Steering (issue #201).
+# The directive's contract is two-fold (issue #325):
+#   1. validate-dir — the repo-wide ledger-shape check (cases 2–7 below). Steering
+#      rows live in receipts/issue-<N>.md under ## Accounting → ### Steering.
+#   2. the `## Steering` attestation gate — on receipts ADDED in the change set, a
+#      fresh-context sub-agent must record a present, verdict-bearing section
+#      (cases 8–11). The hook makes no `claude -p` / network call.
 STEER_LEDGER=".governance/packs/governance-kit/audit/directives/$EVAL_ID/lib/ledger.py"
 SS2="sess229abcdef"
 
@@ -79,11 +56,28 @@ EOF
     printf '%s\n' "$2" >> "$file"
 }
 
+# ── Hardening: the commit path makes no `claude -p` shell-out (issue #325) ──
+# The classifier that did is gone; assert its source files are not shipped and
+# that no shipped CODE (lib/*.py — prose comments are allowed to describe the
+# retired behavior) invokes a headless CLI.
+eval_assertions=$(( eval_assertions + 1 ))
+DIR=".governance/packs/governance-kit/audit/directives/$EVAL_ID"
+if [[ ! -e "$DIR/lib/classifier.py" && ! -e "$DIR/lib/extract.py" \
+      && ! -e "$DIR/hooks" && ! -e "$DIR/runtimes" ]] \
+    && ! grep -rqE 'claude[[:space:]]+-p|codex[[:space:]]+exec' "$DIR"/lib/*.py 2>/dev/null; then
+    printf '    ✓ %s — no in-hook classifier / `claude -p` shell-out remains\n' "$EVAL_ID"
+else
+    printf '    ✗ %s — a classifier / headless-CLI shell-out is still present\n' "$EVAL_ID" >&2
+    eval_failures=$(( eval_failures + 1 ))
+fi
+
 # ── Case 1 — pass: no receipts at all (nothing to validate) ──
 reset_ledger
 EVAL_LABEL="$EVAL_ID empty-repo" expect_pass "$CHECK"
 
 # ── Case 2 — pass: clean v2 rows across receipts validate cleanly ──
+# (Receipts are written but NOT staged, so they are not in the change set and the
+#  attestation gate does not apply — this case isolates validate-dir.)
 reset_ledger
 add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002000-1" "#1" interrupt  structural 1 "2026-06-12T00:00:01Z"
 add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002001-2" "#1" correction classifier 2 "2026-06-12T00:00:02Z"
@@ -101,9 +95,6 @@ seed_raw "issue-1.md" "| steer-x-1800000250-1 | $SS2 |  | interrupt | structural
 EVAL_LABEL="$EVAL_ID issueless-row-rejected" expect_fail "$CHECK"
 
 # ── Case 5 — fail: cross-branch duplicate (session, ordinal) post-merge ──
-# Branch B re-recorded branch A's event under its own receipt; post-merge both
-# carry the same (session, ordinal). Pre-fix (positional dedup) this was
-# structurally undetectable (issue #229).
 reset_ledger
 add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002100-1" "#1" interrupt structural 1 "2026-06-12T01:00:01Z"
 add_v2 "receipts/issue-2.md" "steer-${SS2:0:12}-1800002200-1" "#2" interrupt structural 1 "2026-06-12T01:00:01Z"
@@ -129,63 +120,85 @@ else
 fi
 reset_ledger
 
-# ── Case 8 — conf overlay drives the lexical fallback list + CANDIDATE_MAX_LEN ──
-eval_assertions=$(( eval_assertions + 1 ))
-CONF_LIB=".governance/packs/governance-kit/audit/directives/$EVAL_ID/lib"
-mkdir -p .governance/conf
-printf 'scratch that\n!back up\nCANDIDATE_MAX_LEN=4000\n' \
-    > $EVAL_CONF
-if python3 - "$CONF_LIB" <<'PY'
-import sys
-sys.path.insert(0, sys.argv[1])
-import conf
-phrases = conf.effective_list()
-assert "scratch that" in phrases, "overlay add missing"
-assert "back up" not in phrases, "!back up not dropped"
-assert "no" in phrases, "default 'no' lost"
-assert conf.get_int("CANDIDATE_MAX_LEN", 2000) == 4000, "scalar override ignored"
-rx = conf.lexical_fallback_re()
-assert rx.match("scratch that idea"), "added phrase does not match"
-assert not rx.match("back up please"), "dropped phrase still matches"
-PY
-then
-    printf '    ✓ %s conf-overlay — defaults+overlay drive triggers and CANDIDATE_MAX_LEN\n' "$EVAL_ID"
-else
-    printf '    ✗ %s conf-overlay — loader did not honor the overlay\n' "$EVAL_ID"
-    eval_failures=$(( eval_failures + 1 ))
-fi
-eval_assertions=$(( eval_assertions + 1 ))
-if GOVERNANCE_CANDIDATE_MAX_LEN=7777 python3 - "$CONF_LIB" <<'PY'
-import sys
-sys.path.insert(0, sys.argv[1])
-import conf
-assert conf.get_int("CANDIDATE_MAX_LEN", 2000) == 7777, "env did not win"
-PY
-then
-    printf '    ✓ %s conf-env — GOVERNANCE_CANDIDATE_MAX_LEN overrides the overlay\n' "$EVAL_ID"
-else
-    printf '    ✗ %s conf-env — env did not override the overlay scalar\n' "$EVAL_ID"
-    eval_failures=$(( eval_failures + 1 ))
-fi
-eval_assertions=$(( eval_assertions + 1 ))
-printf 'CANDIDATE_MAX_LEN=lots\n' > $EVAL_CONF
-if python3 - "$CONF_LIB" <<'PY' 2>/dev/null
-import sys
-sys.path.insert(0, sys.argv[1])
-import conf
-try:
-    conf.get_int("CANDIDATE_MAX_LEN", 2000)
-except ValueError:
-    sys.exit(0)
-sys.exit(1)
-PY
-then
-    printf '    ✓ %s conf-malformed — non-integer scalar raises\n' "$EVAL_ID"
-else
-    printf '    ✗ %s conf-malformed — bad scalar did not raise\n' "$EVAL_ID"
-    eval_failures=$(( eval_failures + 1 ))
-fi
-rm -f $EVAL_CONF
+# ── Case 8 — fail: a NEW (staged) receipt missing the `## Steering` attestation ──
+# The change set adds a receipt with no `## Steering` section; the sub-agent
+# attestation has not been recorded, so the gate fires.
+reset_ledger
+mkdir -p receipts
+cat > receipts/issue-70-no-steering.md <<'EOF'
+# Receipt seventy
+
+## Notes
+
+Work happened on issue 70.
+EOF
+stage_all
+EVAL_LABEL="$EVAL_ID added-missing-steering" expect_fail "$CHECK"
+
+# ── Case 9 — pass: a NEW (staged) receipt whose `## Steering` carries a verdict ──
+reset_ledger
+mkdir -p receipts
+cat > receipts/issue-71-with-steering.md <<'EOF'
+# Receipt seventy-one
+
+## Notes
+
+Work happened on issue 71.
+
+## Steering
+
+Fresh-context sub-agent reviewed the session transcript:
+
+- PASS — no human-steering events (no interrupts, no corrections) in this session.
+EOF
+stage_all
+EVAL_LABEL="$EVAL_ID added-steering-verdict-ok" expect_pass "$CHECK"
+
+# ── Case 10 — fail: `## Steering` present but records no PASS/REFUTED verdict ──
+reset_ledger
+mkdir -p receipts
+cat > receipts/issue-72-steering-no-verdict.md <<'EOF'
+# Receipt seventy-two
+
+## Notes
+
+Work happened on issue 72.
+
+## Steering
+
+I looked at the transcript and it seemed fine.
+EOF
+stage_all
+EVAL_LABEL="$EVAL_ID added-steering-no-verdict" expect_fail "$CHECK"
+
+# ── Case 11 — pass: a pre-existing (committed) receipt without `## Steering` is
+#                grandfathered (not in the change set) ──
+reset_ledger
+mkdir -p receipts
+cat > receipts/issue-73-grandfathered.md <<'EOF'
+# Receipt seventy-three
+
+## Notes
+
+Pre-existing work, no steering section.
+EOF
+stage_all
+git commit --quiet --no-verify -m "docs: grandfathered receipt" >/dev/null 2>&1 || true
+EVAL_LABEL="$EVAL_ID grandfathered-no-steering" expect_pass "$CHECK"
+
+# ── Case 12 — pass: a per-receipt waiver exempts a staged receipt ──
+reset_ledger
+mkdir -p receipts
+cat > receipts/issue-74-waivered.md <<'EOF'
+<!-- governance: allow-agent-steering-accounting transcript unavailable in this context -->
+# Receipt seventy-four
+
+## Notes
+
+Steering attestation waived for this commit.
+EOF
+stage_all
+EVAL_LABEL="$EVAL_ID waiver-exempts" expect_pass "$CHECK"
 reset_ledger
 
 eval_done
