@@ -19,12 +19,12 @@
 </p>
 
 <p align="center">
-  <a href="#install-in-60-seconds">Install</a> ·
-  <a href="#why-this-exists">Why</a> ·
-  <a href="#how-strict-a-rule-can-be">Rules</a> ·
-  <a href="#packs">Packs</a> ·
-  <a href="#this-repo-uses-it">Proof</a> ·
-  <a href="https://duaility.github.io/governance-kit">Docs</a> ·
+  <a href="#how-do-you-install-it-in-60-seconds">Install</a> ·
+  <a href="#what-problem-does-it-solve">Problem</a> ·
+  <a href="#how-strict-can-a-rule-be">Rules</a> ·
+  <a href="#what-are-packs">Packs</a> ·
+  <a href="#where-should-you-read-next">Docs</a> ·
+  <a href="#does-this-repo-use-it">Proof</a> ·
   <a href="AGENTS.md">Contributing</a>
 </p>
 
@@ -34,26 +34,30 @@
 
 ---
 
-## Why this exists
+## What problem does it solve?
 
-If you use coding agents heavily, you know the real failure mode: the agent completes the task, but in a way that's locally fine and globally wrong.
+Coding agents often complete the task in a way that is locally fine and globally wrong.
 
-It lands the feature through the wrong layer, reinvents a pattern you already have, or widens a boundary you wanted held. The objective passes; the architecture drifts. It half-follows `AGENTS.md` or `CLAUDE.md`, missing the constraint that mattered. The next agent has no memory of the correction, so you give it again.
+They land features through the wrong layer, revive patterns you retired, widen boundaries you wanted held, or half-follow `AGENTS.md` and miss the constraint that mattered. The objective passes; the repo drifts. The next agent has no memory of the correction, so you give it again.
 
-The obvious fix is to add another instruction. But instruction files only grow, crowding out the task, the code, and the docs the agent needs in context. More prompt does not reliably buy more control.
+Adding more prompt is the obvious fix, but it does not scale. Instruction files grow, context gets crowded, and the rule still only reaches the current session.
 
-Governance kit turns repeated corrections into **repo-native invariants**. The rules stop living in your head, your prompt, or one agent's context window. They live in git, next to the code, with executable checks that run on every commit.
+## What does Governance Kit change?
 
-Invariants keep the work coherent; **receipts** keep it accountable. When an agent finishes, what it changed, what it cost, and how often you had to correct it usually disappears with the session. Governance kit pins that record to the issue as a receipt in git, where the next reviewer, human or agent, can use it.
+Governance Kit turns repeated corrections into **repo-native invariants**. It calls that set of invariants a **constitution**: `CONSTITUTION.md` is the readable policy, while each directive carries the rationale and executable check beside it. Hooks and CI run those checks on every commit.
 
-Examples of what the repo carries once agents do real work:
+It also keeps an audit trail. **Receipts** record what changed, what was tested, what it cost, and how often a human had to steer the agent. Reviewers and future agents can read that record without needing the old chat transcript.
+
+Once agents do real work, the repo can carry rules like:
 
 - catch boundary drift before anyone debates code quality
-- stop a "small fix" from turning into a rewrite or a duplicate abstraction
-- make receipts say what changed, what was tested, and what risk remains
-- record token cost and human steering in git, not in a chat transcript
+- stop a small fix from becoming a rewrite
+- require receipts to name changed behavior, verification, and risk
+- record token cost and human steering in git
 
-Prompts steer one session, and only by filling its context window. Governance kit makes the repo — not the prompt — carry the rule, the rationale, the executable check, and the audit trail, so the agent spends its context on the task. The next agent doesn't need the old transcript or a swollen rulebook; the one constraint it's about to break arrives as a failing check, reason attached, exactly when it's relevant.
+## How does the loop work?
+
+The repo carries the durable instruction. The agent reconciles reality against it.
 
 ```mermaid
 flowchart LR
@@ -81,32 +85,9 @@ flowchart LR
     class R record
 ```
 
-This is the [harness-engineering](https://openai.com/index/harness-engineering/) move: coherence comes from executable rails around the agent, not from ever-larger instruction blobs. Governance kit packages that stance for ordinary repositories, then adds versioned packs and git-native receipts so developers can share, pin, review, and evolve those rails.
+This is the [harness-engineering](https://openai.com/index/harness-engineering/) move: coherence comes from executable rails around the agent, not ever-larger instruction blobs. Governance Kit packages that stance for ordinary repos, then adds versioned packs and git-native receipts so teams can share, pin, review, and evolve those rails.
 
-Governance kit installs into [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), Cursor, OpenCode, and other Agent Skills-compatible runtimes via [`npx skills`](https://github.com/vercel-labs/skills). The installed skill is only the thin entry point; the repo pins the kit and pack versions that actually run, so different agents in the same project hit the same rules.
-
-## How strict a rule can be
-
-The key power is the depth of invariants you can express. Start with deterministic checks; escalate only when the rule genuinely needs context or judgment.
-
-| Depth | What the user can say | How it runs |
-|---|---|---|
-| **Repo state** | "Every repo needs a README, license, security contact, and architecture note." | Cheap `check.sh` over the tree, run locally and in CI. |
-| **Change set** | "A CI config change needs a reason in the commit." "A receipt for issue #42 must mention the files this PR actually changed." | Diff-aware hooks plus CI's merge-base walk. |
-| **Ledger** | "For each agent-authored change, show the issue, receipt, token cost, and human steering count." | Receipt accounting rows, cross-checked by directives. |
-| **Sub-agent attestation** | "Before merging a cross-layer refactor, have a fresh reader compare the diff to the architecture map." | Hook fails with a fresh-context sub-agent prompt; agent records a PASS/REFUTED section; hook verifies presence. |
-
-The failures that hurt are rarely mechanical ("forgot the formatter") — they're semantic, and no single enforcement style catches both. Governance kit matches each rule to a surface: cheap deterministic checks for the mechanical, [fresh-context attestation](kit/references/SUBAGENT_ATTESTATION.md) for the judgment calls.
-
-## What you get
-
-- **Cost transparency** - token spend and human steering can be recorded in the issue receipt, so expensive turns and repeated corrections become visible review data — the [audit chain](https://duaility.github.io/governance-kit/concepts/audit-chain).
-- **Executable constitution** - `CONSTITUTION.md` is readable policy, but every directive has executable enforcement beside it.
-- **Agent-readable failures** - violations name the rule, the specific gap, and the rationale, so the next agent turn has useful context.
-- **Honest semantic checks** - some rules need judgment; instead of pretending grep is enough, a failing check records a fresh-context sub-agent verdict ([sub-agent attestations](kit/references/SUBAGENT_ATTESTATION.md)).
-- **Custom governance packs** - teams can publish `acme/backend`, `acme/soc2`, or `duaility/governance-kit` packs and pin them per repo.
-
-## Install in 60 seconds
+## How do you install it in 60 seconds?
 
 ```sh
 # 1 — install the skill into every skills-compatible agent on your machine
@@ -127,9 +108,45 @@ git commit -m "stuff"
 
 The agent reads the directive id + rationale and self-corrects on the next attempt. The rule is no longer a reminder you have to paste into every new session.
 
-What you installed is a thin shim — two files. The kit itself (rules, packs, templates, every other verb) is fetched from the released `kit/vX.Y.Z` tag and pinned per repo. See [Commands you will use](#commands-you-will-use).
+What you installed is a thin shim — two files. The kit itself (rules, packs, templates, every other verb) is fetched from the released `kit/vX.Y.Z` tag and pinned per repo. See [Commands you will use](#which-commands-will-you-use).
 
-## What ships with it
+The skill installs into [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), Cursor, OpenCode, and other Agent Skills-compatible runtimes via [`npx skills`](https://github.com/vercel-labs/skills). Because each repo pins the kit and pack versions that actually run, every agent in the project hits the same constitution.
+
+## Where should you read next?
+
+Use the published site for learning and the kit references for exact behavior. The reference pages on the site are generated from `kit/references/*.md`, so the kit reference remains the source of truth.
+
+| Need | Start here |
+|---|---|
+| Install and see the first gate fire | [Quickstart](https://duaility.github.io/governance-kit/guide/quickstart) |
+| Understand the model | [Introduction](https://duaility.github.io/governance-kit/guide/introduction), [mental models](https://duaility.github.io/governance-kit/guide/mental-models), [constitution](https://duaility.github.io/governance-kit/concepts/constitution) |
+| Operate an installed repo | [Configuration](https://duaility.github.io/governance-kit/guide/configuration), [troubleshooting](https://duaility.github.io/governance-kit/guide/troubleshooting), [verbs](kit/references/VERBS.md) |
+| Pick or audit directives | [Directive catalog](kit/references/DIRECTIVES_CATALOG.md), [audit chain](https://duaility.github.io/governance-kit/concepts/audit-chain) |
+| Write your own governance | [Directive authoring](kit/references/DIRECTIVE_AUTHORING.md), [pack authoring](kit/references/PACK_AUTHORING.md) |
+| Integrate with existing hooks or test runners | [Native tests](kit/references/NATIVE_TESTS.md) |
+
+## How strict can a rule be?
+
+The key power is the depth of invariants you can express. Start with deterministic checks; escalate only when the rule genuinely needs context or judgment.
+
+| Depth | What the user can say | How it runs |
+|---|---|---|
+| **Repo state** | "Every repo needs a README, license, security contact, and architecture note." | Cheap `check.sh` over the tree, run locally and in CI. |
+| **Change set** | "A CI config change needs a reason in the commit." "A receipt for issue #42 must mention the files this PR actually changed." | Diff-aware hooks plus CI's merge-base walk. |
+| **Ledger** | "For each agent-authored change, show the issue, receipt, token cost, and human steering count." | Receipt accounting rows, cross-checked by directives. |
+| **Sub-agent attestation** | "Before merging a cross-layer refactor, have a fresh reader compare the diff to the architecture map." | Hook fails with a fresh-context sub-agent prompt; agent records a PASS/REFUTED section; hook verifies presence. |
+
+The failures that hurt are rarely mechanical ("forgot the formatter") — they're semantic, and no single enforcement style catches both. Governance kit matches each rule to a surface: cheap deterministic checks for the mechanical, [fresh-context attestation](kit/references/SUBAGENT_ATTESTATION.md) for the judgment calls.
+
+## What do you get?
+
+- **Executable constitution** - `CONSTITUTION.md` is readable policy, and every directive has enforcement beside it.
+- **Agent-readable failures** - violations name the rule, the gap, and the rationale, so the next agent turn has useful context.
+- **Cost transparency** - token spend and human steering can be recorded in issue receipts, making expensive turns and repeated corrections visible review data.
+- **Judgment where needed** - semantic rules can require fresh-context sub-agent attestations instead of pretending grep is enough.
+- **Versioned governance packs** - teams can publish and pin reusable packs such as `acme/backend`, `acme/soc2`, or `duaility/governance-kit`.
+
+## What ships with it?
 
 Three concern packs ship in-tree and install with `governance init` at your chosen preset (`minimal` / `standard` / `strict`):
 
@@ -144,7 +161,7 @@ Full catalog: [DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md). The
 <details>
 <summary><b>Every directive, with presets</b></summary>
 
-### General-purpose directives
+### Which general-purpose directives ship?
 
 | Pack | Directive | What it enforces | Preset |
 |---|---|---|---|
@@ -156,7 +173,7 @@ Full catalog: [DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md). The
 | `commits` | `no-orphan-todos` | Every `TODO` / `FIXME` references an issue. | strict |
 | `commits` | `no-unjustified-suppressions` | Every lint / type-checker suppression (`@ts-ignore`, `# noqa`, …) references an issue. | strict |
 
-### The audit chain
+### What does the audit chain enforce?
 
 | Pack | Directive | What it enforces | Preset |
 |---|---|---|---|
@@ -171,7 +188,7 @@ Full catalog: [DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md). The
 
 </details>
 
-## Packs
+## What are packs?
 
 A pack is a versioned bundle of invariants. Each directive is a self-contained folder — metadata, executable check, constitution text, defaults, helper code, and pass/fail evals — so installing a pack hands the target repo the rule, the rationale, the hook wiring, and the lockfile pin together. The mechanics (folder anatomy, the install → lockfile → vendored-code → hooks flow) live in [PACK_AUTHORING.md](kit/references/PACK_AUTHORING.md).
 
@@ -184,7 +201,7 @@ Bundled packs cover foundation, commits, and the agent audit chain. Custom packs
 | `acme/migration-2026` | "No new writes hit the legacy store." "Fallback paths are deleted, not hidden behind flags." |
 | `acme/mobile` | "User-visible copy changes update localization receipts." "Feature-flag removals clean up both client and server paths." |
 
-## This repo uses it
+## Does this repo use it?
 
 - **17 synchronous directive checks gate this repo** — the same packs `governance init` installs, plus a repo-local pack
 - **It dogfoods semantic invariants** — `ARCHITECTURE.md` is itself gated by an architecture-map directive, and every PR receipt now carries fresh-context attestations such as `## Audit` and `## Layer boundaries`
@@ -193,7 +210,7 @@ Bundled packs cover foundation, commits, and the agent audit chain. Custom packs
 
 Reproduce: clone this repo and run `bash .governance/run.sh`. The dogfood setup: [AGENTS.md](AGENTS.md).
 
-## Use it from any agent
+## Can you use it from any agent?
 
 | Runtime | `npx skills add` | Notes |
 |---|:---:|---|
@@ -205,7 +222,7 @@ Reproduce: clone this repo and run `bash .governance/run.sh`. The dogfood setup:
 
 The skill itself is a two-file shim; every verb executes from the kit version the target repo pins — so every runtime drives identical behavior, and updating the kit never requires reinstalling the skill.
 
-## When it fits
+## When does it fit?
 
 **Great fit if you…**
 
@@ -237,7 +254,7 @@ The skill itself is a two-file shim; every verb executes from the kit version th
 
 </details>
 
-## Commands you will use
+## Which commands will you use?
 
 ```
 governance init                                        # bootstrap a repo
@@ -278,24 +295,7 @@ Edits in the clone flow to every linked runtime live — handy when contributing
 
 </details>
 
-## Read the docs
-
-Use the site when you're learning the tool. Use `kit/references/` when you're changing behavior or need the exact contract the kit follows.
-
-**[Full documentation site](https://duaility.github.io/governance-kit)** — start here if you're installing governance kit or explaining it to a team: [introduction](https://duaility.github.io/governance-kit/guide/introduction), [quickstart](https://duaility.github.io/governance-kit/guide/quickstart), [installation](https://duaility.github.io/governance-kit/guide/installation), [mental models](https://duaility.github.io/governance-kit/guide/mental-models), [troubleshooting](https://duaility.github.io/governance-kit/guide/troubleshooting), and the concept guides — [the audit chain](https://duaility.github.io/governance-kit/concepts/audit-chain), [packs](https://duaility.github.io/governance-kit/concepts/packs), [versioning](https://duaility.github.io/governance-kit/concepts/versioning), [the constitution](https://duaility.github.io/governance-kit/concepts/constitution), [runtime](https://duaility.github.io/governance-kit/concepts/runtime), [limitations](https://duaility.github.io/governance-kit/concepts/limitations).
-
-**Spec and contributor reference** — `kit/references/` is versioned with the kit and is the contract the agent executes at run time. If the site and a reference file disagree, trust the reference file.
-
-| Reference | |
-|---|---|
-| [Verb reference](kit/references/VERBS.md) — per-verb behavior | [Philosophy](kit/references/PHILOSOPHY.md) — the stance behind GDD |
-| [Directives catalog](kit/references/DIRECTIVES_CATALOG.md) — every ready-made check | [Versioning policy](kit/references/VERSIONING.md) — two semver axes, tag scheme |
-| [Directive authoring](kit/references/DIRECTIVE_AUTHORING.md) · [amend flow](kit/references/DIRECTIVE_AMEND_FLOW.md) | [Release flow](kit/references/RELEASE_FLOW.md) — how releases are cut |
-| [Pack authoring](kit/references/PACK_AUTHORING.md) — write your own pack | [Sub-agent attestations](kit/references/SUBAGENT_ATTESTATION.md) · [sweep lane](kit/references/SWEEP_FLOW.md) |
-| [Native tests](kit/references/NATIVE_TESTS.md) — port checks to pytest / jest / husky | [Install schema](kit/references/INSTALL_SCHEMA.md) · [lock schema](kit/references/LOCK_SCHEMA.md) |
-| [AGENTS.md](AGENTS.md) — working in this repo | |
-
-## How it compares
+## How does it compare?
 
 |  | Governs | Blocks a bad commit | Rationale travels with the rule | Agent audit trail |
 |---|---|:---:|:---:|:---:|
@@ -306,7 +306,7 @@ Use the site when you're learning the tool. Use `kit/references/` when you're ch
 
 > **Complements, not competitors.** If you're spec-driving features for an agent to implement, spec-kit is the right fit — governance kit is the layer above, keeping the rules your agent must satisfy on every commit from drifting out of sync with the code, the tests, or each other. And every `check.sh` is plain bash: drop them into pre-commit or husky directly if you only want the enforcement half ([NATIVE_TESTS.md](kit/references/NATIVE_TESTS.md)).
 
-## Contributing
+## How do you contribute?
 
 ```sh
 git clone https://github.com/Duaility/governance-kit && cd governance-kit
@@ -318,11 +318,11 @@ Skipping the `core.hooksPath` line only costs you local fast-feedback; CI still 
 
 Repo layout, adding directives, and the dogfooding setup: [AGENTS.md](AGENTS.md). Releasing (maintainers): version lines are written only by [`scripts/release.sh`](scripts/release.sh) in `chore(release)` commits — full procedure in [RELEASE_FLOW.md](kit/references/RELEASE_FLOW.md).
 
-## Community
+## Where is the community?
 
 - **[Issues](https://github.com/Duaility/governance-kit/issues)** — bugs and proposals; blank issues are off, and the templates carry the agent-handoff fields the audit chain expects
 - **[Community pack catalog](kit/assets/catalog.community.json)** — the advisory index `governance pack search` reads; currently empty, PRs welcome
 
-## License
+## What is the license?
 
 MIT — see [LICENSE](LICENSE).
