@@ -55,8 +55,8 @@ claude
 
 | Preset | What you get |
 |---|---|
-| `minimal` | Foundation + doc links: required docs, repo hygiene, managed-tree integrity, resolving internal links. |
-| `standard` | `minimal` + commit discipline, kit-version sync, doc freshness, and the full [agent audit chain](/concepts/audit-chain): receipts, issue anchors, token and steering accounting, doc integrity. |
+| `minimal` | Foundation only: required docs, repo hygiene, managed-tree integrity, resolving internal links. |
+| `standard` | `minimal` + Conventional-Commit message format + the full [agent audit chain](/concepts/audit-chain): receipts, issue anchors, token and steering accounting, doc integrity, toolchain-config protection. |
 | `strict` | `standard` + TODO and suppression discipline. |
 
 `standard` is the intended default for agent-heavy repos — it is the preset that turns on the issue → receipt → commit → cost chain.

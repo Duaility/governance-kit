@@ -9,13 +9,15 @@ Governance Kit is a toolkit for **governance-driven development (GDD)**: a workf
 
 It installs as an [Agent Skill](https://agentskills.io) into Claude Code, Codex, Cursor, and 40+ skills-compatible runtimes. One skill, one entry point: the `governance` verb surface.
 
-## The problem it solves
+## What problem does it solve?
 
-Coding agents author most of the changes now. That shifts the hard problem: it is no longer "tell one agent what to do in one session" — it is **keeping the repository understandable across many branches, many agents, and many handoffs**. OpenAI's [harness engineering](https://openai.com/index/harness-engineering/) article names this failure set from running an agent-first codebase: instruction files that "rot instantly", agents that replicate uneven patterns until the codebase drifts, knowledge trapped in chat threads, and human QA capacity becoming the bottleneck.
+Coding agents often complete the task in a way that is locally fine and globally wrong. They land features through the wrong layer, revive patterns you retired, widen a boundary you wanted held, or half-follow `AGENTS.md` and miss the constraint that mattered. The objective passes; the repo drifts. The next agent has no memory of the correction, so you give it again.
+
+Adding more prompt is the obvious fix, and it does not scale: instruction files grow, context gets crowded, and the rule still only reaches the current session. OpenAI's [harness-engineering](https://openai.com/index/harness-engineering/) write-up names the same failure set from running an agent-first codebase — instruction files that "rot instantly", agents that replicate uneven patterns until the codebase drifts, knowledge trapped in chat threads, and human QA capacity becoming the bottleneck.
 
 Two things stop scaling at agent throughput:
 
-1. **Steering.** Your guidance has to reach the *next* agent, on the *next* branch, without you in the room. Per-turn prompting does not compose — the next agent cannot read your last conversation.
+1. **Steering.** Your guidance has to reach the *next* agent, on the *next* branch, without you in the room. Per-turn prompting doesn't compose — the next agent can't read your last conversation.
 2. **Visibility.** When agents ship the diffs, you need a readable trail, not a stack of PRs and ephemeral chat transcripts.
 
 Governance Kit answers both with repo-native artifacts:
@@ -23,20 +25,35 @@ Governance Kit answers both with repo-native artifacts:
 - **A constitution** — `CONSTITUTION.md`, a versioned set of directives every agent reads and every commit is checked against.
 - **Receipts and ledgers** — per-issue receipts (with cost and steering accounting) and the `QUALITY.md` board, recording what agents were told, what they did, and what it cost.
 
-## The stance in one line
+## How does the loop work?
+
+The repo carries the durable instruction; the agent reconciles reality against it.
 
 > Describe the state, continuously check reality, and let agents reconcile the difference.
 
-This is declarative reconciliation — the Kubernetes/Terraform model — applied to a repository:
+A failed check is not a scolding — it is a *gap report*. It names the directive, the offending file and line, and the rationale, and a frontier-model agent reading that rationale generalizes to cases the rule's author never encoded. This is the [harness-engineering](https://openai.com/index/harness-engineering/) move: coherence comes from executable rails around the agent, not ever-larger instruction blobs.
+
+Under the hood it is declarative reconciliation — the model Kubernetes and Terraform use, applied to a repository:
 
 | | In Governance Kit |
 |---|---|
 | **Desired state** | `CONSTITUTION.md` — directives, rationale, exceptions, evolution log |
-| **Current state** | The working tree, staged diff, commit message, receipts |
+| **Current state** | the working tree, staged diff, commit message, receipts |
 | **Controller** | `.governance/run.sh` + git hook dispatchers + CI |
-| **Reconciler** | The agent — reads the gap and its rationale, fixes the repo, re-runs |
+| **Reconciler** | the agent — reads the gap and its rationale, fixes the repo, re-runs |
 
-A failed check is not a scolding; it is a *gap report*. It names the directive, the offending file and line, and the rationale. A frontier-model agent reading that rationale generalizes to cases the rule's author never encoded.
+## How deep can a rule go?
+
+The real power is the depth of invariant you can express. Start with deterministic checks; escalate only when the rule genuinely needs context or judgment. One rule layer carries all four depths:
+
+| Depth | What you can say | How it runs |
+|---|---|---|
+| **Repo state** | "Every repo needs a README, a license, a security contact, an architecture note." | Cheap `check.sh` over the tree, locally and in CI. |
+| **Change set** | "A CI-config change needs a reason in the commit." "A receipt for issue #42 must name the files this PR changed." | Diff-aware hooks plus CI's merge-base walk. |
+| **Ledger** | "For each agent-authored change, show the issue, receipt, token cost, and steering count." | Receipt accounting rows, cross-checked by directives. |
+| **Sub-agent attestation** | "Before merging a cross-layer refactor, have a fresh reader compare the diff to the architecture map." | The hook fails with a fresh-context sub-agent prompt; the agent records a PASS/REFUTED section; the hook verifies it is there. |
+
+The failures that hurt are rarely mechanical ("forgot the formatter") — they're semantic, and no single enforcement style catches both. Governance Kit matches each rule to a surface: cheap deterministic checks for the mechanical, [fresh-context attestation](https://github.com/Duaility/governance-kit/blob/main/kit/references/SUBAGENT_ATTESTATION.md) for the judgment calls.
 
 ## What a directive looks like
 

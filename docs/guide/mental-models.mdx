@@ -5,7 +5,7 @@ summary: 'The handful of ideas everything in Governance Kit follows from — rec
 
 # Mental models
 
-Everything in Governance Kit follows from a handful of ideas. If you internalize this page, the rest of the docs are details.
+Everything in Governance Kit follows from a handful of ideas. Get these and the rest of the docs are detail. They all serve one stance: coherence comes from executable rails around the agent, not ever-larger instruction blobs — the [harness-engineering](https://openai.com/index/harness-engineering/) move.
 
 ## 1. The repo is a reconciliation loop
 
@@ -35,34 +35,10 @@ Don't chain actions; describe state and let re-evaluation converge.
 
 Governance Kit is three layers, and the analogy to a language toolchain manager carries almost all the way:
 
-```mermaid
-flowchart TB
-    S["<b>governance skill — the installer</b><br/>install · update · uninstall"]
-    K["<b>the kit — kit/vX.Y.Z — the product</b><br/>engines · flows · templates · every verb"]
-    P["<b>packs — pack/vX.Y.Z — the content</b><br/>directive code, lock-pinned"]
-    PIN["<b>the repo decides its versions</b><br/>install.yaml pins the kit · packs.lock pins the packs · the skill honors the pin"]
-    RU["≈ rustup<br/>the version manager"]
-    TC["≈ the toolchain<br/>compiler · libs · tools"]
-    LF["≈ the lockfile<br/>pinned dependencies"]
-
-    S -->|"installs · updates"| K
-    K -->|"consumes"| P
-    P ~~~ PIN
-    S -.- RU
-    K -.- TC
-    P -.- LF
-
-    classDef installer fill:#4938a8,stroke:#4938a8,color:#ffffff
-    classDef product fill:#0c7a52,stroke:#0c7a52,color:#ffffff
-    classDef content fill:#9c3a1d,stroke:#9c3a1d,color:#ffffff
-    classDef analogy fill:#44443e,stroke:#44443e,color:#e8e8e3
-    classDef pin fill:#0d4f86,stroke:#0d4f86,color:#ffffff
-    class S installer
-    class K product
-    class P content
-    class RU,TC,LF analogy
-    class PIN pin
-```
+<Frame caption="The governance skill installs the kit, the kit consumes packs, and the repo pins every version — a language-toolchain manager (rustup · toolchain · lockfile) for governance.">
+  <img className="block dark:hidden" src="/assets/lifecycle-light.svg" alt="Governance lifecycle as a language-toolchain model: the governance skill is the installer (like rustup), the kit is the product (like the toolchain), packs are the content (like the lockfile), and the repo pins every version via install.yaml and packs.lock" />
+  <img className="hidden dark:block" src="/assets/lifecycle-dark.svg" alt="Governance lifecycle as a language-toolchain model: the governance skill is the installer (like rustup), the kit is the product (like the toolchain), packs are the content (like the lockfile), and the repo pins every version via install.yaml and packs.lock" />
+</Frame>
 
 The skill is a two-file shim that fetches and honors pins; the kit is the versioned product every verb executes from; packs are the directive content the kit consumes. Each layer versions independently, and the *repo* — not the installer — decides which versions it runs. See [Versioning & releases](/concepts/versioning).
 
