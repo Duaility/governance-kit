@@ -131,6 +131,8 @@ require_git
 directive_end
 ```
 
+The snippet above shows only the lifecycle trio. `lib.sh` ships 14 author-facing helpers in all — file iteration (`tracked_files`), per-line and whole-file waivers (`has_waiver`, `has_file_waiver`), sub-agent attestation (`require_attestation` and friends, for correspondence-to-reality checks), and configuration (`conf_get`, `conf_list`, …). The **[helper API reference](LIB_API.md)** is the canonical list — every signature and the kit version each landed in. Call a shipped helper before hand-rolling its logic.
+
 - The directive id in `directive_start` must match the folder name.
 - Exit status is owned by `lib.sh`; do not call `exit` manually.
 - Prefer `git grep -InE` with pathspec excludes over `find | xargs grep` — it skips binaries, respects `.gitignore`, and is portable.
@@ -217,6 +219,8 @@ Re-running bootstrap is idempotent: marked hooks get overwritten silently, direc
 ## Versioning
 
 Bump `version` in `pack.yaml` whenever directive semantics, ids, or the preset graph change. The hook marker only says the file is managed/regeneratable; the installed pack/directive details live in `.governance/packs.lock`. `min_governance_kit` guards against installing into an older bootstrap skill than the pack was built for.
+
+**Floor `min_governance_kit` at the newest `lib.sh` helper any directive calls.** The helpers live in kit-owned `lib.sh`, so a directive that calls one is only correct on a kit new enough to define it. Read each helper's landed-in version from the **Since** column of the [helper API reference](LIB_API.md#version-floor-obligation) and set `min_governance_kit` to the highest one your pack uses. This is harmless to ignore for the kit's own bundled packs (the dogfood always runs the latest kit) but a **silent breakage for a community pack** shipped to arbitrary kit versions: e.g. a directive calling `require_attestation` (kit `0.9`) while flooring at `0.5` installs cleanly into a `0.5`–`0.8` kit, then fails at commit time with `require_attestation: command not found`. The `governance-kit/audit` pack floors at `0.9.0` for exactly this reason.
 
 ## Testing a pack
 

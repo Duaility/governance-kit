@@ -60,7 +60,9 @@ the author≠auditor split happening at author-time instead of at merge.
 
 ## The helpers (in `lib.sh`)
 
-Any directive's `check.sh` can source `lib.sh` and call:
+These three sit alongside the rest of the `lib.sh` surface catalogued in the
+[helper API reference](LIB_API.md) (with the kit version each landed in). Any
+directive's `check.sh` can source `lib.sh` and call:
 
 - **`extract_md_section <file> <heading>`** — print the body of the
   `## <heading>` section (case-insensitive), stopping at the next `## `. The
@@ -106,6 +108,8 @@ must declare a `min_governance_kit` floor at the kit version that ships them —
 
 ## See also
 
+- [LIB_API.md](LIB_API.md) — the full `lib.sh` helper surface these three
+  belong to, with signatures and landed-in versions.
 - [SWEEP_FLOW.md](SWEEP_FLOW.md) — the off-path LLM-judge lane that re-derives
   recorded verdicts at merge (the deferred "adjudicate" half).
 - [DIRECTIVE_AUTHORING.md](DIRECTIVE_AUTHORING.md) — patterns for writing checks.

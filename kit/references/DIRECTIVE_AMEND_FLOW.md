@@ -114,6 +114,8 @@ The script must:
 - On every violation: call `violation "<file>:<line> — <specific-message>"`. A directive without a location in the message is less useful — always include one if the check is per-file or per-line.
 - Honor in-source waivers via `has_waiver "$file" "$line_no" "<directive-name>"` wherever violations are line-level, *unless* the user explicitly said no exceptions.
 
+`lib.sh` ships more than the lifecycle trio — file iteration (`tracked_files`), whole-file waivers (`has_file_waiver`), sub-agent attestation (`require_attestation`), and config (`conf_get` / `conf_list`). Before hand-rolling any of those, consult the [helper API reference](LIB_API.md) for the canonical signatures and the kit version each landed in. For the craft of a good check (patterns by directive class, anti-patterns), see [DIRECTIVE_AUTHORING.md](DIRECTIVE_AUTHORING.md); when the amendment scaffolds a brand-new repo-local pack (the row below), [PACK_AUTHORING.md](PACK_AUTHORING.md) covers the pack-level contract — `pack.yaml`, presets, capabilities, and `min_governance_kit`.
+
 Choose the inspection surface to match the intent map:
 - `repo-state` directives inspect the tracked tree at rest (`git ls-files`, `git grep`, known paths).
 - `change-set obligation` directives inspect the staged diff locally and the branch diff in CI. Do not collapse these into existence checks just because existence checks are easier to write.
@@ -252,3 +254,5 @@ Every successful `directive *` run should include:
 - [`../assets/amend/directive.template.sh`](../assets/amend/directive.template.sh) — the starter shape for a new directive script.
 - [`../assets/amend/directive-section.template.md`](../assets/amend/directive-section.template.md) — the shape for the Directives subsection.
 - [DIRECTIVE_AUTHORING.md](DIRECTIVE_AUTHORING.md) — patterns and anti-patterns for writing good governance checks.
+- [LIB_API.md](LIB_API.md) — the `lib.sh` helper surface every `check.sh` can call (and the version-floor obligation).
+- [PACK_AUTHORING.md](PACK_AUTHORING.md) — the pack-level contract, for amendments that scaffold a new repo-local pack.

@@ -1,4 +1,4 @@
-<!-- last-verified: 2026-06-15 -->
+<!-- last-verified: 2026-06-17 -->
 
 # governance pack * — verb flows
 
@@ -96,9 +96,13 @@ Scaffolds an empty repo-local pack at `.governance/packs/<repo-owner>/<name>/` f
 
 1. **Pre-flight.** Refuse if `.governance/install.yaml` is absent (run `governance init` first), if a pack already exists at the target path, or if `<name>` is not a slug-safe lowercase token (`^[a-z0-9][a-z0-9._-]*$`).
 2. **Resolve the target path.** Read the manifest's `owner:`. Compute the install path `.governance/packs/<owner>/<name>/`.
-3. **Scaffold.** Create the directory and write a minimal `pack.yaml`:
+3. **Scaffold.** Create the directory and write a minimal `pack.yaml`, led by a pointer comment so an author who never opened the docs still lands on them:
 
    ```yaml
+   # Authoring guide: kit/references/PACK_AUTHORING.md (layout, directive.yaml
+   # schema, presets, capabilities, replaces/homonyms, the eval mandate).
+   # lib.sh helpers available to every check.sh: kit/references/LIB_API.md
+   # (set min_governance_kit to the newest helper your directives use).
    id: <owner>/<name>
    name: <human-readable name>
    version: "0.1"
@@ -109,7 +113,7 @@ Scaffolds an empty repo-local pack at `.governance/packs/<repo-owner>/<name>/` f
 
    No `source:` field — that is the marker that distinguishes a repo-local pack from an installed one. Also create an empty `directives/` subdirectory.
 
-4. **Report.** Tell the user the pack is empty and that `governance directive add --pack <owner>/<name> <id>` is the next step.
+4. **Report.** Tell the user the pack is empty and that `governance directive add --pack <owner>/<name> <id>` is the next step. Point them at the authoring references for the full contract before they write a directive: [PACK_AUTHORING.md](PACK_AUTHORING.md) (pack-level schema, presets, capabilities, eval mandate), [DIRECTIVE_AUTHORING.md](DIRECTIVE_AUTHORING.md) (writing a good check), and [LIB_API.md](LIB_API.md) (the `lib.sh` helper surface).
 
 `pack create` does **not** edit `.governance/install.yaml` or `.governance/packs.lock` or any hook scripts — the pack has no directives yet, so nothing to register or wire. The first `directive add --pack <owner>/<name>` is the step that adds the pack entry to `packs.lock` (with `source: local`) and regenerates hooks.
 
