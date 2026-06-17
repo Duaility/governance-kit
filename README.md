@@ -36,15 +36,15 @@
 
 ## The core idea
 
-If you use coding agents heavily, you know the real failure mode. The agent doesn't fail the task — it completes it, in a way that's locally fine and globally wrong.
+If you use coding agents heavily, you know the real failure mode: the agent completes the task, but in a way that's locally fine and globally wrong.
 
-It lands the feature but routes the logic through the wrong layer, reinvents a pattern you already have, or widens a boundary you wanted held. The objective passes; the architecture drifts. It half-follows the constraints you wrote into `AGENTS.md` or `CLAUDE.md`, missing the ones that matter or optimizing for the wrong ones. And the next agent on the branch has no memory of the correction you gave the last, so you give it again.
+It lands the feature through the wrong layer, reinvents a pattern you already have, or widens a boundary you wanted held. The objective passes; the architecture drifts. It half-follows `AGENTS.md` or `CLAUDE.md`, missing the constraint that mattered. The next agent has no memory of the correction, so you give it again.
 
-The obvious fix is to write the rule into the instruction file so it sticks. But that file only grows, and a wall of instructions crowds out the task, the code, and the docs the agent needs in context. More instructions buy less control.
+The obvious fix is to add another instruction. But instruction files only grow, crowding out the task, the code, and the docs the agent needs in context. More prompt does not reliably buy more control.
 
-Governance kit turns those repeated corrections into **repo-native invariants**. The rules stop living in your head, your prompt, or one agent's context window. They live in git, next to the code, with executable checks that run on every commit.
+Governance kit turns repeated corrections into **repo-native invariants**. The rules stop living in your head, your prompt, or one agent's context window. They live in git, next to the code, with executable checks that run on every commit.
 
-Invariants keep the work coherent; **receipts** keep it accountable. When an agent finishes, what it changed, what it cost, and how often you had to correct it normally disappears when the session ends — so governance kit pins that record to the issue as a receipt in git, where the next reviewer, human or agent, can actually use it.
+Invariants keep the work coherent; **receipts** keep it accountable. When an agent finishes, what it changed, what it cost, and how often you had to correct it usually disappears with the session. Governance kit pins that record to the issue as a receipt in git, where the next reviewer, human or agent, can use it.
 
 Examples of what the repo carries once agents do real work:
 
@@ -61,7 +61,7 @@ flowchart LR
     P["Pack captures it<br/>directive + rationale + evals"]
     G{"Git hook / CI"}
     A["Agent repairs the repo<br/>using the failure as instruction"]
-    R["Repo carries the durable record<br/>constitution + receipt + trailers"]
+    R["Repo carries the durable record<br/>constitution + receipts + accounting"]
 
     H --> P --> G
     G -- "fails with why" --> A
@@ -93,7 +93,7 @@ The key power is the depth of invariants you can express. Start with determinist
 |---|---|---|
 | **Repo state** | "Every repo needs a README, license, security contact, and architecture note." "Do not commit build output or merge markers." | Cheap `check.sh` over the tree, run locally and in CI. |
 | **Change set** | "A CI config change needs a reason in the commit." "A receipt for issue #42 must mention the files this PR actually changed." | Diff-aware hooks plus CI's merge-base walk. |
-| **Ledger** | "For each agent-authored commit, show the issue, receipt, token cost, and human steering count." | Git trailers and receipt accounting rows, cross-checked by directives. |
+| **Ledger** | "For each agent-authored change, show the issue, receipt, token cost, and human steering count." | Receipt accounting rows, cross-checked by directives. |
 | **Sub-agent attestation** | "Before merging a cross-layer refactor, have a fresh reader compare the diff to the architecture map." "Before accepting a receipt, have a fresh reader verify it matches the issue and diff." | Hook fails with a fresh-context sub-agent prompt; agent records a PASS/REFUTED section; hook verifies presence. |
 
 That range matters: the failures that hurt are rarely mechanical ("forgot the formatter") — they're semantic, and no single enforcement style catches both. Governance kit matches each rule to a surface — cheap deterministic checks for the mechanical, fresh-context attestation for the judgment calls.
@@ -289,7 +289,7 @@ Full catalog: [DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md).
 | `audit` | `issues-tracked` | `QUALITY.md` exists at repo root with `## Open` and `## Resolved` sections. | standard |
 | `audit` | `receipt-per-issue` | Every `receipts/*.md` has a unique `issue-<N>` filename token, required narrative/audit sections, and checked items that crosswalk into the receipt's evidence. | standard |
 | `audit` | `commit-issue-receipt-match` | Every non-merge commit adds or updates a `receipts/issue-<N>.md` — the touched receipt path is the commit's issue anchor (file-first). | standard |
-| `audit` | `agent-token-accounting` | Every agent commit's token cost lands as a row in the issue's receipt; a commit-time check reconciles the receipt's recorded cumulative against the transcript (no commit trailers). | standard |
+| `audit` | `agent-token-accounting` | Every agent commit's token cost lands as a row in the issue's receipt; a commit-time check reconciles the receipt's recorded cumulative against the runtime endpoint. | standard |
 | `audit` | `agent-steering-accounting` | Detected human-steering events (interrupts, corrections) are recorded in the issue's receipt; `check.sh` validates the ledger shape. **`always_install: true`** — records human correction text verbatim; redact via the directive's classifier hook rather than skipping it. | standard |
 | `audit` | `doc-integrity` | **`always_install: true`** — system-of-record documents are tamper-proof: receipts freeze once on the trunk, frozen sections (`QUALITY.md` Resolved, the Evolution Log) keep their baseline lines verbatim. Branch-authored content stays editable until it merges. | standard |
 | `audit` | `toolchain-config-protection` | A commit changing lint / format / type-check / CI / hook config carries a `governance: allow-toolchain-config <reason>` body line. | standard |
