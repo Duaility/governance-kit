@@ -51,8 +51,8 @@ Markdown section/table plumbing lives in sibling `receipt_io.py`; pricing in
                                                  + cumulative reconciliation/monotonicity
     find-by-cost-key <receipts_dir> <key>     → "<in> <cc> <cr> <out> <nw> <usd>"
     session-cum     <receipts_dir> <session>  → "<cum_in> <cum_cc> <cum_cr> <cum_out>"
-                                                 (recorded endpoint for the commit-
-                                                  time transcript reconciliation, #293)
+                                                 (query helper for the latest
+                                                  recorded receipt coordinate)
 """
 
 from __future__ import annotations
@@ -278,12 +278,10 @@ def session_cum(rows: list[LedgerRow], session: str) -> tuple[int, int, int, int
     greatest `cum_total` for `session`, or (0, 0, 0, 0) if the session has no
     v4 row.
 
-    This is the receipt-side endpoint the commit-time check reconciles against
-    the transcript's live cumulative counters. The trailer-free completeness
-    guarantee (issue #293): a ledger whose recorded cumulative lags the
-    transcript is the signature of an agent commit whose cost row was never
-    written. Because rows store absolute coordinates (not deltas), the latest
-    row's cumulative is the whole session's recorded total."""
+    This is a query helper for the latest receipt-side coordinate. Commit-time
+    endpoint reconciliation now verifies the staged row named by the frozen
+    endpoint file; because rows store absolute coordinates (not deltas), the
+    latest row's cumulative is still the whole session's recorded total."""
     best: LedgerRow | None = None
     for r in rows:
         if r.session != session or not r.has_cum:

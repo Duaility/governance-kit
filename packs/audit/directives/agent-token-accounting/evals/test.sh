@@ -20,6 +20,7 @@ git commit --quiet --no-verify -m "feat(governance): install directive (#1)"
 
 # Per-fixture helpers. Cost rows live in per-issue receipts (issue #201).
 LEDGER_PY="$PWD/.governance/packs/governance-kit/audit/directives/$EVAL_ID/lib/ledger.py"
+ENDPOINT_PY="$PWD/.governance/packs/governance-kit/audit/directives/$EVAL_ID/lib/endpoint.py"
 SESSION_ID="abcdef0123456789fixture"
 MODEL="claude-sonnet-4-5"
 
@@ -56,6 +57,15 @@ append_cum_row() {
         "$inp" "$cc" "$cr" "$out" "$ci" "$ccc" "$ccr" "$co" ""
 }
 
+write_endpoint_for_tree() {
+    # write_endpoint_for_tree <session> <cum-in> <cum-cc> <cum-cr> <cum-out> <receipt> <cost-key>
+    git add -A receipts
+    local tree endpoint
+    tree="$(git write-tree)"
+    endpoint="$(git rev-parse --git-path "governance-token-endpoints/${tree}.json")"
+    python3 "$ENDPOINT_PY" write "$endpoint" "$@"
+}
+
 reset_receipts() {
     rm -rf receipts
     git add -A receipts 2>/dev/null || true
@@ -74,9 +84,9 @@ clear_runtime() {
 }
 
 # ══════════════════════════════════════════════════════════════
-# Endpoint reconciliation (issue #293) — the trailer-free completeness check.
-# At commit time, with a runtime detected, the receipt's recorded cumulative
-# for the session must equal the transcript's live cumulative.
+# Endpoint reconciliation (issues #293, #305) — the trailer-free completeness
+# check. At commit time, with a runtime detected, the staged receipt row must
+# match the frozen endpoint that pre-commit wrote for this exact staged tree.
 # ══════════════════════════════════════════════════════════════
 ESES="endpoint-sess-293"
 
@@ -86,30 +96,32 @@ clear_runtime
 printf 'feat: human commit (#30)\n' > /tmp/msg-token-no-runtime
 EVAL_LABEL="$EVAL_ID no-runtime-no-op" expect_pass "$CHECK" /tmp/msg-token-no-runtime
 
-# ── Case 2 — pass: runtime cumulative matches the receipt's recorded cum ──
+# ── Case 2 — pass: receipt matches frozen endpoint even if live runtime moved ──
 reset_receipts
 append_cum_row ck-ep-1 "#30" "$ESES" 1000 0 0 500  1000 0 0 500
+write_endpoint_for_tree "$ESES" 1000 0 0 500 receipts/issue-30.md ck-ep-1
 printf 'feat: priced agent commit (#30)\n' > /tmp/msg-token-match
 export AGENT_NAME=eval-manual AGENT_SESSION_ID="$ESES" \
-       AGENT_CUM_INPUT=1000 AGENT_CUM_CACHE_CREATE=0 AGENT_CUM_CACHE_READ=0 AGENT_CUM_OUTPUT=500
-EVAL_LABEL="$EVAL_ID endpoint-matches" expect_pass "$CHECK" /tmp/msg-token-match
+       AGENT_CUM_INPUT=1200 AGENT_CUM_CACHE_CREATE=0 AGENT_CUM_CACHE_READ=300 AGENT_CUM_OUTPUT=550
+EVAL_LABEL="$EVAL_ID frozen-endpoint-survives-live-movement" expect_pass "$CHECK" /tmp/msg-token-match
 clear_runtime
 
-# ── Case 3 — fail: receipt lags the transcript (row never caught up) ──
+# ── Case 3 — fail: endpoint exists but staged receipt row does not match it ──
 reset_receipts
 append_cum_row ck-ep-2 "#31" "$ESES" 500 0 0 250  500 0 0 250
+write_endpoint_for_tree "$ESES" 1000 0 0 500 receipts/issue-31.md ck-ep-2
 printf 'feat: ledger lags (#31)\n' > /tmp/msg-token-lag
 export AGENT_NAME=eval-manual AGENT_SESSION_ID="$ESES" \
        AGENT_CUM_INPUT=1000 AGENT_CUM_CACHE_CREATE=0 AGENT_CUM_CACHE_READ=0 AGENT_CUM_OUTPUT=500
-EVAL_LABEL="$EVAL_ID endpoint-lags-fails" expect_fail "$CHECK" /tmp/msg-token-lag
+EVAL_LABEL="$EVAL_ID frozen-endpoint-mismatch-fails" expect_fail "$CHECK" /tmp/msg-token-lag
 clear_runtime
 
-# ── Case 4 — fail: runtime detected but no cost row at all for the session ──
+# ── Case 4 — fail: runtime detected but no frozen endpoint for staged tree ──
 reset_receipts
 printf 'feat: no row written (#32)\n' > /tmp/msg-token-norow
 export AGENT_NAME=eval-manual AGENT_SESSION_ID="$ESES" \
        AGENT_CUM_INPUT=1000 AGENT_CUM_CACHE_CREATE=0 AGENT_CUM_CACHE_READ=0 AGENT_CUM_OUTPUT=500
-EVAL_LABEL="$EVAL_ID endpoint-missing-row-fails" expect_fail "$CHECK" /tmp/msg-token-norow
+EVAL_LABEL="$EVAL_ID frozen-endpoint-missing-fails" expect_fail "$CHECK" /tmp/msg-token-norow
 clear_runtime
 
 # ── Case 5 — pass: a body waiver bypasses the endpoint check ──

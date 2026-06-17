@@ -9,17 +9,14 @@
 # copy of the receipt cost row stamped onto the commit, kept honest by a
 # bidirectional cross-check whose only consumer was the cross-check itself. The
 # receipt is the durable, doc-integrity-frozen ledger; completeness is now
-# proven by reading the transcript directly instead of a stamped copy:
+# proven by freezing the writer's sampled endpoint instead of stamping a copy:
 #
 #   Endpoint reconciliation (Mode A, commit time): when an agent runtime is
-#   detected, re-derive the session's cumulative token counters from the
-#   transcript and assert the receipt's recorded `cum-*` for that session
-#   equals it. Because cost rows store *absolute* coordinates, a ledger that
-#   lags the transcript is exactly the signature of a commit whose cost row was
-#   never written — the failure mode the mandatory `Agent:` trailer used to
-#   catch. The pre-commit hook writes the row (and advances the per-session
-#   checkpoint) just before this runs, so a clean commit reconciles by
-#   construction; a `--no-verify` / hook-skipped commit lags and fails here.
+#   detected, read the frozen endpoint keyed by the post-pre-commit staged tree
+#   and assert the staged receipt row for that endpoint's cost-key carries the
+#   same session cumulative coordinate. The pre-commit hook writes the row and
+#   then freezes the exact coordinate it sampled, so later transcript movement
+#   belongs to a later row instead of invalidating this commit.
 #
 # Receipt Costs sub-table format — v4, one row per agent-authored commit:
 #   | cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | cum-input | cum-cache-create | cum-cache-read | cum-output | note |
@@ -29,7 +26,7 @@
 # Modes:
 #   Mode A — commit-msg hook:  bash check.sh <path-to-msg-file>
 #       Runs the repo-wide receipt-shape check (below) then, when a runtime is
-#       detected, the endpoint reconciliation for the active session. Skips
+#       detected, the endpoint reconciliation for the staged tree. Skips
 #       revert commits. The endpoint check is *commit-time only* — running it
 #       off the commit path (e.g. a mid-session `run.sh`) would false-fail
 #       because the transcript legitimately leads the not-yet-committed work.
@@ -42,8 +39,8 @@
 #
 # Ledger parsing / append / queries live in sibling lib/ledger.py; receipt
 # validation in lib/validate.py; cumulative reconciliation + checkpoint in
-# lib/reconcile.py; pricing in lib/rates.py; runtime detection + transcript
-# cumulative in lib/runtime.sh (shared with hooks/pre-commit.sh).
+# lib/reconcile.py; pricing in lib/rates.py; runtime detection in
+# lib/runtime.sh; frozen endpoint I/O in lib/endpoint.py.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$(dirname "$0")/../../../../../lib.sh"
@@ -80,7 +77,7 @@ msg_has_waiver() {
 }
 
 # ──────────────────────────────────────────────────────────────
-# Mode A — commit-msg hook: endpoint reconciliation for the active session.
+# Mode A — commit-msg hook: endpoint reconciliation for the staged tree.
 # ──────────────────────────────────────────────────────────────
 if [[ $# -gt 0 ]]; then
     msg_file="$1"
@@ -112,14 +109,19 @@ if [[ $# -gt 0 ]]; then
         directive_end
     fi
 
-    # rc == 0: compare the receipt's recorded cumulative for this session
-    # against the transcript's live cumulative. Equality holds by construction
-    # once the pre-commit hook has written this commit's row.
-    read -r R_IN R_CC R_CR R_OUT < <(python3 "$LIB/ledger.py" session-cum "$RECEIPTS_DIR" "$SESSION_ID")
-    if [[ "$R_IN" != "$CUM_INPUT" || "$R_CC" != "$CUM_CACHE_CREATE" \
-       || "$R_CR" != "$CUM_CACHE_READ" || "$R_OUT" != "$CUM_OUTPUT" ]]; then
-        violation "pending commit — token ledger for session '${SESSION_ID:0:16}…' records cumulative (input=$R_IN cache_create=$R_CC cache_read=$R_CR output=$R_OUT) but the transcript is at (input=$CUM_INPUT cache_create=$CUM_CACHE_CREATE cache_read=$CUM_CACHE_READ output=$CUM_OUTPUT) — this commit's cost row was not written to its receipt. Commit through the runtime-aware pre-commit hook (a plain \`git commit\`, not --no-verify / SKIP_GOVERNANCE), or add a 'governance: allow-agent-token-accounting <reason>' waiver."
+    # rc == 0: an agent runtime is active, so pre-commit must have written a
+    # tree-keyed endpoint. Do not compare to the live CUM_* values here: the
+    # transcript may have legitimately advanced after pre-commit sampled it.
+    TREE_ID="$(git write-tree)"
+    ENDPOINT="$(git rev-parse --git-path "governance-token-endpoints/${TREE_ID}.json")"
+    if [[ ! -f "$ENDPOINT" ]]; then
+        violation "pending commit — agent runtime '$RUNTIME' detected but no frozen token endpoint exists for staged tree $TREE_ID; the pre-commit cost row was not verified. Commit through the runtime-aware pre-commit hook (a plain \`git commit\`, not --no-verify / SKIP_GOVERNANCE), or add a 'governance: allow-agent-token-accounting <reason>' waiver."
+        directive_end
     fi
+    while IFS= read -r v; do
+        [[ -z "$v" ]] && continue
+        violation "$v"
+    done < <(python3 "$LIB/endpoint.py" verify "$ENDPOINT" "$ROOT" || true)
     directive_end
 fi
 
