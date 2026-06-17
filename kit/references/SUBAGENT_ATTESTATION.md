@@ -102,9 +102,12 @@ historical corpus is grandfathered), exactly as `receipt-per-issue` scopes its
 ## Versioning note
 
 Because the helpers live in kit-owned `lib.sh`, a pack whose directive uses them
-must declare a `min_governance_kit` floor at the kit version that ships them —
-`require_attestation` landed on the kit's 0.9.0 source line (issue #272), so the
-`governance-kit/audit` pack floors at `0.9.0`. See [VERSIONING.md](VERSIONING.md).
+must declare a `min_governance_kit` floor at the kit version that **ships** them
+— the first-shipped tag, not the in-development source-line marker (which is one
+release lower and under-floors the pack). `require_attestation` was authored on
+the kit's 0.9.0 source line (issue #272) but first ships in `kit/v0.10.0`, so the
+`governance-kit/audit` pack floors at `0.10.0`. See [LIB_API.md](LIB_API.md#version-floor-obligation)
+and [VERSIONING.md](VERSIONING.md).
 
 ## See also
 
