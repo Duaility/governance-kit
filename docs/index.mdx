@@ -5,9 +5,9 @@ summary: 'The governance layer for AI coding agents — every rule ships with an
 
 # Governance Kit
 
-> **The governance layer for AI coding agents.**
+> **The governance layer for AI coding agents — give every agent the same repo memory.**
 
-Your repository's rules live in a versioned `CONSTITUTION.md`, every rule ships with an executable test, and agents — not humans — do the work of keeping the repo compliant. It installs as an [Agent Skill](https://agentskills.io) into Claude Code, Codex, Cursor, and 40+ skills-compatible runtimes — one skill, one entry point: the `governance` verb surface.
+Coding agents author most of the changes now, and each one starts cold. Your repository's rules live in a versioned `CONSTITUTION.md`, every rule ships with an executable test, and agents — not humans — do the work of keeping the repo compliant. The correction you make once reaches the next agent, on the next branch, without you re-teaching it. It installs as an [Agent Skill](https://agentskills.io) into Claude Code, Codex, Cursor, and 40+ skills-compatible runtimes — one skill, one entry point: the `governance` verb surface.
 
 <Columns cols={3}>
   <Card title="Quickstart" href="/guide/quickstart" icon="rocket">
@@ -21,22 +21,39 @@ Your repository's rules live in a versioned `CONSTITUTION.md`, every rule ships 
   </Card>
 </Columns>
 
-## How it works
+## How does it work?
 
 > Describe the state, continuously check reality, and let agents reconcile the difference.
 
-This is declarative reconciliation — the Kubernetes/Terraform model — applied to a repository:
+A human states the invariant once, in repo language. A pack captures it as a directive plus its rationale and test. The gate fails with *why*, the agent repairs the repo using that failure as instruction, and the repo carries the durable record the next agent reads. Coherence comes from executable rails around the agent, not ever-larger instruction blobs — the [harness-engineering](https://openai.com/index/harness-engineering/) move.
 
 ```mermaid
 flowchart LR
-  C["CONSTITUTION.md — desired state"] --> G{"Governance checks: run.sh, hooks, CI"}
-  R["Repository — current state"] --> G
-  G -->|"pass"| OK(["Ready to merge"])
-  G -->|"fail: gap + rationale"| A["Agent fixes the gap"]
-  A -->|"commit, re-run"| R
+    H["Human says the invariant<br/>once, in repo language"]
+    P["Pack captures it<br/>directive + rationale + evals"]
+    G{"Git hook / CI"}
+    A["Agent repairs the repo<br/>using the failure as instruction"]
+    R["Repo carries the durable record<br/>constitution + receipts + accounting"]
+
+    H --> P --> G
+    G -- "fails with why" --> A
+    A --> G
+    G -- "passes" --> R
+    R -.->|"next agent reads"| G
+
+    classDef human fill:#3f3586,stroke:#8b7ff0,color:#eeeaff
+    classDef directive fill:#075b4a,stroke:#36d6af,color:#dcfff4
+    classDef gate fill:#7b2b17,stroke:#ef9673,color:#fff0e8
+    classDef agent fill:#0e4e85,stroke:#5aa8e9,color:#e9f5ff
+    classDef record fill:#3f403a,stroke:#a5a49b,color:#efeee8
+    class H human
+    class P directive
+    class G gate
+    class A agent
+    class R record
 ```
 
-A failed check is not a scolding; it is a *gap report*. It names the directive, the offending file and line, and the rationale — and a frontier-model agent reading that rationale generalizes to cases the rule's author never encoded. Why this matters when agents author most of the changes: [What is Governance Kit?](/guide/introduction)
+A failed check is not a scolding; it is a *gap report*: it names the directive, the offending file and line, and the rationale, and a frontier-model agent reading that rationale generalizes to cases the rule's author never encoded. Under the hood it's declarative reconciliation — the Kubernetes/Terraform model applied to a repo, unpacked in [mental models](/guide/mental-models). Why this matters when agents author most of the changes: [What is Governance Kit?](/guide/introduction).
 
 ## Explore the docs
 

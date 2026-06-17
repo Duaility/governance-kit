@@ -16,7 +16,7 @@ Governance Kit versions **two independent things on two independent semver axes*
 | Axis | What it covers | Source of truth | Tag scheme |
 |---|---|---|---|
 | **Kit** (framework) | The `governance` skill, the runtime (`run.sh`, `lib.sh`), hook generators, schemas, verbs | `kit/assets/kit.yaml` | `kit/vX.Y.Z` |
-| **Pack** (content) | Directive code — checks, constitution snippets, presets | Each pack's `pack.yaml` | `<pack>/vX.Y.Z` (e.g. `docs/v0.2.0`) |
+| **Pack** (content) | Directive code — checks, constitution snippets, presets | Each pack's `pack.yaml` | `<pack>/vX.Y.Z` (e.g. `commits/v0.2.0`) |
 
 They move independently: a bundled pack can ship a check fix without the framework moving, and the framework can add a verb without any directive changing. One contract ties them: a pack's `min_governance_kit` must be ≤ the installed kit version.
 
@@ -56,8 +56,8 @@ Version lines are written **only** by `scripts/release.sh`, in `chore(release)` 
 
 ```sh
 bash scripts/release.sh <kit|PACK> <X.Y.Z> --dry-run   # preview from any branch
-bash scripts/release.sh docs 0.2.0                     # cut a pack release (one per changed pack)
-bash scripts/release.sh kit 0.6.0 --push               # cut + push branch and tag
+bash scripts/release.sh commits 0.2.1                  # cut a pack release (one per changed pack)
+bash scripts/release.sh kit 0.10.2 --push              # cut + push branch and tag
 ```
 
 A real run:
