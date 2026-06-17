@@ -19,11 +19,11 @@
 </p>
 
 <p align="center">
-  <a href="#get-started-60-seconds">Install</a> ·
-  <a href="#the-core-idea">Idea</a> ·
-  <a href="#the-invariant-ladder">Invariants</a> ·
+  <a href="#install-in-60-seconds">Install</a> ·
+  <a href="#why-this-exists">Why</a> ·
+  <a href="#how-strict-a-rule-can-be">Rules</a> ·
   <a href="#packs">Packs</a> ·
-  <a href="#proof--this-repo-governs-itself">Proof</a> ·
+  <a href="#this-repo-uses-it">Proof</a> ·
   <a href="https://duaility.github.io/governance-kit">Docs</a> ·
   <a href="AGENTS.md">Contributing</a>
 </p>
@@ -34,7 +34,7 @@
 
 ---
 
-## The core idea
+## Why this exists
 
 If you use coding agents heavily, you know the real failure mode: the agent completes the task, but in a way that's locally fine and globally wrong.
 
@@ -85,7 +85,7 @@ This is the [harness-engineering](https://openai.com/index/harness-engineering/)
 
 Governance kit installs into [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), Cursor, OpenCode, and other Agent Skills-compatible runtimes via [`npx skills`](https://github.com/vercel-labs/skills). The installed skill is only the thin entry point; the repo pins the kit and pack versions that actually run, so different agents in the same project hit the same rules.
 
-## The invariant ladder
+## How strict a rule can be
 
 The key power is the depth of invariants you can express. Start with deterministic checks; escalate only when the rule genuinely needs context or judgment.
 
@@ -98,7 +98,7 @@ The key power is the depth of invariants you can express. Start with determinist
 
 The failures that hurt are rarely mechanical ("forgot the formatter") — they're semantic, and no single enforcement style catches both. Governance kit matches each rule to a surface: cheap deterministic checks for the mechanical, [fresh-context attestation](kit/references/SUBAGENT_ATTESTATION.md) for the judgment calls.
 
-## What developers get
+## What you get
 
 - **Cost transparency** - token spend and human steering can be recorded in the issue receipt, so expensive turns and repeated corrections become visible review data — the [audit chain](https://duaility.github.io/governance-kit/concepts/audit-chain).
 - **Executable constitution** - `CONSTITUTION.md` is readable policy, but every directive has executable enforcement beside it.
@@ -106,7 +106,7 @@ The failures that hurt are rarely mechanical ("forgot the formatter") — they'r
 - **Honest semantic checks** - some rules need judgment; instead of pretending grep is enough, a failing check records a fresh-context sub-agent verdict ([sub-agent attestations](kit/references/SUBAGENT_ATTESTATION.md)).
 - **Custom governance packs** - teams can publish `acme/backend`, `acme/soc2`, or `duaility/governance-kit` packs and pin them per repo.
 
-## Get started (60 seconds)
+## Install in 60 seconds
 
 ```sh
 # 1 — install the skill into every skills-compatible agent on your machine
@@ -127,9 +127,9 @@ git commit -m "stuff"
 
 The agent reads the directive id + rationale and self-corrects on the next attempt. The rule is no longer a reminder you have to paste into every new session.
 
-What you installed is a thin shim — two files. The kit itself (rules, packs, templates, every other verb) is fetched from the released `kit/vX.Y.Z` tag and pinned per repo. See [Lifecycle](#lifecycle).
+What you installed is a thin shim — two files. The kit itself (rules, packs, templates, every other verb) is fetched from the released `kit/vX.Y.Z` tag and pinned per repo. See [Commands you will use](#commands-you-will-use).
 
-## What's bundled
+## What ships with it
 
 Three concern packs ship in-tree and install with `governance init` at your chosen preset (`minimal` / `standard` / `strict`):
 
@@ -184,7 +184,7 @@ Bundled packs cover foundation, commits, and the agent audit chain. Custom packs
 | `acme/migration-2026` | "No new writes hit the legacy store." "Fallback paths are deleted, not hidden behind flags." |
 | `acme/mobile` | "User-visible copy changes update localization receipts." "Feature-flag removals clean up both client and server paths." |
 
-## Proof — this repo governs itself
+## This repo uses it
 
 - **17 synchronous directive checks gate this repo** — the same packs `governance init` installs, plus a repo-local pack
 - **It dogfoods semantic invariants** — `ARCHITECTURE.md` is itself gated by an architecture-map directive, and every PR receipt now carries fresh-context attestations such as `## Audit` and `## Layer boundaries`
@@ -193,7 +193,7 @@ Bundled packs cover foundation, commits, and the agent audit chain. Custom packs
 
 Reproduce: clone this repo and run `bash .governance/run.sh`. The dogfood setup: [AGENTS.md](AGENTS.md).
 
-## Agent compatibility
+## Use it from any agent
 
 | Runtime | `npx skills add` | Notes |
 |---|:---:|---|
@@ -205,7 +205,7 @@ Reproduce: clone this repo and run `bash .governance/run.sh`. The dogfood setup:
 
 The skill itself is a two-file shim; every verb executes from the kit version the target repo pins — so every runtime drives identical behavior, and updating the kit never requires reinstalling the skill.
 
-## When to use · When to skip
+## When it fits
 
 **Great fit if you…**
 
@@ -237,7 +237,7 @@ The skill itself is a two-file shim; every verb executes from the kit version th
 
 </details>
 
-## Lifecycle
+## Commands you will use
 
 ```
 governance init                                        # bootstrap a repo
@@ -278,13 +278,13 @@ Edits in the clone flow to every linked runtime live — handy when contributing
 
 </details>
 
-## Documentation
+## Read the docs
 
-Two surfaces, one job each — **learn** on the site, **build against the spec** in `kit/references`.
+Use the site when you're learning the tool. Use `kit/references/` when you're changing behavior or need the exact contract the kit follows.
 
-**📖 [Full documentation site](https://duaility.github.io/governance-kit)** — the place to learn and onboard: [introduction](https://duaility.github.io/governance-kit/guide/introduction), [quickstart](https://duaility.github.io/governance-kit/guide/quickstart), [installation](https://duaility.github.io/governance-kit/guide/installation), [mental models](https://duaility.github.io/governance-kit/guide/mental-models), [troubleshooting](https://duaility.github.io/governance-kit/guide/troubleshooting), and the concept guides — [the audit chain](https://duaility.github.io/governance-kit/concepts/audit-chain), [packs](https://duaility.github.io/governance-kit/concepts/packs), [versioning](https://duaility.github.io/governance-kit/concepts/versioning), [the constitution](https://duaility.github.io/governance-kit/concepts/constitution), [runtime](https://duaility.github.io/governance-kit/concepts/runtime), [limitations](https://duaility.github.io/governance-kit/concepts/limitations).
+**[Full documentation site](https://duaility.github.io/governance-kit)** — start here if you're installing governance kit or explaining it to a team: [introduction](https://duaility.github.io/governance-kit/guide/introduction), [quickstart](https://duaility.github.io/governance-kit/guide/quickstart), [installation](https://duaility.github.io/governance-kit/guide/installation), [mental models](https://duaility.github.io/governance-kit/guide/mental-models), [troubleshooting](https://duaility.github.io/governance-kit/guide/troubleshooting), and the concept guides — [the audit chain](https://duaility.github.io/governance-kit/concepts/audit-chain), [packs](https://duaility.github.io/governance-kit/concepts/packs), [versioning](https://duaility.github.io/governance-kit/concepts/versioning), [the constitution](https://duaility.github.io/governance-kit/concepts/constitution), [runtime](https://duaility.github.io/governance-kit/concepts/runtime), [limitations](https://duaility.github.io/governance-kit/concepts/limitations).
 
-**🔧 Spec & contributor reference** — `kit/references/`, versioned with the kit and what the agent executes at run time. Canonical when the site and a reference disagree.
+**Spec and contributor reference** — `kit/references/` is versioned with the kit and is the contract the agent executes at run time. If the site and a reference file disagree, trust the reference file.
 
 | Reference | |
 |---|---|
@@ -295,7 +295,7 @@ Two surfaces, one job each — **learn** on the site, **build against the spec**
 | [Native tests](kit/references/NATIVE_TESTS.md) — port checks to pytest / jest / husky | [Install schema](kit/references/INSTALL_SCHEMA.md) · [lock schema](kit/references/LOCK_SCHEMA.md) |
 | [AGENTS.md](AGENTS.md) — working in this repo | |
 
-## Compared to
+## How it compares
 
 |  | Governs | Blocks a bad commit | Rationale travels with the rule | Agent audit trail |
 |---|---|:---:|:---:|:---:|
