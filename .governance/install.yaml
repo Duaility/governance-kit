@@ -2,9 +2,9 @@ version: "3"
 generated_at: 2026-04-30T00:00:00Z
 owner: duaility
 repo: governance-kit
-kit_version: "0.10.1"
-kit_ref: gh:duaility/governance-kit/kit@kit/v0.10.1
-kit_sha: ef3252d6dcd5ff9a442ae2b42438307cdf9eff8c
+kit_version: "0.10.2"
+kit_ref: gh:duaility/governance-kit/kit@kit/v0.10.2
+kit_sha: 5a7af009681c3d10df9f0d7ff0f3c3dfe3be501d
 hook_strategy: githooks
 constitution: true
 ci_workflow: .github/workflows/governance.yml
@@ -24,7 +24,7 @@ install_assets_seeded:
 collisions: []
 managed_digests:
   .github/workflows/governance-sweep.yml: df91e11359545ab98f8f7155bf60dd2f24222e1e851b478a13f2d0d56839f372
-  .github/workflows/governance.yml: 6a3367a193e248692a195a249969a887a1e9654f1abd38b2f05b6ce5b3d0319a
-  .governance/lib.sh: d17098749c2173b77700684fbb3008e6040ab15cf5dca2817f30779397a3a3a7
-  .governance/run.sh: bd3a178439d4965cd4e31bcf78464e6d71b257d4ce21a66f4924aa6817653047
+  .github/workflows/governance.yml: a8ae0b1ea706479da09efc11fbd4de693c894d1448eedbeff9be254eee8d0994
+  .governance/lib.sh: e33a3963938bdc2b3e6169dcf0507d5f6ce13e909e57ff7942378201f46d294c
+  .governance/run.sh: 393c27dd3949754f3a4cc68ca9c51128e11e4ee6d518a0aadace7b9087dcf417
   .governance/sweep.py: 98e24bf69c97323cd582b585738f66b4e7465fd7713f0c37d0536f404ac01001
