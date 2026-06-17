@@ -21,8 +21,7 @@ Checks read the merged result through the shared `lib.sh` helpers (`conf_get` fo
 ```
 .governance/conf/
 └── governance-kit/
-    ├── docs/
-    │   ├── doc-freshness.conf          # which docs opt into the freshness marker
+    ├── foundation/
     │   └── internal-doc-links.conf     # reachability roots (opt-in)
     └── audit/
         └── doc-integrity.conf          # extra frozen-file / append-only rules
@@ -30,7 +29,7 @@ Checks read the merged result through the shared `lib.sh` helpers (`conf_get` fo
 
 ## Common knobs
 
-- **Opt-in doc lists** — `doc-freshness` checks only the docs listed in its overlay; `internal-doc-links`' `reachable` sub-check is a no-op until you declare roots.
+- **Opt-in doc lists** — `internal-doc-links`' `reachable` sub-check is a no-op until you declare roots in its overlay.
 - **Rule lists** — `doc-integrity` ships standard rules in its `defaults.conf` (receipts frozen once on the trunk, frozen sections for `QUALITY.md` Resolved and the Evolution Log); the overlay adds repo-specific rules.
 - **Add / drop semantics** — list-valued overlays like `toolchain-config-protection`'s protected paths use a bare line to add a pattern and `!<pattern>` to drop one of the defaults.
 - **Env-tunable limits** — metric checks expose their thresholds as environment variables (`GOVERNANCE_<X>_LIMIT`), e.g. `repo-hygiene`'s file-size and source-length limits.

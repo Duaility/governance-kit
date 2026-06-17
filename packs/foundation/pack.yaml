@@ -2,8 +2,10 @@
 #
 # Repo scaffolding, working-tree hygiene, and kit coherence — the baseline a
 # governed repo needs before any concern-specific rule makes sense: the required
-# documents exist, the working tree stays clean (`repo-hygiene`, mandatory), and
-# the single kit-version pin agrees with every managed-file stamp.
+# documents exist and their internal link graph stays healthy
+# (`internal-doc-links`), the working tree stays clean (`repo-hygiene`,
+# mandatory), and the single kit-version pin agrees with every managed-file
+# stamp.
 #
 # Directive metadata lives inside each directive's folder under
 # `directives/<id>/` (`directive.yaml`, `check.sh`, `constitution.md`, and
@@ -16,13 +18,14 @@ id: governance-kit/foundation
 name: Foundation governance directives
 version: "0.4.2"
 min_governance_kit: "0.3"
-description: Repo scaffolding (required docs), working-tree hygiene, and managed-tree integrity.
+description: Repo scaffolding (required docs), internal doc-link health, working-tree hygiene, and managed-tree integrity.
 author: governance-kit
 
 presets:
   minimal:
     directives:
       - required-docs
+      - internal-doc-links
       - repo-hygiene
       - managed-tree-integrity
   standard:

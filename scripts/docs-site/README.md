@@ -27,6 +27,25 @@ docs/
 
 Anything in `docs/` that isn't `.md` / `.mdx` / `.json` is copied verbatim to the deploy root.
 
+## What belongs here vs. `kit/references/`
+
+This site is **one of two doc surfaces** and they are not interchangeable (see [AGENTS.md → "Documentation: two surfaces"](../../AGENTS.md)):
+
+- **`kit/references/*.md`** is the **source of truth for *how the kit behaves*** — verb specs, flow runbooks, schemas, authoring contracts, versioning policy. It ships inside the kit artifact and the agent executes it at run time. When this site and a reference disagree, **the reference wins.**
+- **This site** owns the **human narrative** — onboarding, concepts, troubleshooting. It exists because the references are not a friendly first read.
+
+Rule: a *normative claim about behavior* (a flag, a schema field, a flow step) lives in `kit/references` and is rendered here — do not re-state it as a parallel hand-authored spec, because two hand-authored copies drift.
+
+### The Reference tab is generated
+
+`docs/reference/*.mdx` are **generated**, not hand-authored. [`gen-reference.mjs`](gen-reference.mjs) renders each Reference page from its canonical source in `kit/references/*.md` (the `PAGES` manifest maps site page → source file(s); sources may live in any folder). The generator rewrites cross-links (to other generated pages → site paths; everything else → GitHub blob URLs), escapes angle brackets outside code (the renderer is markdown-it with `html:true`), and injects the "Canonical spec, rendered here" callout. Each output carries a `<!-- GENERATED FILE — do not edit -->` header.
+
+- `npm run docs:gen` writes the pages; `npm run docs:build` runs it automatically before rendering, so the deployed site is always fresh.
+- `npm run docs:gen:check` fails if the committed output is stale; CI runs it ([docs.yml](../../.github/workflows/docs.yml)) so an edit to `kit/references` that forgets to regenerate is caught.
+- To change a Reference page, **edit the `kit/references` source** and run `npm run docs:gen` — never edit `docs/reference/*.mdx` by hand. To add a new Reference page or remap a source, edit the `PAGES` manifest in `gen-reference.mjs`.
+
+Narrative pages (`guide/*`, `concepts/*`) are hand-authored — they are the site's own voice and link down into `kit/references` for the authoritative spec.
+
 ## Renderer layout
 
 ```

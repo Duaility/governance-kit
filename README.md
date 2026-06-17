@@ -22,9 +22,9 @@
   <a href="#get-started-60-seconds">Install</a> ·
   <a href="#the-core-idea">Idea</a> ·
   <a href="#the-invariant-ladder">Invariants</a> ·
-  <a href="#packs-make-rules-portable">Packs</a> ·
+  <a href="#packs">Packs</a> ·
   <a href="#proof--this-repo-governs-itself">Proof</a> ·
-  <a href="#documentation">Docs</a> ·
+  <a href="https://duaility.github.io/governance-kit">Docs</a> ·
   <a href="AGENTS.md">Contributing</a>
 </p>
 
@@ -91,90 +91,20 @@ The key power is the depth of invariants you can express. Start with determinist
 
 | Depth | What the user can say | How it runs |
 |---|---|---|
-| **Repo state** | "Every repo needs a README, license, security contact, and architecture note." "Do not commit build output or merge markers." | Cheap `check.sh` over the tree, run locally and in CI. |
+| **Repo state** | "Every repo needs a README, license, security contact, and architecture note." | Cheap `check.sh` over the tree, run locally and in CI. |
 | **Change set** | "A CI config change needs a reason in the commit." "A receipt for issue #42 must mention the files this PR actually changed." | Diff-aware hooks plus CI's merge-base walk. |
 | **Ledger** | "For each agent-authored change, show the issue, receipt, token cost, and human steering count." | Receipt accounting rows, cross-checked by directives. |
-| **Sub-agent attestation** | "Before merging a cross-layer refactor, have a fresh reader compare the diff to the architecture map." "Before accepting a receipt, have a fresh reader verify it matches the issue and diff." | Hook fails with a fresh-context sub-agent prompt; agent records a PASS/REFUTED section; hook verifies presence. |
+| **Sub-agent attestation** | "Before merging a cross-layer refactor, have a fresh reader compare the diff to the architecture map." | Hook fails with a fresh-context sub-agent prompt; agent records a PASS/REFUTED section; hook verifies presence. |
 
-That range matters: the failures that hurt are rarely mechanical ("forgot the formatter") — they're semantic, and no single enforcement style catches both. Governance kit matches each rule to a surface — cheap deterministic checks for the mechanical, fresh-context attestation for the judgment calls.
+The failures that hurt are rarely mechanical ("forgot the formatter") — they're semantic, and no single enforcement style catches both. Governance kit matches each rule to a surface: cheap deterministic checks for the mechanical, [fresh-context attestation](kit/references/SUBAGENT_ATTESTATION.md) for the judgment calls.
 
 ## What developers get
 
-- **Cost transparency** - token spend and human steering can be recorded in the issue receipt, so expensive turns and repeated corrections become visible review data.
+- **Cost transparency** - token spend and human steering can be recorded in the issue receipt, so expensive turns and repeated corrections become visible review data — the [audit chain](https://duaility.github.io/governance-kit/concepts/audit-chain).
 - **Executable constitution** - `CONSTITUTION.md` is readable policy, but every directive has executable enforcement beside it.
 - **Agent-readable failures** - violations name the rule, the specific gap, and the rationale, so the next agent turn has useful context.
+- **Honest semantic checks** - some rules need judgment; instead of pretending grep is enough, a failing check records a fresh-context sub-agent verdict ([sub-agent attestations](kit/references/SUBAGENT_ATTESTATION.md)).
 - **Custom governance packs** - teams can publish `acme/backend`, `acme/soc2`, or `duaility/governance-kit` packs and pin them per repo.
-
-## Packs make rules portable
-
-A pack is a versioned bundle of invariants. Each directive is a self-contained folder: metadata, executable check, constitution text, defaults, helper code, and pass/fail evals. Install a pack, and the target repo receives the rule, the rationale, the hook wiring, and the lockfile pin together.
-
-```mermaid
-flowchart TB
-    subgraph Author["Pack author"]
-        D["directives/&lt;id&gt;<br/>directive.yaml<br/>check.sh or triage.sh<br/>constitution.md<br/>evals/test.sh"]
-        PY["pack.yaml<br/>presets + version + min kit"]
-    end
-
-    subgraph Consumer["Target repo"]
-        LOCK[".governance/packs.lock<br/>exact pack pin"]
-        VENDOR[".governance/packs/...<br/>vendored directive code"]
-        CONST["CONSTITUTION.md<br/>rendered directive rationale"]
-        HOOKS[".githooks/* + CI<br/>generated dispatchers"]
-    end
-
-    D --> PY
-    PY -- "governance pack add / update" --> LOCK
-    LOCK --> VENDOR
-    VENDOR --> CONST
-    VENDOR --> HOOKS
-
-    classDef author fill:#3f3586,stroke:#8b7ff0,color:#eeeaff
-    classDef pack fill:#075b4a,stroke:#36d6af,color:#dcfff4
-    classDef pin fill:#0e4e85,stroke:#5aa8e9,color:#e9f5ff
-    classDef runtime fill:#7b2b17,stroke:#ef9673,color:#fff0e8
-    class D,PY author
-    class LOCK pin
-    class VENDOR pack
-    class CONST,HOOKS runtime
-```
-
-Bundled packs cover foundation, docs, commits, and the agent audit chain. Custom packs are where the project becomes specific to your organization: architecture boundaries, service ownership, migration rules, compliance evidence, review rituals, or repeated "please never do that again" corrections.
-
-Examples of rules that fit naturally as packs:
-
-| Pack idea | Invariants it could carry |
-|---|---|
-| `acme/platform` | "No service reaches across the platform boundary." "Generated clients are refreshed with API schema changes." |
-| `acme/security` | "Auth changes update threat-model evidence." "Privileged workflows explain permissions changes." |
-| `acme/migration-2026` | "No new writes hit the legacy store." "Fallback paths are deleted, not hidden behind flags." |
-| `acme/mobile` | "User-visible copy changes update localization receipts." "Feature-flag removals clean up both client and server paths." |
-
-## Sub-agent attestations: semantic checks without pretending bash is smart
-
-Some invariants need a judgment against ground truth. A shell script can check that a receipt has a `## Audit` section; it cannot honestly decide whether the receipt describes the diff. Governance kit handles that by making the missing section itself the remediation instruction.
-
-```mermaid
-flowchart LR
-    F["Hook fails<br/>missing attestation"]
-    P["Failure prints<br/>the exact audit prompt"]
-    A["Fresh-context sub-agent<br/>reads only ground truth"]
-    R["Receipt records<br/>PASS / REFUTED + evidence"]
-    G["Retry passes<br/>section + verdict exist"]
-
-    F --> P --> A --> R --> G
-
-    classDef fail fill:#7b2b17,stroke:#ef9673,color:#fff0e8
-    classDef prompt fill:#3f403a,stroke:#a5a49b,color:#efeee8
-    classDef audit fill:#075b4a,stroke:#36d6af,color:#dcfff4
-    classDef record fill:#0e4e85,stroke:#5aa8e9,color:#e9f5ff
-    class F fail
-    class P prompt
-    class A audit
-    class R,G record
-```
-
-The hook does not spawn the sub-agent and does not pretend to prove the verdict is true. It proves the independent audit was recorded. This is deliberately honest: deterministic checks stay deterministic; semantic checks record accountable judgment.
 
 ## Get started (60 seconds)
 
@@ -198,6 +128,61 @@ git commit -m "stuff"
 The agent reads the directive id + rationale and self-corrects on the next attempt. The rule is no longer a reminder you have to paste into every new session.
 
 What you installed is a thin shim — two files. The kit itself (rules, packs, templates, every other verb) is fetched from the released `kit/vX.Y.Z` tag and pinned per repo. See [Lifecycle](#lifecycle).
+
+## What's bundled
+
+Three concern packs ship in-tree and install with `governance init` at your chosen preset (`minimal` / `standard` / `strict`):
+
+| Pack | Covers | Preset |
+|---|---|---|
+| `governance-kit/foundation` | Required docs, internal link integrity, repo hygiene, managed-tree integrity | minimal |
+| `governance-kit/commits` | Conventional Commits + issue suffix, TODO and suppression discipline | standard–strict |
+| `governance-kit/audit` | The agent audit chain — receipts, cost, steering, record integrity | standard |
+
+Full catalog: [DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md). The anatomy of a directive folder and how to write one: [DIRECTIVE_AUTHORING.md](kit/references/DIRECTIVE_AUTHORING.md).
+
+<details>
+<summary><b>Every directive, with presets</b></summary>
+
+### General-purpose directives
+
+| Pack | Directive | What it enforces | Preset |
+|---|---|---|---|
+| `foundation` | `required-docs` | `README.md`, `LICENSE`, `SECURITY.md`, `ARCHITECTURE.md` exist with non-empty bodies. | minimal |
+| `foundation` | `internal-doc-links` | Internal markdown links resolve; opt-in, every doc stays reachable from a root. | minimal |
+| `foundation` | `managed-tree-integrity` | The vendored `.governance/` tree matches the content digests recorded at install/update time — hand-edits to any check or runtime file fail the gate, offline. Subsumes the kit-version-marker check. | minimal |
+| `foundation` | `repo-hygiene` | No merge markers, oversized files, build artefacts, or debug statements. | minimal |
+| `commits` | `commit-message-format` | Conventional Commits with an issue suffix (`<type>(scope)?: <subject> (#N)`). | standard |
+| `commits` | `no-orphan-todos` | Every `TODO` / `FIXME` references an issue. | strict |
+| `commits` | `no-unjustified-suppressions` | Every lint / type-checker suppression (`@ts-ignore`, `# noqa`, …) references an issue. | strict |
+
+### The audit chain
+
+| Pack | Directive | What it enforces | Preset |
+|---|---|---|---|
+| `audit` | `issue-templates` | `.github/ISSUE_TEMPLATE/` carries `config.yml` (blank issues off), `proposal.yml`, `bug.yml` with the required handoff fields. | standard |
+| `audit` | `issues-tracked` | `QUALITY.md` exists at repo root with `## Open` and `## Resolved` sections. | standard |
+| `audit` | `receipt-per-issue` | Every `receipts/*.md` has a unique `issue-<N>` filename token, required narrative/audit sections, and checked items that crosswalk into the receipt's evidence. | standard |
+| `audit` | `commit-issue-receipt-match` | Every non-merge commit adds or updates a `receipts/issue-<N>.md` — the touched receipt path is the commit's issue anchor (file-first). | standard |
+| `audit` | `agent-token-accounting` | Every agent commit's token cost lands as a row in the issue's receipt; a commit-time check reconciles the receipt's recorded cumulative against the runtime endpoint. | standard |
+| `audit` | `agent-steering-accounting` | Detected human-steering events (interrupts, corrections) are recorded in the issue's receipt; `check.sh` validates the ledger shape. **`always_install: true`** — records human correction text verbatim; redact via the directive's classifier hook rather than skipping it. | standard |
+| `audit` | `doc-integrity` | **`always_install: true`** — system-of-record documents are tamper-proof: receipts freeze once on the trunk, frozen sections (`QUALITY.md` Resolved, the Evolution Log) keep their baseline lines verbatim. Branch-authored content stays editable until it merges. | standard |
+| `audit` | `toolchain-config-protection` | A commit changing lint / format / type-check / CI / hook config carries a `governance: allow-toolchain-config <reason>` body line. | standard |
+
+</details>
+
+## Packs
+
+A pack is a versioned bundle of invariants. Each directive is a self-contained folder — metadata, executable check, constitution text, defaults, helper code, and pass/fail evals — so installing a pack hands the target repo the rule, the rationale, the hook wiring, and the lockfile pin together. The mechanics (folder anatomy, the install → lockfile → vendored-code → hooks flow) live in [PACK_AUTHORING.md](kit/references/PACK_AUTHORING.md).
+
+Bundled packs cover foundation, commits, and the agent audit chain. Custom packs are where the project becomes specific to your organization — architecture boundaries, service ownership, migration rules, compliance evidence, review rituals, or repeated "please never do that again" corrections:
+
+| Pack idea | Invariants it could carry |
+|---|---|
+| `acme/platform` | "No service reaches across the platform boundary." "Generated clients are refreshed with API schema changes." |
+| `acme/security` | "Auth changes update threat-model evidence." "Privileged workflows explain permissions changes." |
+| `acme/migration-2026` | "No new writes hit the legacy store." "Fallback paths are deleted, not hidden behind flags." |
+| `acme/mobile` | "User-visible copy changes update localization receipts." "Feature-flag removals clean up both client and server paths." |
 
 ## Proof — this repo governs itself
 
@@ -252,111 +237,6 @@ The skill itself is a two-file shim; every verb executes from the kit version th
 
 </details>
 
-## What's bundled
-
-Four concern packs ship in-tree and install with `governance init` at your chosen preset (`minimal` / `standard` / `strict`):
-
-| Pack | Covers | Preset |
-|---|---|---|
-| `governance-kit/foundation` | Required docs, repo hygiene, managed-tree integrity | minimal |
-| `governance-kit/docs` | Internal link integrity, doc freshness | minimal–standard |
-| `governance-kit/commits` | Conventional Commits + issue suffix, TODO and suppression discipline | standard–strict |
-| `governance-kit/audit` | The agent audit chain — receipts, cost, steering, record integrity | standard |
-
-Full catalog: [DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md).
-
-<details>
-<summary><b>Every directive, with presets</b></summary>
-
-### General-purpose directives
-
-| Pack | Directive | What it enforces | Preset |
-|---|---|---|---|
-| `foundation` | `required-docs` | `README.md`, `LICENSE`, `SECURITY.md`, `ARCHITECTURE.md` exist with non-empty bodies. | minimal |
-| `foundation` | `managed-tree-integrity` | The vendored `.governance/` tree matches the content digests recorded at install/update time — hand-edits to any check or runtime file fail the gate, offline. Subsumes the kit-version-marker check. | minimal |
-| `foundation` | `repo-hygiene` | No merge markers, oversized files, build artefacts, or debug statements. | minimal |
-| `docs` | `internal-doc-links` | Internal markdown links resolve; opt-in, every doc stays reachable from a root. | minimal |
-| `docs` | `doc-freshness` | Opted-in docs carry an in-window `last-verified` date marker. | standard |
-| `commits` | `commit-message-format` | Conventional Commits with an issue suffix (`<type>(scope)?: <subject> (#N)`). | standard |
-| `commits` | `no-orphan-todos` | Every `TODO` / `FIXME` references an issue. | strict |
-| `commits` | `no-unjustified-suppressions` | Every lint / type-checker suppression (`@ts-ignore`, `# noqa`, …) references an issue. | strict |
-
-### The audit chain
-
-| Pack | Directive | What it enforces | Preset |
-|---|---|---|---|
-| `audit` | `issue-templates` | `.github/ISSUE_TEMPLATE/` carries `config.yml` (blank issues off), `proposal.yml`, `bug.yml` with the required handoff fields. | standard |
-| `audit` | `issues-tracked` | `QUALITY.md` exists at repo root with `## Open` and `## Resolved` sections. | standard |
-| `audit` | `receipt-per-issue` | Every `receipts/*.md` has a unique `issue-<N>` filename token, required narrative/audit sections, and checked items that crosswalk into the receipt's evidence. | standard |
-| `audit` | `commit-issue-receipt-match` | Every non-merge commit adds or updates a `receipts/issue-<N>.md` — the touched receipt path is the commit's issue anchor (file-first). | standard |
-| `audit` | `agent-token-accounting` | Every agent commit's token cost lands as a row in the issue's receipt; a commit-time check reconciles the receipt's recorded cumulative against the runtime endpoint. | standard |
-| `audit` | `agent-steering-accounting` | Detected human-steering events (interrupts, corrections) are recorded in the issue's receipt; `check.sh` validates the ledger shape. **`always_install: true`** — records human correction text verbatim; redact via the directive's classifier hook rather than skipping it. | standard |
-| `audit` | `doc-integrity` | **`always_install: true`** — system-of-record documents are tamper-proof: receipts freeze once on the trunk, frozen sections (`QUALITY.md` Resolved, the Evolution Log) keep their baseline lines verbatim. Branch-authored content stays editable until it merges. | standard |
-| `audit` | `toolchain-config-protection` | A commit changing lint / format / type-check / CI / hook config carries a `governance: allow-toolchain-config <reason>` body line. | standard |
-
-</details>
-
-<details>
-<summary><b>Anatomy of a directive</b></summary>
-
-Every directive is a self-contained folder — one `git mv` relocates the whole thing:
-
-```
-doc-freshness/
-├── directive.yaml    # category, summary, surface, hook
-├── check.sh          # the executable test (pre-commit + CI)
-├── constitution.md   # Directive / Rationale / Enforced by / Exceptions
-└── evals/test.sh     # pass + fail fixtures
-```
-
-The `constitution.md` carries the *why*:
-
-```markdown
-### doc-freshness
-
-- **Directive**: Docs opted into `.governance/conf/doc-freshness.conf` carry a
-  `<!-- last-verified: YYYY-MM-DD -->` marker dated within the last 90 days.
-- **Rationale**: Critical runbooks and onboarding docs decay. A periodic
-  "someone re-read this" checkpoint keeps them honest — if the deadline
-  passes, either bump the date or fix the doc.
-- **Enforced by**: `.governance/packs/governance-kit/docs/directives/doc-freshness/check.sh`
-- **Exceptions**: Remove a doc from `.governance/conf/doc-freshness.conf` to opt it out.
-```
-
-A bare hook checks the date format. The rationale tells the next agent — and the next human — what the date is *for*.
-
-Directives that need more carry optional siblings — `lib/` (shared bash/Python), `hooks/` (side-effect scripts wired into the dispatcher), `runtimes/` (per-runtime helpers), `install-assets/` (templates seeded at bootstrap).
-
-**Composition**: directives are invariants on state, not steps in a procedure. There is no `depends_on:`, no graph engine — `.governance/run.sh` re-evaluates every check on every firing, and cascades fall out of re-evaluation: fix what's currently violating, re-run, the next gate fires, converge.
-
-</details>
-
-## The audit chain
-
-A receipt is only worth reading if it can't quietly drift from what happened — so it sits in a chain. The issue defines the work, the receipt records it, and every non-merge commit must touch that receipt; break a link and the next push fails. The cost and steering rows aren't hand-typed either: a commit-time check reconciles them against the runtime transcript.
-
-```mermaid
-flowchart LR
-    I["Issue #N<br/>the work order"] --> R["receipt<br/>issue-N.md"] --> C["commit<br/>touches the receipt"] --> P(["push / CI gate"])
-    T["runtime transcript"] -. "cost + steering,<br/>reconciled at commit" .-> R
-
-    classDef chain fill:#0e4e85,stroke:#5aa8e9,color:#e9f5ff
-    classDef hub fill:#075b4a,stroke:#36d6af,color:#dcfff4
-    classDef src fill:#3f403a,stroke:#a5a49b,color:#efeee8
-    class I,C,P chain
-    class R hub
-    class T src
-```
-
-Four records, all in git, each enforced by a directive:
-
-- **Directive provenance** — every `CONSTITUTION.md` line is git-blameable to the commit and check that introduced it; the Evolution Log summarizes every amendment
-- **Receipts** — one per issue; every checked box must crosswalk into `## What changed` or `## Verification`, so boxes can't flip silently. The reviewer reads the receipt, not the diff
-- **Token cost** — every agent commit's token cost lands as a row in the issue's receipt, so every change carries a price tag
-- **Steering** — every commit tallies the human interrupts and redirects it needed; see at a glance which commits ran on autopilot
-
-Ships in the `governance-kit/audit` pack, `standard` preset.
-
 ## Lifecycle
 
 ```
@@ -377,23 +257,7 @@ governance uninstall [--dry-run|--soft|--hard]         # tear-down
 
 </div>
 
-The two version axes are independent (the Helm `Chart.version` vs `appVersion` model — [VERSIONING.md](kit/references/VERSIONING.md)): the **kit** is the framework (runtime, hook generators, engines, schemas; tagged `kit/vX.Y.Z`), **packs** are the directive content (each on its own `pack.yaml` version). `.governance/packs.lock` pins what runs; the check code is vendored into `.governance/packs/` and committed, so a pack bump shows the real `check.sh` diff, not just a SHA.
-
-```sh
-# the kit
-npx skills add Duaility/governance-kit -g              # all agents (-a claude-code for one; bare = project-scoped)
-governance kit update [--with-packs]                   # re-sync the runtime files init seeded; prompts per file
-governance uninstall --dry-run                         # preview; --soft keeps pack-seeded docs, --hard removes all
-
-# packs
-governance pack add gh:acme/soc2-pack@v1.2.0           # install a community pack — pin a tag, not a branch
-governance pack update [<pack-id>]                     # re-pin + re-vendor; shows the check-code diff first
-governance pack create <name>                          # scaffold a repo-local pack
-```
-
-- **`kit update` and `pack update` are disjoint** — framework runtime vs directive content; managed files carry a `# governance-kit:managed` marker that flags them safe to regenerate
-- **`uninstall` only deletes what it recognizes as kit-owned** — manifest entries + markers; never your content, unmarked hooks, or uncommitted changes
-- **Community packs** live in their own repos ([PACK_AUTHORING.md](kit/references/PACK_AUTHORING.md)); discovery reads the advisory catalog at [catalog.community.json](kit/assets/catalog.community.json) — currently empty, PRs welcome
+The **kit** (framework: runtime, hook generators, engines, schemas; tagged `kit/vX.Y.Z`) and **packs** (directive content, each on its own `pack.yaml` version) version on two independent axes — the Helm `Chart.version` vs `appVersion` model. `.governance/packs.lock` pins what runs, and the check code is vendored and committed so a pack bump shows the real `check.sh` diff, not just a SHA. Per-verb behavior: [VERBS.md](kit/references/VERBS.md). The two version axes and the tag scheme: [VERSIONING.md](kit/references/VERSIONING.md).
 
 > [!IMPORTANT]
 > Don't hand-edit `CONSTITUTION.md` or files under `.governance/`. The `directive {add,modify,remove}` and `reset` verbs keep the check, the rationale, and the evolution log in lockstep — hand-edits drift the constitution out of sync with the tests.
@@ -416,13 +280,20 @@ Edits in the clone flow to every linked runtime live — handy when contributing
 
 ## Documentation
 
-| Start here | Go deeper |
+Two surfaces, one job each — **learn** on the site, **build against the spec** in `kit/references`.
+
+**📖 [Full documentation site](https://duaility.github.io/governance-kit)** — the place to learn and onboard: [introduction](https://duaility.github.io/governance-kit/guide/introduction), [quickstart](https://duaility.github.io/governance-kit/guide/quickstart), [installation](https://duaility.github.io/governance-kit/guide/installation), [mental models](https://duaility.github.io/governance-kit/guide/mental-models), [troubleshooting](https://duaility.github.io/governance-kit/guide/troubleshooting), and the concept guides — [the audit chain](https://duaility.github.io/governance-kit/concepts/audit-chain), [packs](https://duaility.github.io/governance-kit/concepts/packs), [versioning](https://duaility.github.io/governance-kit/concepts/versioning), [the constitution](https://duaility.github.io/governance-kit/concepts/constitution), [runtime](https://duaility.github.io/governance-kit/concepts/runtime), [limitations](https://duaility.github.io/governance-kit/concepts/limitations).
+
+**🔧 Spec & contributor reference** — `kit/references/`, versioned with the kit and what the agent executes at run time. Canonical when the site and a reference disagree.
+
+| Reference | |
 |---|---|
-| [Philosophy](kit/references/PHILOSOPHY.md) — rules over prompts, receipts over plans | [Versioning](kit/references/VERSIONING.md) — two semver axes, tag scheme |
-| [Directives catalog](kit/references/DIRECTIVES_CATALOG.md) — every ready-made check | [Release flow](kit/references/RELEASE_FLOW.md) — how releases are cut |
-| [Pack authoring](kit/references/PACK_AUTHORING.md) — write your own pack | [Sub-agent attestations](kit/references/SUBAGENT_ATTESTATION.md) — semantic checks via fresh-context audit |
-| [Native tests](kit/references/NATIVE_TESTS.md) — port checks to pytest / jest / husky | [Directive amend flow](kit/references/DIRECTIVE_AMEND_FLOW.md) — how amendments land |
-| [AGENTS.md](AGENTS.md) — working in this repo | [Install schema](kit/references/INSTALL_SCHEMA.md) · [lock schema](kit/references/LOCK_SCHEMA.md) |
+| [Verb reference](kit/references/VERBS.md) — per-verb behavior | [Philosophy](kit/references/PHILOSOPHY.md) — the stance behind GDD |
+| [Directives catalog](kit/references/DIRECTIVES_CATALOG.md) — every ready-made check | [Versioning policy](kit/references/VERSIONING.md) — two semver axes, tag scheme |
+| [Directive authoring](kit/references/DIRECTIVE_AUTHORING.md) · [amend flow](kit/references/DIRECTIVE_AMEND_FLOW.md) | [Release flow](kit/references/RELEASE_FLOW.md) — how releases are cut |
+| [Pack authoring](kit/references/PACK_AUTHORING.md) — write your own pack | [Sub-agent attestations](kit/references/SUBAGENT_ATTESTATION.md) · [sweep lane](kit/references/SWEEP_FLOW.md) |
+| [Native tests](kit/references/NATIVE_TESTS.md) — port checks to pytest / jest / husky | [Install schema](kit/references/INSTALL_SCHEMA.md) · [lock schema](kit/references/LOCK_SCHEMA.md) |
+| [AGENTS.md](AGENTS.md) — working in this repo | |
 
 ## Compared to
 
@@ -445,22 +316,7 @@ bash .governance/run.sh               # run the full directive suite
 
 Skipping the `core.hooksPath` line only costs you local fast-feedback; CI still enforces every directive on every PR.
 
-Repo layout, adding directives, and the dogfooding setup: [AGENTS.md](AGENTS.md).
-
-<details>
-<summary><b>Releasing (maintainers)</b></summary>
-
-Version lines are written **only** by [`scripts/release.sh`](scripts/release.sh) in `chore(release)` commits — any out-of-band edit to a managed file's version marker is drift the `managed-tree-integrity` directive catches. Cut the **kit** axis for framework changes, a **pack** axis for directive-content changes; pick the semver level from the [policy table](kit/references/VERSIONING.md#semver-policy).
-
-```sh
-bash scripts/release.sh <kit|PACK> <X.Y.Z> --dry-run   # preview — bump, re-stamps, tag, CHANGELOG
-bash scripts/release.sh docs 0.2.2                     # cut a pack release
-bash scripts/release.sh kit 0.6.0 --push               # cut a kit release and push branch + tag
-```
-
-A real run preflights (`main`, clean tree, semver-greater target, green suite), regenerates the CHANGELOG section, commits through the hook path, and creates the prefixed annotated tag. Pushing the tag triggers [release.yml](.github/workflows/release.yml), which lifts the CHANGELOG section into a GitHub Release. Full procedure: [RELEASE_FLOW.md](kit/references/RELEASE_FLOW.md).
-
-</details>
+Repo layout, adding directives, and the dogfooding setup: [AGENTS.md](AGENTS.md). Releasing (maintainers): version lines are written only by [`scripts/release.sh`](scripts/release.sh) in `chore(release)` commits — full procedure in [RELEASE_FLOW.md](kit/references/RELEASE_FLOW.md).
 
 ## Community
 
