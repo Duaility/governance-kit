@@ -16,9 +16,9 @@
   },
   "favicon": "/assets/governance-mark.svg",
   "colors": {
-    "primary": "#0B8A5C",
-    "dark": "#3DDC97",
-    "light": "#8FEBC4"
+    "primary": "#727F12",
+    "dark": "#DCE052",
+    "light": "#F2F7D6"
   },
   "styling": {
     "codeblocks": {
