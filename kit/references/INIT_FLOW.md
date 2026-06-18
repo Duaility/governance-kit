@@ -437,7 +437,7 @@ What happens on this commit:
 
 The install commit lands with a **real cost row in the bootstrap issue's receipt**, reconciled against the transcript — the directives are satisfied with data, not with exemptions, and no trailers are stamped onto the message.
 
-**Runtime-not-detected fallback.** If `init` was invoked from a shell with no `CLAUDECODE` / `CODEX_THREAD_ID` (etc.), the token-accounting populator can't read a transcript and writes no row — and the commit-msg endpoint reconciliation no-ops too (no runtime, nothing to reconcile), so the install commit passes with **no waiver needed**. The steering side likewise no-ops. The accounting simply records nothing for a non-agent bootstrap commit, which is correct.
+**Runtime not detected.** If `init` was invoked from a shell with no `CLAUDECODE` / `CODEX_THREAD_ID` / `CODEX_TRANSCRIPT_PATH` (etc.), the token-accounting populator can't read a transcript and writes no row — and the commit-msg endpoint reconciliation no-ops too (no runtime, nothing to reconcile), so the install commit passes with **no waiver needed**. The steering side likewise no-ops. The accounting simply records nothing for a non-agent bootstrap commit, which is correct.
 
 Print a concise summary:
 

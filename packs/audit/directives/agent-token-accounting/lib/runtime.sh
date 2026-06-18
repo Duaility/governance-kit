@@ -20,7 +20,7 @@
 # Detection mirrors the historical pre-commit contract:
 #   AGENT_NAME set            → manual   (explicit AGENT_SESSION_ID / AGENT_CUM_*)
 #   CLAUDECODE=1              → claude-code
-#   CODEX_THREAD_ID set       → codex
+#   CODEX_THREAD_ID or CODEX_TRANSCRIPT_PATH set → codex
 #
 # Per-runtime transcript readers live in sibling runtimes/<runtime>.sh and emit
 #   <session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output> <model>
@@ -43,7 +43,7 @@ resolve_runtime_cumulative() {
         RUNTIME="manual"
     elif [[ "${CLAUDECODE:-}" == "1" ]]; then
         RUNTIME="claude-code"
-    elif [[ -n "${CODEX_THREAD_ID:-}" ]]; then
+    elif [[ -n "${CODEX_THREAD_ID:-}" || -n "${CODEX_TRANSCRIPT_PATH:-}" ]]; then
         RUNTIME="codex"
     fi
 

@@ -65,8 +65,11 @@ subagent:
 
 - **`inputs`** — typed tokens resolved to concrete handles by `resolve_subagent_input`:
   `diff`→`git diff`, `receipt`→the receipt path, `issue`→`gh issue view #N`
-  (derived from the receipt name), `transcript`→the session JSONL named
-  `$CLAUDE_CODE_SESSION_ID.jsonl`, `layer-map`→the doc named by
+  (derived from the receipt name), `transcript`→the active runtime's session
+  JSONL (`CODEX_THREAD_ID` under `~/.codex/sessions/` /
+  `~/.codex/archived_sessions/` for Codex, `CLAUDE_CODE_SESSION_ID` under
+  `~/.claude/projects/` for Claude Code, or the explicit `*_TRANSCRIPT_PATH`
+  override), `layer-map`→the doc named by
   `GOVERNANCE_LAYER_DOC`. An unknown token passes through verbatim.
 - **`checks`** — the numbered rubric the judge adjudicates (the prose rubric is
   the directive's `constitution.md`).
@@ -126,6 +129,10 @@ git commit
   → agent re-stages, re-commits → check.sh: section present + verdict → PASS
 ```
 
+The harness must actually spawn the fresh-context auditor. The primary agent
+must not self-author an attestation section from its own context; doing so
+collapses the author≠auditor split this mechanism exists to enforce.
+
 Two honest limits this pattern owns rather than hides:
 
 - **It records; it does not adjudicate.** `check.sh` verifies the section
@@ -169,12 +176,15 @@ The author-time attestation is a **bounded read-and-record audit**, not the
 final word on truth — the verdict's correctness is independently re-derived by
 the merge-time sweep lane at the high tier. So the attest pass runs on a
 **small, low-cost model** (the *low* capability tier — e.g. Claude Haiku or a
-comparable GPT-mini-class model). This is a deliberate cost optimization (issue
-#321): the audit fires on every newly added attested artifact, and a cheap model
-can read the diff, compare it to the artifact, and record a verdict. The grouped
-instruction names a **capability tier**, not a pinned model id, and asks the
-auditor to render the verdict as literally `PASS` or `REFUTED`; the gate matches
-that token case-insensitively anywhere in the section.
+comparable GPT-mini-class model). In Codex, that means spawning the attest
+sub-agent with a mini-class model, not the primary session's larger model. This is a
+deliberate cost optimization (issue #321): the audit fires on every newly added
+attested artifact, and a cheap model can read the diff, compare it to the
+artifact, and record a verdict. The grouped instruction names a **capability
+tier** and, for current Codex runtimes, includes a mini-class hint so the
+harness does not accidentally inherit the primary model. The auditor renders
+the verdict as literally `PASS` or `REFUTED`; the gate matches that token
+case-insensitively anywhere in the section.
 
 The tier is the default, not a hard floor: a consumer who wants this directive's
 author-time verdict run on a stronger model raises `SUBAGENT_TIERS_ATTEST` in the

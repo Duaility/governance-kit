@@ -14,9 +14,11 @@
 # runtime readers uniformly.
 #
 # Environment overrides:
-#   CODEX_TRANSCRIPT_PATH   absolute path to the session JSONL
-#   CODEX_SESSIONS_DIR      override ~/.codex/sessions
-#   CODEX_THREAD_ID         the thread/session id (otherwise derived from filename)
+#   CODEX_TRANSCRIPT_PATH    absolute path to the session JSONL
+#   CODEX_SESSIONS_DIR       override ~/.codex/sessions
+#   CODEX_ARCHIVED_SESSIONS_DIR override ~/.codex/archived_sessions
+#   CODEX_THREAD_ID          the live thread/session id (exported into the hook
+#                            env by Codex) — names the transcript.
 
 set -u
 
@@ -25,27 +27,20 @@ CODEX_ARCHIVED_SESSIONS="${CODEX_ARCHIVED_SESSIONS_DIR:-${HOME}/.codex/archived_
 
 TRANSCRIPT="${CODEX_TRANSCRIPT_PATH:-}"
 if [[ -z "$TRANSCRIPT" ]]; then
-    if [[ -n "${CODEX_THREAD_ID:-}" ]]; then
-        for dir in "$CODEX_SESSIONS" "$CODEX_ARCHIVED_SESSIONS"; do
-            [[ -d "$dir" ]] || continue
-            TRANSCRIPT="$(find "$dir" -type f -name "*${CODEX_THREAD_ID}*.jsonl" -print 2>/dev/null | head -n1)"
-            [[ -n "$TRANSCRIPT" ]] && break
-        done
-    fi
-    if [[ -z "$TRANSCRIPT" && -d "$CODEX_SESSIONS" ]]; then
-        TRANSCRIPT="$(find "$CODEX_SESSIONS" -type f -name "*.jsonl" -print0 2>/dev/null \
-            | xargs -0 ls -t 2>/dev/null \
-            | head -n1)"
-    fi
+    [[ -n "${CODEX_THREAD_ID:-}" ]] || exit 1
+    for dir in "$CODEX_SESSIONS" "$CODEX_ARCHIVED_SESSIONS"; do
+        [[ -d "$dir" ]] || continue
+        TRANSCRIPT="$(find "$dir" -type f -name "*${CODEX_THREAD_ID}.jsonl" -print 2>/dev/null | LC_ALL=C sort | head -n1)"
+        [[ -n "$TRANSCRIPT" ]] && break
+    done
 fi
 
 [[ -z "$TRANSCRIPT" || ! -f "$TRANSCRIPT" ]] && exit 1
 
-# Read cumulative tokens across the common Codex transcript shapes:
-#   - Codex Desktop event_msg token_count.info.total_token_usage
-#   - top-level usage / message.usage / response.usage dictionaries
-#   - OpenAI input_tokens_details.cached_tokens dictionaries
-#   - prompt_tokens / completion_tokens fallback keys
+# Read cumulative tokens from the current Codex Desktop transcript shape:
+#   - session_meta.payload.id carries the session id
+#   - turn_context.payload.collaboration_mode.settings.model carries the model
+#   - event_msg.payload.info.total_token_usage carries cumulative tokens
 OUT="$(python3 - "$TRANSCRIPT" "${CODEX_THREAD_ID:-}" <<'PY'
 import json, sys
 path = sys.argv[1]
@@ -58,33 +53,17 @@ t_output = 0
 model = ""
 latest_total = None
 
-def pull(u):
-    """Return (input, cache_create, cache_read, output) from a usage dict."""
-    if not isinstance(u, dict):
-        return 0, 0, 0, 0
-    i  = u.get("input_tokens")  or u.get("prompt_tokens")     or 0
-    o  = u.get("output_tokens") or u.get("completion_tokens") or 0
-    cc = u.get("cache_creation_input_tokens", 0) or 0
-    cr = u.get("cache_read_input_tokens", 0) or 0
-    # OpenAI-style cached input is a subset of input tokens, not an additional
-    # bucket. Split it out so pricing uses cached-input rates for those tokens.
-    if not cr:
-        cr = u.get("cached_input_tokens", 0) or 0
-    details = u.get("input_tokens_details") or u.get("prompt_tokens_details")
-    if not cr and isinstance(details, dict):
-        cr = details.get("cached_tokens", 0) or 0
+def pull_total(total):
+    i = total.get("input_tokens", 0) or 0
+    cr = total.get("cached_input_tokens", 0) or 0
+    o = total.get("output_tokens", 0) or 0
     try:
         i = int(i or 0)
-        cc = int(cc or 0)
         cr = int(cr or 0)
         o = int(o or 0)
     except (TypeError, ValueError):
         return 0, 0, 0, 0
-    # Only OpenAI cached-input fields are included in input_tokens. Anthropic
-    # cache_read_input_tokens is already separate, so do not subtract it.
-    if ("cached_input_tokens" in u) or isinstance(details, dict):
-        i = max(i - cr, 0)
-    return i, cc, cr, o
+    return max(i - cr, 0), 0, cr, o
 
 with open(path) as f:
     for line in f:
@@ -97,50 +76,20 @@ with open(path) as f:
             candidate = payload.get("id")
             if isinstance(candidate, str) and candidate:
                 sid = candidate
-        # Model can live at any of several places depending on transcript version.
-        for container in (d, payload, d.get("message"), d.get("response")):
-            if isinstance(container, dict):
-                m = container.get("model") or container.get("model_slug") or container.get("model_id")
-                if isinstance(m, str) and m:
-                    model = m
-                    break
-                collaboration = container.get("collaboration_mode")
-                if isinstance(collaboration, dict):
-                    settings = collaboration.get("settings")
-                    if isinstance(settings, dict):
-                        m = settings.get("model")
-                        if isinstance(m, str) and m:
-                            model = m
-                            break
+        collaboration = payload.get("collaboration_mode") if payload else None
+        settings = collaboration.get("settings") if isinstance(collaboration, dict) else None
+        m = settings.get("model") if isinstance(settings, dict) else None
+        if isinstance(m, str) and m:
+            model = m
         if payload and payload.get("type") == "token_count":
             info = payload.get("info")
             total = info.get("total_token_usage") if isinstance(info, dict) else None
             if isinstance(total, dict):
-                latest_total = pull(total)
-                continue
-        for container in (
-            d,
-            payload,
-            d.get("message")  if isinstance(d.get("message"),  dict) else None,
-            d.get("response") if isinstance(d.get("response"), dict) else None,
-        ):
-            if container is None:
-                continue
-            u = container.get("usage") if container is not d else container.get("usage", container)
-            i, cc, cr, o = pull(u if isinstance(u, dict) else {})
-            if i or o or cc or cr:
-                t_input        += i
-                t_cache_create += cc
-                t_cache_read   += cr
-                t_output       += o
-                break
+                latest_total = pull_total(total)
 if latest_total is not None:
     t_input, t_cache_create, t_cache_read, t_output = latest_total
 if not sid:
-    base = path.rsplit("/", 1)[-1]
-    if base.endswith(".jsonl"):
-        base = base[:-6]
-    sid = base.split("rollout-", 1)[-1] if base.startswith("rollout-") else base
+    sys.exit(2)
 print(f"{sid} {t_input} {t_cache_create} {t_cache_read} {t_output} {model or 'unknown'}")
 PY
 )"

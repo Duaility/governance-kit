@@ -173,7 +173,7 @@ _tier_phrase() {
         medium)
             printf 'a mid-capability model (the medium capability tier)' ;;
         low | *)
-            printf 'a small, low-cost model (the low capability tier, e.g. Claude Haiku or a comparable GPT-mini-class model; this is a bounded read-and-record audit whose verdict is independently re-derived by the merge-time sweep lane)' ;;
+            printf 'a small, low-cost model (the low capability tier; for Codex use a mini-class model, for Claude Code use a Haiku-class model; this is a bounded read-and-record audit whose verdict is independently re-derived by the merge-time sweep lane)' ;;
     esac
 }
 
@@ -197,7 +197,7 @@ attestation_prompt() {
         i=$((i + 1))
     done
     numbered="${numbered%; }"
-    printf 'Spawn a fresh-context sub-agent — on %s — with exactly these inputs — %s — and have it report a verdict + evidence for each, rendering each verdict as exactly the token PASS or REFUTED: %s. Default to REFUTED if uncertain. Write the findings into a '\''## %s'\'' section, then re-stage and re-commit. The hook never spawns the sub-agent itself.' \
+    printf 'Spawn a fresh-context sub-agent — on %s — with exactly these inputs — %s — and have it report a verdict + evidence for each, rendering each verdict as exactly the token PASS or REFUTED: %s. Default to REFUTED if uncertain. Write the findings into a '\''## %s'\'' section, then re-stage and re-commit. The hook never spawns the sub-agent itself; do not self-author this section in the primary agent context.' \
         "$(_tier_phrase low)" "$inputs" "$numbered" "$section"
 }
 
@@ -355,7 +355,19 @@ resolve_subagent_input() {
         diff)       printf 'the diff (`git diff`)' ;;
         receipt)    printf 'this receipt (`%s`)' "$receipt" ;;
         issue)      printf 'the linked issue (`gh issue view #%s`)' "$n" ;;
-        transcript) printf 'the session transcript (the JSONL named `$CLAUDE_CODE_SESSION_ID.jsonl` under your Claude Code projects dir)' ;;
+        transcript)
+            if [[ -n "${CODEX_TRANSCRIPT_PATH:-}" ]]; then
+                printf 'the Codex session transcript at `%s`' "$CODEX_TRANSCRIPT_PATH"
+            elif [[ -n "${CODEX_THREAD_ID:-}" ]]; then
+                printf 'the Codex session transcript (the JSONL under `~/.codex/sessions/` or `~/.codex/archived_sessions/` whose filename ends with `$CODEX_THREAD_ID.jsonl`)'
+            elif [[ -n "${CLAUDE_TRANSCRIPT_PATH:-}" ]]; then
+                printf 'the Claude Code session transcript at `%s`' "$CLAUDE_TRANSCRIPT_PATH"
+            elif [[ -n "${CLAUDE_CODE_SESSION_ID:-}" ]]; then
+                printf 'the Claude Code session transcript (the JSONL named `$CLAUDE_CODE_SESSION_ID.jsonl` under your Claude Code projects dir)'
+            else
+                printf 'the active agent session transcript for this commit'
+            fi
+            ;;
         layer-map)  printf 'the declared layer model in `%s`' "${GOVERNANCE_LAYER_DOC:-ARCHITECTURE.md}" ;;
         *)          printf '%s' "$token" ;;
     esac
@@ -524,8 +536,8 @@ def tier_phrase(tier):
                 "Sonnet, or a comparable frontier model)")
     if tier == "medium":
         return "a mid-capability model (the medium capability tier)"
-    return ("a small, low-cost model (the low capability tier, e.g. Claude Haiku "
-            "or a comparable GPT-mini-class model — this is a bounded "
+    return ("a small, low-cost model (the low capability tier; for Codex use "
+            "a mini-class model, for Claude Code use a Haiku-class model — this is a bounded "
             "read-and-record audit whose verdict the merge-time sweep lane "
             "independently re-derives)")
 
@@ -600,7 +612,7 @@ for r in isolated:
     )
 
 out.append("")
-out.append("The hook never spawns the sub-agent itself.")
+out.append("The hook never spawns the sub-agent itself; do not self-author these sections in the primary agent context.")
 out.append("─" * 40)
 print("\n".join(out))
 PY

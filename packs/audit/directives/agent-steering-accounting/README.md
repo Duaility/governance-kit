@@ -108,9 +108,11 @@ validated to the v1 rules.
 
 When a newly added receipt lacks a `## Steering` section, `check.sh` fails and
 the run-level orchestrator emits a grouped remediation instruction. The harness
-agent spawns a fresh-context sub-agent, handed the **session transcript** (the
-JSONL named `$CLAUDE_CODE_SESSION_ID.jsonl` under the Claude Code projects dir)
-and the receipt. The sub-agent:
+agent spawns a fresh-context sub-agent, handed the **session transcript** for
+the active runtime (`CODEX_THREAD_ID` under `~/.codex/sessions/` /
+`~/.codex/archived_sessions/` for Codex, `CLAUDE_CODE_SESSION_ID` under
+`~/.claude/projects/` for Claude Code, or an explicit `*_TRANSCRIPT_PATH`) and
+the receipt. The sub-agent:
 
 1. Walks the transcript and identifies each human-steering event — an
    **interrupt** (a user message beginning `[Request interrupted by user`) or a
@@ -195,5 +197,4 @@ the `## Steering` attestation gate over the branch's added receipts.
 
 - Wiring the **sweep** consumer to re-derive the `## Steering` verdict at the
   high tier from the same `subagent:` declaration (the schema is designed for it).
-- Codex runtime support — same schema, a different transcript the sub-agent reads.
 - Cross-session aggregation / dashboards.

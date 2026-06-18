@@ -257,7 +257,7 @@ silently.
 |---|---|
 | `AGENT_NAME` set (any value) | `manual` — caller supplies `AGENT_SESSION_ID`, `AGENT_CUM_INPUT`, `AGENT_CUM_OUTPUT` |
 | `CLAUDECODE=1` | `claude-code` — reads `~/.claude/projects/<encoded-cwd>/*.jsonl` |
-| `CODEX_THREAD_ID` set | `codex` — reads `~/.codex/sessions/*.jsonl` |
+| `CODEX_THREAD_ID` or `CODEX_TRANSCRIPT_PATH` set | `codex` — reads `~/.codex/sessions/*.jsonl` |
 | none of the above | no agent runtime — the writer no-ops and the check passes |
 
 The issue anchor is parsed from the parent git's `-m` / `--message` argv, or
@@ -291,22 +291,18 @@ The reader at `runtimes/claude-code.sh` inside the directive folder:
 Same story — `CODEX_THREAD_ID` is already set in Codex sessions, so no
 wrapper is needed. The reader at `runtimes/codex.sh` inside the directive folder:
 
-1. Locates the transcript by searching recursively under
-   `~/.codex/sessions/` and `~/.codex/archived_sessions/` for a filename
-   containing `CODEX_THREAD_ID`, falling back to the most recently modified
-   `*.jsonl`. Override with `CODEX_TRANSCRIPT_PATH`.
-2. Derives the session id from `CODEX_THREAD_ID`, `session_meta.payload.id`,
-   or finally the transcript filename.
+1. Locates the transcript from `CODEX_TRANSCRIPT_PATH`, or by searching
+   recursively under `~/.codex/sessions/` and `~/.codex/archived_sessions/`
+   for a filename ending with `CODEX_THREAD_ID.jsonl`.
+2. Reads the session id from `CODEX_THREAD_ID` or `session_meta.payload.id`.
 3. Reads Codex Desktop's cumulative
-   `event_msg.payload.info.total_token_usage` records when present. For
+   `event_msg.payload.info.total_token_usage` records. For
    OpenAI cached input, `cached_input_tokens` is a subset of `input_tokens`,
    so the reader emits `input = input_tokens - cached_input_tokens`,
    `cache_read = cached_input_tokens`, and `cache_create = 0`.
-4. Falls back to summing common API shapes — top-level `usage`,
-   `message.usage`, `response.usage`.
-5. Tracks `model` from `payload.model`, `collaboration_mode.settings.model`,
-   and the older fields. Defaults to `unknown` if none carry it.
-6. Prints `<session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output> <model>`.
+4. Tracks `model` from `turn_context.payload.collaboration_mode.settings.model`.
+   Defaults to `unknown` if the transcript does not carry it.
+5. Prints `<session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output> <model>`.
 
 ### Other runtimes
 
