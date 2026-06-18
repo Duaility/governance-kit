@@ -271,7 +271,7 @@ ${canonicalUrl ? `<meta property="og:url" content="${escapeAttr(canonicalUrl)}">
 <meta name="twitter:description" content="${escapeAttr(description)}">
 <meta name="twitter:image" content="${escapeAttr(ogImageUrl)}">
 <meta name="twitter:image:alt" content="${escapeAttr(`${config.name} — ${description}`)}">
-<meta name="theme-color" content="#0B8A5C">
+<meta name="theme-color" content="#130F0F">
 <link rel="icon" href="${publicPath('/assets/governance-mark.svg')}">
 <link rel="stylesheet" href="${assetUrl('/assets/docs-site.css')}">
 <script>window.GK_DOCS_BASE=${JSON.stringify(basePath)};window.GK_DOCS_CHAT_API=${JSON.stringify(chatApiUrl)};document.documentElement.dataset.theme=localStorage.getItem("theme")||"dark"</script>
@@ -475,7 +475,7 @@ function pageFeedback() {
 }
 
 function searchModal() {
-  return `<div class="search-modal"><div class="search-panel"><div class="search-head"><input data-search-input placeholder="Search commands, channels, config..."><button data-search-close>Close</button></div><div class="search-hints" aria-label="Search shortcuts"><button type="button" data-search-suggestion="install">install</button><button type="button" data-search-suggestion="telegram">telegram</button><button type="button" data-search-suggestion="gateway">gateway</button><button type="button" data-search-suggestion="plugins">plugins</button></div><div class="search-results" data-search-results></div></div></div>`;
+  return `<div class="search-modal"><div class="search-panel"><div class="search-head"><input data-search-input placeholder="Search the docs — directives, packs, verbs..."><button data-search-close>Close</button></div><div class="search-hints" aria-label="Search shortcuts"><button type="button" data-search-suggestion="install">install</button><button type="button" data-search-suggestion="directives">directives</button><button type="button" data-search-suggestion="packs">packs</button><button type="button" data-search-suggestion="audit">audit</button></div><div class="search-results" data-search-results></div></div></div>`;
 }
 
 function writeLlmsIndex() {
