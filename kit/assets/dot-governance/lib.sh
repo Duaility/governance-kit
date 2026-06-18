@@ -159,14 +159,34 @@ extract_md_section() {
     ' "$file"
 }
 
+# _tier_phrase <tier>
+#   The model-capability phrase rendered into a sub-agent authoring instruction,
+#   keyed by the attest/sweep capability TIER (not a model id, issue #142). The
+#   commit lane runs the bounded read-and-record audit on the cheap tier by
+#   default (issue #321); a consumer raises it per-repo via the SUBAGENT_TIERS_*
+#   conf knobs (issue #331), and this phrase keeps the instruction honest about
+#   which tier was requested. Unknown tiers degrade to the low phrasing.
+_tier_phrase() {
+    case "$1" in
+        high)
+            printf 'a capable model (the high capability tier, e.g. Claude Opus or Sonnet, or a comparable frontier model)' ;;
+        medium)
+            printf 'a mid-capability model (the medium capability tier)' ;;
+        low | *)
+            printf 'a small, low-cost model (the low capability tier, e.g. Claude Haiku or a comparable GPT-mini-class model; this is a bounded read-and-record audit whose verdict is independently re-derived by the merge-time sweep lane)' ;;
+    esac
+}
+
 # attestation_prompt <section> <inputs> <check-1> [<check-2> ...]
 #   Print the canonical sub-agent authoring instruction. One envelope so every
 #   attestation-backed directive emits the same recognizable instruction; the
 #   directive supplies only what varies — the section name, the <inputs> the
 #   sub-agent must be handed, and the numbered checks it must adjudicate.
 #   The envelope asks for a small, low-cost model (low capability tier): this is
-#   a bounded read-and-record audit whose verdict the merge-time sweep lane
-#   re-derives, so the expensive model belongs there, not here (cost, issue #321).
+#   the fallback path (`require_attestation`), which carries no operator tier
+#   knob, so it always names the low tier. The declaration-driven gate
+#   (`subagent_attest`/`attestation_remediation`) renders the conf-resolved
+#   attest tier instead (issue #331).
 attestation_prompt() {
     local section="$1" inputs="$2"
     shift 2
@@ -177,8 +197,8 @@ attestation_prompt() {
         i=$((i + 1))
     done
     numbered="${numbered%; }"
-    printf 'Spawn a fresh-context sub-agent — on a small, low-cost model (the low capability tier, e.g. Claude Haiku or a comparable GPT-mini-class model; this is a bounded read-and-record audit, and its verdict is independently re-derived by the merge-time sweep lane) — with exactly these inputs — %s — and have it report a verdict + evidence for each, rendering each verdict as exactly the token PASS or REFUTED: %s. Default to REFUTED if uncertain. Write the findings into a '\''## %s'\'' section, then re-stage and re-commit. The hook never spawns the sub-agent itself.' \
-        "$inputs" "$numbered" "$section"
+    printf 'Spawn a fresh-context sub-agent — on %s — with exactly these inputs — %s — and have it report a verdict + evidence for each, rendering each verdict as exactly the token PASS or REFUTED: %s. Default to REFUTED if uncertain. Write the findings into a '\''## %s'\'' section, then re-stage and re-commit. The hook never spawns the sub-agent itself.' \
+        "$(_tier_phrase low)" "$inputs" "$numbered" "$section"
 }
 
 # require_attestation <file> <section> <why> <inputs> <check-1> [<check-2> ...]
@@ -341,15 +361,70 @@ resolve_subagent_input() {
     esac
 }
 
-# _subagent_register <isolation> <receipt> <section> <inputs-US> <checks-US>
+# _subagent_tier <directive.yaml> <attest|sweep>
+#   Read `subagent.tiers.<which>` from the flow map declared in directive.yaml
+#   (`tiers: { attest: low, sweep: high }`). _subagent_yaml deliberately skips
+#   flow maps, so this is the dedicated reader for the one map the block carries.
+#   Prints the tier token or nothing.
+_subagent_tier() {
+    python3 - "$1" "$2" <<'PY'
+import re, sys
+path, which = sys.argv[1], sys.argv[2]
+try:
+    raw = open(path, encoding="utf-8").read().splitlines()
+except OSError:
+    sys.exit(0)
+in_block = False
+for ln in raw:
+    if ln.strip() == "subagent:" and (len(ln) - len(ln.lstrip())) == 0:
+        in_block = True
+        continue
+    if in_block:
+        if ln.strip() and (len(ln) - len(ln.lstrip())) == 0:
+            break  # dedented out of the subagent block
+        s = ln.strip()
+        if s.startswith("tiers:"):
+            m = re.search(rf"\b{re.escape(which)}\s*:\s*([A-Za-z0-9_-]+)", s)
+            if m:
+                print(m.group(1))
+            sys.exit(0)
+PY
+}
+
+# _subagent_tier_resolve <id> <defaults-file> <directive.yaml> <attest|sweep>
+#   Operator-tunable capability tier (issue #331). Precedence, via conf_get:
+#     env GOVERNANCE_SUBAGENT_TIERS_<WHICH> > user overlay row > defaults.conf row
+#   then, when conf carries no value (e.g. a directive folder vendored from a
+#   pre-#331 release that ships no defaults.conf), the directive.yaml
+#   `subagent.tiers.<which>` value, then a hardcoded floor (attest→low, sweep→high).
+#   Resolving through conf_get keeps the directive.yaml value as the effective
+#   default — behavior is unchanged until a consumer writes an overlay row.
+_subagent_tier_resolve() {
+    local id="$1" defaults="$2" yaml="$3" which="$4" key tier
+    case "$which" in
+        attest) key="SUBAGENT_TIERS_ATTEST" ;;
+        sweep)  key="SUBAGENT_TIERS_SWEEP" ;;
+        *) return 1 ;;
+    esac
+    tier="$(conf_get "$id" "$key" "$defaults" 2>/dev/null)" || tier=""
+    [[ -n "$tier" ]] || tier="$(_subagent_tier "$yaml" "$which")"
+    if [[ -z "$tier" ]]; then
+        case "$which" in attest) tier="low" ;; *) tier="high" ;; esac
+    fi
+    printf '%s\n' "$tier"
+}
+
+# _subagent_register <isolation> <tier> <receipt> <section> <inputs-US> <checks-US>
 #   Append one pending-attestation record to the shared ledger, if the harness
 #   set GOVERNANCE_ATTEST_LEDGER. No ledger → no-op (the per-section gate already
 #   recorded its violation, so CI / a bare commit still fails correctly; the
-#   grouped instruction is the orchestrated convenience layered on top).
+#   grouped instruction is the orchestrated convenience layered on top). <tier>
+#   is the conf-resolved attest tier (issue #331), threaded so the orchestrator
+#   can name the requested tier in the grouped instruction.
 _SUBAGENT_US=$'\x1f'
 _subagent_register() {
     [[ -n "${GOVERNANCE_ATTEST_LEDGER:-}" ]] || return 0
-    printf '%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" >> "$GOVERNANCE_ATTEST_LEDGER"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" "$6" >> "$GOVERNANCE_ATTEST_LEDGER"
 }
 
 # subagent_attest <receipt-file>
@@ -360,15 +435,24 @@ _subagent_register() {
 #   Returns 0 when the section is well-formed, 1 otherwise.
 subagent_attest() {
     local file="$1"
-    local yaml; yaml="$(dirname "$0")/directive.yaml"
+    local dir; dir="$(dirname "$0")"
+    local yaml="$dir/directive.yaml"
     if [[ ! -f "$yaml" ]]; then
         violation "$file — directive.yaml not found beside check.sh; cannot resolve the subagent declaration"
         return 1
     fi
-    local section isolation
+    # Operator-tunable operational knobs (issue #331): isolation (batching) and
+    # the attest capability tier resolve through the conf overlay, falling back
+    # to the directive.yaml value so behavior is unchanged until a consumer
+    # writes a row. The semantic fields (inputs, checks, section) stay read
+    # straight from directive.yaml — they must not be tweakable without a fork.
+    local id defaults; id="$(basename "$dir")"; defaults="$dir/defaults.conf"
+    local section isolation tier
     section="$(_subagent_yaml "$yaml" section)"
-    isolation="$(_subagent_yaml "$yaml" isolation)"
+    isolation="$(conf_get "$id" SUBAGENT_ISOLATION "$defaults" 2>/dev/null)" || isolation=""
+    [[ -n "$isolation" ]] || isolation="$(_subagent_yaml "$yaml" isolation)"
     [[ -n "$isolation" ]] || isolation="shared"
+    tier="$(_subagent_tier_resolve "$id" "$defaults" "$yaml" attest)"
     if [[ -z "$section" ]]; then
         violation "$file — directive.yaml declares no 'subagent.section'; cannot gate the attestation"
         return 1
@@ -396,13 +480,13 @@ subagent_attest() {
     # orchestrator) and register the pending section.
     if ! grep -qE "^##[[:space:]]+${section}\b" "$file"; then
         violation "$file — missing a '## ${section}' section; a fresh-context sub-agent must record its verdict here (see the grouped sub-agent instruction below)."
-        _subagent_register "$isolation" "$file" "$section" "$inputs_joined" "$checks_joined"
+        _subagent_register "$isolation" "$tier" "$file" "$section" "$inputs_joined" "$checks_joined"
         return 1
     fi
     local body; body="$(extract_md_section "$file" "$section")"
     if ! printf '%s\n' "$body" | grep -qiE '\b(PASS|REFUTED)\b'; then
         violation "$file — '## ${section}' records no PASS/REFUTED verdict; the sub-agent must report a verdict + evidence for each named check (see the grouped sub-agent instruction below)."
-        _subagent_register "$isolation" "$file" "$section" "$inputs_joined" "$checks_joined"
+        _subagent_register "$isolation" "$tier" "$file" "$section" "$inputs_joined" "$checks_joined"
         return 1
     fi
     return 0
@@ -419,8 +503,10 @@ subagent_attest() {
 attestation_remediation() {
     local ledger="${1:-${GOVERNANCE_ATTEST_LEDGER:-}}"
     [[ -n "$ledger" && -s "$ledger" ]] || return 0
-    # The ledger is TSV — `isolation \t receipt \t section \t inputs \t checks` —
-    # whose inputs/checks fields are US-joined (\x1f). Formatting the grouped
+    # The ledger is TSV — `isolation \t tier \t receipt \t section \t inputs \t checks` —
+    # whose inputs/checks fields are US-joined (\x1f). The `tier` column is the
+    # conf-resolved attest capability tier (issue #331). A 5-column row (no tier)
+    # from an older writer degrades to the low tier. Formatting the grouped
     # instruction is pure text munging over strings full of backticks and quotes;
     # stdlib python does it without the quoting hazards of bash, and python3 is
     # already present whenever an attestation registered (those directives run it).
@@ -428,6 +514,21 @@ attestation_remediation() {
 import sys
 
 US = "\x1f"
+_RANK = {"low": 0, "medium": 1, "high": 2}
+
+def tier_phrase(tier):
+    # Mirrors lib.sh `_tier_phrase`; the attest lane runs cheap by default and a
+    # consumer raises it via SUBAGENT_TIERS_ATTEST (issue #331).
+    if tier == "high":
+        return ("a capable model (the high capability tier, e.g. Claude Opus or "
+                "Sonnet, or a comparable frontier model)")
+    if tier == "medium":
+        return "a mid-capability model (the medium capability tier)"
+    return ("a small, low-cost model (the low capability tier, e.g. Claude Haiku "
+            "or a comparable GPT-mini-class model — this is a bounded "
+            "read-and-record audit whose verdict the merge-time sweep lane "
+            "independently re-derives)")
+
 shared, isolated = [], []
 try:
     rows = open(sys.argv[1], encoding="utf-8").read().splitlines()
@@ -437,12 +538,17 @@ for line in rows:
     if not line.strip():
         continue
     parts = line.split("\t")
-    if len(parts) < 5:
+    if len(parts) >= 6:
+        iso, tier, receipt, section, inputs, checks = parts[:6]
+    elif len(parts) == 5:
+        iso, receipt, section, inputs, checks = parts
+        tier = "low"
+    else:
         continue
-    iso, receipt, section, inputs, checks = parts[0], parts[1], parts[2], parts[3], parts[4]
     rec = {
         "receipt": receipt,
         "section": section,
+        "tier": tier if tier in _RANK else "low",
         "inputs": [p for p in inputs.split(US) if p],
         "checks": [c for c in checks.split(US) if c],
     }
@@ -466,12 +572,13 @@ if shared:
             if ip not in seen:
                 seen.add(ip)
                 union.append(ip)
+    # Batched sections may declare different attest tiers; run the shared spawn
+    # at the most capable one requested so no directive is under-resourced.
+    group_tier = max((r["tier"] for r in shared), key=lambda t: _RANK.get(t, 0))
     out.append("")
     out.append(
-        "Spawn ONE fresh-context sub-agent on a small, low-cost model (the low "
-        "capability tier, e.g. Claude Haiku or a comparable GPT-mini-class model — "
-        "this is a bounded read-and-record audit whose verdict the merge-time sweep "
-        "lane independently re-derives). Hand it exactly these inputs: "
+        "Spawn ONE fresh-context sub-agent on " + tier_phrase(group_tier)
+        + ". Hand it exactly these inputs: "
         + ", ".join(union)
         + ". Render a verdict + evidence for every check below, rendering each "
         "verdict as exactly the token PASS or REFUTED; default to REFUTED if "
@@ -485,7 +592,7 @@ for r in isolated:
     out.append("")
     out.append(
         "Spawn a separate fresh-context sub-agent (isolated — no shared context) on "
-        "a small, low-cost model. Hand it exactly these inputs: "
+        + tier_phrase(r["tier"]) + ". Hand it exactly these inputs: "
         + ", ".join(r["inputs"])
         + f". Render a verdict + evidence for each, as exactly PASS or REFUTED "
         f"(default REFUTED if uncertain), into the '## {r['section']}' section of "

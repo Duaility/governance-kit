@@ -274,11 +274,95 @@ def _read_directive_meta(directive_dir: Path) -> dict[str, str]:
     return meta
 
 
+# ── operator-tunable model tier (issue #331) ────────────────────────────────
+# A directive carrying a `subagent:` block exposes its sweep capability tier as
+# the conf knob SUBAGENT_TIERS_SWEEP — the OPERATIONAL half of the declaration a
+# consumer may tune per-repo without forking the vendored directive.yaml. The
+# sweep engine resolves it the same way the commit lane resolves SUBAGENT_*
+# knobs (env > user overlay > pack defaults.conf > the directive.yaml value),
+# reimplemented here in stdlib Python because lib.sh's `conf_get` is bash.
+def _read_scalar(path: Path, key: str) -> str | None:
+    """First `KEY=value` row in a conf-format file, or None."""
+    if path.is_file():
+        for raw in path.read_text().splitlines():
+            s = raw.strip()
+            if s.startswith(f"{key}=") and not s.startswith("#"):
+                return s[len(key) + 1:].strip()
+    return None
+
+
+def _overlay_conf_path(directive_dir: Path) -> Path | None:
+    """The user overlay `.governance/conf/<owner>/<pack>/<id>.conf` for a
+    directive vendored at `<root>/.governance/packs/<owner>/<pack>/directives/<id>`.
+    None when directive_dir isn't an installed (`.governance/packs/...`) path —
+    e.g. a source-tree directive under calibration, which has no overlay."""
+    # <root>/.governance/packs/<owner>/<pack>/directives/<id>
+    #   parents[1]=<pack> [2]=<owner> [3]=packs [4]=.governance [5]=<root>
+    d = directive_dir
+    if len(d.parents) < 6:
+        return None
+    if d.parents[3].name != "packs" or d.parents[4].name != ".governance":
+        return None
+    root = d.parents[5]
+    owner, pack = d.parents[2].name, d.parents[1].name
+    return root / ".governance" / "conf" / owner / pack / f"{d.name}.conf"
+
+
+def _has_subagent_block(directive_dir: Path) -> bool:
+    y = directive_dir / "directive.yaml"
+    return y.is_file() and any(
+        ln.strip() == "subagent:" and not (len(ln) - len(ln.lstrip()))
+        for ln in y.read_text().splitlines()
+    )
+
+
+def _subagent_block_tier(directive_dir: Path, which: str) -> str | None:
+    """Read `subagent.tiers.<which>` from the directive.yaml flow map."""
+    y = directive_dir / "directive.yaml"
+    if not y.is_file():
+        return None
+    in_block = False
+    for ln in y.read_text().splitlines():
+        if ln.strip() == "subagent:" and not (len(ln) - len(ln.lstrip())):
+            in_block = True
+            continue
+        if in_block:
+            if ln.strip() and not (len(ln) - len(ln.lstrip())):
+                break
+            m = re.search(rf"\btiers:.*\b{re.escape(which)}\s*:\s*([A-Za-z0-9_-]+)",
+                          ln.strip())
+            if m:
+                return m.group(1)
+    return None
+
+
+def resolve_model_tier(directive_dir: Path) -> str:
+    """The capability tier to adjudicate this directive at. A `subagent:`
+    directive resolves the operator-tunable SUBAGENT_TIERS_SWEEP knob (issue
+    #331): env > user overlay > pack defaults.conf > the directive.yaml value.
+    A legacy sweep directive keeps its top-level `model_tier` (default high)."""
+    if not _has_subagent_block(directive_dir):
+        return _read_directive_meta(directive_dir).get("model_tier", "high")
+    key = "SUBAGENT_TIERS_SWEEP"
+    env = os.environ.get(f"GOVERNANCE_{key}")
+    if env:
+        return env
+    overlay = _overlay_conf_path(directive_dir)
+    if overlay is not None:
+        v = _read_scalar(overlay, key)
+        if v:
+            return v
+    v = _read_scalar(directive_dir / "defaults.conf", key)
+    if v:
+        return v
+    return _subagent_block_tier(directive_dir, "sweep") or "high"
+
+
 def eval_directive(
     directive_dir: Path, judge: str, min_precision: float, min_recall: float
 ) -> int:
     meta = _read_directive_meta(directive_dir)
-    model_tier = meta.get("model_tier", "high")
+    model_tier = resolve_model_tier(directive_dir)
     evals = directive_dir / "evals"
     cases: list[tuple[str, Path, bool]] = []  # (label, fixture, is_violation)
     for f in sorted((evals / "violating").glob("*")) if (evals / "violating").is_dir() else []:
@@ -476,7 +560,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             if not hunk:
                 continue
             verdict = adjudicate(hunk=hunk, file=file, directive_dir=d,
-                                 model_tier=meta.get("model_tier", "high"), judge=args.judge)
+                                 model_tier=resolve_model_tier(d), judge=args.judge)
             budget -= 1
             adjudicated_total += 1
             if not verdict["adjudicated"]:
@@ -568,11 +652,10 @@ def _render_digest(rng, head, sections, markers, triaged, adjudicated,
 def cmd_adjudicate(args: argparse.Namespace) -> int:
     directive_dir = Path(args.directive_dir).resolve() if args.directive_dir else \
         Path(args.constitution).resolve().parent
-    meta = _read_directive_meta(directive_dir)
     verdict = adjudicate(
         hunk=Path(args.hunk_file).read_text(), file=args.file,
         directive_dir=directive_dir,
-        model_tier=args.model_tier or meta.get("model_tier", "high"),
+        model_tier=args.model_tier or resolve_model_tier(directive_dir),
         judge=args.judge,
         keywords_path=Path(args.keywords).resolve() if args.keywords else None,
     )

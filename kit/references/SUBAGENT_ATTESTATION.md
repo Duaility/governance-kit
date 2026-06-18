@@ -77,6 +77,39 @@ subagent:
 - **`section`** — the `## <Section>` the verdict is written into.
 - **`tiers`** — the capability tier each mode runs at: `attest` low, `sweep` high.
 
+### Author-owned vs operator-owned (issue #331)
+
+The five fields are two different kinds of thing, and the kit treats them
+differently:
+
+- **Semantic — author-fixed in `directive.yaml`** (`inputs`, `checks`,
+  `section`). These *are* the directive's substance: `checks` is the rubric the
+  sweep lane re-derives the verdict against, `inputs` decides what ground truth
+  the judge sees, and `section` is a code contract `check.sh` greps for. A
+  consumer who could edit them would grade the attest and sweep verdicts against
+  different rubrics, so they must not be tweakable without a fork —
+  `managed-tree-integrity` rejecting a hand-edit of the vendored `directive.yaml`
+  is the system working.
+- **Operational — operator-tunable through the conf overlay** (`isolation`,
+  `tiers`). These are pure cost / batching dials. A consumer tunes them per-repo
+  via the pack's [`defaults.conf` + `.governance/conf/...` overlay](PACK_AUTHORING.md)
+  mechanism — three knobs, resolved with `conf_get`:
+
+  | knob | overrides | default |
+  |---|---|---|
+  | `SUBAGENT_ISOLATION` | `isolation` | `shared` |
+  | `SUBAGENT_TIERS_ATTEST` | `tiers.attest` | `low` |
+  | `SUBAGENT_TIERS_SWEEP` | `tiers.sweep` | `high` |
+
+  Resolution precedence is the usual `conf_get` ladder — env `GOVERNANCE_<KEY>` >
+  user overlay row > pack `defaults.conf` row > the `directive.yaml` value — so
+  behavior is **unchanged until a consumer writes an overlay row**. The commit
+  lane (`subagent_attest` → `attestation_remediation`) renders the resolved
+  attest tier into the grouped instruction; the sweep engine
+  (`resolve_model_tier`) resolves `SUBAGENT_TIERS_SWEEP` the same way. A directive
+  exposing these knobs ships a `defaults.conf` carrying the three rows (with
+  docs); the overlay wins when a consumer writes one.
+
 ## The remediation loop (no hook ever spawns anything)
 
 A git hook can neither spawn a sub-agent nor judge its output. So the directive
@@ -142,6 +175,11 @@ can read the diff, compare it to the artifact, and record a verdict. The grouped
 instruction names a **capability tier**, not a pinned model id, and asks the
 auditor to render the verdict as literally `PASS` or `REFUTED`; the gate matches
 that token case-insensitively anywhere in the section.
+
+The tier is the default, not a hard floor: a consumer who wants this directive's
+author-time verdict run on a stronger model raises `SUBAGENT_TIERS_ATTEST` in the
+conf overlay (issue #331, see *Author-owned vs operator-owned* above), and the
+grouped instruction names the raised tier instead.
 
 ## The helpers (in `lib.sh`)
 

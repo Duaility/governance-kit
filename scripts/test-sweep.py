@@ -11,6 +11,7 @@ uncreatable → filed unlabeled with a warning, run still succeeds.
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import subprocess
 import sys
@@ -19,6 +20,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SWEEP = ROOT / "kit" / "assets" / "dot-governance" / "sweep.py"
+
+# Import the engine as a module for the pure-function unit tests below (the
+# filing tests above drive the real CLI in a subprocess; the tier-resolution
+# tests just call resolve_model_tier directly).
+_spec = importlib.util.spec_from_file_location("sweep_engine", SWEEP)
+sweep = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(sweep)
 
 GIT_CLEAN_ENV = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
 
@@ -141,6 +149,75 @@ def test_dry_run_never_touches_labels() -> None:
         calls = log.read_text().splitlines() if log.exists() else []
         assert not any(c.startswith("label create") or c.startswith("issue create")
                        for c in calls), calls
+
+
+# ── resolve_model_tier: operator-tunable SUBAGENT_TIERS_SWEEP (issue #331) ───
+def _subagent_dir(base: Path, *, with_defaults: bool, sweep_tier_yaml: str = "high",
+                  overlay_tier: str | None = None) -> Path:
+    """An installed-layout directive carrying a `subagent:` block, so
+    resolve_model_tier and _overlay_conf_path see the real
+    `.governance/{packs,conf}/<owner>/<pack>/...` shape."""
+    root = base / "repo"
+    d = root / ".governance" / "packs" / "acme" / "audit" / "directives" / "rec"
+    d.mkdir(parents=True)
+    (d / "directive.yaml").write_text(
+        "category: x\nsurface: sweep\nhook: none\n"
+        "subagent:\n"
+        "  inputs:  [diff]\n"
+        "  checks:\n    - one\n"
+        "  isolation: shared\n  section: Audit\n"
+        f"  tiers: {{ attest: low, sweep: {sweep_tier_yaml} }}\n")
+    if with_defaults:
+        (d / "defaults.conf").write_text(
+            "SUBAGENT_ISOLATION=shared\nSUBAGENT_TIERS_ATTEST=low\n"
+            "SUBAGENT_TIERS_SWEEP=high\n")
+    if overlay_tier is not None:
+        ov = root / ".governance" / "conf" / "acme" / "audit" / "rec.conf"
+        ov.parent.mkdir(parents=True, exist_ok=True)
+        ov.write_text(f"SUBAGENT_TIERS_SWEEP={overlay_tier}\n")
+    return d
+
+
+def test_resolve_tier_uses_defaults_conf() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        d = _subagent_dir(Path(tmp), with_defaults=True)
+        assert sweep.resolve_model_tier(d) == "high"
+
+
+def test_resolve_tier_overlay_wins() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        d = _subagent_dir(Path(tmp), with_defaults=True, overlay_tier="low")
+        assert sweep.resolve_model_tier(d) == "low"
+
+
+def test_resolve_tier_falls_back_to_directive_yaml() -> None:
+    # No defaults.conf, no overlay (a directive vendored from a pre-#331 release):
+    # the directive.yaml `subagent.tiers.sweep` value is the default.
+    with tempfile.TemporaryDirectory() as tmp:
+        d = _subagent_dir(Path(tmp), with_defaults=False, sweep_tier_yaml="low")
+        assert sweep.resolve_model_tier(d) == "low"
+
+
+def test_resolve_tier_env_wins() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        d = _subagent_dir(Path(tmp), with_defaults=True, overlay_tier="low")
+        os.environ["GOVERNANCE_SUBAGENT_TIERS_SWEEP"] = "medium"
+        try:
+            assert sweep.resolve_model_tier(d) == "medium"
+        finally:
+            del os.environ["GOVERNANCE_SUBAGENT_TIERS_SWEEP"]
+
+
+def test_resolve_tier_legacy_directive_keeps_model_tier() -> None:
+    # A non-subagent sweep directive keeps its top-level model_tier (default high).
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "repo"
+        d = root / ".governance" / "packs" / "acme" / "shape" / "directives" / "ns"
+        d.mkdir(parents=True)
+        (d / "directive.yaml").write_text("surface: sweep\nhook: none\nmodel_tier: low\n")
+        assert sweep.resolve_model_tier(d) == "low"
+        (d / "directive.yaml").write_text("surface: sweep\nhook: none\n")
+        assert sweep.resolve_model_tier(d) == "high"
 
 
 if __name__ == "__main__":
