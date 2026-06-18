@@ -40,6 +40,8 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_COMMON_DIR
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 RUN_SH="$ROOT/kit/assets/dot-governance/run.sh"
 LIB_SH="$ROOT/kit/assets/dot-governance/lib.sh"
+TOKEN_RUNTIME_LIB="$ROOT/packs/audit/directives/agent-token-accounting/lib/runtime.sh"
+TOKEN_CODEX_SH="$ROOT/packs/audit/directives/agent-token-accounting/runtimes/codex.sh"
 
 PASS=0
 FAIL=0
@@ -489,6 +491,8 @@ assert_contains "attestation_prompt numbers the first check" "(1) check one" "$o
 assert_contains "attestation_prompt numbers the second check" "(2) check two" "$output"
 assert_contains "attestation_prompt names the target section" "into a '## Audit' section" "$output"
 assert_contains "attestation_prompt states the no-spawn invariant" "hook never spawns" "$output"
+assert_contains "attestation_prompt names Codex mini class for low tier" "for Codex use a mini-class model" "$output"
+assert_contains "attestation_prompt rejects self-authored sections" "do not self-author this section" "$output"
 
 # require_attestation: present + verdict-bearing section → no violation, returns 0.
 set +e
@@ -592,6 +596,8 @@ assert_contains "remediation names the target section" "write the '## Audit' sec
 assert_contains "remediation numbers the first check" "(1) What changed matches the diff" "$output"
 assert_contains "remediation numbers the second check" "(2) checklist mirrors the issue" "$output"
 assert_contains "remediation unions the resolved inputs" "the diff (\`git diff\`)" "$output"
+assert_contains "remediation names Codex mini class for low tier" "for Codex use a mini-class model" "$output"
+assert_contains "remediation rejects self-authored sections" "do not self-author these sections" "$output"
 
 # An isolated record gets its own sub-agent instruction (US-joined inner fields).
 printf 'isolated\t%s\tSteering\t%s\t%s\n' \
@@ -614,6 +620,27 @@ assert_eq "no registration when the section is well-formed" "" "$(cat "$sa_ledge
 : > "$sa_ledger"
 output=$(set +u; source "$LIB_SH"; attestation_remediation "$sa_ledger" 2>&1)
 assert_eq "remediation is silent with no pending attestations" "" "$output"
+
+# The transcript input is runtime-aware, so Codex users are not handed a
+# Claude-only lookup instruction.
+output=$(
+    set +u
+    unset CLAUDE_TRANSCRIPT_PATH CLAUDE_CODE_SESSION_ID
+    CODEX_THREAD_ID="019ed941-f410-7871-bacf-6db3af231768"
+    source "$LIB_SH"
+    resolve_subagent_input transcript "$sa_receipt"
+)
+assert_contains "transcript input names Codex sessions" "~/.codex/sessions/" "$output"
+assert_contains "transcript input names CODEX_THREAD_ID" 'CODEX_THREAD_ID.jsonl' "$output"
+
+output=$(
+    set +u
+    unset CODEX_TRANSCRIPT_PATH CODEX_THREAD_ID
+    CLAUDE_CODE_SESSION_ID="9e05791b-0ee0-423e-b0c8-2234df57840a"
+    source "$LIB_SH"
+    resolve_subagent_input transcript "$sa_receipt"
+)
+assert_contains "transcript input still supports Claude session ids" 'CLAUDE_CODE_SESSION_ID.jsonl' "$output"
 
 # ---- lib.sh: operator-tunable subagent tier/isolation (issue #331) ---------
 
@@ -837,6 +864,65 @@ cat > "$list_repo/.governance/conf/cmf.conf" <<'EOF'
 EOF
 output=$(cd "$list_repo"; set +u; source "$LIB_SH"; conf_list cmf ./defaults.conf)
 assert_eq "conf_list can empty the list" "" "$output"
+
+# ---- agent-token-accounting: Codex runtime reader -------------------------
+
+printf '── agent-token-accounting: codex runtime reader ────────\n'
+codex_sessions="$WORK/codex-sessions"
+codex_archived="$WORK/codex-archived"
+mkdir -p "$codex_sessions/2026/06/18" "$codex_archived"
+codex_thread="019ed941-f410-7871-bacf-6db3af231768"
+codex_wanted="$codex_sessions/2026/06/18/rollout-2026-06-18T11-13-58-$codex_thread.jsonl"
+codex_newer="$codex_sessions/2026/06/18/rollout-2026-06-18T11-14-30-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jsonl"
+cat > "$codex_wanted" <<EOF
+{"type":"session_meta","payload":{"id":"$codex_thread"}}
+{"type":"turn_context","payload":{"collaboration_mode":{"settings":{"model":"gpt-5.5"}}}}
+{"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":30,"output_tokens":7}}}}
+EOF
+cat > "$codex_newer" <<'EOF'
+{"type":"session_meta","payload":{"id":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}}
+{"type":"turn_context","payload":{"collaboration_mode":{"settings":{"model":"gpt-5.5"}}}}
+{"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":900,"cached_input_tokens":0,"output_tokens":9}}}}
+EOF
+touch -t 202606181114 "$codex_wanted"
+touch -t 202606181115 "$codex_newer"
+
+set +e
+output=$(
+    CODEX_THREAD_ID="$codex_thread" \
+    CODEX_SESSIONS_DIR="$codex_sessions" \
+    CODEX_ARCHIVED_SESSIONS_DIR="$codex_archived" \
+    bash "$TOKEN_CODEX_SH"
+)
+exit_code=$?
+set -e
+assert_eq "codex reader exits 0 with CODEX_THREAD_ID" 0 "$exit_code"
+assert_eq "codex reader chooses thread match over newer unrelated transcript" "$codex_thread 70 0 30 7 gpt-5.5" "$output"
+
+set +e
+output=$(
+    unset CODEX_THREAD_ID CODEX_TRANSCRIPT_PATH
+    CODEX_SESSIONS_DIR="$codex_sessions" \
+    CODEX_ARCHIVED_SESSIONS_DIR="$codex_archived" \
+    bash "$TOKEN_CODEX_SH"
+)
+exit_code=$?
+set -e
+assert_eq "codex reader refuses to guess without thread id or transcript path" 1 "$exit_code"
+
+set +e
+output=$(
+    unset AGENT_NAME CLAUDECODE CODEX_THREAD_ID
+    export CODEX_TRANSCRIPT_PATH="$codex_wanted"
+    source "$TOKEN_RUNTIME_LIB"
+    resolve_runtime_cumulative
+    rc=$?
+    printf '%s %s %s %s %s %s\n' "$rc" "$RUNTIME" "$SESSION_ID" "$CUM_INPUT" "$CUM_CACHE_READ" "$MODEL"
+)
+exit_code=$?
+set -e
+assert_eq "runtime detection accepts explicit Codex transcript path" 0 "$exit_code"
+assert_eq "runtime detection reads Codex transcript path coordinates" "0 codex $codex_thread 70 30 gpt-5.5" "$output"
 
 # ---- summary --------------------------------------------------------------
 

@@ -199,6 +199,12 @@ Then run `git status` to confirm the three changes are staged and nothing else u
 
 Append the issue anchor the repo requires (`commit-message-format` enforces `(#N)` in this kit by default). If the user did not name an issue, ask for it as a blocking input — it's a repo directive, not a style preference.
 
+If the flow creates or updates the linked GitHub issue or PR, title it with the
+same Conventional Commits subject stem, without the trailing issue anchor (for
+example, `fix(audit): make Codex token runtime strict`). Squash merges and
+release notes commonly inherit issue/PR titles, so those titles are part of the
+same commit-message contract rather than free-form prose.
+
 The commit body should include:
 - A two-line summary of what the amendment does and why.
 - If smoke-test exited 1: the verbatim violator list so the PR reviewer can act on it.

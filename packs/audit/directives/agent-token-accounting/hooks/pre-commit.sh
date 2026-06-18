@@ -15,7 +15,8 @@
 #
 # Runtime detection is automatic from the environment:
 #   CLAUDECODE=1                 → claude-code
-#   CODEX_THREAD_ID set          → codex
+#   CODEX_THREAD_ID or CODEX_TRANSCRIPT_PATH set
+#                                  → codex
 #   AGENT_NAME set manually      → whatever the user said, with explicit
 #                                   AGENT_SESSION_ID / AGENT_CUM_INPUT /
 #                                   AGENT_CUM_CACHE_CREATE /
