@@ -615,6 +615,94 @@ assert_eq "no registration when the section is well-formed" "" "$(cat "$sa_ledge
 output=$(set +u; source "$LIB_SH"; attestation_remediation "$sa_ledger" 2>&1)
 assert_eq "remediation is silent with no pending attestations" "" "$output"
 
+# ---- lib.sh: operator-tunable subagent tier/isolation (issue #331) ---------
+
+printf '── lib.sh: subagent tier/isolation conf knobs (#331) ───\n'
+
+# _subagent_tier reads the `tiers: { attest: low, sweep: high }` flow map.
+output=$(set +u; source "$LIB_SH"; _subagent_tier "$sa_dir/directive.yaml" attest)
+assert_eq "_subagent_tier reads the attest tier" "low" "$output"
+output=$(set +u; source "$LIB_SH"; _subagent_tier "$sa_dir/directive.yaml" sweep)
+assert_eq "_subagent_tier reads the sweep tier" "high" "$output"
+
+# _subagent_tier_resolve: with no conf (missing defaults.conf, no overlay) the
+# directive.yaml value is the default — today's behavior is preserved.
+output=$(cd "$WORK"; set +u; source "$LIB_SH"; _subagent_tier_resolve sa "$sa_dir/defaults.conf" "$sa_dir/directive.yaml" attest)
+assert_eq "tier_resolve falls back to directive.yaml (attest)" "low" "$output"
+output=$(cd "$WORK"; set +u; source "$LIB_SH"; _subagent_tier_resolve sa "$sa_dir/defaults.conf" "$sa_dir/directive.yaml" sweep)
+assert_eq "tier_resolve falls back to directive.yaml (sweep)" "high" "$output"
+
+# _subagent_tier_resolve: a defaults.conf row beats the directive.yaml value.
+mkdir -p "$WORK/def-high"
+printf 'SUBAGENT_TIERS_ATTEST=high\n' > "$WORK/def-high/defaults.conf"
+output=$(cd "$WORK"; set +u; source "$LIB_SH"; _subagent_tier_resolve sa "$WORK/def-high/defaults.conf" "$sa_dir/directive.yaml" attest)
+assert_eq "tier_resolve reads the defaults.conf row" "high" "$output"
+
+# _subagent_tier_resolve: env GOVERNANCE_SUBAGENT_TIERS_ATTEST wins over all.
+output=$(cd "$WORK"; set +u; export GOVERNANCE_SUBAGENT_TIERS_ATTEST=high; source "$LIB_SH"; _subagent_tier_resolve sa "$sa_dir/defaults.conf" "$sa_dir/directive.yaml" attest)
+assert_eq "tier_resolve env beats everything" "high" "$output"
+
+# subagent_attest in an installed (.governance/packs/...) layout: the user
+# overlay tunes isolation + attest tier; the ledger row carries both. This is
+# the end-to-end overlay-wins path a consumer hits.
+k_dir="$WORK/knob-repo"
+k_chk="$k_dir/.governance/packs/acme/audit/directives/rec"
+mkdir -p "$k_chk"
+git -C "$k_dir" init -q
+cat > "$k_chk/directive.yaml" <<'EOF'
+surface: change-set
+hook: pre-commit
+subagent:
+  inputs:  [diff]
+  checks:
+    - "What changed matches the diff"
+  isolation: shared
+  section: Audit
+  tiers: { attest: low, sweep: high }
+EOF
+cat > "$k_chk/defaults.conf" <<'EOF'
+SUBAGENT_ISOLATION=shared
+SUBAGENT_TIERS_ATTEST=low
+SUBAGENT_TIERS_SWEEP=high
+EOF
+cat > "$k_chk/check.sh" <<EOF
+set -u
+source "$LIB_SH"
+directive_start rec
+subagent_attest "\$1"
+directive_end
+EOF
+k_receipt="$k_dir/receipts/issue-7-x.md"
+mkdir -p "$k_dir/receipts"
+printf '# r\n\n## What changed\n\nx\n' > "$k_receipt"
+k_ledger="$WORK/knob-ledger.tsv"
+
+# No overlay → defaults (shared/low) preserve today's behavior. The check exits
+# 1 on the (expected) missing section, so guard against the script's set -e.
+: > "$k_ledger"
+(set +u; export GOVERNANCE_ATTEST_LEDGER="$k_ledger"; cd "$k_dir"; bash "$k_chk/check.sh" "$k_receipt" >/dev/null 2>&1) || true
+assert_eq "default isolation column is shared" "shared" "$(cut -f1 "$k_ledger")"
+assert_eq "default attest-tier column is low"  "low"    "$(cut -f2 "$k_ledger")"
+
+# Overlay flips isolation→isolated and attest tier→high.
+mkdir -p "$k_dir/.governance/conf/acme/audit"
+printf 'SUBAGENT_ISOLATION=isolated\nSUBAGENT_TIERS_ATTEST=high\n' \
+    > "$k_dir/.governance/conf/acme/audit/rec.conf"
+: > "$k_ledger"
+(set +u; export GOVERNANCE_ATTEST_LEDGER="$k_ledger"; cd "$k_dir"; bash "$k_chk/check.sh" "$k_receipt" >/dev/null 2>&1) || true
+assert_eq "overlay flips isolation column to isolated" "isolated" "$(cut -f1 "$k_ledger")"
+assert_eq "overlay raises attest-tier column to high"  "high"     "$(cut -f2 "$k_ledger")"
+
+# The orchestrator renders the conf-resolved tier into the grouped instruction.
+output=$(set +u; source "$LIB_SH"; attestation_remediation "$k_ledger" 2>&1)
+assert_contains "remediation routes an isolated overlay to its own sub-agent" "Spawn a separate fresh-context sub-agent (isolated" "$output"
+assert_contains "remediation names the raised (high) tier" "high capability tier" "$output"
+
+# A shared/low ledger still names the low tier by default.
+printf 'shared\tlow\t%s\tAudit\t%s\t%s\n' "$k_receipt" "the diff (\`git diff\`)" "What changed matches the diff" > "$sa_ledger"
+output=$(set +u; source "$LIB_SH"; attestation_remediation "$sa_ledger" 2>&1)
+assert_contains "remediation names the low tier by default" "low capability tier" "$output"
+
 # ---- lib.sh: conf_file / conf_get / conf_rule_lines -----------------------
 
 printf '── lib.sh: conf_file / conf_get / conf_rule_lines ──────\n'
