@@ -44,12 +44,12 @@
   <text x="230" y="388" text-anchor="middle" font-size="12" fill="#97948c">can’t read your last conversation</text>
 
   <!-- ===== RIGHT: the rule layer ===== -->
-  <text x="520" y="78" font-size="13" font-weight="700" fill="#c3cf5a" letter-spacing="0.4">THE RULE LAYER</text>
+  <text x="520" y="78" font-size="13" font-weight="700" fill="#36d6af" letter-spacing="0.4">THE RULE LAYER</text>
   <text x="520" y="96" font-size="12" fill="#97948c">a directive in CONSTITUTION.md</text>
 
-  <rect x="520" y="112" width="340" height="56" rx="8" fill="#5d6810" stroke="#aeb84a" stroke-width="1.5"/>
-  <text x="540" y="138" font-size="13.5" font-weight="700" fill="#f6f8df">CONSTITUTION.md — one directive</text>
-  <text x="540" y="157" font-size="11.5" fill="#f6f8df" opacity="0.78">authored once, with its check.sh</text>
+  <rect x="520" y="112" width="340" height="56" rx="8" fill="#075b4a" stroke="#36d6af" stroke-width="1.5"/>
+  <text x="540" y="138" font-size="13.5" font-weight="700" fill="#dcfff4">CONSTITUTION.md — one directive</text>
+  <text x="540" y="157" font-size="11.5" fill="#dcfff4" opacity="0.78">authored once, with its check.sh</text>
 
   <!-- fan-out arrows to a row of future agents -->
   <line x1="568" y1="168" x2="568" y2="200" stroke="#97948c" stroke-width="1.6" marker-end="url(#rl-arw)"/>
