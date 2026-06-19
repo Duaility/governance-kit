@@ -5,7 +5,7 @@ summary: 'How directives are bundled into packs, pinned by SHA in a lockfile, an
 
 # Packs, pins & vendoring
 
-Directives ship in **packs** — versioned bundles installed and pinned as a unit. This page covers pack identity, the lockfile, and the trust model: why the check code that gates your commits is vendored into your own tree.
+A pack is code someone else wrote that gets to block your commits — so the first question is trust. Directives ship in **packs**: versioned bundles installed and pinned as a unit, with the check code vendored into your own tree so you review it like anything else you'd merge. This page covers pack identity, the lockfile, and that trust model.
 
 ## Pack identity
 

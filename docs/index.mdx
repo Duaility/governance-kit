@@ -7,7 +7,9 @@ summary: 'The governance layer for AI coding agents — every rule ships with an
 
 > **The governance layer for AI coding agents — give every agent the same repo memory.**
 
-Coding agents author most of the changes now, and each one starts cold. Your repository's rules live in a versioned `CONSTITUTION.md`, every rule ships with an executable test, and agents — not humans — do the work of keeping the repo compliant. The correction you make once reaches the next agent, on the next branch, without you re-teaching it. It installs as an [Agent Skill](https://agentskills.io) into Claude Code, Codex, Cursor, and 40+ skills-compatible runtimes — one skill, one entry point: the `governance` verb surface.
+Coding agents often finish the task in a way that's locally fine and globally wrong — a feature landed through the wrong layer, a pattern you retired quietly revived, a boundary you wanted held quietly widened. The objective passes; the repo drifts. The next agent has no memory of the correction you made last time, so you make it again.
+
+Governance Kit turns those repeated corrections into repo-native invariants. Your rules live in a versioned `CONSTITUTION.md`, every rule ships with an executable test, and agents — not humans — do the work of keeping the repo compliant. The correction you make once reaches the next agent, on the next branch, without you re-teaching it. It installs as an [Agent Skill](https://agentskills.io) into Claude Code, Codex, Cursor, and 40+ skills-compatible runtimes — one skill, one entry point: the `governance` verb surface.
 
 <Columns cols={3}>
   <Card title="Quickstart" href="/guide/quickstart" icon="rocket">
