@@ -5,7 +5,7 @@ summary: 'What actually happens between git commit and [PASS] — the runner, th
 
 # The runtime: hooks & run.sh
 
-This page traces what actually happens between `git commit` and `[PASS]` — the runner, the generated hook dispatchers, and the enforcement contract with CI.
+You type `git commit`, and a directive either fires or it doesn't — but it's worth knowing what runs in that gap before you trust it to gate your work. This page traces what actually happens between `git commit` and `[PASS]`: the runner, the generated hook dispatchers, and the enforcement contract with CI.
 
 ## The pieces
 
