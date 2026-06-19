@@ -1,0 +1,75 @@
+<svg viewBox="0 0 960 470" xmlns="http://www.w3.org/2000/svg" role="img" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <title>Steer at the rule layer, not the turn layer</title>
+  <desc>Left: a per-turn prompt reaches only this agent on this branch and dies with the session. Right: a directive in CONSTITUTION.md is authored once and reaches every future agent. A bottom strip notes that un-promoted corrections are recorded as steering rows in the receipt.</desc>
+
+  <defs>
+    <marker id="rl-arw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L9,5 L0,10 z" fill="#8f8c84"/>
+    </marker>
+    <marker id="rl-arw-faint" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L9,5 L0,10 z" fill="#bdbbb5"/>
+    </marker>
+  </defs>
+
+  <!-- title -->
+  <text x="480" y="30" text-anchor="middle" font-size="14.5" fill="#6b6862">steer at the rule layer, not the turn layer.</text>
+
+  <!-- divider -->
+  <line x1="480" y1="56" x2="480" y2="400" stroke="#d6d4ce" stroke-width="1.2" stroke-dasharray="3 5"/>
+
+  <!-- ===== LEFT: the turn layer ===== -->
+  <text x="60" y="78" font-size="13" font-weight="700" fill="#6b6862" letter-spacing="0.4">THE TURN LAYER</text>
+  <text x="60" y="96" font-size="12" fill="#8a877f">per-turn prompting</text>
+
+  <rect x="60" y="112" width="340" height="56" rx="8" fill="#3f403a" stroke="#a5a49b" stroke-width="1.5"/>
+  <text x="80" y="138" font-size="13.5" font-weight="700" fill="#efeee8">your prompt &amp; corrections</text>
+  <text x="80" y="157" font-size="11.5" fill="#efeee8" opacity="0.72">“actually, do it this way…”</text>
+
+  <line x1="230" y1="168" x2="230" y2="196" stroke="#8f8c84" stroke-width="1.6" marker-end="url(#rl-arw)"/>
+
+  <rect x="120" y="196" width="220" height="50" rx="8" fill="#3f3586" stroke="#8b7ff0" stroke-width="1.5"/>
+  <text x="230" y="219" text-anchor="middle" font-size="13" font-weight="700" fill="#eeeaff">this agent · this branch</text>
+  <text x="230" y="236" text-anchor="middle" font-size="11" fill="#eeeaff" opacity="0.72">reads your conversation</text>
+
+  <!-- session-ends barrier -->
+  <line x1="60" y1="280" x2="400" y2="280" stroke="#c9554a" stroke-width="1.4" stroke-dasharray="5 4"/>
+  <text x="60" y="298" font-size="11.5" fill="#c9554a">session ends — the context is gone</text>
+
+  <!-- faded future agents, out of reach -->
+  <rect x="60" y="316" width="150" height="46" rx="8" fill="#3f3586" stroke="#8b7ff0" stroke-width="1.2" opacity="0.32"/>
+  <text x="135" y="344" text-anchor="middle" font-size="12" font-weight="700" fill="#3f3586" opacity="0.85">next agent</text>
+  <rect x="250" y="316" width="150" height="46" rx="8" fill="#3f3586" stroke="#8b7ff0" stroke-width="1.2" opacity="0.32"/>
+  <text x="325" y="344" text-anchor="middle" font-size="12" font-weight="700" fill="#3f3586" opacity="0.85">next branch</text>
+
+  <text x="230" y="388" text-anchor="middle" font-size="12" fill="#8a877f">can’t read your last conversation</text>
+
+  <!-- ===== RIGHT: the rule layer ===== -->
+  <text x="520" y="78" font-size="13" font-weight="700" fill="#075b4a" letter-spacing="0.4">THE RULE LAYER</text>
+  <text x="520" y="96" font-size="12" fill="#8a877f">a directive in CONSTITUTION.md</text>
+
+  <rect x="520" y="112" width="340" height="56" rx="8" fill="#075b4a" stroke="#36d6af" stroke-width="1.5"/>
+  <text x="540" y="138" font-size="13.5" font-weight="700" fill="#dcfff4">CONSTITUTION.md — one directive</text>
+  <text x="540" y="157" font-size="11.5" fill="#dcfff4" opacity="0.78">authored once, with its check.sh</text>
+
+  <!-- fan-out arrows to a row of future agents -->
+  <line x1="568" y1="168" x2="568" y2="200" stroke="#8f8c84" stroke-width="1.6" marker-end="url(#rl-arw)"/>
+  <line x1="680" y1="168" x2="680" y2="200" stroke="#8f8c84" stroke-width="1.6" marker-end="url(#rl-arw)"/>
+  <line x1="792" y1="168" x2="792" y2="200" stroke="#8f8c84" stroke-width="1.6" marker-end="url(#rl-arw)"/>
+
+  <rect x="520" y="200" width="96" height="48" rx="8" fill="#3f3586" stroke="#8b7ff0" stroke-width="1.5"/>
+  <text x="568" y="229" text-anchor="middle" font-size="12" font-weight="700" fill="#eeeaff">agent</text>
+  <rect x="632" y="200" width="96" height="48" rx="8" fill="#3f3586" stroke="#8b7ff0" stroke-width="1.5"/>
+  <text x="680" y="229" text-anchor="middle" font-size="12" font-weight="700" fill="#eeeaff">agent</text>
+  <rect x="744" y="200" width="96" height="48" rx="8" fill="#3f3586" stroke="#8b7ff0" stroke-width="1.5"/>
+  <text x="792" y="229" text-anchor="middle" font-size="12" font-weight="700" fill="#eeeaff">agent</text>
+
+  <!-- timeline arrow -->
+  <line x1="520" y1="296" x2="860" y2="296" stroke="#bdbbb5" stroke-width="1.4" marker-end="url(#rl-arw-faint)"/>
+  <text x="520" y="288" font-size="11.5" fill="#8a877f">every future agent · every branch →</text>
+
+  <text x="688" y="388" text-anchor="middle" font-size="12" fill="#8a877f">once-authored, infinitely-enforced</text>
+
+  <!-- bottom strip: steering rows -->
+  <rect x="60" y="418" width="840" height="40" rx="8" fill="#0e4e85" stroke="#5aa8e9" stroke-width="1.4"/>
+  <text x="480" y="443" text-anchor="middle" font-size="12.5" fill="#e9f5ff">corrections you don’t promote aren’t lost — each is recorded as a steering row in the issue’s receipt.</text>
+</svg>
