@@ -1,6 +1,6 @@
 <svg viewBox="0 0 960 600" xmlns="http://www.w3.org/2000/svg" role="img" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
   <title>Governance lifecycle as a language-toolchain model</title>
-  <desc>Three stacked tiers — installer (skill), product (kit), content (packs) — each paired with a toolchain analogy (rustup, toolchain, lockfile), with a repo-pins-versions bar at the bottom.</desc>
+  <desc>Three stacked tiers for the installer (skill), product (kit), and content (packs), each paired with a toolchain analogy (rustup, toolchain, lockfile), with a repo-pins-versions bar at the bottom.</desc>
 
   <defs>
     <marker id="arw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -9,11 +9,11 @@
   </defs>
 
   <!-- title -->
-  <text x="480" y="32" text-anchor="middle" font-size="14.5" fill="#6b6862">the model — an installer, a product, its content. like a language toolchain manager.</text>
+  <text x="480" y="32" text-anchor="middle" font-size="14.5" fill="#6b6862">an installer, a product, and its content, modeled like a language toolchain manager.</text>
 
   <!-- Row 1: installer / rustup -->
   <rect x="60" y="64" width="380" height="88" rx="8" fill="#3f3586" stroke="#8b7ff0" stroke-width="1.5"/>
-  <text x="80" y="100" font-size="15.5" font-weight="700" fill="#eeeaff">governance skill — the installer</text>
+  <text x="80" y="100" font-size="15.5" font-weight="700" fill="#eeeaff">governance skill: the installer</text>
   <text x="80" y="124" font-size="12.5" fill="#eeeaff" opacity="0.75">install · update · uninstall</text>
 
   <rect x="520" y="64" width="380" height="88" rx="8" fill="#3f403a" stroke="#a5a49b" stroke-width="1.5"/>
@@ -27,7 +27,7 @@
 
   <!-- Row 2: product / toolchain -->
   <rect x="60" y="190" width="380" height="88" rx="8" fill="#075b4a" stroke="#36d6af" stroke-width="1.5"/>
-  <text x="80" y="226" font-size="15.5" font-weight="700" fill="#dcfff4">the kit — kit/vX.Y.Z — the product</text>
+  <text x="80" y="226" font-size="15.5" font-weight="700" fill="#dcfff4">the kit (kit/vX.Y.Z): the product</text>
   <text x="80" y="250" font-size="12.5" fill="#dcfff4" opacity="0.78">engine · flows · assets · all verbs</text>
 
   <rect x="520" y="190" width="380" height="88" rx="8" fill="#3f403a" stroke="#a5a49b" stroke-width="1.5"/>
@@ -41,7 +41,7 @@
 
   <!-- Row 3: content / lockfile -->
   <rect x="60" y="316" width="380" height="88" rx="8" fill="#7b2b17" stroke="#ef9673" stroke-width="1.5"/>
-  <text x="80" y="352" font-size="15.5" font-weight="700" fill="#fff0e8">packs — pack/vX.Y.Z — the content</text>
+  <text x="80" y="352" font-size="15.5" font-weight="700" fill="#fff0e8">packs (pack/vX.Y.Z): the content</text>
   <text x="80" y="376" font-size="12.5" fill="#fff0e8" opacity="0.78">directive content, lock-pinned</text>
 
   <rect x="520" y="316" width="380" height="88" rx="8" fill="#3f403a" stroke="#a5a49b" stroke-width="1.5"/>

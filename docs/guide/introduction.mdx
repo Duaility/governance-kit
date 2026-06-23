@@ -1,11 +1,11 @@
 ---
 title: 'What is Governance Kit?'
-summary: 'Governance-driven development — a constitution every agent reads, every commit is checked against, and that evolves as one artifact with its tests.'
+summary: 'Governance-driven development: a constitution every agent reads, every commit is checked against, and that evolves as one artifact with its tests.'
 ---
 
 # What is Governance Kit?
 
-Governance Kit is a toolkit for **governance-driven development (GDD)**: a workflow where your repository's rules live in a versioned `CONSTITUTION.md`, every rule ships with an executable test, and agents — not humans — do the work of keeping the repo compliant.
+Governance Kit is a toolkit for **governance-driven development (GDD)**. Your repository's rules live in a versioned `CONSTITUTION.md`, every rule ships with an executable test, and agents do the work of keeping the repo compliant.
 
 It installs as an [Agent Skill](https://agentskills.io) into Claude Code, Codex, Cursor, and 40+ skills-compatible runtimes. One skill, one entry point: the `governance` verb surface.
 
@@ -13,17 +13,17 @@ It installs as an [Agent Skill](https://agentskills.io) into Claude Code, Codex,
 
 Coding agents often complete the task in a way that is locally fine and globally wrong. They land features through the wrong layer, revive patterns you retired, widen a boundary you wanted held, or half-follow `AGENTS.md` and miss the constraint that mattered. The objective passes; the repo drifts. The next agent has no memory of the correction, so you give it again.
 
-Adding more prompt is the obvious fix, and it does not scale: instruction files grow, context gets crowded, and the rule still only reaches the current session. OpenAI's [harness-engineering](https://openai.com/index/harness-engineering/) write-up names the same failure set from running an agent-first codebase — instruction files that "rot instantly", agents that replicate uneven patterns until the codebase drifts, knowledge trapped in chat threads, and human QA capacity becoming the bottleneck.
+Adding more prompt does not solve this at scale. Instruction files grow, context gets crowded, and the rule still reaches only the current session. OpenAI's [harness-engineering](https://openai.com/index/harness-engineering/) write-up describes the same failure set from running an agent-first codebase: instruction files that "rot instantly", agents that replicate uneven patterns until the codebase drifts, knowledge trapped in chat threads, and human QA capacity becoming the bottleneck.
 
 Two things stop scaling at agent throughput:
 
-1. **Steering.** Your guidance has to reach the *next* agent, on the *next* branch, without you in the room. Per-turn prompting doesn't compose — the next agent can't read your last conversation.
+1. **Steering.** Your guidance has to reach the *next* agent, on the *next* branch, without you in the room. Per-turn prompting doesn't compose: the next agent can't read your last conversation.
 2. **Visibility.** When agents ship the diffs, you need a readable trail, not a stack of PRs and ephemeral chat transcripts.
 
 Governance Kit answers both with repo-native artifacts:
 
-- **A constitution** — `CONSTITUTION.md`, a versioned set of directives every agent reads and every commit is checked against.
-- **Receipts and ledgers** — per-issue receipts (with cost and steering accounting) and the `QUALITY.md` board, recording what agents were told, what they did, and what it cost.
+- **A constitution**: `CONSTITUTION.md`, a versioned set of directives every agent reads and every commit is checked against.
+- **Receipts and ledgers**: per-issue receipts (with cost and steering accounting) and the `QUALITY.md` board, recording what agents were told, what they did, and what it cost.
 
 ## How does the loop work?
 
@@ -31,20 +31,20 @@ The repo carries the durable instruction; the agent reconciles reality against i
 
 > Describe the state, continuously check reality, and let agents reconcile the difference.
 
-A failed check is not a scolding — it is a *gap report*. It names the directive, the offending file and line, and the rationale, and a frontier-model agent reading that rationale generalizes to cases the rule's author never encoded. This is the [harness-engineering](https://openai.com/index/harness-engineering/) move: coherence comes from executable rails around the agent, not ever-larger instruction blobs.
+A failed check is a *gap report*. It names the directive, the offending file and line, and the rationale. A capable agent can use that rationale to handle cases the rule's author never encoded. This follows the [harness-engineering](https://openai.com/index/harness-engineering/) principle that coherence comes from executable rails around the agent, not ever-larger instruction blobs.
 
-Under the hood it is declarative reconciliation — the model Kubernetes and Terraform use, applied to a repository:
+The design applies the declarative reconciliation model used by Kubernetes and Terraform to a repository:
 
 | | In Governance Kit |
 |---|---|
-| **Desired state** | `CONSTITUTION.md` — directives, rationale, exceptions, evolution log |
+| **Desired state** | `CONSTITUTION.md`: directives, rationale, exceptions, evolution log |
 | **Current state** | the working tree, staged diff, commit message, receipts |
 | **Controller** | `.governance/run.sh` + git hook dispatchers + CI |
-| **Reconciler** | the agent — reads the gap and its rationale, fixes the repo, re-runs |
+| **Reconciler** | the agent: reads the gap and its rationale, fixes the repo, re-runs |
 
 ## How deep can a rule go?
 
-The real power is the depth of invariant you can express. Start with deterministic checks; escalate only when the rule genuinely needs context or judgment. One rule layer carries all four depths:
+The useful distinction is the depth of invariant you can express. Start with deterministic checks; escalate only when the rule genuinely needs context or judgment. One rule layer carries all four depths:
 
 | Depth | What you can say | How it runs |
 |---|---|---|
@@ -53,11 +53,11 @@ The real power is the depth of invariant you can express. Start with determinist
 | **Ledger** | "For each agent-authored change, show the issue, receipt, token cost, and steering count." | Receipt accounting rows, cross-checked by directives. |
 | **Sub-agent attestation** | "Before merging a cross-layer refactor, have a fresh reader compare the diff to the architecture map." | The hook fails with a fresh-context sub-agent prompt; the agent records a PASS/REFUTED section; the hook verifies it is there. |
 
-The failures that hurt are rarely mechanical ("forgot the formatter") — they're semantic, and no single enforcement style catches both. Governance Kit matches each rule to a surface: cheap deterministic checks for the mechanical, [fresh-context attestation](https://github.com/Duaility/governance-kit/blob/main/kit/references/SUBAGENT_ATTESTATION.md) for the judgment calls.
+The failures that hurt are rarely mechanical, such as forgetting the formatter. They are semantic, and no single enforcement style catches both kinds. Governance Kit matches each rule to a surface: cheap deterministic checks for mechanical rules and [fresh-context attestation](https://github.com/Duaility/governance-kit/blob/main/kit/references/SUBAGENT_ATTESTATION.md) for judgment calls.
 
 ## What a directive looks like
 
-Every directive is a self-contained folder — test, prose, metadata, and fixtures travel together:
+Every directive is a self-contained folder: test, prose, metadata, and fixtures travel together:
 
 ```
 internal-doc-links/
@@ -74,25 +74,25 @@ The `constitution.md` carries the *why*:
 
 - **Directive**: Every relative-path markdown link resolves to a real file;
   opt in to also require every doc stay reachable from a declared root.
-- **Rationale**: A broken link rots silently — the doc still renders but lies,
+- **Rationale**: A broken link rots silently: the doc still renders but lies,
   and an agent that follows it bails.
 - **Enforced by**: .governance/packs/governance-kit/foundation/directives/internal-doc-links/check.sh
 - **Exceptions**: Line-level waiver on the broken-link line.
 ```
 
-A bare check would only confirm the links point somewhere. The rationale tells the next agent — and the next human — why a connected doc graph *matters*.
+A bare check would only confirm that the links point somewhere. The rationale tells the next agent and human why a connected documentation graph matters.
 
 ## What it is not
 
 <AccordionGroup>
   <Accordion title="Not a linter" icon="paintbrush">
-    Formatting opinions belong in formatters. Directives encode *governance* — invariants whose violation costs you an incident, an audit finding, or institutional memory.
+    Formatting opinions belong in formatters. Directives encode *governance*: invariants whose violation costs you an incident, an audit finding, or institutional memory.
   </Accordion>
   <Accordion title="Not a spec tool" icon="file-text">
-    [spec-kit](https://github.com/github/spec-kit)-style workflows answer *"what should this feature do?"* — per-task, pre-implementation, often disposable. GDD answers *"what must every commit satisfy?"* — persistent, post-implementation, mechanical. They compose: spec-kit steers the agent at runtime; GDD steers it at "compile time."
+    [spec-kit](https://github.com/github/spec-kit)-style workflows answer *"what should this feature do?"* for a specific task before implementation. GDD answers *"what must every commit satisfy?"* with persistent, post-implementation checks. They compose: spec-kit steers the agent at runtime; GDD steers it at "compile time."
   </Accordion>
   <Accordion title="Not just hooks" icon="git-branch">
-    pre-commit / husky / lefthook run scripts. Governance Kit runs scripts **and** carries the rationale, the audit trail, and the evolution history alongside each test — and its checks are plain bash you can lift out if you only want the enforcement half.
+    pre-commit / husky / lefthook run scripts. Governance Kit also carries the rationale, audit trail, and evolution history alongside each test. Its checks are plain bash, so you can extract them if you only want enforcement.
   </Accordion>
 </AccordionGroup>
 

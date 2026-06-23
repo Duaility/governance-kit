@@ -5,17 +5,17 @@ summary: 'What lives in CONSTITUTION.md, what a directive folder is made of, and
 
 # The constitution & directives
 
-The correction you keep re-teaching agents needs somewhere durable to live — somewhere the rule and the test that enforces it can't quietly drift apart. That's what `CONSTITUTION.md` is: the declarative description of the state your repository must stay in, where every line is blameable to the commit that wrote it *and* the check that enforces it. This page covers what's in it, what a directive is made of, and how amendments keep prose and enforcement in lockstep.
+Corrections that agents need more than once require a durable home where the rule and its enforcing test cannot drift apart. `CONSTITUTION.md` provides that declarative description of the repository's required state. Every line is blameable to the commit that wrote it and the check that enforces it. This page explains its contents, directive structure, and amendment process.
 
 ## What's in the constitution
 
-- **Principles** — high-level guidelines that depend on judgment. Not mechanically checkable; PR review is their enforcement gate.
-- **Directives** — one subsection per rule, each with four fields:
-  - **Directive** — one sentence, present tense, "must" / "must not".
-  - **Rationale** — why the rule exists, ideally linked to the incident that motivated it.
-  - **Enforced by** — the path to the check and the hook it runs in.
-  - **Exceptions** — the waiver format or config file that opts things out, or "none".
-- **The Evolution Log** — an append-only, dated history of every amendment, blameable to the commit that introduced it. Six months from now you can answer *why* a rule exists, not just *that* it does.
+- **Principles**: high-level guidelines that depend on judgment. Not mechanically checkable; PR review is their enforcement gate.
+- **Directives**: one subsection per rule, each with four fields:
+  - **Directive**: one sentence, present tense, "must" / "must not".
+  - **Rationale**: why the rule exists, ideally linked to the incident that motivated it.
+  - **Enforced by**: the path to the check and the hook it runs in.
+  - **Exceptions**: the waiver format or config file that opts things out, or "none".
+- **The Evolution Log**: an append-only, dated history of every amendment, blameable to the commit that introduced it. Six months from now you can answer *why* a rule exists, not just *that* it does.
 
 Every line is git-blameable to the commit that introduced it **and** the test that enforces it, because the verbs require them to land together.
 
@@ -55,8 +55,8 @@ writes: []
 
 Two fields carry the key distinctions:
 
-- **`surface`** — `repo-state` checks the tree at rest ("README exists", "no secrets anywhere"); `change-set` checks the diff ("this commit's message", "every substantive change updates X"). Choosing the right surface is the first authoring decision: *what bad merge are we trying to block?*
-- **`hook`** — which git hook fires the check locally. CI always runs everything regardless.
+- **`surface`**: `repo-state` checks the tree at rest ("README exists", "no secrets anywhere"); `change-set` checks the diff ("this commit's message", "every substantive change updates X"). Choosing the right surface is the first authoring decision: *what bad merge are we trying to block?*
+- **`hook`**: which git hook fires the check locally. CI always runs everything regardless.
 
 ### check.sh
 
@@ -75,7 +75,7 @@ while IFS=: read -r file line_no match; do
     [[ -z "$file" ]] && continue
     [[ "$file" == tests/* ]] && continue
     has_waiver "$file" "$line_no" "no-pdb-breakpoints" && continue
-    violation "$file:$line_no — pdb breakpoint: ${match:0:80}"
+    violation "$file:$line_no: pdb breakpoint: ${match:0:80}"
 done < <(git grep -nE 'pdb\.set_trace\(\)|breakpoint\(\)' -- '*.py' 2>/dev/null || true)
 
 directive_end
@@ -92,7 +92,7 @@ A waiver is an explicit, in-source exception:
 <!-- governance: allow-<directive-id> <reason> -->
 ```
 
-Depending on the directive, waivers are line-level (next to the offending line), file-level (in the first 10 lines), or commit-level (in the commit body). They are data: searchable, blameable, and reviewable — the audit trail of every conscious exception.
+Depending on the directive, waivers are line-level (next to the offending line), file-level (in the first 10 lines), or commit-level (in the commit body). They are searchable, blameable, and reviewable data that records every conscious exception.
 
 ## Amending: the atomic triple
 
@@ -100,17 +100,17 @@ You never hand-edit `CONSTITUTION.md`. The `governance directive {add,modify,rem
 
 <Steps>
   <Step title="The directive folder">
-    Under `.governance/packs/<owner>/<repo>/directives/<id>/` — created, updated, or deleted.
+    Under `.governance/packs/<owner>/<repo>/directives/<id>/`: created, updated, or deleted.
   </Step>
   <Step title="The Directives subsection">
-    In `CONSTITUTION.md` — inserted alphabetically, updated in place, or removed.
+    In `CONSTITUTION.md`: inserted alphabetically, updated in place, or removed.
   </Step>
   <Step title="The Evolution Log entry">
-    `- YYYY-MM-DD — @author — Add <id>: <summary>.`
+    Append a dated entry with the author, action, directive id, and summary, using the project's existing Evolution Log format.
   </Step>
 </Steps>
 
-The flow smoke-tests the new check against the live repo before committing. If pre-existing violators turn up, it asks one blocking question — **loosen** the rule, **grandfather** the violators with reviewable waivers, or **block** (land the rule, let CI go red until the tree is fixed) — and never silently punts a red PR to the reviewer.
+The flow smoke-tests the new check against the live repo before committing. If it finds pre-existing violations, you must choose one action: **loosen** the rule, **grandfather** the violations with reviewable waivers, or **block** by landing the rule and leaving CI red until the tree is fixed. The flow never silently hands a red PR to the reviewer.
 
 ### Which directives can you amend?
 
@@ -118,16 +118,16 @@ Amendment rights follow the owning pack's provenance (from `.governance/packs.lo
 
 | Owning pack source | `directive add/modify` | `directive remove` |
 |---|---|---|
-| `gh` (community) | Refused — use `pack update` / `pack remove` | Refused — use `pack remove` |
-| bundled (`governance-kit/*`) | Refused — pack-managed | Allowed — the repo opts out |
-| `local` (repo-local) | **Allowed** — this is what `directive *` is for | Allowed |
+| `gh` (community) | Refused: use `pack update` / `pack remove` | Refused: use `pack remove` |
+| bundled (`governance-kit/*`) | Refused: pack-managed | Allowed: the repo opts out |
+| `local` (repo-local) | **Allowed**: this is what `directive *` is for | Allowed |
 
-Hand-authored rules live in a **repo-local pack** (created automatically on first `directive add`, or explicitly with `pack create`). Pack-sourced directives that have drifted — edited by hand, corrupted — are restored with [`governance reset`](/reference/verbs), which puts them back to the *pinned* SHA without touching hand-authored ones.
+Hand-authored rules live in a **repo-local pack** (created automatically on first `directive add`, or explicitly with `pack create`). [`governance reset`](/reference/verbs) restores pack-sourced directives that were edited by hand or corrupted to the *pinned* SHA without touching hand-authored ones.
 
 ## Composition without a graph
 
 Directives deliberately have no `depends_on:` and no execution order. Each is an independent invariant; `run.sh` re-evaluates all of them on every firing. A directive whose precondition isn't met yet (e.g. "receipt must crosswalk" before any receipt exists) checks that precondition itself and skips with an informative note.
 
-The payoff is the convergence loop: fix the currently-failing directive, re-run, the next gate fires, fix that, re-run — until green. Some directives only *start* firing once an earlier one is satisfied; that cascade is by design.
+The result is a convergence loop. Fix the current failing directive and re-run; then fix the next failure and continue until the suite is green. Some directives only start firing once an earlier one is satisfied; that cascade is intentional.
 
-Next: [The runtime](/concepts/runtime) — what actually happens when you type `git commit`.
+Next: [The runtime](/concepts/runtime): what actually happens when you type `git commit`.

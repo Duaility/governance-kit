@@ -33,7 +33,7 @@
 
   <!-- session-ends barrier -->
   <line x1="60" y1="280" x2="400" y2="280" stroke="#e08177" stroke-width="1.4" stroke-dasharray="5 4"/>
-  <text x="60" y="298" font-size="11.5" fill="#e08177">session ends — the context is gone</text>
+  <text x="60" y="298" font-size="11.5" fill="#e08177">session ends: the context is gone</text>
 
   <!-- faded future agents, out of reach -->
   <rect x="60" y="316" width="150" height="46" rx="8" fill="#3f3586" stroke="#8b7ff0" stroke-width="1.2" opacity="0.4"/>
@@ -48,7 +48,7 @@
   <text x="520" y="96" font-size="12" fill="#97948c">a directive in CONSTITUTION.md</text>
 
   <rect x="520" y="112" width="340" height="56" rx="8" fill="#075b4a" stroke="#36d6af" stroke-width="1.5"/>
-  <text x="540" y="138" font-size="13.5" font-weight="700" fill="#dcfff4">CONSTITUTION.md — one directive</text>
+  <text x="540" y="138" font-size="13.5" font-weight="700" fill="#dcfff4">CONSTITUTION.md: one directive</text>
   <text x="540" y="157" font-size="11.5" fill="#dcfff4" opacity="0.78">authored once, with its check.sh</text>
 
   <!-- fan-out arrows to a row of future agents -->
@@ -71,5 +71,5 @@
 
   <!-- bottom strip: steering rows -->
   <rect x="60" y="418" width="840" height="40" rx="8" fill="#0e4e85" stroke="#5aa8e9" stroke-width="1.4"/>
-  <text x="480" y="443" text-anchor="middle" font-size="12.5" fill="#e9f5ff">corrections you don’t promote aren’t lost — each is recorded as a steering row in the issue’s receipt.</text>
+  <text x="480" y="443" text-anchor="middle" font-size="12.5" fill="#e9f5ff">unpromoted corrections are recorded as steering rows in the issue’s receipt.</text>
 </svg>

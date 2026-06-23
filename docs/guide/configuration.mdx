@@ -1,6 +1,6 @@
 ---
 title: 'Configuration'
-summary: 'How directives are tuned — pack-owned defaults, user-owned overlays under .governance/conf/, env-tunable limits, and presets.'
+summary: 'How directives are tuned: pack-owned defaults, user-owned overlays under .governance/conf/, env-tunable limits, and presets.'
 ---
 
 # Configuration
@@ -14,7 +14,7 @@ Directives are tuned through two layers with a clear ownership split: the **pack
 | **Defaults** | `<directive>/defaults.conf`, vendored with the directive | The pack author | Refreshed on `governance pack update` |
 | **Overlay** | `.governance/conf/<owner>/<pack>/<directive-id>.conf` | You | Hand-edited, committed like any file |
 
-`defaults.conf` is the one pack-owned config artifact: the live default values (scalar `KEY=value` rows and/or list rows) **and** their documentation, together. The overlay is seeded at install from a generic stub and is yours from then on — pack updates never touch it.
+`defaults.conf` is the one pack-owned config artifact. It keeps live default values (scalar `KEY=value` rows and/or list rows) with their documentation. The overlay is seeded at install from a generic stub and belongs to you from then on; pack updates never touch it.
 
 Checks read the merged result through the shared `lib.sh` helpers (`conf_get` for scalars, `conf_list` for lists), so every directive resolves configuration the same way: overlay first, defaults as fallback.
 
@@ -29,18 +29,18 @@ Checks read the merged result through the shared `lib.sh` helpers (`conf_get` fo
 
 ## Common knobs
 
-- **Opt-in doc lists** — `internal-doc-links`' `reachable` sub-check is a no-op until you declare roots in its overlay.
-- **Rule lists** — `doc-integrity` ships standard rules in its `defaults.conf` (receipts frozen once on the trunk, frozen sections for `QUALITY.md` Resolved and the Evolution Log); the overlay adds repo-specific rules.
-- **Add / drop semantics** — list-valued overlays like `toolchain-config-protection`'s protected paths use a bare line to add a pattern and `!<pattern>` to drop one of the defaults.
-- **Env-tunable limits** — metric checks expose their thresholds as environment variables (`GOVERNANCE_<X>_LIMIT`), e.g. `repo-hygiene`'s file-size and source-length limits.
+- **Opt-in doc lists**: `internal-doc-links`' `reachable` sub-check is a no-op until you declare roots in its overlay.
+- **Rule lists**: `doc-integrity` ships standard rules in its `defaults.conf` (receipts frozen once on the trunk, frozen sections for `QUALITY.md` Resolved and the Evolution Log); the overlay adds repo-specific rules.
+- **Add / drop semantics**: list-valued overlays like `toolchain-config-protection`'s protected paths use a bare line to add a pattern and `!<pattern>` to drop one of the defaults.
+- **Env-tunable limits**: metric checks expose their thresholds as environment variables (`GOVERNANCE_<X>_LIMIT`), e.g. `repo-hygiene`'s file-size and source-length limits.
 
 ## Presets are configuration too
 
-Which directives install at all is declared per pack in `pack.yaml` presets (`minimal` / `standard` / `strict`), chosen at `governance init` and adjustable later with `directive add` / `directive remove`. See [Quickstart — choosing a preset](/guide/quickstart#choosing-a-preset) and [Packs](/concepts/packs#presets).
+Which directives install at all is declared per pack in `pack.yaml` presets (`minimal` / `standard` / `strict`), chosen at `governance init` and adjustable later with `directive add` / `directive remove`. See [Quickstart: choosing a preset](/guide/quickstart#choosing-a-preset) and [Packs](/concepts/packs#presets).
 
 ## What not to configure by hand
 
-The lockfile, `CONSTITUTION.md`, and anything carrying the `# governance-kit:managed` marker are written only by the verbs. Overlays under `.governance/conf/` are the deliberate exception — they are *designed* to be hand-edited and committed.
+The lockfile, `CONSTITUTION.md`, and anything carrying the `# governance-kit:managed` marker are written only by the verbs. Overlays under `.governance/conf/` are the deliberate exception. They are designed to be hand-edited and committed.
 
 <Note>
 Each directive's exact knobs are documented in its own `defaults.conf` and its constitution subsection's **Exceptions** field. The [directive catalog](/reference/directive-catalog) lists which directives are configurable.

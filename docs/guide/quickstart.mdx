@@ -1,17 +1,17 @@
 ---
 title: 'Quickstart'
-summary: 'Install the skill into your agent, bootstrap a repo with governance init, and watch a governance gate fire — in about 60 seconds.'
+summary: 'Install the skill into your agent, bootstrap a repo with governance init, and watch a governance gate fire in about 60 seconds.'
 ---
 
 # Quickstart
 
-First-time setup, from zero to a firing governance gate — about 60 seconds. Three steps: install the skill into your agent, bootstrap a repo, then make a bad commit and watch the gate catch it.
+Go from an empty setup to a firing governance gate in about 60 seconds. Install the skill, bootstrap a repo, then make a bad commit and watch the gate catch it.
 
 ## What you need
 
 - A git repository.
 - An agent runtime that supports Agent Skills (Claude Code, Codex, Cursor, …).
-- `bash` and `git` — the checks are plain bash, no other runtime dependencies.
+- `bash` and `git`: the checks are plain bash, no other runtime dependencies.
 - `uv` (used by the pack tooling during `init`).
 
 ## 1. Install the skill
@@ -38,7 +38,7 @@ claude
     Detect existing governance artifacts and the hook situation (`.husky/`, `.pre-commit-config.yaml`, or none). Existing installs get an augment-or-overwrite question.
   </Step>
   <Step title="Choose packs and a preset">
-    Pick from the bundled `governance-kit/*` concern packs and a preset — `minimal`, `standard`, or `strict` — or a custom directive selection.
+    Pick from the bundled `governance-kit/*` concern packs and choose the `minimal`, `standard`, or `strict` preset. You can also select directives individually.
   </Step>
   <Step title="Write the surface">
     `CONSTITUTION.md`, the `.governance/` runtime, git hook dispatchers, and a CI workflow (`.github/workflows/governance.yml`).
@@ -59,17 +59,17 @@ claude
 | `standard` | `minimal` + Conventional-Commit message format + the full [agent audit chain](/concepts/audit-chain): receipts, issue anchors, token and steering accounting, doc integrity, toolchain-config protection. |
 | `strict` | `standard` + TODO and suppression discipline. |
 
-`standard` is the intended default for agent-heavy repos — it is the preset that turns on the issue → receipt → commit → cost chain.
+`standard` is the intended default for agent-heavy repos: it is the preset that turns on the issue → receipt → commit → cost chain.
 
 ## 3. Watch a gate fire
 
 ```sh
 $ git commit -m "stuff"
-[FAIL] commit-message-format — pending commit — 'stuff' does not match
+[FAIL] commit-message-format: pending commit: 'stuff' does not match
        Conventional Commits with an issue suffix (<type>(scope)?: <subject> (#123))
 ```
 
-The failure names the directive, the gap, and the expected shape. An agent reads that and self-corrects on the next attempt — that loop *is* the product.
+The failure names the directive, the gap, and the expected shape. An agent reads it and corrects the next attempt. That loop is the product.
 
 Run the whole suite by hand any time:
 
@@ -97,14 +97,14 @@ bash .governance/run.sh internal-doc-links  # one directive
 
 ## Escape hatches
 
-For local hotfixes only — CI re-enforces every directive on every PR, so there is no developer-side bypass that survives a push:
+For local hotfixes only: CI re-enforces every directive on every PR, so there is no developer-side bypass that survives a push:
 
 ```sh
 SKIP_GOVERNANCE=1 git commit ...   # skip the local hook once
 git commit --no-verify             # same effect
 ```
 
-Per-line and per-commit **waivers** are the structured alternative — explicit, reasoned, and visible in `git blame`:
+Per-line and per-commit **waivers** are the structured alternative: explicit, reasoned, and visible in `git blame`:
 
 ```
 # governance: allow-<directive-id> <reason>
@@ -125,5 +125,5 @@ Per-line and per-commit **waivers** are the structured alternative — explicit,
 All verbs are covered in the [Verbs reference](/reference/verbs).
 
 <Warning>
-**Don't hand-edit the governance surface.** `CONSTITUTION.md`, `.governance/`, and the lockfile are written only by the verbs. The `directive *` and `reset` verbs keep the check, the rationale, and the evolution log in lockstep — hand-edits drift the constitution out of sync with the tests. This is the cardinal rule (see [Mental models](/guide/mental-models)).
+**Don't hand-edit the governance surface.** `CONSTITUTION.md`, `.governance/`, and the lockfile are written only by the verbs. The `directive *` and `reset` verbs keep the check, the rationale, and the evolution log in lockstep: hand-edits drift the constitution out of sync with the tests. This is the cardinal rule (see [Mental models](/guide/mental-models)).
 </Warning>

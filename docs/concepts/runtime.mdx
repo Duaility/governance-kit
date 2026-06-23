@@ -1,11 +1,11 @@
 ---
 title: 'The runtime: hooks & run.sh'
-summary: 'What actually happens between git commit and [PASS] — the runner, the generated hook dispatchers, populators, and the enforcement contract with CI.'
+summary: 'What actually happens between git commit and [PASS]: the runner, the generated hook dispatchers, populators, and the enforcement contract with CI.'
 ---
 
 # The runtime: hooks & run.sh
 
-You type `git commit`, and a directive either fires or it doesn't — but it's worth knowing what runs in that gap before you trust it to gate your work. This page traces what actually happens between `git commit` and `[PASS]`: the runner, the generated hook dispatchers, and the enforcement contract with CI.
+When you type `git commit`, a directive either fires or it does not. This page traces what runs between `git commit` and `[PASS]`: the runner, generated hook dispatchers, and the enforcement contract with CI.
 
 ## The pieces
 
@@ -27,7 +27,7 @@ You type `git commit`, and a directive either fires or it doesn't — but it's w
 .github/workflows/governance.yml   # CI: bash .governance/run.sh on every PR
 ```
 
-`run.sh` and `lib.sh` are **kit-owned, version-stamped files**: line 2 carries `# governance-kit:managed kit-version=<v>`. That marker is the ownership contract — it is how `kit update` knows what it may regenerate and how `uninstall` knows what it may delete. Files without the marker are yours; the kit never touches them.
+`run.sh` and `lib.sh` are **kit-owned, version-stamped files**: line 2 carries `# governance-kit:managed kit-version=<v>`. That marker is the ownership contract: it is how `kit update` knows what it may regenerate and how `uninstall` knows what it may delete. Files without the marker are yours; the kit never touches them.
 
 ## What happens on `git commit`
 
@@ -39,7 +39,7 @@ You type `git commit`, and a directive either fires or it doesn't — but it's w
     Each installed directive declared its `hook:` in `directive.yaml`; the pre-commit dispatcher runs only pre-commit directives, the commit-msg dispatcher only commit-msg ones.
   </Step>
   <Step title="Populators run first">
-    Directives can ship side-effect scripts (`hooks/<kind>.sh`) — e.g. `agent-token-accounting`'s `pre-commit` helper *writes* the cost row into the issue's receipt and freezes the sampled token endpoint, and its `commit-msg` check then *reconciles* the staged row against that endpoint. Remediation writes; governance reads; the two are separate scripts.
+    Directives can ship side-effect scripts (`hooks/<kind>.sh`). For example, `agent-token-accounting`'s `pre-commit` helper *writes* the cost row into the issue's receipt and freezes the sampled token endpoint. Its `commit-msg` check then *reconciles* the staged row against that endpoint. Remediation writes; governance reads; the two are separate scripts.
   </Step>
   <Step title="Each check runs">
     `check.sh` sources `lib.sh`, announces itself with `directive_start`, inspects the repo (staged tree for `change-set` directives, tree-at-rest for `repo-state` ones), records `violation`s, and `directive_end` decides pass/fail.
@@ -48,7 +48,7 @@ You type `git commit`, and a directive either fires or it doesn't — but it's w
     It prints the directive id, the offending location, and the message. The agent fixes and retries.
   </Step>
   <Step title="CI repeats everything on the trunk">
-    `governance.yml` runs `bash .governance/run.sh` on every PR and push to main — full suite, no hook filtering, no skip.
+    `governance.yml` runs `bash .governance/run.sh` on every PR and push to main: full suite, no hook filtering, no skip.
   </Step>
 </Steps>
 
@@ -61,7 +61,7 @@ bash .governance/run.sh <directive-id>     # one directive
 
 ## Generated, not copied: the hook dispatchers
 
-`init` does not ship static hook files — it **generates** dispatchers from the installed manifest, for one of three strategies:
+`init` does not ship static hook files: it **generates** dispatchers from the installed manifest, for one of three strategies:
 
 | Strategy | When | Where dispatchers land |
 |---|---|---|
@@ -69,25 +69,25 @@ bash .governance/run.sh <directive-id>     # one directive
 | `husky` (Path B) | Repo already uses husky | `.husky/` |
 | `pre-commit` (Path B) | Repo already uses pre-commit.com | `.governance/hooks/`, referenced from `.pre-commit-config.yaml` |
 
-All five dispatcher kinds are generated with identical bodies and the line-2 ownership marker. Because they're generated from `directive.yaml` declarations, installing or removing a directive just regenerates them — there is no hand-maintained hook registry to drift.
+All five dispatcher kinds are generated with identical bodies and the line-2 ownership marker. Installing or removing a directive regenerates them from `directive.yaml` declarations, so there is no hand-maintained hook registry to drift.
 
 <Note>
-**Collisions are first-class.** If a hook already exists at a managed path, `init` stops and offers: **wrap** (rename yours to `<name>.userhook`, exec it at the end of the dispatcher — the default), **merge by hand** (skip hook install, rely on CI), or **overwrite with backup**. `uninstall` reverses the wrap, renaming your hook back.
+**Collisions are handled explicitly.** If a hook already exists at a managed path, `init` stops and offers three choices: **wrap** (the default, which renames yours to `<name>.userhook` and runs it at the end of the dispatcher), **merge by hand** (skip hook install and rely on CI), or **overwrite with backup**. `uninstall` reverses the wrap and restores your hook's original name.
 </Note>
 
 ## The enforcement contract
 
 Local hooks are a convenience; **CI is the contract**:
 
-- `SKIP_GOVERNANCE=1` and `--no-verify` skip the local hook for hotfixes — but `governance.yml` re-runs every directive on every PR, and there is no developer-side bypass for CI.
-- **No network at commit time.** Hooks and checks never fetch; all fetching lives inside user-invoked verbs. A flaky hook is a skipped hook, and a skipped hook silently demotes enforcement to CI-only — so the hook path is kept deterministic and fast (checks target < 1 second each).
-- **Deterministic verdicts.** Same repo state, same result — checks avoid wall-clock and randomness so re-runs are meaningful.
+- `SKIP_GOVERNANCE=1` and `--no-verify` skip the local hook for hotfixes, but `governance.yml` re-runs every directive on every PR. There is no developer-side bypass for CI.
+- **No network at commit time.** Hooks and checks never fetch; all fetching lives inside user-invoked verbs. A flaky hook is a skipped hook, and a skipped hook silently demotes enforcement to CI-only. The hook path is therefore deterministic and fast (checks target < 1 second each).
+- **Deterministic verdicts.** Same repo state, same result: checks avoid wall-clock and randomness so re-runs are meaningful.
 
 ## Mode B: validating history, not just the working tree
 
 `change-set` directives that police *commits* (message format, receipt touches, ledger shape) have two operating modes:
 
-- **Pending-commit mode** (in the hook) — validate the commit being made right now.
-- **Walker mode** (in CI) — walk the commits between the merge-base and `HEAD`, validating each. This is what makes the rules hold on the trunk even when a local hook was skipped. The audit-chain links are built to survive squash-merges without a walker re-validation step: the commit↔issue anchor is the receipt path (which the squash preserves), and the accounting rows live in the frozen receipt keyed by stable join tokens, not in commit SHAs — see [the audit chain](/concepts/audit-chain).
+- **Pending-commit mode** (in the hook): validate the commit being made right now.
+- **Walker mode** (in CI): walk the commits between the merge-base and `HEAD`, validating each. This makes the rules hold on the trunk even when a local hook was skipped. The audit-chain links survive squash merges without a walker re-validation step. The commit↔issue anchor is the receipt path, which the squash preserves, and accounting rows live in the frozen receipt keyed by stable join tokens rather than commit SHAs. See [the audit chain](/concepts/audit-chain).
 
-Next: [Packs, pins & vendoring](/concepts/packs) — where directives come from and how they're trusted.
+Next: [Packs, pins & vendoring](/concepts/packs): where directives come from and how they're trusted.

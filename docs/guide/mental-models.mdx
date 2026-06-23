@@ -1,11 +1,11 @@
 ---
 title: 'Mental models'
-summary: 'The four ideas everything in Governance Kit follows from — the reconciliation loop, rule-and-test as one artifact, rule-layer steering, and durable receipts. The rest is mechanics.'
+summary: 'The four ideas everything in Governance Kit follows from: the reconciliation loop, rule-and-test as one artifact, rule-layer steering, and durable receipts. The rest is mechanics.'
 ---
 
 # Mental models
 
-Four ideas carry the whole kit. Get these and the rest of the docs are detail. They all serve one stance: coherence comes from executable rails around the agent, not ever-larger instruction blobs — the [harness-engineering](https://openai.com/index/harness-engineering/) move.
+Four ideas carry the whole kit. Understand these and the rest of the documentation is detail. They apply the [harness-engineering](https://openai.com/index/harness-engineering/) principle that coherence comes from executable rails around the agent, not ever-larger instruction blobs.
 
 ## 1. The repo is a reconciliation loop
 
@@ -37,7 +37,7 @@ flowchart LR
     class R record
 ```
 
-Every directive is an **invariant on state**, not a step in a procedure — so there is no dependency graph and no ordering. `run.sh` evaluates every check alphabetically, every time; convergence falls out of re-evaluation. The agent is the reconciler: a failed check names the gap and the why, the agent fixes the repo and re-runs until reality matches the declaration.
+Every directive is an **invariant on state**, not a step in a procedure, so there is no dependency graph and no ordering. `run.sh` evaluates every check alphabetically, every time; convergence follows from re-evaluation. The agent is the reconciler: a failed check names the gap and its rationale, then the agent fixes the repo and re-runs until reality matches the declaration.
 
 <Tip>
 Don't chain actions; describe state and let re-evaluation converge.
@@ -45,9 +45,9 @@ Don't chain actions; describe state and let re-evaluation converge.
 
 ## 2. Rule and test are one artifact
 
-> If a rule is not executable, it is not a rule — it is a wish.
+> If a rule is not executable, it is a wish.
 
-This is the cardinal rule. Every directive ships with the `check.sh` that enforces it, and an amendment lands as one **atomic commit** — so there is never drift between what we said the rule is and what the repo enforces.
+This is the cardinal rule. Every directive ships with the `check.sh` that enforces it, and an amendment lands as one **atomic commit**. This prevents drift between the stated rule and the repo's enforcement.
 
 ```mermaid
 flowchart TB
@@ -58,8 +58,8 @@ flowchart TB
     L["Evolution Log entry"]
   end
   commit --> G{"is the rule mechanically checkable?"}
-  G -->|"yes — has check.sh"| D["a directive — enforced every run"]
-  G -->|"no"| P["a principle — human judgment at review"]
+  G -->|"yes: has check.sh"| D["a directive: enforced every run"]
+  G -->|"no"| P["a principle: human judgment at review"]
 
   classDef directive fill:#075b4a,stroke:#36d6af,color:#dcfff4
   classDef record fill:#3f403a,stroke:#a5a49b,color:#efeee8
@@ -72,22 +72,22 @@ flowchart TB
   class P human
 ```
 
-The `directive {add,modify,remove}` verbs make that triple mechanical. Things that *can't* be mechanically checked are principles, not directives — they live in the constitution too, but their gate is human review. The kit is honest about that boundary.
+The `directive {add,modify,remove}` verbs make that triple mechanical. Things that *can't* be mechanically checked are principles, not directives: they live in the constitution too, but their gate is human review. The kit is honest about that boundary.
 
 ## 3. Steer at the rule layer, not the turn layer
 
-Per-turn prompting does not compose: the next agent on the next branch cannot read your last conversation. A directive reaches every future agent without you being in the room — **once-authored, infinitely-enforced**.
+Per-turn prompting does not compose: the next agent on the next branch cannot read your last conversation. A directive reaches every future agent without you being in the room. Write it once; enforce it on every run.
 
-<Frame caption="A per-turn correction dies with the session; a directive in CONSTITUTION.md reaches every future agent. The redirects you don't promote are still captured — as steering rows in the receipt.">
+<Frame caption="A per-turn correction dies with the session; a directive in CONSTITUTION.md reaches every future agent. Redirects that do not become directives are captured as steering rows in the receipt.">
   <img className="block dark:hidden" src="/assets/rule-layer-light.svg" alt="Two columns: the turn layer, where a prompt reaches only this agent on this branch and is lost when the session ends; and the rule layer, where one directive in CONSTITUTION.md fans out to every future agent across branches. A bottom strip notes that un-promoted corrections are recorded as steering rows in the issue's receipt." />
   <img className="hidden dark:block" src="/assets/rule-layer-dark.svg" alt="Two columns: the turn layer, where a prompt reaches only this agent on this branch and is lost when the session ends; and the rule layer, where one directive in CONSTITUTION.md fans out to every future agent across branches. A bottom strip notes that un-promoted corrections are recorded as steering rows in the issue's receipt." />
 </Frame>
 
-Where humans repeatedly steer is the signal for which rules are missing or misaligned — so the rules evolve, not just the prompts.
+Repeated human steering shows which rules are missing or misaligned. The rules should evolve with that signal.
 
 ## 4. Receipts beat plans; ledgers outlive sessions
 
-Pre-implementation plans are the model's *promise* and get thrown away; post-implementation receipts are its *attestation* and are durable. The system of record is a set of **tracked, tamper-evident files** — `CONSTITUTION.md`, `QUALITY.md`, `receipts/` — not chat history or session transcripts. The [audit chain](/concepts/audit-chain) wires them into one crosswalk, and breaking any link fails the next push.
+Pre-implementation plans are the model's *promise* and get thrown away; post-implementation receipts are its durable *attestation*. The system of record is a set of **tracked, tamper-evident files**, including `CONSTITUTION.md`, `QUALITY.md`, and `receipts/`, rather than chat history or session transcripts. The [audit chain](/concepts/audit-chain) wires them into one crosswalk, and breaking any link fails the next push.
 
 ```mermaid
 flowchart LR
@@ -113,8 +113,8 @@ The four models set the stance; the rest of the kit is how it's enforced.
 | Mechanic | In one line |
 |---|---|
 | **Verify, don't trust** | The agent is a moderately-untrusted author; the kit makes CI-grade verification cheap enough to apply at agent throughput. Pack code is pinned by SHA and vendored, so the gating checks are reviewable in your own diffs. |
-| **Plan / apply** | Every lifecycle verb (`init`, `uninstall`, `reset`, `kit update`, `pack *`) shows the exact per-file diff before it runs — applies land fully or roll back, verbs are idempotent, and no verb touches the network at commit time. |
-| **Exceptions are data** | A `# governance: allow-<directive-id> <reason>` waiver is an auditable, in-`git blame` exception — not a silent `SKIP_GOVERNANCE` / `--no-verify` bypass, which never survives CI. |
+| **Plan / apply** | Every lifecycle verb (`init`, `uninstall`, `reset`, `kit update`, `pack *`) shows the exact per-file diff before it runs: applies land fully or roll back, verbs are idempotent, and no verb touches the network at commit time. |
+| **Exceptions are data** | A `# governance: allow-<directive-id> <reason>` waiver is an auditable exception visible in `git blame`. A silent `SKIP_GOVERNANCE` / `--no-verify` bypass never survives CI. |
 | **Versioned in layers** | Installer, product, and content version independently; the *repo* pins each via `install.yaml` + `packs.lock`. See [Versioning & releases](/concepts/versioning). |
 
 ## The vocabulary
@@ -128,7 +128,7 @@ The four models set the stance; the rest of the kit is how it's enforced.
 | **Preset** | A named directive selection a pack declares (`minimal` / `standard` / `strict`). |
 | **Evolution Log** | Append-only history in `CONSTITUTION.md` recording every governance change with date and author. |
 | **Receipt** | Per-issue attestation under `receipts/`, crosswalking claims to evidence and carrying the issue's cost and steering accounting. |
-| **Drift** | Misalignment between things that should agree — constitution vs. test, doc vs. code, lockfile vs. tree. |
+| **Drift** | Misalignment between things that should agree: constitution vs. test, doc vs. code, lockfile vs. tree. |
 | **System of record** | The tracked files that define how the repo works *now*. |
 
 ## Where these ideas live in the tree
@@ -148,4 +148,4 @@ your-repo/
 └── .github/workflows/governance.yml                # CI re-enforcement
 ```
 
-Next: [The constitution & directives](/concepts/constitution) — how a directive is built, installed, and enforced.
+Next: [The constitution & directives](/concepts/constitution): how a directive is built, installed, and enforced.

@@ -1,6 +1,6 @@
 ---
 title: 'Versioning & releases'
-summary: 'Two independent semver axes — the kit (framework) and the packs (content) — the Helm Chart.version vs appVersion model, plus how releases are cut and what consumers pin.'
+summary: 'Two independent semver axes for the kit (framework) and packs (content), using the Helm Chart.version vs appVersion model, plus how releases are cut and what consumers pin.'
 ---
 
 # Versioning & releases
@@ -9,50 +9,50 @@ summary: 'Two independent semver axes — the kit (framework) and the packs (con
   This page is the narrative *why*. For the full policy and tag scheme, see [`VERSIONING.md`](https://github.com/Duaility/governance-kit/blob/main/kit/references/VERSIONING.md); for the release procedure, [`RELEASE_FLOW.md`](https://github.com/Duaility/governance-kit/blob/main/kit/references/RELEASE_FLOW.md).
 </Note>
 
-Governance Kit versions **two independent things on two independent semver axes** — the Helm `Chart.version` vs `appVersion` model (see the [toolchain-manager mental model](/guide/mental-models#2-an-installer-a-product-its-content)). Understanding the split explains most of the lifecycle verbs.
+Governance Kit versions **two independent things on two independent semver axes**, following the Helm `Chart.version` vs `appVersion` model. See the [toolchain-manager mental model](/guide/mental-models#2-an-installer-a-product-its-content). Understanding the split explains most lifecycle verbs.
 
 ## The two axes
 
 | Axis | What it covers | Source of truth | Tag scheme |
 |---|---|---|---|
 | **Kit** (framework) | The `governance` skill, the runtime (`run.sh`, `lib.sh`), hook generators, schemas, verbs | `kit/assets/kit.yaml` | `kit/vX.Y.Z` |
-| **Pack** (content) | Directive code — checks, constitution snippets, presets | Each pack's `pack.yaml` | `<pack>/vX.Y.Z` (e.g. `commits/v0.2.0`) |
+| **Pack** (content) | Directive code: checks, constitution snippets, presets | Each pack's `pack.yaml` | `<pack>/vX.Y.Z` (e.g. `commits/v0.2.0`) |
 
 They move independently: a bundled pack can ship a check fix without the framework moving, and the framework can add a verb without any directive changing. One contract ties them: a pack's `min_governance_kit` must be ≤ the installed kit version.
 
 A repo therefore carries **two pins**:
 
-- `.governance/install.yaml` → `kit_version` / `kit_ref` / `kit_sha` — which framework the repo runs. Advanced by `governance kit update`.
-- `.governance/packs.lock` → per-pack `version` / `ref` / `sha` — which directive content it runs. Advanced by `governance pack update`.
+- `.governance/install.yaml` → `kit_version` / `kit_ref` / `kit_sha`: which framework the repo runs. Advanced by `governance kit update`.
+- `.governance/packs.lock` → per-pack `version` / `ref` / `sha`: which directive content it runs. Advanced by `governance pack update`.
 
 <Note>
-Schema versions — `install.yaml version: "3"`, `packs.lock version: "2"` — are a third, orthogonal thing: file-format compatibility, not features.
+Schema versions such as `install.yaml version: "3"` and `packs.lock version: "2"` are a third, independent concern. They describe file-format compatibility, not features.
 </Note>
 
 ## SemVer policy
 
 <Tabs>
   <Tab title="Pack (content)">
-    - **MAJOR** — breaks previously-passing repos: a directive removed/renamed, a check tightened.
-    - **MINOR** — additive: new directive, new preset, relaxed check, new opt-in.
-    - **PATCH** — check/lib bug fix with no intended behavior change.
+    - **MAJOR**: breaks previously-passing repos: a directive removed/renamed, a check tightened.
+    - **MINOR**: additive: new directive, new preset, relaxed check, new opt-in.
+    - **PATCH**: check/lib bug fix with no intended behavior change.
   </Tab>
   <Tab title="Kit (framework)">
-    - **MAJOR** — breaks the managed-file contract or a schema (changes `install.yaml`/`packs.lock` shape, removes a verb) — anything that would make an existing repo's `kit update` unsafe.
-    - **MINOR** — new verb, flag, or hook kind; marker-format changes that `kit update` migrates.
-    - **PATCH** — framework bug fix, no contract change.
+    - **MAJOR**: breaks the managed-file contract or a schema (changes `install.yaml`/`packs.lock` shape, removes a verb): anything that would make an existing repo's `kit update` unsafe.
+    - **MINOR**: new verb, flag, or hook kind; marker-format changes that `kit update` migrates.
+    - **PATCH**: framework bug fix, no contract change.
   </Tab>
 </Tabs>
 
 ## Version stamps and the consistency directive
 
-Kit-owned files in a target repo carry the marker `# governance-kit:managed kit-version=<v>`. The `managed-tree-integrity` directive asserts that **every marker agrees with `install.yaml`'s `kit_version`** — and, going further, that each managed file matches the content digest recorded at install/update time. A half-applied update or a hand-edited runtime file shows up as drift, with `governance update` as the repair path.
+Kit-owned files in a target repo carry the marker `# governance-kit:managed kit-version=<v>`. The `managed-tree-integrity` directive asserts that **every marker agrees with `install.yaml`'s `kit_version`** and that each managed file matches the content digest recorded at install or update time. A half-applied update or hand-edited runtime file shows up as drift, with `governance update` as the repair path.
 
 Markers are deliberately **dateless**: re-stamping the same version is a byte-identical no-op, which keeps updates idempotent.
 
 ## How releases are cut
 
-Version lines are written **only** by `scripts/release.sh`, in `chore(release)` commits — feature and fix PRs never touch a version field. That invariant is what lets `managed-tree-integrity` treat any out-of-band edit to a managed file's version marker as drift.
+Version lines are written **only** by `scripts/release.sh`, in `chore(release)` commits: feature and fix PRs never touch a version field. That invariant is what lets `managed-tree-integrity` treat any out-of-band edit to a managed file's version marker as drift.
 
 ```sh
 bash scripts/release.sh <kit|PACK> <X.Y.Z> --dry-run   # preview from any branch
@@ -95,4 +95,4 @@ governance pack add gh:duaility/governance-kit/packs/commits@commits/v0.2.0
 
 `@main` silently tracks the moving tip on every `pack update`; a tag is immutable and reviewable, and either way the lockfile records the resolved SHA as the trust unit.
 
-Next: [The audit chain](/concepts/audit-chain) — the artifacts built specifically for agent-authored commits.
+Next: [The audit chain](/concepts/audit-chain): the artifacts built specifically for agent-authored commits.

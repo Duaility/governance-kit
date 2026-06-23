@@ -1,6 +1,6 @@
 ---
 title: 'Limitations'
-summary: 'Honest constraints — what the commit path can and cannot enforce, what the accounting depends on, and the V0 stability posture.'
+summary: 'Honest constraints: what the commit path can and cannot enforce, what the accounting depends on, and the V0 stability posture.'
 ---
 
 # Limitations
@@ -9,24 +9,24 @@ Knowing where the edges are is part of the trust story. These are the constraint
 
 ## The commit path enforces only what bash can decide
 
-Commit-path checks must be **deterministic, fast, and offline** — same repo state, same verdict, no network, target under a second. That ceiling is deliberate (a flaky hook is a skipped hook), but it means:
+Commit-path checks must be **deterministic, fast, and offline**: same repo state, same verdict, no network, target under a second. That ceiling is deliberate (a flaky hook is a skipped hook), but it means:
 
 - Rules that need external state (an API, a ticket system, a database) cannot be commit-path directives.
-- Rules about *intent and architectural shape* are beyond grep — for those, escalate to sub-agent attestations that record an accountable judgment at author-time.
+- Rules about *intent and architectural shape* are beyond grep: for those, escalate to sub-agent attestations that record an accountable judgment at author-time.
 
 ## Local hooks are a convenience, not the contract
 
-`SKIP_GOVERNANCE=1` and `--no-verify` exist, on purpose, for local hotfixes. The contract is CI: every directive re-runs on every PR. If your threat model requires that no non-compliant commit can ever be *created* locally, Governance Kit does not provide that — it guarantees non-compliant work cannot *merge*.
+`SKIP_GOVERNANCE=1` and `--no-verify` exist, on purpose, for local hotfixes. The contract is CI: every directive re-runs on every PR. If your threat model requires that no non-compliant commit can ever be *created* locally, Governance Kit does not provide that: it guarantees non-compliant work cannot *merge*.
 
 ## The accounting depends on runtime cooperation
 
 - Cost rows are written by a `pre-commit` populator reading **the runtime's usage data and transcript**; steering rows are written by a fresh-context sub-agent handed the transcript (a `subagent:` attestation, no in-hook model call). Runtimes that don't expose usage data need a per-runtime adapter under the token directive's `runtimes/`; without one the populator no-ops rather than inventing numbers, and the checks validate whatever rows exist.
-- Per-commit token attribution needs the commit to go through the hook. A commit made with `--no-verify` has no frozen endpoint to reconcile against, so its tokens roll into the next accounted row — session totals stay correct, but that one commit's slice is not separately recoverable.
-- Steering accounting records operator-intent text in the receipt. If that text can contain sensitive content, weigh the leakage before working in a public repo — the directive is `always_install` and should not simply be switched off.
+- Per-commit token attribution needs the commit to go through the hook. A commit made with `--no-verify` has no frozen endpoint to reconcile against, so its tokens roll into the next accounted row: session totals stay correct, but that one commit's slice is not separately recoverable.
+- Steering accounting records operator-intent text in the receipt. If that text can contain sensitive content, weigh the leakage before working in a public repo. The directive is `always_install` and should not simply be switched off.
 
 ## One issue, one PR, one receipt
 
-Receipts freeze once they reach the trunk. The workflow this enforces is deliberately simple — issue → PR → receipt — and multi-PR epics that keep amending one receipt are not supported. Cut the work so each PR closes its issue.
+Receipts freeze once they reach the trunk. The workflow is deliberately simple: issue → PR → receipt. Multi-PR epics that keep amending one receipt are not supported. Cut the work so each PR closes its issue.
 
 ## V0 posture
 
@@ -34,8 +34,8 @@ Governance Kit is pre-1.0. The two semver axes are honored (see [Versioning](/co
 
 ## What it is not
 
-- **Not a linter** — formatting opinions belong in formatters; directives encode governance.
-- **Not a spec tool** — [spec-kit](https://github.com/github/spec-kit)-style workflows answer "what should this feature do?"; Governance Kit answers "what must every commit satisfy?". They compose.
-- **Not an agent firewall** — it shapes and audits what agents commit; it does not sandbox what they execute.
+- **Not a linter**: formatting opinions belong in formatters; directives encode governance.
+- **Not a spec tool**: [spec-kit](https://github.com/github/spec-kit)-style workflows answer "what should this feature do?"; Governance Kit answers "what must every commit satisfy?". They compose.
+- **Not an agent firewall**: it shapes and audits what agents commit; it does not sandbox what they execute.
 
-Next: the [Verbs reference](/reference/verbs) — every lifecycle operation in one place.
+Next: the [Verbs reference](/reference/verbs): every lifecycle operation in one place.
