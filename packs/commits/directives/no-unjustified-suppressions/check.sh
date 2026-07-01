@@ -20,7 +20,13 @@ cd "$ROOT" || exit 1
 # Fixed-string suppression markers across the common ecosystems. `git grep -F`
 # treats these literally, so the regex-special characters (`[`, `(`, `@`, `#`)
 # need no escaping. Markdown is excluded — a suppression token in prose is
-# documentation, not a live silencing.
+# documentation, not a live silencing. The governance-managed tree
+# (`.governance/`) is excluded too: it is vendored, not consumer-authored, and
+# integrity-locked by `managed-tree-integrity`, so a suppression the kit ships
+# in its own directive helpers (e.g. the `# type: ignore` import shims in the
+# audit pack's `lib/`) can neither be edited to carry a tracker nor waived by
+# the consumer. Policing it would block every commit on code the repo never
+# wrote and cannot touch.
 while IFS=: read -r file line_no match; do
     [[ -z "$file" ]] && continue
     # Skip this directive's own files — they spell the markers out literally.
@@ -46,6 +52,7 @@ done < <(git grep -nF \
     -e 'nolint' \
     -e '@SuppressWarnings' \
     -- \
+    ':!.governance/**' \
     ':!**/directives/no-unjustified-suppressions/**' \
     ':!*.md' \
     ':!CONSTITUTION.md' 2>/dev/null || true)

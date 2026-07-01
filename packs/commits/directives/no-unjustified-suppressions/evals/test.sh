@@ -62,4 +62,17 @@ stage_all
 commit_quiet "docs: mention ts-ignore in prose"
 EVAL_LABEL="$EVAL_ID markdown-ignored" expect_pass "$CHECK"
 
+# pass — an untagged suppression inside the governance-managed tree is not
+# scanned. The kit vendors its own directive helpers there (e.g. the audit
+# pack's `# type: ignore` import shims); a consumer cannot edit or waive them
+# (managed-tree-integrity locks the digest), so the scan must skip `.governance/`.
+rm NOTES.md
+mkdir -p .governance/packs/governance-kit/audit/directives/agent-token-accounting/lib
+cat > .governance/packs/governance-kit/audit/directives/agent-token-accounting/lib/ledger.py <<'EOF'
+import receipt_io as rio  # type: ignore
+EOF
+stage_all
+commit_quiet "chore: vendored kit helper with an import shim"
+EVAL_LABEL="$EVAL_ID managed-tree-ignored" expect_pass "$CHECK"
+
 eval_done
