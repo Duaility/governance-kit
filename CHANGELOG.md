@@ -22,6 +22,15 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [audit/v0.8.0] - 2026-07-01
+
+### Added
+- expose subagent tiers/isolation via the conf overlay (#331) (#333)
+
+### Fixed
+- raise min_governance_kit floor to 0.12.0 for the subagent conf overlay (#343)
+- make Codex token runtime strict (#336)
+
 ## [kit/v0.12.0] - 2026-07-01
 
 ### Added
