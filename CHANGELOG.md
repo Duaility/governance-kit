@@ -22,6 +22,23 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [kit/v0.12.0] - 2026-07-01
+
+### Added
+- adopt opencode-inspired theme for the docs site (#332) (#334)
+- expose subagent tiers/isolation via the conf overlay (#331) (#333)
+
+### Fixed
+- make Codex token runtime strict (#336)
+
+### Changed
+- trim mental models to four core ideas + visuals (#341)
+- match docs-site tone to the README's problem-first voice (#338) (#339)
+- sync dogfood to kit 0.11.0 + audit/foundation/commits packs (#327)
+- commits v0.2.1 → v0.2.2
+- foundation v0.5.0 → v0.5.1
+- audit v0.6.1 → v0.7.0
+
 ## [commits/v0.2.2] - 2026-06-18
 
 ### Changed
