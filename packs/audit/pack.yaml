@@ -26,7 +26,7 @@
 
 id: governance-kit/audit
 name: Agent audit-chain governance directives
-version: "0.8.0"
+version: "0.8.1"
 # Floor 0.12.0 (#343): the subagent tiers/isolation conf overlay (#333) is
 # resolved by kit-owned lib.sh/sweep.py — `subagent_attest` reads
 # `SUBAGENT_ISOLATION` and the attest/sweep tiers via `conf_get`. Those helpers

@@ -22,6 +22,11 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [audit/v0.8.1] - 2026-07-02
+
+### Fixed
+- drop inert type-checker suppressions from lib (#346) (#347)
+
 ## [audit/v0.8.0] - 2026-07-01
 
 ### Added
