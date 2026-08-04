@@ -2,7 +2,7 @@
 """Pack manifest helper for governance-bootstrap.
 
 Run via:
-    uv run --with PyYAML python kit/assets/packs/lib/packctl.py ...
+    python3 kit/assets/packs/lib/packctl.py ...
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import yaml
+import kityaml
 
 
 HOOKS = {"pre-commit", "commit-msg", "prepare-commit-msg", "post-commit", "none"}
@@ -49,8 +49,8 @@ _KIT_YAML = Path(__file__).resolve().parents[2] / "kit.yaml"
 
 def _load_kit_version() -> str:
     try:
-        data = yaml.safe_load(_KIT_YAML.read_text()) or {}
-    except (OSError, yaml.YAMLError) as exc:  # pragma: no cover - kit is malformed
+        data = kityaml.load(_KIT_YAML) or {}
+    except (OSError, kityaml.YAMLError) as exc:  # pragma: no cover - kit is malformed
         raise RuntimeError(f"cannot read kit version from {_KIT_YAML}: {exc}") from exc
     version = data.get("version")
     if not version:
@@ -80,8 +80,8 @@ def kit_supports(min_required: str) -> bool:
 
 def load_yaml(path: Path) -> dict[str, Any]:
     try:
-        data = yaml.safe_load(path.read_text()) or {}
-    except yaml.YAMLError as exc:
+        data = kityaml.load(path) or {}
+    except kityaml.YAMLError as exc:
         raise SystemExit(f"{path}: invalid YAML: {exc}") from exc
     if not isinstance(data, dict):
         raise SystemExit(f"{path}: expected a YAML mapping")

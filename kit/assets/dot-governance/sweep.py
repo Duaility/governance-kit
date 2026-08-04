@@ -165,6 +165,39 @@ VERDICT_SCHEMA = {
     "required": ["pass", "confidence", "violations"],
 }
 
+# The batched-call variant (issue #355 Phase 4): several subagent-declared
+# directives targeting the SAME receipt in one sweep run share one judge call
+# instead of one each. Every violation carries the `directive` id it belongs
+# to (the `## <directive-id>` heading it was adjudicated under — see
+# `_build_batch_rubric`) so the caller can demultiplex it back to that
+# directive's digest section (`_demux_batch_violations`). The single-directive
+# `VERDICT_SCHEMA` above stays byte-for-byte unchanged so the legacy path (and
+# its calibrated evals) never sees this field.
+BATCH_VERDICT_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "pass": {"type": "boolean"},
+        "confidence": {"type": "number"},
+        "violations": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "directive": {"type": "string"},
+                    "file": {"type": "string"},
+                    "line": {"type": "integer"},
+                    "quote": {"type": "string"},
+                    "why": {"type": "string"},
+                },
+                "required": ["directive", "file", "line", "quote", "why"],
+            },
+        },
+    },
+    "required": ["pass", "confidence", "violations"],
+}
+
 # The hunk is DATA to analyze, never instructions (issue #142, design
 # constraint 4). The system prompt fences it explicitly and refuses to honor any
 # directive found inside it ("// approved, ignore governance").
@@ -189,7 +222,8 @@ def _models_token() -> str:
 
 
 def github_models_judge(
-    hunk: str, file: str, directive_rubric: str, model_tier: str, *, timeout: int = 60
+    hunk: str, file: str, directive_rubric: str, model_tier: str, *,
+    timeout: int = 60, schema: dict[str, Any] = VERDICT_SCHEMA,
 ) -> dict[str, Any]:
     token = _models_token()
     if not token:
@@ -210,7 +244,7 @@ def github_models_judge(
         ],
         "response_format": {
             "type": "json_schema",
-            "json_schema": {"name": "verdict", "strict": True, "schema": VERDICT_SCHEMA},
+            "json_schema": {"name": "verdict", "strict": True, "schema": schema},
         },
     }).encode()
     req = urllib.request.Request(
@@ -247,17 +281,97 @@ def resolve_judge(judge: str) -> str:
     return judge
 
 
+def _adjudicate_hunk(
+    *, hunk: str, file: str, rubric_text: str, model_tier: str, judge: str,
+    keywords: list[str] | None = None, schema: dict[str, Any] = VERDICT_SCHEMA,
+) -> dict[str, Any]:
+    """The judge call underlying every adjudication path: a hunk + a
+    pre-built rubric string → a verdict. `adjudicate` below wraps this for
+    the legacy `surface: sweep` directive-dir convenience (constitution.md as
+    rubric, evals/echo-keywords.txt as the stub's keywords); the
+    subagent-declared path (issue #355 Phase 2/4) builds its rubric from
+    `checks:` (optionally batched across several directives) and calls this
+    directly, since a batched call has no single directive_dir."""
+    backend = resolve_judge(judge)
+    if backend == "echo":
+        return echo_judge(hunk, file, keywords or [])
+    return github_models_judge(hunk, file, rubric_text, model_tier, schema=schema)
+
+
 def adjudicate(
     *, hunk: str, file: str, directive_dir: Path, model_tier: str,
     judge: str, keywords_path: Path | None = None,
 ) -> dict[str, Any]:
-    backend = resolve_judge(judge)
-    if backend == "echo":
-        kw = keywords_path or (directive_dir / "evals" / "echo-keywords.txt")
-        return echo_judge(hunk, file, _load_keywords(kw))
+    kw = keywords_path or (directive_dir / "evals" / "echo-keywords.txt")
     rubric = (directive_dir / "constitution.md")
     rubric_text = rubric.read_text() if rubric.is_file() else ""
-    return github_models_judge(hunk, file, rubric_text, model_tier)
+    return _adjudicate_hunk(
+        hunk=hunk, file=file, rubric_text=rubric_text, model_tier=model_tier,
+        judge=judge, keywords=_load_keywords(kw),
+    )
+
+
+def _adjudicate_retrying(fn, **kwargs) -> tuple[dict[str, Any], bool]:
+    """Call a judge function (`adjudicate` or `_adjudicate_hunk`); one retry
+    on a transport/parse failure (`adjudicated=False`) before the caller
+    counts the hunk as un-adjudicated (issue #355 Phase 4 — both the legacy
+    and the subagent-declared path retry the same way). A clean pass/fail
+    verdict never retries. Returns `(verdict, retried)`."""
+    verdict = fn(**kwargs)
+    if verdict["adjudicated"]:
+        return verdict, False
+    return fn(**kwargs), True
+
+
+_TIER_RANK = {"low": 0, "medium": 1, "high": 2}
+
+
+def _max_tier(tiers: set[str]) -> str:
+    """The highest-ranked capability tier among several directives sharing a
+    batched call — mirrors the commit lane's shared-attestation-group rule
+    (run at the max of the tiers requested) so batching never silently
+    downgrades a directive's declared tier. An unrecognized tier token ranks
+    below every named tier so a typo can't win the max."""
+    return max(tiers, key=lambda t: _TIER_RANK.get(t, -1)) if tiers else "high"
+
+
+def _build_batch_rubric(directive_rubrics: list[tuple[str, str]]) -> str:
+    """Concatenate several directives' rubrics into ONE prompt for a batched
+    sweep call (issue #355 Phase 4): one receipt, several subagent-declared
+    directives targeting it, one API call instead of N. Each directive's
+    rubric is headed by its id so the judge can attribute each violation via
+    the `directive` field `BATCH_VERDICT_SCHEMA` requires."""
+    parts = [
+        "This hunk is adjudicated against SEVERAL directives at once. For "
+        "each violation you report, set `directive` to the exact heading id "
+        "(without the `##`) it belongs to below.",
+        "",
+    ]
+    for directive_id, rubric in directive_rubrics:
+        parts.append(f"## {directive_id}")
+        parts.append(rubric)
+        parts.append("")
+    return "\n".join(parts).rstrip() + "\n"
+
+
+def _demux_batch_violations(
+    violations: list[dict[str, Any]], directive_ids: list[str]
+) -> dict[str, list[dict[str, Any]]]:
+    """Split a batched verdict's violations back to per-directive buckets by
+    their `directive` field (issue #355 Phase 4). A violation naming a
+    directive outside this batch's set (a hallucinated id) or carrying no
+    `directive` at all is dropped rather than guessed into a bucket — silently
+    mis-attributing a violation to the wrong directive's digest section is
+    worse than losing it. The `directive` key itself is stripped from each
+    surviving violation before it's handed to `_render_section`, which never
+    expected that field."""
+    known = set(directive_ids)
+    out: dict[str, list[dict[str, Any]]] = {d: [] for d in directive_ids}
+    for v in violations:
+        d = v.get("directive")
+        if d in known:
+            out[d].append({k: val for k, val in v.items() if k != "directive"})
+    return out
 
 
 # ── eval: the no-eval-no-ship gate ──────────────────────────────────────────
@@ -308,39 +422,166 @@ def _overlay_conf_path(directive_dir: Path) -> Path | None:
     return root / ".governance" / "conf" / owner / pack / f"{d.name}.conf"
 
 
-def _has_subagent_block(directive_dir: Path) -> bool:
-    y = directive_dir / "directive.yaml"
-    return y.is_file() and any(
-        ln.strip() == "subagent:" and not (len(ln) - len(ln.lstrip()))
-        for ln in y.read_text().splitlines()
-    )
-
-
-def _subagent_block_tier(directive_dir: Path, which: str) -> str | None:
-    """Read `subagent.tiers.<which>` from the directive.yaml flow map."""
+# ── the `subagent:` block (issue #325 declaration; issue #355 Phase 2 reader) ─
+# The sweep engine reads the SAME declaration the commit lane's lib.sh reads
+# (`_subagent_yaml` et al.) — reimplemented here in stdlib Python, since
+# sweep.py cannot shell to bash without adding a runtime dependency the file
+# doesn't otherwise carry — with the identical block-slicing discipline:
+# locate the top-level `subagent:` key, slice its indented lines, then read
+# flow lists (`[a, b]`), block lists (one `- item` per line), and bare scalars
+# from that slice. No PyYAML.
+def _subagent_block_lines(directive_dir: Path) -> list[str] | None:
+    """The indented lines of directive.yaml's top-level `subagent:` block, or
+    None when the directive carries no such block."""
     y = directive_dir / "directive.yaml"
     if not y.is_file():
         return None
-    in_block = False
-    for ln in y.read_text().splitlines():
+    raw = y.read_text().splitlines()
+    start = None
+    for i, ln in enumerate(raw):
         if ln.strip() == "subagent:" and not (len(ln) - len(ln.lstrip())):
-            in_block = True
+            start = i
+            break
+    if start is None:
+        return None
+    block: list[str] = []
+    for ln in raw[start + 1:]:
+        if not ln.strip():
+            block.append(ln)
             continue
-        if in_block:
-            if ln.strip() and not (len(ln) - len(ln.lstrip())):
-                break
-            m = re.search(rf"\btiers:.*\b{re.escape(which)}\s*:\s*([A-Za-z0-9_-]+)",
-                          ln.strip())
+        if not (len(ln) - len(ln.lstrip())):
+            break
+        block.append(ln)
+    return block
+
+
+def _has_subagent_block(directive_dir: Path) -> bool:
+    return _subagent_block_lines(directive_dir) is not None
+
+
+def _strip_scalar(s: str) -> str:
+    s = s.strip()
+    if len(s) >= 2 and s[0] in "\"'" and s[-1] == s[0]:
+        s = s[1:-1]
+    return s
+
+
+def _subagent_scalar(directive_dir: Path, key: str) -> str | None:
+    """A scalar field of the `subagent:` block (`section`, `gate`, `sink`,
+    `isolation`, ...): the value after `<key>: ` on the first matching line.
+    None when the block, or the key within it, is absent — or the key
+    introduces a list/map instead of a scalar."""
+    block = _subagent_block_lines(directive_dir)
+    if block is None:
+        return None
+    for ln in block:
+        if not ln.strip() or ln.lstrip().startswith("#"):
+            continue
+        stripped = ln.strip()
+        if stripped == f"{key}:" or stripped.startswith(f"{key}:"):
+            rest = stripped[len(key) + 1:].strip()
+            if not rest or rest.startswith(("[", "{")):
+                return None
+            return _strip_scalar(rest) or None
+    return None
+
+
+def _subagent_list(directive_dir: Path, key: str) -> list[str]:
+    """A list field of the `subagent:` block (`inputs` — flow `[a, b]`;
+    `checks` — a block list of quoted strings). Mirrors lib.sh's
+    `_subagent_yaml` list handling (issue #325)."""
+    block = _subagent_block_lines(directive_dir)
+    if block is None:
+        return []
+    key_idx = key_indent = None
+    for i, ln in enumerate(block):
+        if not ln.strip() or ln.lstrip().startswith("#"):
+            continue
+        indent = len(ln) - len(ln.lstrip())
+        stripped = ln.strip()
+        if stripped == f"{key}:" or stripped.startswith(f"{key}:"):
+            key_idx, key_indent = i, indent
+            break
+    if key_idx is None:
+        return []
+    rest = block[key_idx].strip()[len(key) + 1:].strip()
+    items: list[str] = []
+    if rest.startswith("["):
+        inner = rest[1:rest.rfind("]")] if "]" in rest else rest[1:]
+        for part in inner.split(","):
+            part = _strip_scalar(part)
+            if part:
+                items.append(part)
+        return items
+    if rest.startswith("{"):
+        return []  # flow map (e.g. tiers) — not a list field
+    if rest:
+        return [_strip_scalar(rest)]  # a bare scalar written without a list
+    for ln in block[key_idx + 1:]:
+        if not ln.strip():
+            continue
+        indent = len(ln) - len(ln.lstrip())
+        if indent <= key_indent:
+            break
+        s = ln.strip()
+        if s.startswith("- "):
+            items.append(_strip_scalar(s[2:]))
+        elif s == "-":
+            items.append("")
+    return items
+
+
+def _subagent_gate(directive_dir: Path) -> str:
+    """`subagent.gate`: `record` (default, today's presence+token semantics) |
+    `verdict` (the adjudication-log contract — sweep appends standing rubric
+    lines for it; see `_subagent_rubric`)."""
+    return _subagent_scalar(directive_dir, "gate") or "record"
+
+
+def _subagent_sink(directive_dir: Path) -> str:
+    """`subagent.sink`: `section` (default) | `none` (a sweep-only
+    declaration — the commit lane no-ops on it, but the sweep lane still
+    triages and adjudicates it like any other subagent-declared directive)."""
+    return _subagent_scalar(directive_dir, "sink") or "section"
+
+
+def _subagent_section(directive_dir: Path) -> str | None:
+    return _subagent_scalar(directive_dir, "section")
+
+
+def _subagent_block_tier(directive_dir: Path, which: str) -> str | None:
+    """Read `subagent.tiers.<which>` from the directive.yaml flow map. The one
+    map the block carries, so it gets its own small reader rather than going
+    through `_subagent_scalar`/`_subagent_list` (which deliberately skip flow
+    maps)."""
+    block = _subagent_block_lines(directive_dir)
+    if block is None:
+        return None
+    for ln in block:
+        s = ln.strip()
+        if s.startswith("tiers:"):
+            m = re.search(rf"\b{re.escape(which)}\s*:\s*([A-Za-z0-9_-]+)", s)
             if m:
                 return m.group(1)
     return None
+
+
+_TIER_DISABLED = {"none", "off"}
+
+
+def _tier_disabled(tier: str) -> bool:
+    """A resolved tier of `none`/`off` (any casing) opts the directive's lane
+    out entirely — issue #355 Phase 2's `tiers.sweep: none` knob."""
+    return tier.strip().lower() in _TIER_DISABLED
 
 
 def resolve_model_tier(directive_dir: Path) -> str:
     """The capability tier to adjudicate this directive at. A `subagent:`
     directive resolves the operator-tunable SUBAGENT_TIERS_SWEEP knob (issue
     #331): env > user overlay > pack defaults.conf > the directive.yaml value.
-    A legacy sweep directive keeps its top-level `model_tier` (default high)."""
+    A legacy sweep directive keeps its top-level `model_tier` (default high).
+    The resolved value may be the literal `none`/`off` (issue #355) — callers
+    that need to know whether the lane is disabled use `_tier_disabled`."""
     if not _has_subagent_block(directive_dir):
         return _read_directive_meta(directive_dir).get("model_tier", "high")
     key = "SUBAGENT_TIERS_SWEEP"
@@ -356,6 +597,33 @@ def resolve_model_tier(directive_dir: Path) -> str:
     if v:
         return v
     return _subagent_block_tier(directive_dir, "sweep") or "high"
+
+
+_STANDING_VERDICT_RUBRIC = [
+    "the section contains a well-formed adjudication log (one "
+    "'- [round N] VERDICT tier=... stamp=...' line per round, rounds "
+    "strictly increasing from 1)",
+    "a missing, malformed, or visibly pruned adjudication log is itself a "
+    "violation",
+    "a CONTESTED latest verdict must be re-adjudicated on its merits, not "
+    "waved through because a verdict already exists",
+]
+
+
+def _subagent_rubric(directive_dir: Path) -> str:
+    """Render the sweep rubric for a subagent-declared directive: the
+    numbered `checks:` list, plus — when `gate: verdict` — the standing
+    adjudication-log rubric lines (issue #355 Phase 2). Unlike the legacy
+    `surface: sweep` path, this rubric is NOT constitution.md; `checks:` is
+    the directive's authored substance and the sweep lane re-derives the
+    verdict against it directly, the same rubric the commit-time attestation
+    was graded on."""
+    checks = _subagent_list(directive_dir, "checks")
+    lines = [f"{i + 1}. {c}" for i, c in enumerate(checks)]
+    if _subagent_gate(directive_dir) == "verdict":
+        lines += [f"{len(checks) + i + 1}. {r}"
+                  for i, r in enumerate(_STANDING_VERDICT_RUBRIC)]
+    return "\n".join(lines)
 
 
 def eval_directive(
@@ -426,12 +694,29 @@ def _gh(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 def discover_sweep_directives(root: Path) -> list[Path]:
+    """Every directive that participates in the sweep lane (issue #355
+    Phase 2): legacy `surface: sweep` directives (triage.sh + constitution.md,
+    unchanged) UNION directives carrying a `subagent:` block whose resolved
+    sweep tier isn't disabled (`tiers.sweep: none`/`off`) — the
+    subagent-declared path. A directive satisfying both never double-runs:
+    the subagent-declared path wins (checked first) and the legacy
+    `surface: sweep` path is skipped for it."""
     base = root / ".governance" / "packs"
     out = []
     if base.is_dir():
         for y in sorted(base.glob("*/*/directives/*/directive.yaml")):
-            if _read_directive_meta(y.parent).get("surface") == "sweep":
-                out.append(y.parent)
+            d = y.parent
+            meta = _read_directive_meta(d)
+            if _has_subagent_block(d):
+                if meta.get("surface") == "sweep":
+                    print(f"sweep: {d.name} declares both surface: sweep and a "
+                          "subagent: block — the subagent-declared path wins; "
+                          "its triage.sh is not run", file=sys.stderr)
+                if not _tier_disabled(resolve_model_tier(d)):
+                    out.append(d)
+                continue
+            if meta.get("surface") == "sweep":
+                out.append(d)
     return out
 
 
@@ -510,6 +795,43 @@ def _hunk_for(root: Path, file: str, line: int, ctx: int = 6) -> str:
     return "\n".join(f"{i+1}: {lines[i]}" for i in range(lo, hi))
 
 
+def _triage_receipts(root: Path, rng: str) -> list[str]:
+    """Triage for subagent-declared directives (issue #355 Phase 2): every
+    `receipts/*.md` path touched in the range — they are the sink the
+    declaration gates, so the receipt itself is the unit of triage rather
+    than a `triage.sh` grep result. Directive-independent (every
+    subagent-declared directive in a run shares this candidate list, which is
+    exactly what makes batching several directives onto one receipt possible
+    — see `_build_batch_rubric`)."""
+    out = _git(root, "diff", "--name-only", rng)
+    files = {ln.strip() for ln in out.splitlines()
+             if ln.strip().startswith("receipts/") and ln.strip().endswith(".md")}
+    return sorted(files)
+
+
+# A subagent-declared "hunk" is the whole receipt, not a windowed context
+# region like `_hunk_for` — but an unbounded file could still blow the
+# adjudication budget the same way an unbounded diff would. Cap it, trimming
+# from the middle so the head (frontmatter/checklist) and tail (footer,
+# usually where a verdict log lives) both survive intact.
+RECEIPT_HUNK_MAX_LINES = 400
+
+
+def _hunk_for_receipt(root: Path, file: str) -> str:
+    p = root / file
+    if not p.is_file():
+        return ""
+    lines = p.read_text(errors="replace").splitlines()
+    if len(lines) <= RECEIPT_HUNK_MAX_LINES:
+        return "\n".join(f"{i+1}: {lines[i]}" for i in range(len(lines)))
+    half = RECEIPT_HUNK_MAX_LINES // 2
+    head = [f"{i+1}: {lines[i]}" for i in range(half)]
+    tail_start = len(lines) - half
+    tail = [f"{i+1}: {lines[i]}" for i in range(tail_start, len(lines))]
+    omitted = len(lines) - RECEIPT_HUNK_MAX_LINES
+    return "\n".join(head + [f"... ({omitted} lines omitted) ..."] + tail)
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     root = Path(args.root).resolve()
     head = _git(root, "rev-parse", "HEAD")
@@ -533,15 +855,21 @@ def cmd_run(args: argparse.Namespace) -> int:
     budget = args.budget
     directives = discover_sweep_directives(root)
     if not directives:
-        print("sweep run: no surface: sweep directives installed — nothing to do")
+        print("sweep run: no sweep-eligible directives installed "
+              "(no surface: sweep, no subagent: with tiers.sweep enabled) — nothing to do")
         return 0
     seen_pairs = set() if args.no_gh else _open_digest_pairs(root)
 
     sections: list[str] = []
     finding_markers: list[str] = []
-    triaged_total = adjudicated_total = dropped_budget = dup_total = 0
+    triaged_total = adjudicated_total = dropped_budget = dup_total = retried_total = 0
 
-    for d in directives:
+    legacy_dirs = [d for d in directives if not _has_subagent_block(d)]
+    subagent_dirs = [d for d in directives if _has_subagent_block(d)]
+
+    # ── legacy `surface: sweep` path (triage.sh + constitution.md), unchanged
+    # behavior — only the retry wrapper is new (issue #355 Phase 4).
+    for d in legacy_dirs:
         meta = _read_directive_meta(d)
         candidates = _triage(root, d, rng)
         triaged_total += len(candidates)
@@ -559,8 +887,11 @@ def cmd_run(args: argparse.Namespace) -> int:
             hunk = _hunk_for(root, file, line)
             if not hunk:
                 continue
-            verdict = adjudicate(hunk=hunk, file=file, directive_dir=d,
-                                 model_tier=resolve_model_tier(d), judge=args.judge)
+            verdict, retried = _adjudicate_retrying(
+                adjudicate, hunk=hunk, file=file, directive_dir=d,
+                model_tier=resolve_model_tier(d), judge=args.judge)
+            if retried:
+                retried_total += 1
             budget -= 1
             adjudicated_total += 1
             if not verdict["adjudicated"]:
@@ -578,9 +909,86 @@ def cmd_run(args: argparse.Namespace) -> int:
         if findings or unadjudicated:
             sections.append(_render_section(d.name, meta, findings, unadjudicated))
 
+    # ── subagent-declared path (issue #355 Phase 2/4): every touched receipt
+    # is one candidate hunk shared by every subagent-declared directive in
+    # this run; several directives targeting the same receipt share ONE
+    # judge call (batched) instead of one each.
+    if subagent_dirs:
+        sub_findings: dict[str, list[dict[str, Any]]] = {d.name: [] for d in subagent_dirs}
+        sub_unadjudicated: dict[str, list[str]] = {d.name: [] for d in subagent_dirs}
+        touched_receipts = _triage_receipts(root, rng)
+
+        for receipt in touched_receipts:
+            targets: list[Path] = []
+            for d in subagent_dirs:
+                triaged_total += 1
+                if (d.name, receipt) in seen_pairs:
+                    dup_total += 1
+                    continue
+                targets.append(d)
+            if not targets:
+                continue
+            if budget <= 0:
+                dropped_budget += len(targets)
+                continue
+            hunk = _hunk_for_receipt(root, receipt)
+            if not hunk:
+                continue
+
+            tier = _max_tier({resolve_model_tier(d) for d in targets})
+            if len(targets) == 1:
+                only = targets[0]
+                verdict, retried = _adjudicate_retrying(
+                    _adjudicate_hunk, hunk=hunk, file=receipt,
+                    rubric_text=_subagent_rubric(only), model_tier=tier,
+                    judge=args.judge, schema=VERDICT_SCHEMA,
+                    keywords=_load_keywords(only / "evals" / "echo-keywords.txt"))
+            else:
+                batch_rubric = _build_batch_rubric(
+                    [(d.name, _subagent_rubric(d)) for d in targets])
+                verdict, retried = _adjudicate_retrying(
+                    _adjudicate_hunk, hunk=hunk, file=receipt,
+                    rubric_text=batch_rubric, model_tier=tier, judge=args.judge,
+                    schema=BATCH_VERDICT_SCHEMA, keywords=[])
+            if retried:
+                retried_total += 1
+            budget -= 1
+            adjudicated_total += 1
+
+            if not verdict["adjudicated"]:
+                for d in targets:
+                    sub_unadjudicated[d.name].append(f"{receipt} ({verdict['note']})")
+                continue
+            if verdict["pass"]:
+                continue
+            if verdict["confidence"] < args.confidence_threshold:
+                continue
+
+            if len(targets) == 1:
+                only = targets[0]
+                for v in verdict["violations"] or [{"file": receipt, "line": 1, "quote": "", "why": ""}]:
+                    v.setdefault("file", receipt)
+                    sub_findings[only.name].append({**v, "confidence": verdict["confidence"]})
+                    finding_markers.append(f"<!-- finding: {only.name} | {v.get('file', receipt)} -->")
+            else:
+                grouped = _demux_batch_violations(verdict["violations"], [d.name for d in targets])
+                for d in targets:
+                    for v in grouped.get(d.name, []):
+                        v = dict(v)
+                        v.setdefault("file", receipt)
+                        sub_findings[d.name].append({**v, "confidence": verdict["confidence"]})
+                        finding_markers.append(f"<!-- finding: {d.name} | {v.get('file', receipt)} -->")
+
+        for d in subagent_dirs:
+            meta = _read_directive_meta(d)
+            findings = sub_findings[d.name]
+            unadjudicated = sub_unadjudicated[d.name]
+            if findings or unadjudicated:
+                sections.append(_render_section(d.name, meta, findings, unadjudicated))
+
     body = _render_digest(rng, head, sections, finding_markers,
                           triaged_total, adjudicated_total, dropped_budget, dup_total,
-                          resolve_judge(args.judge))
+                          resolve_judge(args.judge), retried_total)
 
     if args.dry_run or args.no_gh:
         print(body)
@@ -623,7 +1031,7 @@ def _render_section(name, meta, findings, unadjudicated) -> str:
 
 
 def _render_digest(rng, head, sections, markers, triaged, adjudicated,
-                   dropped, dup, backend) -> str:
+                   dropped, dup, backend, retried=0) -> str:
     parts = [
         "Automated semantic sweep (issue #142). Findings below are candidates "
         "for the issue → agent → PR loop, not blocking gate failures.",
@@ -641,6 +1049,7 @@ def _render_digest(rng, head, sections, markers, triaged, adjudicated,
         f"- hunks adjudicated: {adjudicated}",
         f"- dropped for budget (un-adjudicated): {dropped}",
         f"- skipped as duplicate of an open digest: {dup}",
+        f"- retried after a transport/parse failure: {retried}",
         "",
         f"<!-- sweep-end-sha: {head} -->",
     ]

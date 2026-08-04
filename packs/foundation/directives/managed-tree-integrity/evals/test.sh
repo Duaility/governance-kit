@@ -13,8 +13,9 @@ install_directive "$PACK_DIR" "$EVAL_ID"
 
 # Compute digests with the directive's OWN routines so the recorded values are
 # correct by construction (the same code the check recomputes).
-dir_digest()  { python3 -c "import sys;sys.path.insert(0,'$LIBDIR');import integrity;print(integrity.directory_digest('$1'))"; }
-file_digest() { python3 -c "import sys;sys.path.insert(0,'$LIBDIR');import integrity;print(integrity.file_digest('$1'))"; }
+source "$LIBDIR/digest.sh"
+dir_digest()  { mti_dir_digest "$1"; }
+file_digest() { mti_sha256_file "$1"; }
 
 # A vendored pack folder to verify.
 VPACK=".governance/packs/acme/widgets/directives/foo"

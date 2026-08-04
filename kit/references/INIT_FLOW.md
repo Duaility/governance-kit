@@ -169,10 +169,10 @@ source "<lib_dir>/packs.sh"
 list_packs "<assets_dir>/packs"
 ```
 
-The loader is a bash wrapper around
-`uv run --isolated --with PyYAML`, so pack manifests are parsed as real
-YAML. If `uv` is unavailable, stop and tell the user pack discovery
-requires `uv` (or install it before continuing).
+The loader is a bash wrapper around a bare `python3` invocation of the kit's
+stdlib restricted-YAML parser (`kityaml.py`, issue #355), so pack manifests
+are parsed as real YAML with no package manager or third-party dependency —
+any `python3` on `PATH` is enough.
 
 Every `<root>/<pack-dir>/pack.yaml` is a pack. Pack ids are scoped (`<author>/<slug>` — e.g. `governance-kit/foundation`, `acme/widgets`); the directory name is the slug half. Directive metadata lives inside each directive's folder (`<pack-dir>/directives/<directive-id>/directive.yaml`) — the loader surfaces it via `directives_for` and `directive_field`. For each pack, build an in-memory catalog of:
 
@@ -321,9 +321,11 @@ After injecting, run `bash .governance/run.sh` once so the user sees whether the
 ### Step 5 — The test runner (installed by `init-apply`)
 
 `init-apply` copies `../assets/dot-governance/run.sh` → `.governance/run.sh`
-(the entrypoint — discovers and runs every `directives/<id>/check.sh`) and
+(the entrypoint — discovers and runs every `directives/<id>/check.sh`),
 `lib.sh` → `.governance/lib.sh` (shared pass/fail/skip + `tracked_files`
-helpers), makes them executable, and stamps each with the per-file version pin
+helpers), and `runtimes/*.sh` → `.governance/runtimes/*.sh` (the kit-level
+executor adapters — `cost`/`judge` verbs per harness, issue #355), makes them
+executable, and stamps each with the per-file version pin
 (`# governance-kit:managed kit-version=<v>`, byte-stable, no wall-clock date) —
 the pin `governance kit update` reads to detect drift, mirrored by
 `install.yaml.kit_version`.

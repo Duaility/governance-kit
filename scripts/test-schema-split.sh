@@ -60,7 +60,7 @@ assert_no_grep() {
 }
 
 pv() {
-    uv run --quiet --isolated --with PyYAML python "$PV" "$@"
+    python3 "$PV" "$@"
 }
 
 target="$WORK/repo"

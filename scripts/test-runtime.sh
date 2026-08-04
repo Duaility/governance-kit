@@ -41,7 +41,10 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 RUN_SH="$ROOT/kit/assets/dot-governance/run.sh"
 LIB_SH="$ROOT/kit/assets/dot-governance/lib.sh"
 TOKEN_RUNTIME_LIB="$ROOT/packs/audit/directives/agent-token-accounting/lib/runtime.sh"
-TOKEN_CODEX_SH="$ROOT/packs/audit/directives/agent-token-accounting/runtimes/codex.sh"
+# The adapter registry is kit-level since issue #355 — one file per harness,
+# shared by the accounting lane's `cost` verb and lib.sh's `judge` verb.
+RUNTIMES_DIR="$ROOT/kit/assets/dot-governance/runtimes"
+TOKEN_CODEX_SH="$RUNTIMES_DIR/codex.sh"
 
 PASS=0
 FAIL=0
@@ -865,9 +868,13 @@ EOF
 output=$(cd "$list_repo"; set +u; source "$LIB_SH"; conf_list cmf ./defaults.conf)
 assert_eq "conf_list can empty the list" "" "$output"
 
-# ---- agent-token-accounting: Codex runtime reader -------------------------
+# ---- agent-token-accounting: Codex runtime adapter ------------------------
+# The adapter answers the unified `cost` verb (issue #355) with
+#   <session> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output> <model> <cost_usd>
+# extracted in POSIX awk — no python anywhere on this path — and reports the
+# harness's own dollar figure or the literal `-`. It never prices.
 
-printf '── agent-token-accounting: codex runtime reader ────────\n'
+printf '── agent-token-accounting: codex runtime adapter ───────\n'
 codex_sessions="$WORK/codex-sessions"
 codex_archived="$WORK/codex-archived"
 mkdir -p "$codex_sessions/2026/06/18" "$codex_archived"
@@ -892,23 +899,132 @@ output=$(
     CODEX_THREAD_ID="$codex_thread" \
     CODEX_SESSIONS_DIR="$codex_sessions" \
     CODEX_ARCHIVED_SESSIONS_DIR="$codex_archived" \
-    bash "$TOKEN_CODEX_SH"
+    bash "$TOKEN_CODEX_SH" cost
 )
 exit_code=$?
 set -e
-assert_eq "codex reader exits 0 with CODEX_THREAD_ID" 0 "$exit_code"
-assert_eq "codex reader chooses thread match over newer unrelated transcript" "$codex_thread 70 0 30 7 gpt-5.5" "$output"
+assert_eq "codex adapter exits 0 with CODEX_THREAD_ID" 0 "$exit_code"
+assert_eq "codex adapter chooses thread match over newer unrelated transcript" "$codex_thread 70 0 30 7 gpt-5.5 -" "$output"
+
+# A bare invocation (no verb) still behaves as `cost` — lib/runtime.sh's
+# pre-#355 contract stays valid for any vendored caller.
+set +e
+output=$(
+    CODEX_THREAD_ID="$codex_thread" \
+    CODEX_SESSIONS_DIR="$codex_sessions" \
+    CODEX_ARCHIVED_SESSIONS_DIR="$codex_archived" \
+    bash "$TOKEN_CODEX_SH"
+)
+set -e
+assert_eq "codex adapter defaults a bare invocation to the cost verb" "$codex_thread 70 0 30 7 gpt-5.5 -" "$output"
+
+# An unknown verb is refused loudly rather than silently treated as `cost`.
+set +e
+output=$(
+    CODEX_THREAD_ID="$codex_thread" \
+    CODEX_SESSIONS_DIR="$codex_sessions" \
+    CODEX_ARCHIVED_SESSIONS_DIR="$codex_archived" \
+    bash "$TOKEN_CODEX_SH" summarize 2>&1
+)
+exit_code=$?
+set -e
+assert_eq "codex adapter rejects an unimplemented verb with exit 2" 2 "$exit_code"
+assert_contains "codex adapter names the supported verbs" "supported: cost, judge" "$output"
 
 set +e
 output=$(
     unset CODEX_THREAD_ID CODEX_TRANSCRIPT_PATH
     CODEX_SESSIONS_DIR="$codex_sessions" \
     CODEX_ARCHIVED_SESSIONS_DIR="$codex_archived" \
-    bash "$TOKEN_CODEX_SH"
+    bash "$TOKEN_CODEX_SH" cost
 )
 exit_code=$?
 set -e
-assert_eq "codex reader refuses to guess without thread id or transcript path" 1 "$exit_code"
+assert_eq "codex adapter refuses to guess without thread id or transcript path" 2 "$exit_code"
+
+# A harness-reported dollar figure rides through verbatim; the kit never prices.
+codex_priced="$codex_sessions/2026/06/18/rollout-2026-06-18T12-00-00-priced.jsonl"
+cat > "$codex_priced" <<'EOF'
+{"type":"session_meta","payload":{"id":"priced-thread"}}
+{"type":"turn_context","payload":{"collaboration_mode":{"settings":{"model":"gpt-5.5"}}}}
+{"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"cached_input_tokens":4,"output_tokens":2},"total_cost_usd":0.0125}}}
+EOF
+set +e
+output=$(CODEX_TRANSCRIPT_PATH="$codex_priced" bash "$TOKEN_CODEX_SH" cost)
+set -e
+assert_eq "codex adapter passes a native cost through verbatim" "priced-thread 6 0 4 2 gpt-5.5 0.0125" "$output"
+
+# No python is reachable from the adapters or the runtime dispatcher.
+set +e
+output=$(grep -nE '(^|[^[:alnum:]_])python3?[[:space:]]' "$RUNTIMES_DIR"/*.sh "$TOKEN_RUNTIME_LIB" \
+    2>/dev/null | grep -vE ':[[:space:]]*#')
+set -e
+assert_eq "runtime adapters invoke no python" "" "$output"
+
+# ── the adapter registry: the `judge` verb, and the manual seam ─────────────
+# Every adapter answers two verbs. `cost` is covered above against synthetic
+# transcripts; `judge` is covered here through the `manual` adapter, which is
+# the deterministic seam that makes an executor lane testable with no vendor
+# CLI on PATH and no network. The vendor adapters are covered for the one
+# behavior that must hold without their CLI installed: degrade, never hang.
+for _adapter in claude-code codex manual; do
+    assert_eq "the registry ships the $_adapter adapter" "1" \
+        "$([[ -f "$RUNTIMES_DIR/$_adapter.sh" ]] && echo 1 || echo 0)"
+done
+
+set +e
+output=$(
+    AGENT_SESSION_ID=man-1 AGENT_CUM_INPUT=10 AGENT_CUM_OUTPUT=5 \
+    AGENT_MODEL=some-model-9 AGENT_COST_USD=0.4200 \
+    bash "$RUNTIMES_DIR/manual.sh" cost
+)
+set -e
+assert_eq "manual adapter cost mirrors the env seam" "man-1 10 0 0 5 some-model-9 0.4200" "$output"
+
+set +e
+output=$(unset AGENT_SESSION_ID; bash "$RUNTIMES_DIR/manual.sh" cost 2>&1)
+exit_code=$?
+set -e
+assert_eq "manual adapter cost exits 2 when the seam is unset" 2 "$exit_code"
+
+prompt_sink="$WORK/judge-prompt.txt"
+set +e
+output=$(
+    printf 'RUBRIC: (1) x\n' \
+    | AGENT_JUDGE_VERDICT=PASS \
+      AGENT_JUDGE_REASON="the receipt matches the diff" \
+      AGENT_JUDGE_PROMPT_SINK="$prompt_sink" \
+      bash "$RUNTIMES_DIR/manual.sh" judge low ""
+)
+exit_code=$?
+set -e
+assert_eq "manual adapter judge exits 0 on a configured verdict" 0 "$exit_code"
+assert_eq "manual adapter judge emits the contract shape" \
+    "VERDICT: PASS
+REASON: the receipt matches the diff" "$output"
+assert_contains "manual adapter judge records the prompt it was handed" \
+    "RUBRIC: (1) x" "$(cat "$prompt_sink" 2>/dev/null)"
+
+set +e
+output=$(printf 'x\n' | bash "$RUNTIMES_DIR/manual.sh" judge low "" 2>&1)
+exit_code=$?
+set -e
+assert_eq "manual adapter judge exits 2 with no verdict configured" 2 "$exit_code"
+
+# A vendor adapter with its CLI absent must exit 2 promptly — that exit is what
+# the commit lane reads as "degrade to the sub-agent path".
+_bash_bin="$(command -v bash)"
+for _adapter in claude-code codex; do
+    # An absolute bash + an empty PATH: the adapter must decide "no CLI here"
+    # with shell builtins alone, before it needs anything external.
+    set +e
+    output=$(printf 'x\n' | env PATH=/nonexistent-governance-kit-path \
+        "$_bash_bin" "$RUNTIMES_DIR/$_adapter.sh" judge low "" 2>&1)
+    exit_code=$?
+    set -e
+    assert_eq "$_adapter adapter judge exits 2 with no CLI on PATH" 2 "$exit_code"
+    assert_contains "$_adapter adapter says which CLI is missing" "CLI on PATH" "$output"
+done
 
 set +e
 output=$(
@@ -917,12 +1033,39 @@ output=$(
     source "$TOKEN_RUNTIME_LIB"
     resolve_runtime_cumulative
     rc=$?
-    printf '%s %s %s %s %s %s\n' "$rc" "$RUNTIME" "$SESSION_ID" "$CUM_INPUT" "$CUM_CACHE_READ" "$MODEL"
+    printf '%s %s %s %s %s %s %s\n' "$rc" "$RUNTIME" "$SESSION_ID" "$CUM_INPUT" "$CUM_CACHE_READ" "$MODEL" "$COST_USD"
 )
 exit_code=$?
 set -e
 assert_eq "runtime detection accepts explicit Codex transcript path" 0 "$exit_code"
-assert_eq "runtime detection reads Codex transcript path coordinates" "0 codex $codex_thread 70 30 gpt-5.5" "$output"
+assert_eq "runtime detection reads Codex adapter coordinates + model + cost" "0 codex $codex_thread 70 30 gpt-5.5 -" "$output"
+
+# The manual env seam carries a harness-reported model and cost through, and
+# defaults an unreported cost to `-` rather than to an estimate.
+set +e
+output=$(
+    unset CLAUDECODE CODEX_THREAD_ID CODEX_TRANSCRIPT_PATH
+    export AGENT_NAME=manual-harness AGENT_SESSION_ID=manual-sess \
+           AGENT_CUM_INPUT=11 AGENT_CUM_OUTPUT=3 \
+           AGENT_MODEL=some-model-9 AGENT_COST_USD=0.4200
+    source "$TOKEN_RUNTIME_LIB"
+    resolve_runtime_cumulative
+    printf '%s %s %s %s\n' "$RUNTIME" "$SESSION_ID" "$MODEL" "$COST_USD"
+)
+set -e
+assert_eq "manual seam carries AGENT_MODEL + AGENT_COST_USD" "manual manual-sess some-model-9 0.4200" "$output"
+
+set +e
+output=$(
+    unset CLAUDECODE CODEX_THREAD_ID CODEX_TRANSCRIPT_PATH AGENT_MODEL AGENT_COST_USD
+    export AGENT_NAME=manual-harness AGENT_SESSION_ID=manual-sess \
+           AGENT_CUM_INPUT=11 AGENT_CUM_OUTPUT=3
+    source "$TOKEN_RUNTIME_LIB"
+    resolve_runtime_cumulative
+    printf '%s %s\n' "$MODEL" "$COST_USD"
+)
+set -e
+assert_eq "manual seam defaults an unreported cost to '-'" "unknown -" "$output"
 
 # ---- summary --------------------------------------------------------------
 

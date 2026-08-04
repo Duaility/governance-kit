@@ -3,7 +3,7 @@
 enforcement. Consumed by the `governance pack *` verbs.
 
 Run via:
-    uv run --with PyYAML python kit/assets/packs/lib/packverb.py ...
+    python3 kit/assets/packs/lib/packverb.py ...
 """
 
 from __future__ import annotations
@@ -21,8 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import yaml
-
+import kityaml
 from packctl import load_yaml, pack_manifest, scalar, validate_pack_dir
 
 LOCK_VERSION = "2"
@@ -267,7 +266,7 @@ def write_lockfile(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     packs = sorted(data.get("packs") or [], key=lambda p: str(p.get("id") or ""))
     out = {"version": data.get("version", LOCK_VERSION), "packs": packs}
-    path.write_text(yaml.safe_dump(out, sort_keys=False, default_flow_style=False))
+    path.write_text(kityaml.dump(out))
 
 
 # ---- Subcommand plumbing --------------------------------------------------

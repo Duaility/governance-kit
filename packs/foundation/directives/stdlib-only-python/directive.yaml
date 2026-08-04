@@ -1,0 +1,11 @@
+# stdlib-only-python — every tracked .py file the kit ships under
+# .governance/ imports only the Python standard library. Part of the issue
+# #355 dependency-posture trio: the kit's own tooling needs nothing but a
+# bare python3 (no pip install, no venv, no lockfile). Opt-in (strict preset
+# only) — a repo whose sweep/lifecycle python has drifted onto a third-party
+# import needs to see that as a real failure to fix, not inherit it silently.
+category: Foundation
+recommended: false
+summary: Every tracked .py file under .governance/ imports only the Python standard library.
+surface: repo-state
+hook: pre-commit

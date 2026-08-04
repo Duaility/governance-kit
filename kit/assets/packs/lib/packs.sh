@@ -2,8 +2,9 @@
 # packs.sh — shell API for governance-bootstrap pack manifests.
 #
 # YAML parsing and structural validation are delegated to packctl.py, which is
-# executed with `uv run --with PyYAML`. Keep this file as the stable bash
-# surface consumed by SKILL.md, scripts/test-packs.sh, and eval helpers.
+# stdlib-only (kityaml.py, issue #355) and run with a plain `python3` — no
+# `uv`/PyYAML dependency. Keep this file as the stable bash surface consumed
+# by SKILL.md, scripts/test-packs.sh, and eval helpers.
 
 set -u
 
@@ -11,7 +12,7 @@ _PACKS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _PACKCTL="$_PACKS_LIB_DIR/packctl.py"
 
 _packctl() {
-    uv run --quiet --isolated --with PyYAML python "$_PACKCTL" "$@"
+    python3 "$_PACKCTL" "$@"
 }
 
 kit_version() {

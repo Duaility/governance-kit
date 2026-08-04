@@ -1,0 +1,9 @@
+# no-package-manager — no tracked file under .governance/ or .githooks/
+# invokes a package manager (uv, pip/pipx, npx, pnpm dlx, yarn dlx). Part of
+# the issue #355 dependency-posture trio: nothing in governance-kit's own
+# machinery ever needs a package manager. Opt-in (strict preset only).
+category: Foundation
+recommended: false
+summary: No governance-managed file (.governance/, .githooks/) invokes a package manager.
+surface: repo-state
+hook: pre-commit

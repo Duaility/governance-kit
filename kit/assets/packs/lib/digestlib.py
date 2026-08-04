@@ -149,6 +149,16 @@ def managed_runtime_files(root: str | Path) -> list[str]:
     ci = _manifest_scalar(text, "ci_workflow")
     if ci:
         candidates.append(ci)
+    # The runtime adapter registry (issue #355) — every adapter on disk under
+    # `<tests_dir>/runtimes/`. Enumerated from DISK rather than from the shipped
+    # kit so the recorded set always matches what the repo actually carries: a
+    # repo that predates the registry records none, and one that has it records
+    # exactly its adapters, whichever kit laid them down.
+    runtimes_dir = root / tests_dir / "runtimes"
+    if runtimes_dir.is_dir():
+        candidates.extend(
+            f"{tests_dir}/runtimes/{p.name}" for p in sorted(runtimes_dir.glob("*.sh"))
+        )
     # Sweep-lane assets (issue #259) — present only when a `surface: sweep`
     # directive is installed; the disk-existence filter below drops them otherwise.
     candidates.extend(_sweep_managed_files())

@@ -18,6 +18,7 @@ Legend:
 | `CONSTITUTION.md` | Step 4 | manifest: `constitution: true` OR header sentinel from the template | delete | delete |
 | `.governance/run.sh` | Step 5 | manifest: `tests_dir: .governance` OR byte match against shipped `assets/dot-governance/run.sh` | delete | delete |
 | `.governance/lib.sh` | Step 5 | manifest OR byte match against shipped `assets/dot-governance/lib.sh` | delete | delete |
+| `.governance/runtimes/<harness>.sh` | Step 5 (the runtime adapter registry, issue #355) | manifest `managed_digests` entry OR line-2 marker `# governance-kit:managed kit-version=…` | delete with the `.governance/` tree; `rmdir .governance/runtimes/` | same |
 | `.governance/packs/<pack-id>/directives/<id>/` | Step 3 (`install_directive_folder`) | lockfile: directive listed under `packs[*].directives[*]` | delete recursively | delete recursively |
 | `.governance/conf/<id>.conf` | Step 3 (seeded from the generic conf stub) | inside `.governance/`; deterministic name from the lockfile directive list | delete with the `.governance/` tree | same |
 | `.github/workflows/governance.yml` | Step 7 | manifest: `ci_workflow: .github/workflows/governance.yml` OR filename match | delete | delete |

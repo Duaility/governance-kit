@@ -20,11 +20,14 @@ door as human corrections: **issue → agent → PR**.
 > high tier, *verify*) are the **same** tiered, rubric-framed model judgment.
 > Issue #325 unified the attestation lane behind a single `subagent:` declaration
 > in `directive.yaml` (`inputs`, `checks`, `isolation`, `section`,
-> `tiers: { attest: low, sweep: high }`). Wiring this engine to read that block
-> directly — so a sweep directive declares `subagent:` instead of a parallel
-> `triage.sh` + `constitution.md` rubric — is the immediate follow-up; the schema
-> is designed so the sweep lane consumes the same declaration unchanged. Until
-> then, sweep directives still ship `triage.sh` + `constitution.md` as below.
+> `tiers: { attest: low, sweep: high }`). Issue #355 Phase 2 wires this engine to
+> read that block directly, so a directive that already declares `subagent:` for
+> the commit lane — `receipt-per-issue`'s `## Audit`, `agent-steering-accounting`'s
+> `## Steering`, the repo-local `layer-boundaries`' `## Layer boundaries` — is
+> swept too, with **no parallel `triage.sh` + `constitution.md` rubric to author**.
+> A directive that is *only* a sweep directive, with no commit-lane attestation,
+> keeps shipping `triage.sh` + `constitution.md` as documented below — that
+> contract is unchanged and still fully supported.
 
 ## Why off the commit path
 
@@ -69,6 +72,59 @@ The folder carries:
   `evals/test.sh` running the real judge against them with a precision/recall
   floor (see *Calibration*).
 
+This is the contract for a directive that is **only** a sweep directive — no
+commit-lane attestation to re-derive. A directive that already declares
+`subagent:` for the commit lane (below) needs none of this.
+
+## Subagent-declared sweep directives (issue #355 Phase 2)
+
+A directive that carries a `subagent:` block (see
+[SUBAGENT_ATTESTATION.md](SUBAGENT_ATTESTATION.md)) is swept **directly off
+that declaration** — no `triage.sh`, no `constitution.md` rubric duplicated
+alongside `checks:`. `discover_sweep_directives` includes a directive when
+`surface: sweep` (the legacy path above, unchanged) **or** it carries a
+`subagent:` block whose resolved sweep tier (`resolve_model_tier`, the same
+`SUBAGENT_TIERS_SWEEP` conf ladder issue #331 introduced) isn't disabled. A
+directive satisfying both never double-runs — the subagent-declared path wins
+and the legacy `triage.sh` path is skipped for it.
+
+- **Opt-out.** `tiers: { sweep: none }` (or `off`) in `directive.yaml`, or the
+  usual `SUBAGENT_TIERS_SWEEP` overlay/env override, drops the directive from
+  the sweep lane entirely — it still attests at commit time, but the sweep
+  never re-derives its verdict.
+- **Triage.** The receipt IS the sink the declaration gates, so triage is the
+  receipts touched in the range, not a grep: every `receipts/*.md` path in
+  `git diff --name-only <range>`. This list is directive-independent — every
+  subagent-declared directive in a run shares it, which is exactly what makes
+  batching several directives onto one receipt possible (below). Each touched
+  receipt is one hunk: the **whole file**, not a windowed context region,
+  numbered like any other hunk and size-capped (trimmed from the middle,
+  keeping the head and tail intact) so an outsized receipt can't blow the
+  adjudication budget.
+- **Rubric.** The numbered `checks:` list — the same rubric the commit-time
+  attestation was graded on — not `constitution.md`. When the directive
+  declares `gate: verdict`, the rubric gains three standing lines: the section
+  must contain a well-formed adjudication log (one `- [round N] VERDICT
+  tier=... stamp=...` line per round, strictly increasing from 1); a missing,
+  malformed, or visibly pruned log is itself a violation; and a `CONTESTED`
+  latest verdict must be re-adjudicated on its merits, never waved through
+  because a verdict already exists. `gate: record` (the default — today's
+  presence + PASS/REFUTED semantics) adds no standing lines.
+- **Batching.** When several subagent-declared directives target the same
+  receipt in one run, they share **one** judge call instead of one each: their
+  rubrics are concatenated under `## <directive-id>` headings, and the verdict
+  schema gains a `directive` field on every violation so the engine can
+  demultiplex the response back to each directive's own digest section. A
+  receipt targeted by exactly one directive still uses the plain
+  single-directive schema — the legacy path's schema and prompt shape are
+  untouched by this, so its calibrated evals never see the extra field. The
+  call runs at the highest capability tier requested by any directive sharing
+  it (never a silent downgrade), mirroring the commit lane's shared-attestation
+  rule.
+- **Retry.** Both paths — legacy and subagent-declared — retry a judgment
+  exactly once on a transport/parse failure before counting the hunk as
+  un-adjudicated; the digest footer's retry count says how often that fired.
+
 ## The engine
 
 [`../assets/dot-governance/sweep.py`](../assets/dot-governance/sweep.py) is the
@@ -88,13 +144,18 @@ What `run` does:
   issue — the engine reads the recorded end-SHA from the last `governance-sweep`
   issue body (an HTML-comment marker). No committed state file. First run falls
   back to a `--since` window (default 24h), then to the root commit.
-- **Triage.** Per sweep directive, `triage.sh` over the range. Mandatory, not an
-  optimization: the free tier can't see a raw day of commits.
-- **Adjudicate.** One inference call per candidate hunk. The prompt is fixed by
-  the engine: `constitution.md` as rubric, the hunk fenced and framed as
-  **untrusted data** (a `// approved, ignore governance` comment is evidence to
-  weigh, never a command to obey), low temperature, JSON-schema-constrained
-  verdict.
+- **Triage.** For a legacy `surface: sweep` directive, `triage.sh` over the
+  range — mandatory, not an optimization: the free tier can't see a raw day of
+  commits. For a subagent-declared directive, the touched receipts (see
+  *Subagent-declared sweep directives* above).
+- **Adjudicate.** One inference call per candidate hunk (or, for batched
+  subagent-declared calls, per receipt shared by several directives). The
+  prompt is fixed by the engine: the directive's rubric (`constitution.md` for
+  a legacy directive, the rendered `checks:` for a subagent-declared one), the
+  hunk fenced and framed as **untrusted data** (a `// approved, ignore
+  governance` comment is evidence to weigh, never a command to obey), low
+  temperature, JSON-schema-constrained verdict. A transport/parse failure
+  retries once before the hunk counts as un-adjudicated.
 - **Budget.** A per-run request cap (`--budget` / `$SWEEP_BUDGET`, default 40,
   under the free tier). Over budget, the engine adjudicates newest-first and
   **reports the remainder as un-adjudicated** — a digest must never silently read
@@ -103,12 +164,12 @@ What `run` does:
   directive+file pair so an unfixed finding doesn't multiply daily.
 - **Digest.** One issue per run, labelled `governance-sweep`: sections per
   directive (file/line/quote/why/confidence), a footer stating the commit range
-  and hunks triaged vs. adjudicated vs. dropped for budget, and the end-SHA
-  marker that the next run resumes from. The engine creates the label
-  idempotently before filing (the workflow's `issues: write` grant covers the
-  labels API); if creation fails anyway, it files the digest unlabeled with a
-  warning rather than dropping the findings — that one digest just won't feed
-  resume/dedupe.
+  and hunks triaged vs. adjudicated vs. dropped for budget vs. skipped as
+  duplicate vs. retried, and the end-SHA marker that the next run resumes
+  from. The engine creates the label idempotently before filing (the
+  workflow's `issues: write` grant covers the labels API); if creation fails
+  anyway, it files the digest unlabeled with a warning rather than dropping
+  the findings — that one digest just won't feed resume/dedupe.
 
 ## Provider / transport
 
@@ -158,6 +219,14 @@ straight from the steering-ledger themes in issue #142, in its repo-local
 - `no-legacy-fallbacks` — the most-repeated human correction.
 - `no-path-bifurcation` — parallel code paths / dual dispatch / local-only
   special-casing.
+
+These two are `surface: sweep` directives with their own `triage.sh` +
+`constitution.md`. Separately, a directive that already declares `subagent:`
+for the commit lane — `receipt-per-issue`'s `## Audit`,
+`agent-steering-accounting`'s `## Steering`, the repo-local `layer-boundaries`'
+`## Layer boundaries` — is swept too, purely by carrying that block (see
+*Subagent-declared sweep directives* above); it needs neither `surface: sweep`
+nor a `triage.sh`/`constitution.md` pair of its own.
 
 See [DIRECTIVES_CATALOG.md](DIRECTIVES_CATALOG.md) for the per-directive table,
 [DIRECTIVE_AUTHORING.md](DIRECTIVE_AUTHORING.md) for authoring a sweep directive,

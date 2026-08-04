@@ -1,6 +1,10 @@
-# agent-token-accounting — Each agent commit's token cost lands in the issue's receipt; a commit-time check reconciles the receipt's recorded cumulative against the transcript (no commit trailers).
+# agent-token-accounting — Each agent commit's token usage lands in the issue's receipt; a commit-time check reconciles the staged row against the endpoint the writer froze. The cost column is the harness's own figure, never a kit estimate.
 category: AgentDiscipline
 recommended: true
-summary: Each agent commit's token cost lands in the issue's receipt (receipts/issue-<N>.md); a commit-time check reconciles the receipt's recorded cumulative against the transcript (no commit trailers).
+summary: Each agent commit's token usage lands in the issue's receipt (receipts/issue-<N>.md) as a v5 Costs row, and a commit-time check reconciles the staged row against the frozen token endpoint. `cost-usd` is whatever the runtime harness reported (blank when it reported nothing) — the kit keeps no rate card and never prices.
 surface: change-set
 hook: commit-msg
+reads:
+  - receipts/*.md
+writes:
+  - receipts/*.md

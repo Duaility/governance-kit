@@ -123,7 +123,7 @@ the receipt. The sub-agent:
    existing ordinals, and writes the table:
 
    ```sh
-   python3 .governance/packs/governance-kit/audit/directives/agent-steering-accounting/lib/ledger.py \
+   bash .governance/packs/governance-kit/audit/directives/agent-steering-accounting/lib/steering.sh \
      append-row <receipt> <steer-key> <session> <issue> <type> <tier> <user-reason> <commit> <ordinal> <timestamp>
    ```
 
@@ -148,11 +148,14 @@ is the lowest-leak path.
 ## Installing
 
 The directive ships as a self-contained folder under the `governance-kit/audit`
-pack. It carries `lib/ledger.py` (row I/O + validation) and `lib/receipt_io.py`
-(Markdown table plumbing) — and, since issue #325, **no** classifier, extractor,
-populator hook, or runtime transcript-reader. Stdlib-only Python 3; the only
-runtime dependency is `python3` on `$PATH`. There is no ledger file to seed —
-rows live in per-issue receipts.
+pack. It carries `lib/steering.sh` (row schema, the `append-row` CLI, and the
+validator) and `lib/receipt.sh` (Markdown table plumbing) — and, since issue
+#325, **no** classifier, extractor, populator hook, or runtime
+transcript-reader. Since issue #355 it ships **no python at all**: both files
+are bash + POSIX awk, so the only runtime dependency is `bash` and `git`.
+`lib/steering.sh` is dual-purpose — `check.sh` sources it as a library, and the
+recording sub-agent executes it as the small CLI shown above. There is no ledger
+file to seed — rows live in per-issue receipts.
 
 Add an `agent-steering-accounting` Directives subsection to `CONSTITUTION.md` via
 the `governance directive add` verb.

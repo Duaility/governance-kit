@@ -5,6 +5,9 @@
 # and the CI workflow.
 #
 # Layers:
+#   0. test-kityaml.py        — kityaml.py restricted-YAML parser/writer
+#                               (grammar, coercion, packs.lock byte parity,
+#                               shipped-corpus walk)
 #   1. test-packctl.py        — packctl.py library + CLI (preset, validation)
 #   2. test-packverb.py       — packverb.py (refs, capability glob, lockfile, catalog)
 #   2b. test-kitverb.py       — kitverb.py (kit-plan: version delta, manifest
@@ -24,6 +27,10 @@
 #                               SKIP_GOVERNANCE handling
 #   5. test-runtime.sh        — runtime files shipped to consumer repos
 #                               (dot-governance/run.sh + lib.sh)
+#   5a. test-subagent.sh      — lib.sh sub-agent judgment surface: the awk
+#                               `subagent:` reader, the batched remediation
+#                               instruction, and the `gate: verdict`
+#                               adjudication gate (log, stamp, ladder)
 #   5b. test-sweep.py         — sweep.py digest-filing contract (ensure the
 #                               governance-sweep label, unlabeled fallback)
 #   6. test-schema-split.sh   — install.yaml + packs.lock cross-file invariants
@@ -33,6 +40,8 @@
 #                               install contract + pack evals
 #
 # All layers are non-destructive: each builds its own tmpdirs and tears down.
+# Every Python layer runs on a bare `python3` — the kit's tooling is
+# stdlib-only (no PyYAML, no uv, no package manager; issue #355).
 
 set -eu
 
@@ -60,48 +69,52 @@ run_layer() {
 
 failed_layers=()
 
+run_layer "kityaml: restricted-YAML load/dump parity (Python)" \
+    python3 "$ROOT/scripts/test-kityaml.py" \
+    || failed_layers+=("test-kityaml.py")
+
 run_layer "packctl: preset/CLI (Python)" \
-    uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-packctl.py" \
+    python3 "$ROOT/scripts/test-packctl.py" \
     || failed_layers+=("test-packctl.py")
 
 run_layer "packctl: validate_pack_dir matrix (Python)" \
-    uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-packctl-validate.py" \
+    python3 "$ROOT/scripts/test-packctl-validate.py" \
     || failed_layers+=("test-packctl-validate.py")
 
 run_layer "packverb (Python)" \
-    uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-packverb.py" \
+    python3 "$ROOT/scripts/test-packverb.py" \
     || failed_layers+=("test-packverb.py")
 
 run_layer "kitverb: kit-plan delta/reconstruction/inventory (Python)" \
-    uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-kitverb.py" \
+    python3 "$ROOT/scripts/test-kitverb.py" \
     || failed_layers+=("test-kitverb.py")
 
 run_layer "kitresolve: resolve/pin/delegation params (Python)" \
-    uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-kitresolve.py" \
+    python3 "$ROOT/scripts/test-kitresolve.py" \
     || failed_layers+=("test-kitresolve.py")
 
 run_layer "skill bootstrap: fetch-only shim + cache contract (Python)" \
-    uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-bootstrap.py" \
+    python3 "$ROOT/scripts/test-bootstrap.py" \
     || failed_layers+=("test-bootstrap.py")
 
-run_layer "digestlib: digest determinism + directive parity (Python)" \
-    uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-digestlib.py" \
+run_layer "digestlib: digest determinism + bash digest parity (Python)" \
+    python3 "$ROOT/scripts/test-digestlib.py" \
     || failed_layers+=("test-digestlib.py")
 
 run_layer "docsurgery: pure CONSTITUTION.md transforms (Python)" \
-    uv run --quiet --isolated python "$ROOT/scripts/test-docsurgery.py" \
+    python3 "$ROOT/scripts/test-docsurgery.py" \
     || failed_layers+=("test-docsurgery.py")
 
 run_layer "pack-apply: plan/apply add/update/remove + doc surgery (Python)" \
-    uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-packverb-apply.py" \
+    python3 "$ROOT/scripts/test-packverb-apply.py" \
     || failed_layers+=("test-packverb-apply.py")
 
 run_layer "reset/uninstall: plan/apply engines (Python)" \
-    uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-reset-uninstall.py" \
+    python3 "$ROOT/scripts/test-reset-uninstall.py" \
     || failed_layers+=("test-reset-uninstall.py")
 
 run_layer "init: plan/apply engine + CONSTITUTION assembly (Python)" \
-    uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-init.py" \
+    python3 "$ROOT/scripts/test-init.py" \
     || failed_layers+=("test-init.py")
 
 run_layer "install.sh helpers (bash)" \
@@ -116,8 +129,12 @@ run_layer "shipped runtime: run.sh + lib.sh (bash)" \
     bash "$ROOT/scripts/test-runtime.sh" \
     || failed_layers+=("test-runtime.sh")
 
+run_layer "sub-agent judgment: declaration reader + adjudication gate (bash)" \
+    bash "$ROOT/scripts/test-subagent.sh" \
+    || failed_layers+=("test-subagent.sh")
+
 run_layer "sweep engine: digest filing + label ensure (Python)" \
-    uv run --quiet --isolated python "$ROOT/scripts/test-sweep.py" \
+    python3 "$ROOT/scripts/test-sweep.py" \
     || failed_layers+=("test-sweep.py")
 
 run_layer "schema split: install.yaml + packs.lock (bash)" \

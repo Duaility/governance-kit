@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# governance: allow-repo-hygiene file-size-limit one consolidated test layer for the kit-update verbs (issue #355)
 """Contract tests for kitverb.py — the `kit-plan` / `kit-apply` deterministic core.
 
 Covers the version-delta resolution, manifest reconstruction, and the
@@ -162,6 +163,33 @@ def test_inventory_status_hints() -> None:
         assert files["ci_workflow"]["status"] == "apply"
         # enable-governance.sh is no longer in the managed inventory (issue #267).
         assert "enable_governance_script" not in files
+
+
+def test_inventory_carries_the_runtime_adapter_registry() -> None:
+    # issue #355: each `.governance/runtimes/<harness>.sh` is a managed kit file
+    # like run.sh/lib.sh, so `kit update` re-syncs it — and a repo installed
+    # before the registry existed picks it up as an `add` on its next update.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = make_repo(tmp, manifest=BASE_MANIFEST + f'kit_version: "{OLDER}"\n')
+        files = {f["key"]: f for f in kit_plan(root)["files"]}
+        adapters = [k for k in files if k.startswith("runtimes/")]
+        assert "runtimes/manual.sh" in adapters, adapters
+        for key in adapters:
+            assert files[key]["status"] == "add", files[key]
+            assert files[key]["dest"] == f".governance/{key}"
+
+
+def test_apply_adds_the_runtime_registry_to_a_pre_registry_install() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = make_git_repo(Path(tmp), manifest=STALE_MANIFEST, files=STALE_FILES)
+        rc, report = kit_apply(root)
+        assert rc == 0 and report["result"] == "applied", report
+        added = [d for d in report["added"] if d.startswith(".governance/runtimes/")]
+        assert added, report
+        for dest in added:
+            path = root / dest
+            assert path.is_file() and os.access(path, os.X_OK), dest
+            assert KITVERB.read_marker(path) == {"state": "versioned", "version": KIT_VERSION}
 
 
 def test_inventory_status_add_when_dest_missing() -> None:
@@ -451,9 +479,9 @@ def test_up_to_date_fixture_pin_tracks_kit_version() -> None:
     # Drift guard: scripts/release.sh skips kit/evals/*, so a kit bump
     # that forgets this fixture silently turns eval 2's up-to-date case into a
     # forward update. Keep the pin equal to the kit's KIT_VERSION.
-    import yaml  # noqa: PLC0415 - test-only dep, provided by the suite runner.
+    import kityaml  # noqa: PLC0415 - PACK_LIB is on sys.path via load_kitverb() (#355: stdlib-only, no PyYAML).
     fixture = ROOT / "kit/evals/kit-update/files/up-to-date-repo/.governance/install.yaml"
-    pin = yaml.safe_load(fixture.read_text())["kit_version"]
+    pin = kityaml.load(fixture)["kit_version"]
     assert str(pin) == KIT_VERSION, (
         f"up-to-date fixture pins kit_version={pin!r} but the kit is {KIT_VERSION!r} — "
         "re-pin kit/evals/kit-update/files/up-to-date-repo/ to match a kit release"

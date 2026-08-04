@@ -266,7 +266,7 @@ Reproduce: clone this repo and run `bash .governance/run.sh`. The dogfood setup:
 <details>
 <summary><b>Integrations — run the checks from the toolchain you already have</b></summary>
 
-`governance init` installs only the universal bash runner — zero dependencies. Native wrappers are an additive opt-in ([NATIVE_TESTS.md](kit/references/NATIVE_TESTS.md)):
+`governance init` installs only the universal bash runner — zero dependencies. A consumer repo needs nothing but bash + git to commit. The kit's own tooling needs nothing but a bare `python3`. Nothing, anywhere, needs a package manager or a third-party package. Native wrappers are an additive opt-in ([NATIVE_TESTS.md](kit/references/NATIVE_TESTS.md)):
 
 | Your setup | Hook in with |
 |---|---|

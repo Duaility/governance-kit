@@ -51,23 +51,26 @@ The trust boundary: **every `- [x]` checklist item must crosswalk** — its text
 
 `commit-issue-receipt-match` ties commits to receipts the other direction, and it does it **file-first**: every non-merge, non-revert commit must add or modify at least one `receipts/issue-<N>.md`, and the touched receipt's filename *is* the issue anchor. That path sits in the diff identically before and after a squash-merge — where the subject flips to the PR number — so the link survives the squash with no body trailer to recover it. (The subject's own `(#N)` is still required, separately, by `commit-message-format`.)
 
-## Cost accounting: every change has a price tag
+## Cost accounting: every change carries its usage
 
-`agent-token-accounting` records each agent-authored commit's token cost as exactly one row under `## Accounting` → `### Costs` in the issue's receipt:
+`agent-token-accounting` records each agent-authored commit's token usage as exactly one row (v5, 17 columns) under `## Accounting` → `### Costs` in the issue's receipt:
 
 ```
-| cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | cum-input | cum-cache-create | cum-cache-read | cum-output | note |
+| cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | cum-input | cum-cache-create | cum-cache-read | cum-output | source | note |
 ```
 
 The interesting part is what keeps the row honest across a session that spans branches and a squash that rewrites SHAs:
 
-- **The `cum-*` columns are absolute coordinates.** They are the session's cumulative input / cache-create / cache-read / output counters at this commit, written blind from the transcript. They are the source of truth; the delta columns (`input` / `output` / `new-work` / `cost-usd`) are derived claims for display, so the row reads in isolation.
-- **The endpoint, not a trailer, proves completeness.** At commit time the directive's `pre-commit` writer samples the transcript, writes the cost row, and freezes the sampled endpoint keyed by the staged tree under `.git/governance-token-endpoints/<tree>.json`. The `commit-msg` check then recomputes `git write-tree` and verifies the staged row matches that frozen endpoint — a missing endpoint means the runtime-aware hook never ran; a mismatch means the row doesn't record what the writer sampled.
+- **The `cum-*` columns are absolute coordinates.** They are the session's cumulative input / cache-create / cache-read / output counters at this commit, written blind from what the runtime reported. They are the source of truth; the delta columns (`input` / `output` / `new-work`) are derived claims for display, so the row reads in isolation.
+- **The endpoint, not a trailer, proves completeness.** At commit time the directive's `pre-commit` writer samples the runtime, writes the cost row, and freezes the sampled endpoint keyed by the staged tree under `.git/governance-token-endpoints/<tree>.endpoint`. The `commit-msg` check then recomputes `git write-tree` and verifies the staged row matches that frozen endpoint — a missing endpoint means the runtime-aware hook never ran; a mismatch means the row doesn't record what the writer sampled.
 - **`cost-key` is the stable join token** — opaque, globally unique across `receipts/*.md`, and the thing cross-issue reports group by. It is a join key, not a parseable structure.
+- **`source` names the adapter that produced the row** (`claude-code`, `codex`, `manual`), which is what makes a mixed-harness ledger readable.
 
 Because rows store positions on a monotonic counter rather than quantities, double-counting is structurally impossible to write and provable to detect, and a commit made via `--no-verify` simply rolls its tokens into the next accounted row instead of corrupting the ledger.
 
-`new-work = input + cache-create + output` (cache reads are tracked but excluded — you don't pay new-work rates to re-read a warm cache), and `cost-usd` is computed from the runtime-reported model via a rates table (`lib/rates.py`, extensible with `rate <model> …` rows in the overlay). Cross-issue totals come from a read-only aggregation over `receipts/*.md` (`lib/report.py`), not from scraping `git log`.
+`new-work = input + cache-create + output` (cache reads are tracked but excluded — re-reading a warm cache is not new effort).
+
+**The harness is the only source of dollars, and a blank beats an estimate.** Up to v4 the kit shipped a per-model rate card and multiplied it against the transcript to fill `cost-usd`. Every number in that table was a guess about someone else's billing: stale the day a vendor moved a price, wrong for negotiated rates, and — worst — rendered to four decimal places, which reads like a measurement. It could also *block a commit* over a model it had never heard of. From v5 the runtime adapter reports the harness's own figure or nothing at all; the kit copies it verbatim and leaves the cell empty otherwise. An empty `cost-usd` next to `source = codex` is the honest record of "that harness does not report dollars", not a bug. The whole commit path is bash + POSIX awk, so it can neither price nor require python. Cross-issue totals come from a read-only aggregation over `receipts/*.md` (`lib/report.py`, run by hand), not from scraping `git log`.
 
 ## Steering accounting: where the human grabbed the wheel
 

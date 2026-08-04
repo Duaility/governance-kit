@@ -41,6 +41,9 @@ You type `git commit`, and a directive either fires or it doesn't — but it's w
   <Step title="Populators run first">
     Directives can ship side-effect scripts (`hooks/<kind>.sh`) — e.g. `agent-token-accounting`'s `pre-commit` helper *writes* the cost row into the issue's receipt and freezes the sampled token endpoint, and its `commit-msg` check then *reconciles* the staged row against that endpoint. Remediation writes; governance reads; the two are separate scripts.
   </Step>
+  <Step title="A runtime adapter answers for the harness">
+    Where a directive needs to know something only the agent harness knows — how many tokens this session has spent, what it cost — it asks a **runtime adapter** (`runtimes/<harness>.sh`) rather than deriving it. Adapters answer a small verb interface (`cost` today) and report what the harness reports, verbatim. See below.
+  </Step>
   <Step title="Each check runs">
     `check.sh` sources `lib.sh`, announces itself with `directive_start`, inspects the repo (staged tree for `change-set` directives, tree-at-rest for `repo-state` ones), records `violation`s, and `directive_end` decides pass/fail.
   </Step>
@@ -82,6 +85,24 @@ Local hooks are a convenience; **CI is the contract**:
 - `SKIP_GOVERNANCE=1` and `--no-verify` skip the local hook for hotfixes — but `governance.yml` re-runs every directive on every PR, and there is no developer-side bypass for CI.
 - **No network at commit time.** Hooks and checks never fetch; all fetching lives inside user-invoked verbs. A flaky hook is a skipped hook, and a skipped hook silently demotes enforcement to CI-only — so the hook path is kept deterministic and fast (checks target < 1 second each).
 - **Deterministic verdicts.** Same repo state, same result — checks avoid wall-clock and randomness so re-runs are meaningful.
+- **bash + git, nothing else.** Everything on the commit path — `run.sh`, `lib.sh`, every `check.sh`, every `hooks/*.sh`, every runtime adapter — is bash and POSIX awk. No python, no package manager, no toolchain to install (the `no-commit-path-python` directive enforces it). A commit hook that needs an interpreter the contributor doesn't have is a hook that silently stops enforcing.
+
+## Runtime adapters: the harness reports, the kit records
+
+A governance check can read the repo. It cannot know what a model cost you. That answer lives in the agent harness, so the kit asks — through one adapter file per harness, at `.governance/runtimes/<harness>.sh`, answering a verb interface:
+
+```sh
+.governance/runtimes/claude-code.sh cost
+# → <session> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output> <model> <cost_usd>
+```
+
+The registry is repo-level, not directive-level, because "which harness am I talking to" is one fact about the repo — so an adapter answers **two** verbs, one per lane. `cost` is the accounting question above; `judge` reads a fully-built adjudication prompt on stdin, runs the harness's CLI non-interactively, and prints `VERDICT: PASS` or `VERDICT: REFUTED` plus optional `REASON:` lines. That second verb is what lets a repo route an [adjudicated attestation](/concepts/audit-chain) to a *different vendor's* agent instead of a sub-agent of the one that wrote the code — separation of duties across model families, with the prompt built by kit code out of the directive's declaration and the diff, never by the agent under audit. It is opt-in per repo (`SUBAGENT_EXECUTOR=cli:<adapter>`), and any failure — no CLI, no answer — degrades to the ordinary sub-agent path rather than blocking the commit.
+
+The contract has one rule that shapes everything downstream: **an adapter may sum what the harness reported, but it may never price.** `cost_usd` is the harness's own dollar figure copied verbatim, or the literal `-` when the harness reports none — which becomes an empty cell in the receipt's cost row, next to a `source` column naming the adapter.
+
+Earlier versions did the other thing: the kit shipped a per-model rate card and multiplied it against the transcript. That table was a guess about someone else's billing — stale whenever a vendor moved a price, wrong for negotiated rates, and printed to four decimals so it read like a measurement. It could even block a commit over a model it had never heard of. Deleting it removed a whole class of wrongness: the ledger now records what was measured and leaves blank what wasn't.
+
+Adding a harness is dropping in one file and a detection branch. Unrecognised runtimes are not an error — the accounting writer simply no-ops, and the commit passes. Three adapters ship: `claude-code`, `codex`, and `manual` — the last being a pure environment seam (`AGENT_CUM_*`, `AGENT_JUDGE_VERDICT`) that doubles as the kit's own test seam, so both lanes are covered by evals with no vendor CLI installed and no network.
 
 ## Mode B: validating history, not just the working tree
 

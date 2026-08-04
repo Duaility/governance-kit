@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -17,7 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PACK_LIB = ROOT / "kit" / "assets" / "packs" / "lib"
 PACKVERB = PACK_LIB / "packverb.py"
-MTI_INTEGRITY = ROOT / "packs/foundation/directives/managed-tree-integrity/lib/integrity.py"
+MTI_DIR = ROOT / "packs/foundation/directives/managed-tree-integrity"
 
 
 def _load(name: str):
@@ -224,10 +225,18 @@ def test_init_apply_wrap_collision_then_commit_is_clean() -> None:
 
         # managed-tree-integrity reports nothing: dispatchers + .userhook are out
         # of scope; the recorded runtime files + directive folders are intact.
+        # The check is pure bash since #355 and expects to run from its
+        # installed .governance path, so install the source copy into the
+        # fixture (the fixture's .governance/lib.sh exists from init-apply).
+        installed = root / ".governance/packs/governance-kit/foundation/directives/managed-tree-integrity"
+        (installed / "lib").mkdir(parents=True)
+        shutil.copy2(MTI_DIR / "check.sh", installed / "check.sh")
+        shutil.copy2(MTI_DIR / "lib" / "digest.sh", installed / "lib" / "digest.sh")
         proc = subprocess.run(
-            [sys.executable, str(MTI_INTEGRITY), str(root)],
-            cwd=ROOT, check=True, text=True, capture_output=True, env=GIT_CLEAN_ENV)
-        assert proc.stdout.strip() == "", f"unexpected integrity violations after Wrap:\n{proc.stdout}"
+            ["bash", str(installed / "check.sh")],
+            cwd=root, text=True, capture_output=True, env=GIT_CLEAN_ENV)
+        assert proc.returncode == 0, (
+            f"unexpected integrity violations after Wrap:\n{proc.stdout}\n{proc.stderr}")
 
 
 def test_init_apply_records_kit_provenance_when_supplied() -> None:
@@ -330,6 +339,30 @@ def test_init_apply_vendors_sweep_lane() -> None:
         assert rc == 0, report
         assert not (root / ".github/workflows/governance-sweep.yml").exists()
         assert not (root / ".governance/sweep.py").exists()
+
+
+def test_init_apply_seeds_the_runtime_adapter_registry() -> None:
+    # issue #355: `.governance/runtimes/<harness>.sh` is a kit-managed runtime
+    # file, laid down by every install regardless of which directives were
+    # selected — "which harness is running" is a property of the repo, and both
+    # the accounting lane (`cost`) and a `cli:` executor (`judge`) resolve an
+    # adapter by name at that fixed path. Stamped, executable, and digested
+    # exactly like run.sh / lib.sh, so a hand-edit is caught offline.
+    with tempfile.TemporaryDirectory() as tmp:
+        src = _write_source_pack(Path(tmp) / "src")
+        root = _fresh_repo(Path(tmp) / "repo")
+        rc, report = init_apply_cli(root, _decisions(src))
+        assert rc == 0 and report["result"] == "applied", report
+        registry = root / ".governance" / "runtimes"
+        adapters = sorted(p.name for p in registry.glob("*.sh"))
+        assert adapters, "no runtime adapters seeded"
+        assert {"claude-code.sh", "codex.sh", "manual.sh"} <= set(adapters), adapters
+        ledger = (root / ".governance/install.yaml").read_text()
+        for name in adapters:
+            adapter = registry / name
+            assert os.access(adapter, os.X_OK), name
+            assert "kit-version=" in adapter.read_text().splitlines()[1], name
+            assert f"\n  .governance/runtimes/{name}: " in ledger, (name, ledger)
 
 
 def test_init_apply_dry_run_writes_nothing() -> None:

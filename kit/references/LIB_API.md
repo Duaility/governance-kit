@@ -53,6 +53,9 @@ populate against ground truth (the diff, the linked issue, the session
 transcript) the hook itself cannot read. Since issue #325 the task is declared
 once in the directive's `directive.yaml` `subagent:` block and the commit-time
 orchestrator **batches** every `isolation: shared` section into one sub-agent.
+Since issue #355 the block also declares what the commit path *does* with the
+verdict — `gate: record` (presence) or `gate: verdict` (the verdict decides the
+commit, bound to the tree by a stamp).
 Full design in [SUBAGENT_ATTESTATION.md](SUBAGENT_ATTESTATION.md); the attestation
 [pattern-class in DIRECTIVE_AUTHORING.md](DIRECTIVE_AUTHORING.md#attestation--sub-agent-verdict-checks)
 shows when to reach for it.
@@ -62,9 +65,30 @@ shows when to reach for it.
 | `extract_md_section` | `extract_md_section <file> <heading>` | Print the body of the `## <heading>` section (case-insensitive), stopping at the next `## `. The generic markdown-section reader. | 0.10.0 |
 | `attestation_prompt` | `attestation_prompt <section> <inputs> <check-1> [<check-2> ...]` | Print the canonical single-section fresh-context sub-agent authoring instruction. One envelope so every attestation-backed directive emits the same recognizable prompt; you supply only the section name, the `<inputs>` the sub-agent must be handed, and the numbered checks it must adjudicate. | 0.10.0 |
 | `require_attestation` | `require_attestation <file> <section> <why> <inputs> <check-1> [...]` | The original per-directive gate. Records a `violation` when `<file>` lacks a well-formed `## <section>`: absent → `<why>` plus the `attestation_prompt` instruction; present but carrying no `PASS`/`REFUTED` token → a "fill in the verdict" message. Returns `0` on a well-formed section, `1` otherwise. Purely mechanical: presence + a verdict token, **never** the verdict's truth. Still the fallback when a directive can't declare a `subagent:` block. | 0.10.0 |
-| `subagent_attest` | `subagent_attest <receipt>` | The declaration-driven gate. Reads the sibling `directive.yaml`'s `subagent:` block (section, isolation, inputs, checks), runs the same presence + verdict gate, and — when the section is pending — registers it into the shared ledger so `attestation_remediation` can batch it. Returns `0`/`1` like `require_attestation`. | 0.11.0 |
-| `attestation_remediation` | `attestation_remediation [<ledger>]` | The run-level orchestrator. Reads the pending-attestation ledger and emits **one** grouped remediation instruction: a single sub-agent for all `isolation: shared` sections (handed the union of inputs), plus one isolated sub-agent per `isolation: isolated` section. Invoked once by `run.sh` and the pre-commit dispatcher; silent no-op when nothing is pending. | 0.11.0 |
+| `subagent_attest` | `subagent_attest <receipt>` | The declaration-driven gate. Reads the sibling `directive.yaml`'s `subagent:` block (section, isolation, inputs, checks, and — since #355 — `gate`, `sink`, `contest`) and runs the gate it declares: `gate: record` is presence + a `PASS`/`REFUTED` token, `gate: verdict` is the adjudication gate (append-only log, latest round `PASS`, fresh stamp). `sink: none` returns `0` immediately — a sweep-only declaration the commit lane ignores. When the section is pending it registers into the shared ledger so `attestation_remediation` can batch it. Returns `0`/`1` like `require_attestation`. | 0.11.0 |
+| `attestation_remediation` | `attestation_remediation [<ledger>]` | The run-level orchestrator. Reads the pending-attestation ledger and emits **one** grouped remediation instruction: a single sub-agent for all `isolation: shared` sections (handed the union of inputs), plus one isolated sub-agent per `isolation: isolated` section. For `gate: verdict` sections it renders the escalation ladder — attest tier, then a `high`-tier escalation round, then a terminal STALLED instruction — plus the exact round-line format and the `_adjudication_stamp` invocation. Invoked once by `run.sh` and the pre-commit dispatcher; silent no-op when nothing is pending. | 0.11.0 |
 | `resolve_subagent_input` | `resolve_subagent_input <token> <receipt>` | Map a typed input token (`diff`, `receipt`, `issue`, `transcript`, `layer-map`) to the concrete handle phrase the sub-agent is handed; unknown tokens pass through verbatim. | 0.11.0 |
+
+Operator knobs these read, all through the standard `conf_get` ladder (env
+`GOVERNANCE_<KEY>` > user overlay > pack `defaults.conf`): `SUBAGENT_ISOLATION`,
+`SUBAGENT_TIERS_ATTEST` / `_SWEEP`, `SUBAGENT_ROUNDS`, and — since issue #355 —
+`SUBAGENT_EXECUTOR` plus `SUBAGENT_MODELS_LOW` / `_MEDIUM` / `_HIGH`. See
+[SUBAGENT_ATTESTATION.md](SUBAGENT_ATTESTATION.md) for what each one changes.
+
+These helpers are **pure bash + awk + git** since issue #355 — the commit path
+invokes no python. Several private helpers landed with the adjudication gate and
+the executor dispatch in the same release; they are `_`-prefixed and may change,
+but these are worth knowing:
+
+| Private helper | Signature | What it does | Since |
+|---|---|---|---|
+| `_adjudication_stamp` | `_adjudication_stamp <receipt>` | Print the 12-hex freshness stamp binding a verdict to the tree it judged: `sha256("<git write-tree over the index minus the receipt> <sha256 of the receipt with its round lines stripped>")`, truncated. Appending round lines never moves it; changing any other byte of the receipt or any other file in the commit does. Callable standalone (`bash -c 'source .governance/lib.sh; _adjudication_stamp <path>'`) so an adjudicator can record it. | the release carrying #355 |
+| `_change_set_base` | `_change_set_base` | Print the commit the change set is measured against — the merge-base with the first resolvable default branch (`origin/main`, `origin/master`, `main`, `master`), falling back to `HEAD`. The `doc-integrity` candidate ladder, factored out. `GOVERNANCE_CHANGE_SET_BASE` overrides. | the release carrying #355 |
+| `_subagent_rounds_resolve` | `_subagent_rounds_resolve <id> <defaults-file> <directive.yaml>` | Resolve the adjudication round ceiling *K* through the usual `conf_get` ladder (`SUBAGENT_ROUNDS`), default `3`, clamped up to a floor of `2`. | the release carrying #355 |
+| `_subagent_executor_resolve` | `_subagent_executor_resolve <id> <defaults-file>` | Resolve **who renders the verdict** through the `conf_get` ladder (`SUBAGENT_EXECUTOR`): `harness` (default — the sub-agent the calling agent spawns) or `cli:<adapter>` (a separate command-line agent this hook invokes). Anything unrecognized degrades to `harness`, so a typo in a conf file can never wedge a commit. | the release carrying #355 |
+| `_subagent_model_resolve` | `_subagent_model_resolve <id> <defaults-file> <tier>` | The `SUBAGENT_MODELS_LOW` / `_MEDIUM` / `_HIGH` override a `cli:` executor should run this tier at. Empty (the default) means the adapter picks — the kit ships no model catalog for someone else's CLI. | the release carrying #355 |
+| `_subagent_adapter` | `_subagent_adapter <name>` | Path to the kit-level runtime adapter `.governance/runtimes/<name>.sh`, or nothing (return `1`). `GOVERNANCE_RUNTIMES_DIR` overrides the registry location. | the release carrying #355 |
+| `_subagent_cli_adjudicate` | `_subagent_cli_adjudicate <adapter> <tier> <model> <receipt> <section> <checks-US> <directive.yaml> <ceiling>` | Run **one** cli adjudication round: build the prompt from the declaration + git ground truth (`_subagent_cli_prompt`), pipe it to `<adapter> judge`, append the returned round line with a fresh stamp, and stage the receipt. Returns `0` when a round landed (the caller re-evaluates the gate once), `1` on any failure — with a one-line stderr note, because a silent degrade reads as the executor working. | the release carrying #355 |
 
 ### Per-directive configuration
 

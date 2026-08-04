@@ -179,7 +179,7 @@ The bootstrap skill splices these in at install. Do not write a top-level `#` he
 
 ## Evals
 
-Every directive ships a pass+fail eval at `directives/<directive-id>/evals/test.sh`. Evals run via `scripts/test-packs.sh` and exercise the directive end-to-end in a throwaway git fixture. The same script validates `pack.yaml` and each `directive.yaml` with PyYAML through `uv run`, so quote strings that contain YAML comment or mapping characters such as `#` and `:`.
+Every directive ships a pass+fail eval at `directives/<directive-id>/evals/test.sh`. Evals run via `scripts/test-packs.sh` and exercise the directive end-to-end in a throwaway git fixture. The same script validates `pack.yaml` and each `directive.yaml` with the kit's stdlib restricted-YAML parser (`kityaml.py`, issue #355) — no package manager or third-party dependency, just `python3` — so quote strings that contain YAML comment or mapping characters such as `#` and `:`.
 
 ```bash
 #!/usr/bin/env bash

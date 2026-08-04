@@ -28,7 +28,9 @@
 # (forward-looking, same scope as receipt-per-issue's `## Audit`); pre-existing
 # receipts are grandfathered. `validate-dir` runs repo-wide in every mode.
 #
-# Ledger row I/O lives in sibling lib/ledger.py.
+# Ledger row I/O lives in sibling lib/steering.sh (schema, append, validate) and
+# lib/receipt.sh (Markdown plumbing) — bash + POSIX awk, no python anywhere on
+# the commit path (issue #355).
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$(dirname "$0")/../../../../../lib.sh"
@@ -40,10 +42,16 @@ cd "$ROOT" || exit 1
 RECEIPTS_DIR="$ROOT/receipts"
 LIB="$HERE/lib"
 
-if [[ ! -f "$LIB/ledger.py" ]]; then
-    violation "directive folder is missing lib/ledger.py — cannot validate"
-    directive_end
-fi
+for _f in receipt.sh steering.sh; do
+    if [[ ! -f "$LIB/$_f" ]]; then
+        violation "directive folder is missing lib/$_f — cannot validate"
+        directive_end
+    fi
+done
+# shellcheck disable=SC1090
+source "$LIB/receipt.sh"
+# shellcheck disable=SC1090
+source "$LIB/steering.sh"
 
 # ──────────────────────────────────────────────────────────────
 # Receipt steering-ledger shape check (repo-wide, independent of any commit).
@@ -52,7 +60,7 @@ if [[ -d "$RECEIPTS_DIR" ]]; then
     while IFS= read -r v; do
         [[ -z "$v" ]] && continue
         violation "$v"
-    done < <(python3 "$LIB/ledger.py" validate-dir "$RECEIPTS_DIR" || true)
+    done < <(steering_validate_dir "$RECEIPTS_DIR" || true)
 fi
 
 # ──────────────────────────────────────────────────────────────

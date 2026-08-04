@@ -60,6 +60,9 @@ subagent:
     - "the '## Checklist' mirrors the issue's checklist"
   isolation: shared                  # shared (default) | isolated
   section: Audit                     # the receipt section the verdict lands in
+  gate:    record                    # record (default) | verdict
+  sink:    section                   # section (default) | none
+  contest: forbid                    # forbid (default) | allow
   tiers:   { attest: low, sweep: high }
 ```
 
@@ -78,15 +81,27 @@ subagent:
   its own sub-agent (use when inter-attestation independence — avoiding a halo
   effect across verdicts — matters).
 - **`section`** — the `## <Section>` the verdict is written into.
+- **`gate`** — what the commit path does with the recorded verdict:
+  `record` (default) gates *presence* of a verdict token; `verdict` makes the
+  verdict itself load-bearing. See [Adjudicated gates](#adjudicated-gates-gate-verdict).
+- **`sink`** — where the verdict lands: `section` (default), or `none` for a
+  **sweep-only** declaration. With `sink: none` the commit lane (`subagent_attest`)
+  returns immediately and nothing is gated or registered; the sweep engine still
+  reads the same block and adjudicates it off the commit path. Use it for a
+  judgment worth making at merge that has no author-time artifact to sit in.
+- **`contest`** — whether an adjudicator may hand back a `CONTESTED` verdict and
+  still let the commit through: `forbid` (default) or `allow`. Only meaningful
+  under `gate: verdict`.
 - **`tiers`** — the capability tier each mode runs at: `attest` low, `sweep` high.
 
 ### Author-owned vs operator-owned (issue #331)
 
-The five fields are two different kinds of thing, and the kit treats them
+The fields are two different kinds of thing, and the kit treats them
 differently:
 
 - **Semantic — author-fixed in `directive.yaml`** (`inputs`, `checks`,
-  `section`). These *are* the directive's substance: `checks` is the rubric the
+  `section`, `gate`, `sink`, `contest`). These *are* the directive's substance:
+  `checks` is the rubric the
   sweep lane re-derives the verdict against, `inputs` decides what ground truth
   the judge sees, and `section` is a code contract `check.sh` greps for. A
   consumer who could edit them would grade the attest and sweep verdicts against
@@ -94,15 +109,17 @@ differently:
   `managed-tree-integrity` rejecting a hand-edit of the vendored `directive.yaml`
   is the system working.
 - **Operational — operator-tunable through the conf overlay** (`isolation`,
-  `tiers`). These are pure cost / batching dials. A consumer tunes them per-repo
+  `tiers`, and the adjudication round ceiling). These are pure cost / batching
+  dials. A consumer tunes them per-repo
   via the pack's [`defaults.conf` + `.governance/conf/...` overlay](PACK_AUTHORING.md)
-  mechanism — three knobs, resolved with `conf_get`:
+  mechanism — four knobs, resolved with `conf_get`:
 
   | knob | overrides | default |
   |---|---|---|
   | `SUBAGENT_ISOLATION` | `isolation` | `shared` |
   | `SUBAGENT_TIERS_ATTEST` | `tiers.attest` | `low` |
   | `SUBAGENT_TIERS_SWEEP` | `tiers.sweep` | `high` |
+  | `SUBAGENT_ROUNDS` | the adjudication round ceiling *K* (`gate: verdict` only) | `3` (floor `2` — a lower value is clamped up) |
 
   Resolution precedence is the usual `conf_get` ladder — env `GOVERNANCE_<KEY>` >
   user overlay row > pack `defaults.conf` row > the `directive.yaml` value — so
@@ -135,14 +152,118 @@ collapses the author≠auditor split this mechanism exists to enforce.
 
 Two honest limits this pattern owns rather than hides:
 
-- **It records; it does not adjudicate.** `check.sh` verifies the section
-  *exists and is verdict-bearing*, never that the verdict is *true*. Trusting the
-  verdict is the sweep lane's job. The commit-path guarantee is "the audit was
-  recorded," not "the audit passed."
+- **Under `gate: record` it records; it does not adjudicate.** `check.sh`
+  verifies the section *exists and is verdict-bearing*, never that the verdict is
+  *true*. Trusting the verdict is the sweep lane's job. The commit-path guarantee
+  is "the audit was recorded," not "the audit passed." A directive that needs the
+  stronger guarantee declares
+  [`gate: verdict`](#adjudicated-gates-gate-verdict) — then the commit blocks
+  until the verdict itself reads PASS, and the sweep lane's job becomes checking
+  whether that PASS was *earned*.
 - **Harness-only authoring.** A bare human commit or a CI run has no agent to
   spawn anything, so `check.sh` simply hard-fails on the missing section —
   correct (the audit step did not run); the hook can *demand* the section, never
   *manufacture* it.
+
+## Adjudicated gates (`gate: verdict`)
+
+`gate: record` is the original contract: the commit path proves an audit
+*happened*. `gate: verdict` (issue #355) makes the recorded verdict itself
+load-bearing — **the commit is blocked until the latest adjudication round reads
+PASS**, and that PASS is bound to the exact tree it was rendered against, so it
+cannot be reused once the code moves under it.
+
+It is still all bash and git on the commit path. Nothing about this lets a hook
+spawn or judge anything; what changes is *what the deterministic check demands
+of the artifact*.
+
+### The adjudication log
+
+The attested section carries an append-only log, one ASCII line per round:
+
+```
+- [round N] VERDICT tier=<low|medium|high> stamp=<12-hex> — <free text>
+```
+
+- `VERDICT` is one of `PASS`, `REFUTED`, `ESCALATED`, `CONTESTED`.
+- `N` starts at 1 and increases strictly.
+- `tier` is the tier the adjudicator actually ran at.
+- The free text after the em dash is optional and unconstrained — it is where the
+  adjudicator says *why*.
+
+Everything else in the section is free prose; the gate reads only the round
+lines. The exact ERE the gate matches is
+`^- \[round ([0-9]+)\] (PASS|REFUTED|ESCALATED|CONTESTED) tier=([a-z]+) stamp=([0-9a-f]{12})( — .*)?$`.
+
+### The stamp
+
+`_adjudication_stamp <receipt>` prints twelve hex characters: the head of
+`sha256("<tree-sans-receipt> <receipt-normalized-sha>")`, where
+
+- **tree-sans-receipt** is `git write-tree` over a *temporary copy* of the index
+  with the receipt removed from it — every other file in the pending commit; and
+- **receipt-normalized-sha** is the sha256 of the receipt with every round line
+  stripped out.
+
+That gives one exact property: **appending rounds never invalidates the stamp,
+while editing any other byte of the receipt — or any other file in the commit —
+does.** A verdict is therefore a statement about a specific tree, not a token
+that ages into a rubber stamp. In CI the index equals `HEAD`, so the same
+computation reproduces the committed tree; a repo with no commits still stamps.
+
+The adjudicator computes it from the repo rather than inventing it:
+
+```sh
+bash -c 'source .governance/lib.sh; _adjudication_stamp receipts/issue-123-x.md'
+```
+
+### What the gate checks
+
+In order, and all deterministic:
+
+1. **The section exists.** Missing → the same remediation loop as `record`,
+   except the instruction says the verdict blocks the commit.
+2. **Append-only.** Every `REFUTED` / `ESCALATED` / `CONTESTED` round present in
+   the base version of the receipt must still be there **verbatim**. The base is
+   `HEAD` and the change-set base (the merge-base ladder `doc-integrity` uses) —
+   the same commit in the common case. Deleting *or rewording* an adverse round
+   fails the commit and the violation quotes the line that went missing. An
+   adverse verdict is evidence; a PASS is re-derivable.
+3. **The log is well-formed** — at least one round line, numbered from 1,
+   strictly increasing.
+4. **The latest round is `PASS`** — or `CONTESTED` when the directive declares
+   `contest: allow`, which rides through with a loud stderr warning
+   (`governance: CONTESTED verdict riding on <receipt> — sweep will
+   re-adjudicate`). `REFUTED` and `ESCALATED` block.
+5. **The stamp is fresh** — the latest round's stamp equals the stamp recomputed
+   now. Otherwise: *stale verdict — the staged tree changed since adjudication*.
+
+The honest limit worth naming: within a *single* pending commit, rounds that were
+never committed have no base version to compare against, so the append-only guard
+protects rounds from earlier commits, not rounds written and scrubbed between two
+attempts at the same one. The sweep lane, which sees the merged result, is what
+catches a log that was quietly pruned before it ever landed.
+
+### The escalation ladder
+
+Let *R* be the number of `REFUTED` rounds already logged and *K* the resolved
+`SUBAGENT_ROUNDS` ceiling (default 3, floor 2). `attestation_remediation` renders:
+
+| position | what the instruction says |
+|---|---|
+| *R* < *K*−1 | spawn an adjudicator at the directive's resolved attest tier |
+| *R* = *K*−1 | the **escalation round** — spawn at the `high` tier, explicitly |
+| *R* ≥ *K* | **STALLED**: do not spawn again. Append a terminal `ESCALATED` round and surface the dispute to a human. The commit stays blocked until the underlying work changes (or `contest: allow` lets a `CONTESTED` round through). |
+
+The ladder exists so a genuinely disputed change escalates to a stronger model
+once, then stops — rather than burning an unbounded number of adjudications, or
+letting the agent grind against a rubric until something says PASS.
+
+The instruction the harness receives spells out the round-line format, the
+`_adjudication_stamp` invocation, the append-only rule, and the point that a
+`PASS` recorded without actually checking the rubric against the ground truth is
+exactly the failure the sweep lane re-adjudicates every one of these logs to
+catch.
 
 ## Batched orchestration (issue #325)
 
@@ -169,6 +290,122 @@ The critical author≠auditor independence (the auditor is always a fresh contex
 never the harness) is preserved in every case; only *inter-attestation*
 independence is traded by batching, which a directive opts out of with
 `isolation: isolated`.
+
+## Executors: who renders the verdict (issue #355, Phase 3)
+
+`gate: verdict` fixes *that* a verdict decides the commit. It says nothing about
+**who renders it**. That is the `SUBAGENT_EXECUTOR` knob — operator-owned, same
+conf ladder as every other one (env `GOVERNANCE_SUBAGENT_EXECUTOR` > user
+overlay > pack `defaults.conf` > `harness`):
+
+| executor | who judges | lane |
+|---|---|---|
+| `harness` (default) | a fresh-context sub-agent the **calling agent** spawns, driven by the grouped remediation instruction | commit |
+| `cli:<adapter>` | a **separate command-line agent**, invoked by the hook itself through `.governance/runtimes/<adapter>.sh judge` | commit |
+| `api:<provider>` | the sweep engine's HTTP judge | merge/scheduled — [SWEEP_FLOW.md](SWEEP_FLOW.md), not a commit-path value |
+
+The commit path never makes a network call, so `api:` is not a
+`SUBAGENT_EXECUTOR` value; it is what the sweep lane already does on the other
+side of the merge.
+
+### Why a different vendor's CLI is a real control
+
+The default executor is one model family judging its own family's work:
+independent *context*, shared *failure modes*. If the author model has a blind
+spot — a class of scope creep it does not perceive as scope creep, a
+rationalization pattern it finds convincing — its sibling adjudicator shares it.
+Separation of duties is the standard answer, and it is only real when the two
+parties do not come from the same place: `cli:codex` auditing Claude-authored
+work (or the reverse) breaks the shared-failure-mode correlation in a way no
+amount of prompt engineering inside one vendor can.
+
+The second property is structural. A `cli:` judge is a **process**, not a
+sub-agent of the author: it never sees the author's plan, its rationalizations,
+or the running conversation, because **the prompt is built by `lib.sh`** out of
+the directive's declaration and ground truth read from git — the diff, the
+receipt — never out of anything the agent under audit wrote into its own
+context. That prompt build is the baseline mitigation on **both** executors: even
+on `harness`, the rubric comes from `directive.yaml`, and the ground truth is
+fenced as untrusted data the judge must analyze, not obey (the same universal
+contract the sweep lane's system prompt carries).
+
+Neither executor makes in-context collusion *impossible* on the harness path —
+the calling agent still spawns that sub-agent. `cli:` is what removes the
+calling agent from the loop entirely.
+
+### Configuration
+
+| knob | default | effect |
+|---|---|---|
+| `SUBAGENT_EXECUTOR` | `harness` | `harness` or `cli:<adapter>`; an unrecognized value degrades to `harness` |
+| `SUBAGENT_MODELS_LOW` / `_MEDIUM` / `_HIGH` | unset | the model a `cli:` executor runs that tier at; unset means the adapter's own default |
+
+The adapters carry their per-tier defaults, not the kit — pinning someone else's
+model catalog in kit code is a guarantee that goes stale. `claude-code.sh` maps
+low/medium/high to the `haiku`/`sonnet`/`opus` CLI aliases; `codex.sh` leaves the
+model unset so the Codex CLI's own configuration applies.
+
+### What actually happens on a blocked commit
+
+1. `_subagent_verdict_gate` fails (no log, a `REFUTED` latest round, a stale
+   stamp, …).
+2. If the resolved executor is `cli:<adapter>` **and** the gate is `verdict`,
+   `lib.sh` builds the prompt, pipes it to `<adapter> judge <tier> <model>`,
+   appends the returned round line to the section (with a freshly computed
+   `stamp=`), stages the receipt, and **re-runs the gate once**. A `PASS` clears
+   the commit in the same hook run; a `REFUTED` leaves it blocked with the round
+   on the record.
+3. Anything that goes wrong — no adapter file, no CLI on `PATH`, a transport
+   error, an answer that is not a well-formed verdict — **degrades to the harness
+   path**: the section is registered in the ledger with an executor of
+   `cli:<adapter>+fallback`, and the grouped instruction carries a one-line
+   warning so the operator learns their side channel is broken instead of
+   reading the fallback as the executor working. An operator's misconfiguration
+   must never be able to wedge a commit the default configuration would allow.
+4. `gate: record` **never** takes this path. A record section is an authored
+   narrative, not a verdict; there is nothing for a judge to decide.
+
+Termination: one adjudication per `subagent_attest` call, and a budget of *K*
+(the resolved `SUBAGENT_ROUNDS` ceiling) cli rounds per hook run, counted beside
+the attest ledger so it spans the separate `check.sh` processes a dispatcher
+runs. Past the budget the executor refuses to spend and hands over to the
+harness path — a commit attempt always terminates.
+
+### The adapter registry
+
+One file per harness at `.governance/runtimes/<name>.sh`, kit-managed exactly
+like `run.sh` and `lib.sh` (stamped with `kit-version=`, digested by
+`managed-tree-integrity`, re-synced by `governance update`). Each adapter answers
+two verbs, because "which harness am I talking to" is one fact about the repo,
+not a per-directive one:
+
+- **`cost`** — the harness's own reported session usage, for the accounting lane
+  (`agent-token-accounting`).
+- **`judge [<tier>] [<model>]`** — read a fully-built prompt on stdin, run the
+  CLI non-interactively, print `VERDICT: PASS|REFUTED` then zero or more
+  `REASON:` lines. Exit 2 on a missing CLI, a transport failure, or an
+  unparseable answer. Before exec'ing anything, an adapter strips the git
+  plumbing (`GIT_DIR`, `GIT_INDEX_FILE`, `GIT_WORK_TREE`) and the harness session
+  ids (`CLAUDE_CODE_SESSION_ID`, `CLAUDECODE`, `CODEX_THREAD_ID`, …) — a judge
+  that inherits the author's session is not an independent judge, and it would
+  bill the audit to the session under audit.
+
+Three ship: `claude-code`, `codex`, and `manual`.
+
+**No eval, no ship applies to executors too.** An executor lane that can only be
+exercised by really spawning a paid CLI is an untested lane, so `manual` is a
+first-class adapter and the kit's eval seam: `AGENT_JUDGE_VERDICT` /
+`AGENT_JUDGE_REASON` supply the verdict, `AGENT_JUDGE_PROMPT_SINK` captures the
+prompt the caller actually built, and an unset verdict reproduces exactly how a
+missing vendor CLI presents. Every executor assertion in `scripts/test-subagent.sh`
+runs through it, offline, in a throwaway repo.
+
+One interaction to know about: a `cli:` executor **stages the receipt** mid-hook
+(that is how the round it just wrote reaches the pending commit). A directive
+that freezes a coordinate over the staged tree — `agent-token-accounting`'s
+endpoint — sees the tree move underneath it, exactly as it does when a harness
+remediation loop re-stages. The stamp itself is immune (it excludes the receipt
+from the tree it hashes), and this is why the executor is opt-in.
 
 ## Model tier: use a small model
 
@@ -205,13 +442,34 @@ These sit alongside the rest of the `lib.sh` surface catalogued in the
   authoring instruction in its violation. Unchanged; still the fallback when a
   directive can't declare a `subagent:` block.
 - **`subagent_attest <receipt>`** (issue #325) — the declaration-driven gate.
-  Reads the sibling `directive.yaml`'s `subagent:` block, runs the presence +
-  verdict gate, and registers a pending section for the orchestrator.
+  Reads the sibling `directive.yaml`'s `subagent:` block, runs the gate the
+  block declares (`record` or `verdict`), and registers a pending section for the
+  orchestrator. Returns 0 immediately on `sink: none`.
 - **`attestation_remediation [<ledger>]`** (issue #325) — the orchestrator that
-  emits the single grouped remediation instruction; invoked once by `run.sh` /
-  the pre-commit dispatcher.
+  emits the single grouped remediation instruction, including the escalation
+  ladder for adjudicated sections; invoked once by `run.sh` / the pre-commit
+  dispatcher.
 - **`resolve_subagent_input <token> <receipt>`** (issue #325) — map a typed input
   token to its concrete handle phrase.
+- **`_adjudication_stamp <receipt>`** (issue #355) — the freshness binding
+  described above. Private to the kit, but deliberately callable standalone so a
+  fresh-context adjudicator can compute the stamp it must record.
+- **`_subagent_executor_resolve <id> <defaults>`** (issue #355) — the resolved
+  executor (`harness` | `cli:<adapter>`), degrading to `harness` on anything
+  unrecognized.
+- **`_subagent_model_resolve <id> <defaults> <tier>`** (issue #355) — the
+  `SUBAGENT_MODELS_<TIER>` override for a `cli:` executor, empty when the adapter
+  should pick.
+- **`_subagent_adapter <name>`** (issue #355) — path to
+  `.governance/runtimes/<name>.sh`, honoring `GOVERNANCE_RUNTIMES_DIR`.
+- **`_subagent_cli_prompt` / `_subagent_cli_adjudicate`** (issue #355) — the
+  prompt build and the one-round adjudication described under *Executors*.
+
+All of these are **pure bash + awk + git** as of issue #355 — the commit path
+runs no python at all. That matters for a tool whose whole promise is that it
+still works on a machine with nothing installed: the declaration reader
+(`_subagent_yaml`, `_subagent_tier`) and the remediation formatter used to shell
+out to stdlib python, and no longer do.
 
 ## Wiring a directive onto it
 
@@ -234,7 +492,10 @@ Because the helpers live in kit-owned `lib.sh`, a pack whose directive uses them
 must declare a `min_governance_kit` floor at the kit version that **ships** them
 — the first-shipped tag, not the in-development source-line marker. `require_attestation`
 first shipped in `kit/v0.10.0`; `subagent_attest` / `attestation_remediation`
-ship in the kit release that carries issue #325. See
+ship in the kit release that carries issue #325. A directive that declares
+`gate: verdict`, `sink`, `contest`, or leans on `_adjudication_stamp` floors at
+the release carrying issue #355 — an older `lib.sh` ignores the new keys and
+gates on presence alone, which is a silent downgrade, not an error. See
 [LIB_API.md](LIB_API.md#version-floor-obligation) and [VERSIONING.md](VERSIONING.md).
 
 ## See also

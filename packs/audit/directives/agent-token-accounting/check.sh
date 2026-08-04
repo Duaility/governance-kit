@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
 # Directive: every agent-authored commit's token cost is recorded in the
 # issue's receipt (`receipts/issue-<N>.md`, under `## Accounting` → `### Costs`)
-# and the receipt's recorded cumulative never silently falls behind the
-# transcript. This repo is agent-driven only — an unaccounted commit is a bug.
+# and the receipt's recorded cumulative never silently falls behind what the
+# runtime reported. This repo is agent-driven only — an unaccounted commit is a
+# bug.
 #
-# Issue #293 retired the per-commit token trailers
-# (Agent/Issue/Session/Token-*/Cost-Key/Cost-USD). They were a denormalised
-# copy of the receipt cost row stamped onto the commit, kept honest by a
-# bidirectional cross-check whose only consumer was the cross-check itself. The
-# receipt is the durable, doc-integrity-frozen ledger; completeness is now
-# proven by freezing the writer's sampled endpoint instead of stamping a copy:
+# Issue #293 retired the per-commit token trailers; completeness is proven by
+# freezing the writer's sampled endpoint instead of stamping a copy onto the
+# commit:
 #
 #   Endpoint reconciliation (Mode A, commit time): when an agent runtime is
 #   detected, read the frozen endpoint keyed by the post-pre-commit staged tree
@@ -18,10 +16,15 @@
 #   then freezes the exact coordinate it sampled, so later transcript movement
 #   belongs to a later row instead of invalidating this commit.
 #
-# Receipt Costs sub-table format — v4, one row per agent-authored commit:
-#   | cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | cum-input | cum-cache-create | cum-cache-read | cum-output | note |
-# Legacy v3 (12 cols) / v2 / v1 rows still parse and validate to their rules;
-# they carry no `cum-*` and are excluded from reconciliation / monotonicity.
+# Issue #355 took python off this path entirely and made the harness the only
+# source of dollars. Receipt Costs sub-table — v5, one row per agent-authored
+# commit:
+#   | cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | cum-input | cum-cache-create | cum-cache-read | cum-output | source | note |
+# `source` names the runtime adapter that produced the row; `cost-usd` is the
+# harness-reported figure verbatim, or EMPTY when the harness reported none —
+# the kit no longer owns a rate card, so it never prices and never blocks a
+# commit over an unpriced model. Legacy v4 (16 cols) / v3 (12) rows still parse
+# and validate to their own rules.
 #
 # Modes:
 #   Mode A — commit-msg hook:  bash check.sh <path-to-msg-file>
@@ -37,10 +40,10 @@
 #       trunk the receipt *is* the record, and its internal consistency is what
 #       CI guards.
 #
-# Ledger parsing / append / queries live in sibling lib/ledger.py; receipt
-# validation in lib/validate.py; cumulative reconciliation + checkpoint in
-# lib/reconcile.py; pricing in lib/rates.py; runtime detection in
-# lib/runtime.sh; frozen endpoint I/O in lib/endpoint.py.
+# Markdown/table plumbing lives in sibling lib/receipt.sh; the row schema and
+# append in lib/costs.sh; validation in lib/validate.sh; frozen endpoint +
+# session checkpoint in lib/endpoint.sh; runtime detection in lib/runtime.sh.
+# All bash + POSIX awk.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$(dirname "$0")/../../../../../lib.sh"
@@ -51,10 +54,20 @@ ROOT="$(git rev-parse --show-toplevel)"
 RECEIPTS_DIR="$ROOT/receipts"
 LIB="$HERE/lib"
 
-if [[ ! -f "$LIB/ledger.py" || ! -f "$LIB/runtime.sh" ]]; then
-    violation "directive folder is missing lib/ledger.py or lib/runtime.sh — cannot validate"
-    directive_end
-fi
+for _f in receipt.sh costs.sh validate.sh endpoint.sh runtime.sh; do
+    if [[ ! -f "$LIB/$_f" ]]; then
+        violation "directive folder is missing lib/$_f — cannot validate"
+        directive_end
+    fi
+done
+# shellcheck disable=SC1090
+source "$LIB/receipt.sh"
+# shellcheck disable=SC1090
+source "$LIB/costs.sh"
+# shellcheck disable=SC1090
+source "$LIB/validate.sh"
+# shellcheck disable=SC1090
+source "$LIB/endpoint.sh"
 
 # ──────────────────────────────────────────────────────────────
 # Receipt-accounting integrity check (independent of any commit). Runs in both
@@ -65,7 +78,7 @@ if [[ -d "$RECEIPTS_DIR" ]]; then
     while IFS= read -r v; do
         [[ -z "$v" ]] && continue
         violation "$v"
-    done < <(python3 "$LIB/ledger.py" validate-dir "$RECEIPTS_DIR" || true)
+    done < <(costs_validate_dir "$RECEIPTS_DIR" || true)
 fi
 
 # Returns 0 if the commit message carries a valid escape-hatch waiver.
@@ -105,7 +118,7 @@ if [[ $# -gt 0 ]]; then
         directive_end
     fi
     if [[ $rc -eq 2 ]]; then
-        violation "pending commit — agent runtime '$RUNTIME' detected but its transcript/cumulative counters were unreadable; the pre-commit cost row could not be verified (set CLAUDE_TRANSCRIPT_PATH, or use a 'governance: allow-agent-token-accounting <reason>' waiver)"
+        violation "pending commit — agent runtime '$RUNTIME' detected but its session usage was unreadable; the pre-commit cost row could not be verified (set CLAUDE_TRANSCRIPT_PATH, or use a 'governance: allow-agent-token-accounting <reason>' waiver)"
         directive_end
     fi
 
@@ -113,7 +126,7 @@ if [[ $# -gt 0 ]]; then
     # tree-keyed endpoint. Do not compare to the live CUM_* values here: the
     # transcript may have legitimately advanced after pre-commit sampled it.
     TREE_ID="$(git write-tree)"
-    ENDPOINT="$(git rev-parse --git-path "governance-token-endpoints/${TREE_ID}.json")"
+    ENDPOINT="$(git rev-parse --git-path "governance-token-endpoints/${TREE_ID}.endpoint")"
     if [[ ! -f "$ENDPOINT" ]]; then
         violation "pending commit — agent runtime '$RUNTIME' detected but no frozen token endpoint exists for staged tree $TREE_ID; the pre-commit cost row was not verified. Commit through the runtime-aware pre-commit hook (a plain \`git commit\`, not --no-verify / SKIP_GOVERNANCE), or add a 'governance: allow-agent-token-accounting <reason>' waiver."
         directive_end
@@ -121,7 +134,7 @@ if [[ $# -gt 0 ]]; then
     while IFS= read -r v; do
         [[ -z "$v" ]] && continue
         violation "$v"
-    done < <(python3 "$LIB/endpoint.py" verify "$ENDPOINT" "$ROOT" || true)
+    done < <(endpoint_verify "$ENDPOINT" "$ROOT" || true)
     directive_end
 fi
 

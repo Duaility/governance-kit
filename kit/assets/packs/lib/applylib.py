@@ -36,6 +36,23 @@ SWEEP_ASSETS = {
     ".governance/sweep.py": ("dot-governance", "sweep.py"),
 }
 
+# The kit-level runtime adapter registry (issue #355). One file per harness at
+# `<tests_dir>/runtimes/<name>.sh`, answering two verbs — `cost` (what the
+# accounting lane asks) and `judge` (what a `cli:<adapter>` executor asks). These
+# are ordinary kit-managed runtime files, not seed-once assets: `init` lays them
+# down stamped, `kit update` re-syncs them, `managed-tree-integrity` digests
+# them. Enumerated from the shipped tree so adding an adapter is one file drop.
+RUNTIMES_SUBDIR = "runtimes"
+
+
+def kit_runtime_adapters(assets_root: Path | None = None) -> list[str]:
+    """Filenames of the runtime adapters shipped in `dot-governance/runtimes/`,
+    sorted. Empty when the kit being applied predates the registry."""
+    src = (assets_root or KIT_ASSETS) / "dot-governance" / RUNTIMES_SUBDIR
+    if not src.is_dir():
+        return []
+    return sorted(p.name for p in src.glob("*.sh") if p.is_file())
+
 # Where each hook strategy lands its dispatchers — kept in sync with
 # hooks.sh `generate_hooks_for_strategy`.
 HOOK_DIR_FOR_STRATEGY = {
@@ -112,13 +129,49 @@ def bash_lib(script: str, *argv: str, lib_dir: Path | None = None) -> subprocess
     )
 
 
-def selects_sweep_directive(packs: list[dict[str, Any]]) -> bool:
-    """True if any directive in `packs` declares `surface: sweep` (issue #142).
+_SWEEP_TIER_DISABLED = ("none", "off")
 
-    Reading the flat scalar `surface:` line directly keeps this stdlib-only (the
-    apply engines avoid PyYAML in the runtime path), and is enough — surface is a
-    flat scalar. `packs` entries carry `pack_dir` + a `directives` id list, the
-    shape both init-plan and pack-plan emit.
+
+def _participates_in_sweep(directive_yaml: Path) -> bool:
+    """True when this directive.yaml puts the directive in the sweep lane.
+
+    Two ways in (issue #355 Phase 2 widened the first):
+      * the legacy `surface: sweep` triage.sh contract (issue #142); or
+      * a `subagent:` block whose sweep tier is not `none`/`off` — the same
+        declaration the commit lane attests against is re-adjudicated at the
+        merge-time tier, so a repo that installs one needs the lane vendored.
+    Hand-rolled line reads, matching this module's stdlib-only discipline: the
+    apply engines never import a YAML parser.
+    """
+    text = directive_yaml.read_text()
+    lines = text.splitlines()
+    for raw in lines:
+        if re.match(r'^\s*surface:\s*["\']?sweep["\']?\s*(#.*)?$', raw):
+            return True
+    # `subagent:` is a top-level block; its `tiers: { attest: …, sweep: … }` is
+    # the only flow map it carries.
+    in_block = False
+    for raw in lines:
+        stripped = raw.strip()
+        if not in_block:
+            if stripped == "subagent:" and raw == stripped:
+                in_block = True
+            continue
+        if stripped and not raw[:1].isspace():
+            break                                  # dedented out of the block
+        m = re.match(r'^tiers:\s*\{(.*)\}\s*$', stripped)
+        if m:
+            t = re.search(r'\bsweep\s*:\s*([A-Za-z0-9_-]+)', m.group(1))
+            if t and t.group(1).lower() in _SWEEP_TIER_DISABLED:
+                return False
+    return in_block
+
+
+def selects_sweep_directive(packs: list[dict[str, Any]]) -> bool:
+    """True if any directive in `packs` participates in the sweep lane —
+    `surface: sweep`, or a `subagent:` declaration whose sweep tier is live
+    (issues #142, #355). `packs` entries carry `pack_dir` + a `directives` id
+    list, the shape both init-plan and pack-plan emit.
     """
     for pack in packs:
         pack_dir = Path(pack["pack_dir"])
@@ -126,9 +179,8 @@ def selects_sweep_directive(packs: list[dict[str, Any]]) -> bool:
             y = pack_dir / "directives" / did / "directive.yaml"
             if not y.is_file():
                 continue
-            for raw in y.read_text().splitlines():
-                if re.match(r'^\s*surface:\s*["\']?sweep["\']?\s*(#.*)?$', raw):
-                    return True
+            if _participates_in_sweep(y):
+                return True
     return False
 
 
