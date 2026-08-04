@@ -24,7 +24,7 @@ Directives are grouped into **packs** — self-contained directories that bundle
 - **`governance-kit/commits`** — `commit-message-format`, `no-orphan-todos`, `no-unjustified-suppressions`.
 - **`governance-kit/audit`** — a trustworthy record of agent work: issue → receipt → commit traceability (`issue-templates` → `issues-tracked` → `receipt-per-issue` → `commit-issue-receipt-match`), cost + steering accounting (`agent-token-accounting`, `agent-steering-accounting`), and the tamper protection that keeps those records honest (`doc-integrity`, `toolchain-config-protection`).
 
-The kit also ships the off-commit-path `surface: sweep` lane (engine + scheduled workflow), but bundles no sweep directives — those are authored in repo-local or community packs.
+The kit also ships the off-commit-path sweep lane (the `.governance/sweep.sh` driver + scheduled workflow), but bundles no sweep-only directives — those are authored in repo-local or community packs.
 
 `governance init` unions each pack's chosen preset across all bundled packs (see Step 3).
 

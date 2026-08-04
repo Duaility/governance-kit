@@ -4,9 +4,10 @@
 #
 # This is a SELF-directive about what THIS repo authors, not a rule the kit
 # hands to consumers. Scanned set: `kit/**/*.py` (the lifecycle engines under
-# `kit/assets/packs/lib/`, the sweep engine `kit/assets/dot-governance/sweep.py`,
-# and anything else inside the kit artifact) plus `skill/*.py` (the published
-# bootstrap shim).
+# `kit/assets/packs/lib/` and anything else inside the kit artifact) plus
+# `skill/*.py` (the published bootstrap shim). The sweep engine
+# (`kit/assets/dot-governance/sweep.sh`) is bash, not python, as of the #355
+# sweep unification, so it was never in this scan and needs no callout.
 #
 # Deliberately NOT scanned:
 #   - scripts/** — this repo's own test harness. It never ships to a consumer,
@@ -19,8 +20,9 @@
 # tooling needs nothing but a bare `python3`: no `pip install`, no venv, no
 # lockfile. A single third-party import silently breaks every consumer that
 # hasn't separately provisioned that package, and there is no signal until the
-# script is actually invoked (often off the commit path, e.g. the scheduled
-# sweep workflow, days after the import landed).
+# script is actually invoked (often well off the commit path, e.g. the
+# lifecycle verbs under `kit/assets/packs/lib/`, first invoked at a consumer's
+# `pack update` or `directive add`, days after the import landed).
 #
 # Only top-level (zero-indent) `import X` / `from X import ...` lines are
 # parsed — an import nested inside a function or class body is scoped to code

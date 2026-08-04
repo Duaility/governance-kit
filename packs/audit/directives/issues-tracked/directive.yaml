@@ -4,3 +4,10 @@ recommended: true
 summary: QUALITY.md exists at repo root with Open and Resolved sections.
 surface: repo-state
 hook: pre-commit
+judge:
+  inputs: [range-diff]
+  checks:
+    - "Entries under `## Open` and `## Resolved` describe real, identifiable issues, not placeholder or templated boilerplate left unfilled."
+    - "An issue moved from Open to Resolved is actually resolved by the change set, not relocated to make the Open section look emptier than reality."
+    - "The file is being used as the system of record for bugs/quality observations discovered in this change, not left inert while issues are tracked elsewhere in undisclosed form."
+  group: bundled-intent

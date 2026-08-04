@@ -224,12 +224,14 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
             dest.chmod(0o755)
         _copy_stamp(KIT_ASSETS / "governance.yml", root / ".github" / "workflows" / "governance.yml")
 
-        # Sweep lane (issue #142): when a `surface: sweep` directive is selected,
-        # lay down the scheduled workflow + the vendored engine so the lane runs
-        # in plain CI with no skill and no secret. Both are recorded as seeded
-        # assets so `governance uninstall` removes them with everything else.
-        # Shared with pack-apply via applylib.seed_sweep_assets so the two install
-        # paths vendor the lane identically (no path bifurcation).
+        # Sweep lane (issue #142, harness-pegged per #355): when a directive
+        # carrying a live sweep tier is selected, lay down the scheduled
+        # workflow + the at-rest driver so the lane runs in plain CI — the
+        # consumer brings the runtime adapter CLI + credentials, no skill and
+        # no kit-owned secret. Both are recorded as seeded assets so
+        # `governance uninstall` removes them with everything else. Shared with
+        # pack-apply via applylib.seed_sweep_assets so the two install paths
+        # vendor the lane identically (no path bifurcation).
         sweep_rels = seed_sweep_assets(root, packs, KIT_VERSION)
         if sweep_rels:
             seeded = sorted(set(seeded) | set(sweep_rels))

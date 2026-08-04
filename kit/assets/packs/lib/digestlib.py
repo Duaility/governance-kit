@@ -98,8 +98,8 @@ def _manifest_scalar(manifest_text: str, key: str) -> str:
 def _sweep_managed_files() -> list[str]:
     """Sweep-lane managed runtime relpaths (issue #259).
 
-    The sweep lane (`applylib.seed_sweep_assets`) lays down a vendored engine
-    (`.governance/sweep.py`) and its CI workflow
+    The sweep lane (`applylib.seed_sweep_assets`) lays down the at-rest driver
+    (`.governance/sweep.sh`, harness-pegged per #355) and its CI workflow
     (`.github/workflows/governance-sweep.yml`), both stamped with the
     `governance-kit:managed` marker — but on a separate install path that never
     registered them as managed runtime files, so they were digested by nothing
@@ -159,8 +159,8 @@ def managed_runtime_files(root: str | Path) -> list[str]:
         candidates.extend(
             f"{tests_dir}/runtimes/{p.name}" for p in sorted(runtimes_dir.glob("*.sh"))
         )
-    # Sweep-lane assets (issue #259) — present only when a `surface: sweep`
-    # directive is installed; the disk-existence filter below drops them otherwise.
+    # Sweep-lane assets (issue #259) — present only when a directive with a live
+    # sweep tier is installed; the disk-existence filter below drops them otherwise.
     candidates.extend(_sweep_managed_files())
     # Only digest what actually exists; dedupe; sort for stability.
     present = sorted({c for c in candidates if (root / c).is_file()})

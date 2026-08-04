@@ -4,3 +4,10 @@ recommended: false
 summary: "Every lint / type-checker suppression references an issue."
 surface: repo-state
 hook: pre-commit
+judge:
+  inputs: [range-diff]
+  checks:
+    - "The referenced issue plausibly concerns un-muting this specific suppression, not an arbitrary number copied to satisfy the format."
+    - "The suppression's scope is as narrow as the actual problem — a line/statement-level disable, not a whole-file or whole-rule-category mute for one localized issue."
+    - "A waiver's reason genuinely describes a permanent, justified suppression (a generated file, an upstream bug) rather than cover for muting a real defect the code should instead fix."
+  group: bundled-intent

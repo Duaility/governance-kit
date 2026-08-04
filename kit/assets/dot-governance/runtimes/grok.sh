@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # governance-kit:managed kit-version=0.12.0
-# Grok runtime adapter — one file per harness, three verbs
+# Grok runtime adapter — one file per harness, two verbs
 # (issue #355 v2: identity at commit, measurement at rest).
 #
 # Verb interface (argv[1]; a bare invocation prints usage and exits 2):
@@ -35,93 +35,18 @@
 #     session, or when the payload's cwd (or $PWD) is not inside a git
 #     working tree.
 #
-#   judge [<tier>] [<model>] — read a fully-built adjudication prompt on stdin,
-#     run the `grok` CLI non-interactively, and print exactly:
-#         VERDICT: PASS            (or VERDICT: REFUTED)
-#         REASON: <text>           (zero or more lines)
-#     <tier> is the capability tier (low | medium | high; empty → low) and picks
-#     this adapter's own default model; <model> overrides it outright. The
-#     invocation (`grok -p --model <model>`) follows the same "read a prompt on
-#     stdin, print text" convention as the other CLI-backed adapters; treat it
-#     as best-effort until Grok ships a documented non-interactive contract.
-#
 # Exit codes: 0 ok · 2 the runtime is present but its surface is unusable —
-# an unreadable/incomplete signals file (`resolve`), or a missing CLI /
-# transport failure / unparseable answer (`judge`). `emit` never exits 2. Exit
-# 2 is never fatal to the caller: the commit lane degrades to the harness
-# (sub-agent) path rather than blocking on a broken side channel.
+# an unreadable/incomplete signals file (`resolve`). `emit` never exits 2. Exit
+# 2 is never fatal to the caller: an unattributable session is a row the ledger
+# simply does not carry.
 #
 # Environment overrides:
 #   GROK_HOME           override $HOME/.grok
-#   AGENT_JUDGE_TIMEOUT seconds to allow the judge CLI (default 120), when a
-#                       `timeout` binary is available.
 #
-# Self-contained by design: an adapter is one droppable file resolved by name,
-# so the small verdict normalizer below is duplicated per adapter rather than
-# sourced from a sibling.
 
 set -u
 
 VERB="${1:-}"
-
-judge_env_clean() {
-    env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE -u GIT_PREFIX \
-        -u GIT_COMMON_DIR -u GIT_AUTHOR_DATE -u GIT_COMMITTER_DATE \
-        "$@"
-}
-
-# Normalize raw CLI stdout to the judge contract: the first well-formed VERDICT
-# line, then any REASON lines. No verdict → exit 2 (the caller degrades).
-emit_verdict() {
-    awk '
-        !v && $0 ~ /^[ \t]*VERDICT:[ \t]*(PASS|REFUTED)[ \t]*\r?$/ {
-            line = $0
-            sub(/^[ \t]*VERDICT:[ \t]*/, "", line)
-            sub(/[ \t\r]*$/, "", line)
-            v = line
-            print "VERDICT: " v
-            next
-        }
-        v && $0 ~ /^[ \t]*REASON:/ {
-            line = $0
-            sub(/^[ \t]*/, "", line)
-            sub(/[ \t\r]*$/, "", line)
-            print line
-        }
-        END { if (!v) { exit 2 } }
-    '
-}
-
-do_judge() {
-    local tier="${1:-low}" model="${2:-}"
-    command -v grok >/dev/null 2>&1 || {
-        printf 'grok adapter: no `grok` CLI on PATH\n' >&2
-        return 2
-    }
-    if [[ -z "$model" ]]; then
-        case "$tier" in
-            high)   model="grok-4" ;;
-            medium) model="grok-4-fast" ;;
-            *)      model="grok-4-fast" ;;
-        esac
-    fi
-    local prompt
-    prompt="$(cat)"
-    [[ -n "$prompt" ]] || return 2
-
-    local -a runner=()
-    if command -v timeout >/dev/null 2>&1; then
-        runner=(timeout "${AGENT_JUDGE_TIMEOUT:-120}")
-    elif command -v gtimeout >/dev/null 2>&1; then
-        runner=(gtimeout "${AGENT_JUDGE_TIMEOUT:-120}")
-    fi
-
-    local out
-    out="$(printf '%s\n' "$prompt" | judge_env_clean ${runner[@]+"${runner[@]}"} \
-        grok -p --model "$model" 2>/dev/null)" || return 2
-    printf '%s\n' "$out" | emit_verdict || return 2
-    return 0
-}
 
 # Key-anchored counter extraction in POSIX awk (issue #355 — no python on any
 # path). `input_tokens`/`output_tokens` are required; the caller (do_resolve)
@@ -238,10 +163,6 @@ EOF_PARSED
 }
 
 case "$VERB" in
-    judge)
-        do_judge "${2:-}" "${3:-}"
-        exit $?
-        ;;
     resolve)
         do_resolve "${2:-}" "${3:-}"
         exit $?
@@ -251,11 +172,11 @@ case "$VERB" in
         exit $?
         ;;
     "")
-        printf 'grok adapter: usage: grok.sh {resolve <session> [<declared>]|emit|judge [<tier>] [<model>]}\n' >&2
+        printf 'grok adapter: usage: grok.sh {resolve <session> [<declared>]|emit}\n' >&2
         exit 2
         ;;
     *)
-        printf 'grok adapter: unknown verb %s (supported: resolve, emit, judge)\n' "$VERB" >&2
+        printf 'grok adapter: unknown verb %s (supported: resolve, emit)\n' "$VERB" >&2
         exit 2
         ;;
 esac

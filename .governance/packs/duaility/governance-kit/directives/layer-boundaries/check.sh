@@ -38,15 +38,15 @@ source "$(dirname "$0")/../../../../../lib.sh"
 directive_start "layer-boundaries"
 require_git
 
-# Runtime-dependency guard. This directive declares a `subagent:` block and
-# gates it through `subagent_attest` (issue #325), which the kit ships in the
+# Runtime-dependency guard. This directive declares a `judge:` block and
+# gates it through `judge_attest` (issue #325), which the kit ships in the
 # runtime `lib.sh` from the release that carries that infra. On an older runtime
 # (`.governance/lib.sh` synced from a kit predating it) the helper is undefined —
 # enforcing here would either crash or silently false-pass. So skip cleanly when
 # it is absent; the directive auto-activates the moment this repo updates to a
 # kit whose `lib.sh` defines it. (The dogfood lags the source by one release by
 # design, so this no-ops on this repo's own commits until the next kit sync.)
-if ! declare -F subagent_attest >/dev/null 2>&1; then
+if ! declare -F judge_attest >/dev/null 2>&1; then
     directive_end
 fi
 
@@ -61,7 +61,7 @@ LAYER_DOC="$(conf_get layer-boundaries LAYER_DOC "$DEFAULTS")"
 if [[ -z "$LAYER_DOC" || ! -f "$ROOT/$LAYER_DOC" ]]; then
     directive_end
 fi
-# Expose the resolved doc to subagent_attest's `layer-map` input resolution.
+# Expose the resolved doc to judge_attest's `layer-map` input resolution.
 export GOVERNANCE_LAYER_DOC="$LAYER_DOC"
 
 # The receipt is the attestation host; without one there is nowhere to record a
@@ -138,11 +138,11 @@ while IFS= read -r f; do
     [[ -f "$f" ]] || continue
     is_accounting_stub "$f" && continue
     has_layer_waiver "$f" && continue
-    # The judgment task is declared once in directive.yaml's `subagent:` block.
-    # subagent_attest reads it, gates the section's presence + verdict, and
+    # The judgment task is declared once in directive.yaml's `judge:` block.
+    # judge_attest reads it, gates the section's presence + verdict, and
     # registers it (isolation: shared) so the run-level orchestrator batches it
     # with receipt-per-issue's `## Audit` into a single sub-agent per commit.
-    subagent_attest "$f"
+    judge_attest "$f"
 done <<< "$ADDED_RECEIPTS"
 
 directive_end

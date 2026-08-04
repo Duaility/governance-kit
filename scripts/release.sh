@@ -108,7 +108,7 @@ fi
 # ── collect the files to re-stamp ─────────────────────────────────────────
 # kit releases re-stamp the kit-version marker on the SOURCE templates under
 # kit/assets/ only — never this repo's own *consumed* governance surface
-# (.governance/{run.sh,lib.sh,sweep.py}, .github/workflows/*, the installed
+# (.governance/{run.sh,lib.sh,sweep.sh}, .github/workflows/*, the installed
 # scripts/enable-governance.sh, .githooks/*). release.sh only ever runs in the
 # source repo, so that consumed tree is the dogfood's own install. Stamping its
 # markers ahead of content would advance the marker past the runtime it pins,

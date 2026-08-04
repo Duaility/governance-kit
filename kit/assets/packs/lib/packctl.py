@@ -8,8 +8,6 @@ Run via:
 from __future__ import annotations
 
 import argparse
-import os
-import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -18,23 +16,37 @@ import kityaml
 
 
 HOOKS = {"pre-commit", "commit-msg", "prepare-commit-msg", "post-commit", "none"}
-# `sweep` (issue #142) is the off-commit-path surface: never enforced by run.sh
-# or a git hook, swept asynchronously by the LLM-judge engine. A sweep directive
-# ships `triage.sh` (candidate-hunk emitter) instead of `check.sh`, declares
-# `engine: llm`, and pins a capability `model_tier` rather than a model id.
-SURFACES = {"repo-state", "change-set", "sweep"}
-# Adjudication engines. `grep` is the implicit default for repo-state/change-set
-# directives (their `check.sh` is the engine). `llm` is the only non-grep engine
-# in v1 and is required for — and reserved to — `surface: sweep`.
-ENGINES = {"grep", "llm"}
-# Capability tiers, not model ids: a sweep directive pins the *capability* it
-# needs so a model upgrade within the tier doesn't silently rewrite its verdicts
-# (issue #142, design constraint 5). The engine maps tier → concrete model.
-MODEL_TIERS = {"low", "high"}
+# Sweep (issue #142, harness-pegged per #355) is no longer a `surface` value.
+# There is exactly one semantic-judgment primitive — a rubric-framed model
+# judgment declared once in a directive's `judge:` block (see
+# JUDGE.md) and executed through a runtime adapter's `judge`
+# verb. "Sweep" is just that same declaration re-adjudicated off the commit
+# path by `.governance/sweep.sh`: no second engine, no vendor transport, no
+# `triage.sh` contract, no `engine:`/`model_tier:` scalar fields. A directive
+# opts into the sweep lane purely by carrying a `judge:` block whose
+# resolved sweep tier isn't `none`/`off` — validated below via `check.sh`
+# presence, not via a surface value.
+SURFACES = {"repo-state", "change-set"}
 HOOK_STRATEGIES = {"githooks", "husky", "pre-commit"}
 PACK_FIELDS = ("id", "name", "version", "min_governance_kit", "description", "author")
 DIRECTIVE_FIELDS = ("category", "recommended", "summary", "surface", "hook")
 CAPABILITY_FIELDS = ("reads", "writes")
+
+# Issue #355 (cmd collapse): a directive's `judge:` block names the judge
+# COMMAND directly instead of resolving it through a tier vocabulary. `cmd` is
+# an optional map with exactly these two lanes; anything else under `cmd` is
+# an error. There is no `tiers:` vocabulary anymore — it is a forbidden key
+# (v0, no deprecation lane), not merely unrecognized.
+JUDGE_CMD_LANES = {"attest", "sweep"}
+
+# Issue #355 amendment 3: `gate` is a three-valued scalar that now also
+# carries what used to be the separate `contest` boolean. `record` (default)
+# never blocks; `verdict` blocks on REFUTED/missing and a CONTESTED verdict
+# does NOT ride through (yesterday's `gate: verdict` + `contest: forbid`);
+# `verdict-contestable` blocks the same way but lets a CONTESTED round ride
+# through (yesterday's `gate: verdict` + `contest: allow`). `contest` is now
+# a forbidden key — folded entirely into this one axis.
+JUDGE_GATE_VALUES = {"record", "verdict", "verdict-contestable"}
 
 # Governance-kit version — the kit (framework) axis. The single source of truth
 # is kit/assets/kit.yaml; this module reads it so packs, the release
@@ -212,194 +224,41 @@ def cmd_always_install(args: argparse.Namespace) -> int:
     return 0
 
 
+# Manifest validation (`validate_judge_cmd`, `validate_pack_dir`,
+# `validate_pack_dir_with_warnings`) lives in the sibling module
+# packvalidate.py — split out to keep this file under the repo-hygiene
+# 500-line limit. The two wrappers below re-export the public entry points so
+# existing importers (`from packctl import validate_pack_dir`, `pkt.validate_
+# pack_dir` in tests, packverb.py, packplan.py) keep working unchanged.
+#
+# The `import packvalidate` is deliberately INSIDE each wrapper's body, not
+# at this module's top level. packctl.py is routinely executed directly
+# (`python3 packctl.py ...`, see packs.sh's `_packctl()`), which registers it
+# in `sys.modules` as `__main__` rather than `packctl`. packvalidate.py's own
+# top-level does a normal `from packctl import (...)`, which — when packctl
+# is only known as `__main__` — forces Python to load packctl.py a *second*
+# time under the literal name `packctl` to satisfy that import. If this file
+# also imported packvalidate at module scope, that second load would race
+# packvalidate's own still-in-progress import and fail with a circular-import
+# error. Deferring the import to call time sidesteps this: by the time either
+# wrapper actually runs, both modules have finished loading under whatever
+# names they ended up with.
 def validate_pack_dir(pack_dir: Path) -> list[str]:
-    errors: list[str] = []
-    manifest_path = pack_dir / "pack.yaml"
-    if not manifest_path.is_file():
-        return [f"{pack_dir}: pack.yaml missing"]
-    manifest = pack_manifest(pack_dir)
-    pack_id = scalar(manifest.get("id"))
+    import packvalidate
 
-    for field in PACK_FIELDS:
-        if field not in manifest or manifest.get(field) in (None, ""):
-            errors.append(f"{pack_dir}: pack.yaml missing required field {field!r}")
-    # Pack ids are always scoped `<author>/<slug>` so installed copies land at
-    # `.governance/packs/<author>/<slug>/`, mirroring the pack's GitHub
-    # `<owner>/<name>` identity. The directory name on the kit-source side is
-    # the slug half — the author namespace lives only in the pack id and the
-    # installed-target layout. Reject unscoped ids; they would install to a
-    # one-segment path and silently keep the old pre-v2 namespace alive.
-    #
-    # The fetch cache (see packverb.fetch_ref) lays packs out at
-    # `<author>__<slug>@<sha>/` (no subpath) or `<author>__<slug>@<sha>/<subpath>/`,
-    # so `validate-pack` invoked directly against a cache root must accept
-    # the slugified `__`-form too. Without this branch the validator
-    # would reject every freshly fetched pack by dirname before any of
-    # the fields-and-files checks run.
-    if pack_id:
-        if "/" not in pack_id:
-            errors.append(
-                f"{pack_dir}: pack id {pack_id!r} must be scoped as '<author>/<slug>' "
-                f"(e.g. 'acme/{pack_dir.name}')"
-            )
-        else:
-            slug = pack_id.split("/", 1)[-1]
-            slugified = pack_id.replace("/", "__")
-            cache_pattern = re.compile(rf"^{re.escape(slugified)}(@[0-9a-f]{{40}})?$")
-            if (
-                pack_dir.name != slug
-                and pack_dir.name != slugified
-                and not cache_pattern.match(pack_dir.name)
-            ):
-                errors.append(
-                    f"{pack_dir}: pack id {pack_id!r} does not match directory name {pack_dir.name!r} "
-                    f"(expected {slug!r}, {slugified!r}, or '{slugified}@<sha>')"
-                )
+    return packvalidate.validate_pack_dir(pack_dir)
 
-    min_kit = scalar(manifest.get("min_governance_kit"))
-    if min_kit and not kit_supports(min_kit):
-        errors.append(
-            f"{pack_dir}: min_governance_kit {min_kit!r} is newer than installed kit {KIT_VERSION!r}"
-        )
 
-    directives_root = pack_dir / "directives"
-    if not directives_root.is_dir():
-        errors.append(f"{pack_dir}: directives/ directory missing")
-        return errors
+def validate_pack_dir_with_warnings(pack_dir: Path) -> tuple[list[str], list[str]]:
+    import packvalidate
 
-    directive_ids = set(directives_for_pack(pack_dir))
-    for stray in sorted(path for path in directives_root.iterdir() if not path.is_dir()):
-        errors.append(f"{pack_dir}: stray file under directives/ ({stray.name}) - directives must be folders")
-
-    presets = manifest.get("presets") or {}
-    if not isinstance(presets, dict):
-        errors.append(f"{pack_dir}: presets must be a mapping")
-        presets = {}
-    for preset_name, node in presets.items():
-        if not isinstance(node, dict):
-            errors.append(f"{pack_dir}: preset {preset_name!r} must be a mapping")
-            continue
-        parent = node.get("extends")
-        if parent and str(parent) not in presets:
-            errors.append(f"{pack_dir}: preset {preset_name!r} extends unknown preset {parent!r}")
-        directives = node.get("directives") or []
-        if not isinstance(directives, list):
-            errors.append(f"{pack_dir}: preset {preset_name!r} directives must be a list")
-            continue
-        for directive_id in directives:
-            if str(directive_id) not in directive_ids:
-                errors.append(f"{pack_dir}: preset {preset_name!r} references unknown directive {directive_id!r}")
-        try:
-            resolve_preset(pack_dir, str(preset_name))
-        except Exception as exc:  # noqa: BLE001 - validation reports all manifest errors.
-            errors.append(f"{pack_dir}: preset {preset_name!r} cannot resolve: {exc}")
-
-    for directive_id in sorted(directive_ids):
-        directive_path = directives_root / directive_id
-        directive = directive_manifest(pack_dir, directive_id)
-        for field in DIRECTIVE_FIELDS:
-            if field not in directive or directive.get(field) in (None, ""):
-                errors.append(f"{pack_dir}/{directive_id}: directive.yaml missing required field {field!r}")
-        hook = scalar(directive.get("hook") or "none")
-        surface = scalar(directive.get("surface"))
-        hook_strategy = scalar(directive.get("requires_hook_strategy"))
-        if hook not in HOOKS:
-            errors.append(f"{pack_dir}/{directive_id}: unknown hook value {hook!r}")
-        if surface not in SURFACES:
-            errors.append(f"{pack_dir}/{directive_id}: unknown surface value {surface!r}")
-        if hook_strategy and hook_strategy not in HOOK_STRATEGIES:
-            errors.append(
-                f"{pack_dir}/{directive_id}: unknown requires_hook_strategy value {hook_strategy!r}"
-            )
-        # Sweep directives (issue #142) are adjudicated by the LLM-judge engine,
-        # never by a grep. They must declare `engine: llm` and pin a capability
-        # `model_tier`; conversely, `engine: llm` is reserved to `surface: sweep`.
-        engine = scalar(directive.get("engine") or "")
-        model_tier = scalar(directive.get("model_tier") or "")
-        if engine and engine not in ENGINES:
-            errors.append(f"{pack_dir}/{directive_id}: unknown engine value {engine!r}")
-        if surface == "sweep":
-            if engine != "llm":
-                errors.append(
-                    f"{pack_dir}/{directive_id}: surface: sweep requires engine: llm"
-                )
-            if model_tier not in MODEL_TIERS:
-                errors.append(
-                    f"{pack_dir}/{directive_id}: surface: sweep requires model_tier in "
-                    f"{sorted(MODEL_TIERS)} (got {model_tier!r})"
-                )
-        elif engine == "llm":
-            errors.append(
-                f"{pack_dir}/{directive_id}: engine: llm is only valid with surface: sweep"
-            )
-        if directive.get("always_install") is True and not pack_id.startswith("governance-kit/"):
-            errors.append(
-                f"{pack_dir}/{directive_id}: always_install: true is reserved to the "
-                "governance-kit/* bundled packs"
-            )
-        # Fork-not-patch amendments (#114 phase 5). A directive in a `local`
-        # pack can declare `replaces: <pack-id>/<directive-id>` to suppress
-        # the upstream version at runtime — see DIRECTIVE_AMEND_FLOW.md.
-        # Validate the value's shape; runtime suppression lives in run.sh
-        # (or its consumers) and is enforced separately.
-        replaces = scalar(directive.get("replaces") or "")
-        if replaces:
-            parts = replaces.split("/")
-            if len(parts) < 3:
-                errors.append(
-                    f"{pack_dir}/{directive_id}: replaces: {replaces!r} must be "
-                    "<pack-owner>/<pack-name>/<directive-id> (3 segments)"
-                )
-            elif parts[-1] == directive_id:
-                # OK — replacing the same directive id in another pack is the
-                # canonical use case (forking a kit/community directive).
-                pass
-            elif parts[-1] != directive_id:
-                # Cross-id replacements are allowed but flagged as a smell:
-                # `replaces` is meant for forks of the same directive, not
-                # arbitrary disable + add chains.
-                pass
-        for capability in CAPABILITY_FIELDS:
-            if capability not in directive:
-                continue
-            value = directive.get(capability)
-            if value is None:
-                continue
-            if not isinstance(value, list) or not all(isinstance(item, str) and item for item in value):
-                errors.append(
-                    f"{pack_dir}/{directive_id}: {capability!r} must be a list of non-empty path globs"
-                )
-        # The executable a directive ships depends on its surface: repo-state /
-        # change-set directives carry a pass/fail `check.sh`; sweep directives
-        # carry a candidate-emitting `triage.sh` (issue #142). The constitution
-        # subsection's "Enforced by" line must reference whichever it ships.
-        script_name = "triage.sh" if surface == "sweep" else "check.sh"
-        script = directive_path / script_name
-        constitution = directive_path / "constitution.md"
-        if not script.is_file():
-            errors.append(f"{pack_dir}/{directive_id}: {script_name} missing")
-        elif not os.access(script, os.X_OK):
-            errors.append(f"{pack_dir}/{directive_id}: {script_name} is not executable")
-        if not constitution.is_file():
-            errors.append(f"{pack_dir}/{directive_id}: constitution.md missing")
-        else:
-            text = constitution.read_text()
-            expected = f".governance/packs/{pack_id}/directives/{directive_id}/{script_name}"
-            if expected not in text:
-                errors.append(f"{pack_dir}/{directive_id}: constitution.md must reference `{expected}`")
-        eval_script = directive_path / "evals" / "test.sh"
-        if not eval_script.is_file():
-            errors.append(f"{pack_dir}/{directive_id}: evals/test.sh missing")
-        elif not os.access(eval_script, os.X_OK):
-            errors.append(f"{pack_dir}/{directive_id}: evals/test.sh is not executable")
-        for hook_script in sorted((directive_path / "hooks").glob("*.sh")) if (directive_path / "hooks").is_dir() else []:
-            if not os.access(hook_script, os.X_OK):
-                errors.append(f"{pack_dir}/{directive_id}: hooks/{hook_script.name} is not executable")
-    return errors
+    return packvalidate.validate_pack_dir_with_warnings(pack_dir)
 
 
 def cmd_validate_pack(args: argparse.Namespace) -> int:
-    errors = validate_pack_dir(Path(args.pack_dir))
+    errors, warnings = validate_pack_dir_with_warnings(Path(args.pack_dir))
+    if warnings:
+        print("\n".join(warnings), file=sys.stderr)
     if errors:
         print("\n".join(errors))
         return 1
@@ -416,9 +275,12 @@ def cmd_validate_pack_set(args: argparse.Namespace) -> int:
     seen: dict[str, Path] = {}
     errors: list[str] = []
     notices: list[str] = []
+    warnings: list[str] = []
     for pack_arg in args.pack_dirs:
         pack_dir = Path(pack_arg)
-        errors.extend(validate_pack_dir(pack_dir))
+        pack_errors, pack_warnings = validate_pack_dir_with_warnings(pack_dir)
+        errors.extend(pack_errors)
+        warnings.extend(pack_warnings)
         for directive_id in directives_for_pack(pack_dir):
             if directive_id in seen:
                 notices.append(
@@ -430,6 +292,8 @@ def cmd_validate_pack_set(args: argparse.Namespace) -> int:
                 seen[directive_id] = pack_dir
     if notices:
         print("\n".join(notices), file=sys.stderr)
+    if warnings:
+        print("\n".join(warnings), file=sys.stderr)
     if errors:
         print("\n".join(errors))
         return 1

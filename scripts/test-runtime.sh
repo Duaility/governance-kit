@@ -525,7 +525,6 @@ assert_contains "attestation_prompt numbers the first check" "(1) check one" "$o
 assert_contains "attestation_prompt numbers the second check" "(2) check two" "$output"
 assert_contains "attestation_prompt names the target section" "into a '## Audit' section" "$output"
 assert_contains "attestation_prompt states the no-spawn invariant" "hook never spawns" "$output"
-assert_contains "attestation_prompt names Codex mini class for low tier" "for Codex use a mini-class model" "$output"
 assert_contains "attestation_prompt rejects self-authored sections" "do not self-author this section" "$output"
 
 # require_attestation: present + verdict-bearing section → no violation, returns 0.
@@ -576,40 +575,44 @@ set -e
 assert_eq "require_attestation fails when the section has no verdict" 1 "$exit_code"
 assert_contains "no-verdict violation explains the missing verdict" "records no PASS/REFUTED verdict" "$output"
 
-# ---- lib.sh: subagent_attest + attestation_remediation (issue #325) --------
+# ---- lib.sh: judge_attest + attestation_remediation (issue #325) --------
 
-printf '── lib.sh: subagent_attest / attestation_remediation ───\n'
+printf '── lib.sh: judge_attest / attestation_remediation ───\n'
 sa_dir="$WORK/sa-directive"
 mkdir -p "$sa_dir"
 cat > "$sa_dir/directive.yaml" <<'EOF'
 surface: change-set
 hook: pre-commit
-subagent:
+judge:
   inputs:  [diff, receipt, issue]
   checks:
     - "What changed matches the diff"
     - "checklist mirrors the issue"
-  isolation: shared
+  group: bundled
   section: Audit
-  tiers: { attest: low, sweep: high }
+  cmd:
+    sweep: claude -p --output-format text --model opus
 EOF
 cat > "$sa_dir/check.sh" <<EOF
 set -u
 source "$LIB_SH"
 directive_start sa
-subagent_attest "\$1"
+judge_attest "\$1"
 directive_end
 EOF
 
-# _subagent_yaml parses the declared block (scalars + lists, no PyYAML).
-output=$(set +u; source "$LIB_SH"; _subagent_yaml "$sa_dir/directive.yaml" section)
-assert_eq "_subagent_yaml reads the section scalar" "Audit" "$output"
-output=$(set +u; source "$LIB_SH"; _subagent_yaml "$sa_dir/directive.yaml" isolation)
-assert_eq "_subagent_yaml reads the isolation scalar" "shared" "$output"
-output=$(set +u; source "$LIB_SH"; _subagent_yaml "$sa_dir/directive.yaml" inputs | tr '\n' ',')
-assert_eq "_subagent_yaml reads the inputs flow list" "diff,receipt,issue," "$output"
-output=$(set +u; source "$LIB_SH"; _subagent_yaml "$sa_dir/directive.yaml" checks | head -1)
-assert_eq "_subagent_yaml reads a block-list check" "What changed matches the diff" "$output"
+# _judge_yaml parses the declared block (scalars + lists, no PyYAML).
+output=$(set +u; source "$LIB_SH"; _judge_yaml "$sa_dir/directive.yaml" section)
+assert_eq "_judge_yaml reads the section scalar" "Audit" "$output"
+output=$(set +u; source "$LIB_SH"; _judge_yaml "$sa_dir/directive.yaml" group)
+assert_eq "_judge_yaml reads the group scalar" "bundled" "$output"
+output=$(set +u; source "$LIB_SH"; _judge_cmd_resolve "$sa_dir/directive.yaml" sweep)
+assert_eq "_judge_cmd_resolve reads the sweep command" \
+    "claude -p --output-format text --model opus" "$output"
+output=$(set +u; source "$LIB_SH"; _judge_yaml "$sa_dir/directive.yaml" inputs | tr '\n' ',')
+assert_eq "_judge_yaml reads the inputs flow list" "diff,receipt,issue," "$output"
+output=$(set +u; source "$LIB_SH"; _judge_yaml "$sa_dir/directive.yaml" checks | head -1)
+assert_eq "_judge_yaml reads a block-list check" "What changed matches the diff" "$output"
 
 # Missing section → gate fails, and the pending attestation is registered.
 sa_receipt="$WORK/issue-9-x.md"
@@ -619,27 +622,26 @@ set +e
 output=$(set +u; export GOVERNANCE_ATTEST_LEDGER="$sa_ledger"; cd "$sa_dir"; bash check.sh "$sa_receipt" 2>&1)
 exit_code=$?
 set -e
-assert_eq "subagent_attest fails on a missing section" 1 "$exit_code"
-assert_contains "subagent_attest names the missing section" "missing a '## Audit' section" "$output"
-assert_contains "subagent_attest registers a shared record" "shared" "$(cat "$sa_ledger")"
+assert_eq "judge_attest fails on a missing section" 1 "$exit_code"
+assert_contains "judge_attest names the missing section" "missing a '## Audit' section" "$output"
+assert_contains "judge_attest registers the group label" "bundled" "$(cat "$sa_ledger")"
 
 # attestation_remediation emits ONE grouped envelope with the numbered checks.
 output=$(set +u; source "$LIB_SH"; attestation_remediation "$sa_ledger" 2>&1)
-assert_contains "remediation emits the grouped envelope" "Spawn ONE fresh-context sub-agent" "$output"
+assert_contains "remediation emits the grouped envelope" "Spawn ONE fresh-context sub-agent for group \`bundled\`" "$output"
 assert_contains "remediation names the target section" "write the '## Audit' section" "$output"
 assert_contains "remediation numbers the first check" "(1) What changed matches the diff" "$output"
 assert_contains "remediation numbers the second check" "(2) checklist mirrors the issue" "$output"
 assert_contains "remediation unions the resolved inputs" "the diff (\`git diff\`)" "$output"
-assert_contains "remediation names Codex mini class for low tier" "for Codex use a mini-class model" "$output"
 assert_contains "remediation rejects self-authored sections" "do not self-author these sections" "$output"
 
-# An isolated record gets its own sub-agent instruction (US-joined inner fields).
-printf 'isolated\t%s\tSteering\t%s\t%s\n' \
+# An unlabeled record gets its own sub-agent instruction (US-joined inner fields).
+printf -- '-\tattest\t%s\tSteering\t%s\t%s\n' \
     "$WORK/issue-9-x.md" \
     "the session transcript"$'\x1f'"this receipt" \
     "every event recorded" >> "$sa_ledger"
 output=$(set +u; source "$LIB_SH"; attestation_remediation "$sa_ledger" 2>&1)
-assert_contains "remediation adds an isolated sub-agent" "Spawn a separate fresh-context sub-agent (isolated" "$output"
+assert_contains "remediation adds a solo sub-agent" "Spawn a separate fresh-context sub-agent (solo" "$output"
 
 # Present + verdict → gate passes and nothing is registered.
 printf '# r\n\n## Audit\n\n- PASS — ok\n' > "$sa_receipt"
@@ -647,7 +649,7 @@ printf '# r\n\n## Audit\n\n- PASS — ok\n' > "$sa_receipt"
 set +e
 output=$(set +u; export GOVERNANCE_ATTEST_LEDGER="$sa_ledger"; cd "$sa_dir"; bash check.sh "$sa_receipt"; echo "rc=$?")
 set -e
-assert_contains "subagent_attest passes a verdict-bearing section" "rc=0" "$output"
+assert_contains "judge_attest passes a verdict-bearing section" "rc=0" "$output"
 assert_eq "no registration when the section is well-formed" "" "$(cat "$sa_ledger")"
 
 # Empty ledger → the orchestrator is a silent no-op.
@@ -662,7 +664,7 @@ output=$(
     unset CLAUDE_TRANSCRIPT_PATH CLAUDE_CODE_SESSION_ID
     CODEX_THREAD_ID="019ed941-f410-7871-bacf-6db3af231768"
     source "$LIB_SH"
-    resolve_subagent_input transcript "$sa_receipt"
+    resolve_judge_input transcript "$sa_receipt"
 )
 assert_contains "transcript input names Codex sessions" "~/.codex/sessions/" "$output"
 assert_contains "transcript input names CODEX_THREAD_ID" 'CODEX_THREAD_ID.jsonl' "$output"
@@ -672,40 +674,16 @@ output=$(
     unset CODEX_TRANSCRIPT_PATH CODEX_THREAD_ID
     CLAUDE_CODE_SESSION_ID="9e05791b-0ee0-423e-b0c8-2234df57840a"
     source "$LIB_SH"
-    resolve_subagent_input transcript "$sa_receipt"
+    resolve_judge_input transcript "$sa_receipt"
 )
 assert_contains "transcript input still supports Claude session ids" 'CLAUDE_CODE_SESSION_ID.jsonl' "$output"
 
-# ---- lib.sh: operator-tunable subagent tier/isolation (issue #331) ---------
+# ---- lib.sh: the group label + the declared judge command (issue #355) -----
 
-printf '── lib.sh: subagent tier/isolation conf knobs (#331) ───\n'
+printf '── lib.sh: judge group / cmd (#355) ─────────────────\n'
 
-# _subagent_tier reads the `tiers: { attest: low, sweep: high }` flow map.
-output=$(set +u; source "$LIB_SH"; _subagent_tier "$sa_dir/directive.yaml" attest)
-assert_eq "_subagent_tier reads the attest tier" "low" "$output"
-output=$(set +u; source "$LIB_SH"; _subagent_tier "$sa_dir/directive.yaml" sweep)
-assert_eq "_subagent_tier reads the sweep tier" "high" "$output"
-
-# _subagent_tier_resolve: with no conf (missing defaults.conf, no overlay) the
-# directive.yaml value is the default — today's behavior is preserved.
-output=$(cd "$WORK"; set +u; source "$LIB_SH"; _subagent_tier_resolve sa "$sa_dir/defaults.conf" "$sa_dir/directive.yaml" attest)
-assert_eq "tier_resolve falls back to directive.yaml (attest)" "low" "$output"
-output=$(cd "$WORK"; set +u; source "$LIB_SH"; _subagent_tier_resolve sa "$sa_dir/defaults.conf" "$sa_dir/directive.yaml" sweep)
-assert_eq "tier_resolve falls back to directive.yaml (sweep)" "high" "$output"
-
-# _subagent_tier_resolve: a defaults.conf row beats the directive.yaml value.
-mkdir -p "$WORK/def-high"
-printf 'SUBAGENT_TIERS_ATTEST=high\n' > "$WORK/def-high/defaults.conf"
-output=$(cd "$WORK"; set +u; source "$LIB_SH"; _subagent_tier_resolve sa "$WORK/def-high/defaults.conf" "$sa_dir/directive.yaml" attest)
-assert_eq "tier_resolve reads the defaults.conf row" "high" "$output"
-
-# _subagent_tier_resolve: env GOVERNANCE_SUBAGENT_TIERS_ATTEST wins over all.
-output=$(cd "$WORK"; set +u; export GOVERNANCE_SUBAGENT_TIERS_ATTEST=high; source "$LIB_SH"; _subagent_tier_resolve sa "$sa_dir/defaults.conf" "$sa_dir/directive.yaml" attest)
-assert_eq "tier_resolve env beats everything" "high" "$output"
-
-# subagent_attest in an installed (.governance/packs/...) layout: the user
-# overlay tunes isolation + attest tier; the ledger row carries both. This is
-# the end-to-end overlay-wins path a consumer hits.
+# judge_attest in an installed (.governance/packs/...) layout: the ledger row
+# carries the declared batching label and the lane it was raised on.
 k_dir="$WORK/knob-repo"
 k_chk="$k_dir/.governance/packs/acme/audit/directives/rec"
 mkdir -p "$k_chk"
@@ -713,24 +691,23 @@ git -C "$k_dir" init -q
 cat > "$k_chk/directive.yaml" <<'EOF'
 surface: change-set
 hook: pre-commit
-subagent:
+judge:
   inputs:  [diff]
   checks:
     - "What changed matches the diff"
-  isolation: shared
+  group: bundled-intent
   section: Audit
-  tiers: { attest: low, sweep: high }
+  cmd:
+    sweep: claude -p --output-format text --model opus
 EOF
 cat > "$k_chk/defaults.conf" <<'EOF'
-SUBAGENT_ISOLATION=shared
-SUBAGENT_TIERS_ATTEST=low
-SUBAGENT_TIERS_SWEEP=high
+JUDGE_ROUNDS=3
 EOF
 cat > "$k_chk/check.sh" <<EOF
 set -u
 source "$LIB_SH"
 directive_start rec
-subagent_attest "\$1"
+judge_attest "\$1"
 directive_end
 EOF
 k_receipt="$k_dir/receipts/issue-7-x.md"
@@ -738,31 +715,51 @@ mkdir -p "$k_dir/receipts"
 printf '# r\n\n## What changed\n\nx\n' > "$k_receipt"
 k_ledger="$WORK/knob-ledger.tsv"
 
-# No overlay → defaults (shared/low) preserve today's behavior. The check exits
-# 1 on the (expected) missing section, so guard against the script's set -e.
+# The check exits 1 on the (expected) missing section, so guard against set -e.
 : > "$k_ledger"
 (set +u; export GOVERNANCE_ATTEST_LEDGER="$k_ledger"; cd "$k_dir"; bash "$k_chk/check.sh" "$k_receipt" >/dev/null 2>&1) || true
-assert_eq "default isolation column is shared" "shared" "$(cut -f1 "$k_ledger")"
-assert_eq "default attest-tier column is low"  "low"    "$(cut -f2 "$k_ledger")"
+assert_eq "the group column carries the declared label" "bundled-intent" "$(cut -f1 "$k_ledger")"
+assert_eq "the lane column is attest on the commit path" "attest" "$(cut -f2 "$k_ledger")"
 
-# Overlay flips isolation→isolated and attest tier→high.
-mkdir -p "$k_dir/.governance/conf/acme/audit"
-printf 'SUBAGENT_ISOLATION=isolated\nSUBAGENT_TIERS_ATTEST=high\n' \
-    > "$k_dir/.governance/conf/acme/audit/rec.conf"
+# A directive that declares no group is a spawn of its own; the ledger says so
+# with `-`, never with an empty field (tab is IFS whitespace — an empty field
+# would shift every column after it).
+k_solo="$k_dir/.governance/packs/acme/audit/directives/solo"
+mkdir -p "$k_solo"
+sed '/^  group:/d' "$k_chk/directive.yaml" > "$k_solo/directive.yaml"
+cp "$k_chk/defaults.conf" "$k_solo/defaults.conf"
+sed 's/directive_start rec/directive_start solo/' "$k_chk/check.sh" > "$k_solo/check.sh"
 : > "$k_ledger"
-(set +u; export GOVERNANCE_ATTEST_LEDGER="$k_ledger"; cd "$k_dir"; bash "$k_chk/check.sh" "$k_receipt" >/dev/null 2>&1) || true
-assert_eq "overlay flips isolation column to isolated" "isolated" "$(cut -f1 "$k_ledger")"
-assert_eq "overlay raises attest-tier column to high"  "high"     "$(cut -f2 "$k_ledger")"
-
-# The orchestrator renders the conf-resolved tier into the grouped instruction.
+(set +u; export GOVERNANCE_ATTEST_LEDGER="$k_ledger"; cd "$k_dir"; bash "$k_solo/check.sh" "$k_receipt" >/dev/null 2>&1) || true
+assert_eq "an undeclared group travels as a literal dash" "-" "$(cut -f1 "$k_ledger")"
+assert_eq "and the row still has all ten fields" "harness" "$(cut -f10 "$k_ledger")"
 output=$(set +u; source "$LIB_SH"; attestation_remediation "$k_ledger" 2>&1)
-assert_contains "remediation routes an isolated overlay to its own sub-agent" "Spawn a separate fresh-context sub-agent (isolated" "$output"
-assert_contains "remediation names the raised (high) tier" "high capability tier" "$output"
+assert_contains "remediation routes an unlabeled row to its own sub-agent" \
+    "Spawn a separate fresh-context sub-agent (solo" "$output"
 
-# A shared/low ledger still names the low tier by default.
-printf 'shared\tlow\t%s\tAudit\t%s\t%s\n' "$k_receipt" "the diff (\`git diff\`)" "What changed matches the diff" > "$sa_ledger"
-output=$(set +u; source "$LIB_SH"; attestation_remediation "$sa_ledger" 2>&1)
-assert_contains "remediation names the low tier by default" "low capability tier" "$output"
+# A declaration with NO `section:` is sweep-only discovery: it names no place in
+# the receipt for a verdict to land, so the commit lane no-ops on it instead of
+# gating anything — the lane is read off `section:` and nothing else.
+k_disc="$k_dir/.governance/packs/acme/audit/directives/disc"
+mkdir -p "$k_disc"
+sed '/^  section:/d' "$k_chk/directive.yaml" > "$k_disc/directive.yaml"
+cp "$k_chk/defaults.conf" "$k_disc/defaults.conf"
+sed 's/directive_start rec/directive_start disc/' "$k_chk/check.sh" > "$k_disc/check.sh"
+: > "$k_ledger"
+set +e
+(set +u; export GOVERNANCE_ATTEST_LEDGER="$k_ledger"; cd "$k_dir"; bash "$k_disc/check.sh" "$k_receipt" >/dev/null 2>&1)
+exit_code=$?
+set -e
+assert_eq "a sectionless declaration no-ops on the commit path" 0 "$exit_code"
+assert_eq "and registers nothing for the orchestrator" "" "$(cat "$k_ledger")"
+
+# The judge command is read from the directive, per lane — no conf ladder, no
+# env override, no tier vocabulary (issue #355).
+output=$(set +u; source "$LIB_SH"; _judge_cmd_resolve "$k_chk/directive.yaml" sweep)
+assert_eq "the sweep command is the directive's own" \
+    "claude -p --output-format text --model opus" "$output"
+output=$(set +u; source "$LIB_SH"; _judge_cmd_resolve "$k_chk/directive.yaml" attest || printf '(none)')
+assert_eq "no attest row means the harness path, and prints nothing" "(none)" "$output"
 
 # ---- lib.sh: conf_file / conf_get / conf_rule_lines -----------------------
 
@@ -1101,30 +1098,6 @@ manual_gitd="$(git -C "$manual_repo" rev-parse --absolute-git-dir)"
 assert_contains "manual emit refreshes identity from AGENT_SESSION_ID" \
     "session=man-emit-1" "$(cat "$manual_gitd/governance/session-identity" 2>/dev/null)"
 
-prompt_sink="$WORK/judge-prompt.txt"
-set +e
-output=$(
-    printf 'RUBRIC: (1) x\n' \
-    | AGENT_JUDGE_VERDICT=PASS \
-      AGENT_JUDGE_REASON="the receipt matches the diff" \
-      AGENT_JUDGE_PROMPT_SINK="$prompt_sink" \
-      bash "$TOKEN_MANUAL_SH" judge low ""
-)
-exit_code=$?
-set -e
-assert_eq "manual adapter judge exits 0 on a configured verdict" 0 "$exit_code"
-assert_eq "manual adapter judge emits the contract shape" \
-    "VERDICT: PASS
-REASON: the receipt matches the diff" "$output"
-assert_contains "manual adapter judge records the prompt it was handed" \
-    "RUBRIC: (1) x" "$(cat "$prompt_sink" 2>/dev/null)"
-
-set +e
-output=$(printf 'x\n' | bash "$TOKEN_MANUAL_SH" judge low "" 2>&1)
-exit_code=$?
-set -e
-assert_eq "manual adapter judge exits 2 with no verdict configured" 2 "$exit_code"
-
 # ---- runtime adapters: pi.sh ------------------------------------------------
 # resolve sums Pi's per-message `usage` objects (input/output/cacheRead/
 # cacheWrite/cost.total — Pi DOES report cost) from an exact-name-suffixed
@@ -1243,9 +1216,11 @@ set -e
 assert_eq "opencode resolve exits 2 when the server is unreachable" 2 "$exit_code"
 
 # ---- runtime adapters: uniform verb contract --------------------------------
-# Every adapter answers exactly resolve/emit/judge (never `cost` — deleted).
-# A bare invocation and an unknown verb both refuse loudly rather than
-# silently defaulting to anything.
+# Every adapter answers exactly resolve/emit — the accounting lane's two verbs.
+# Judging left the adapters entirely in issue #355 (a directive names its judge
+# COMMAND), so `judge`/`can-judge` are unknown verbs like any other. A bare
+# invocation and an unknown verb both refuse loudly rather than silently
+# defaulting to anything.
 
 printf '── runtime adapters: uniform verb contract ────────────────\n'
 for _adapter in claude-code codex manual pi grok cursor-agent opencode; do
@@ -1265,23 +1240,14 @@ for _adapter in claude-code codex manual pi grok cursor-agent opencode; do
     set -e
     assert_eq "$_adapter adapter: unknown verb exits 2" 2 "$exit_code"
     assert_contains "$_adapter adapter: unknown verb names the supported verbs" \
-        "supported: resolve, emit, judge" "$output"
-done
+        "supported: resolve, emit" "$output"
 
-# A vendor adapter with its CLI absent must exit 2 promptly — that exit is what
-# the commit lane reads as "degrade to the sub-agent path". `manual` is
-# excluded: its judge is the env seam, not a vendor CLI.
-_bash_bin="$(command -v bash)"
-for _adapter in claude-code codex pi grok cursor-agent opencode; do
-    # An absolute bash + an empty PATH: the adapter must decide "no CLI here"
-    # with shell builtins alone, before it needs anything external.
+    # `judge` is now just another unknown verb — the surface is gone, not hidden.
     set +e
-    output=$(printf 'x\n' | env PATH=/nonexistent-governance-kit-path \
-        "$_bash_bin" "$RUNTIMES_DIR/$_adapter.sh" judge low "" 2>&1)
+    output=$(bash "$RUNTIMES_DIR/$_adapter.sh" judge 2>&1)
     exit_code=$?
     set -e
-    assert_eq "$_adapter adapter judge exits 2 with no CLI on PATH" 2 "$exit_code"
-    assert_contains "$_adapter adapter says which CLI is missing" "CLI on PATH" "$output"
+    assert_eq "$_adapter adapter: judge is no longer a verb" 2 "$exit_code"
 done
 
 # No python is reachable from any adapter or the runtime dispatcher.

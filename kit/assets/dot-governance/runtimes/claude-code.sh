@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # governance-kit:managed kit-version=0.12.0
-# Claude Code runtime adapter — one file per harness, three verbs
+# Claude Code runtime adapter — one file per harness, two verbs
 # (issue #355 v2: identity at commit, measurement at rest).
 #
 # Verb interface (argv[1]; a bare invocation prints usage and exits 2):
@@ -34,18 +34,8 @@
 #     payload's cwd (or $PWD) is not inside a git working tree — a hook
 #     firing outside a repo is not an error.
 #
-#   judge [<tier>] [<model>] — read a fully-built adjudication prompt on stdin,
-#     run the CLI non-interactively, and print exactly:
-#         VERDICT: PASS            (or VERDICT: REFUTED)
-#         REASON: <text>           (zero or more lines)
-#     <tier> is the capability tier (low | medium | high; empty → low) and picks
-#     this adapter's own default model; <model> overrides it outright (the
-#     caller's SUBAGENT_MODELS_<TIER> conf value). The prompt is built by the
-#     caller from the directive's declaration — never by the agent under audit.
-#
 # Exit codes: 0 ok · 2 the runtime is present but its surface is unusable —
-# an unreadable transcript (`resolve`), or a missing CLI / transport failure /
-# unparseable answer (`judge`). `emit` never exits 2 — a push that cannot be
+# an unreadable transcript (`resolve`), `emit` never exits 2 — a push that cannot be
 # attributed is simply dropped (exit 0). Exit 2 is never fatal to the caller:
 # the commit lane degrades to the harness (sub-agent) path rather than
 # blocking on a broken side channel.
@@ -59,85 +49,11 @@
 #                             declared-path source `resolve` prefers when the
 #                             caller passed no explicit <declared-path>.
 #   CLAUDE_PROJECTS_DIR       override ~/.claude/projects
-#   AGENT_JUDGE_TIMEOUT       seconds to allow the judge CLI (default 120), when
-#                             a `timeout` binary is available.
 #
-# Self-contained by design: an adapter is one droppable file resolved by name,
-# so the small verdict normalizer below is duplicated per adapter rather than
-# sourced from a sibling.
 
 set -u
 
 VERB="${1:-}"
-
-# Every environment handle that ties a nested CLI run to the CALLING session:
-# the git plumbing a hook exports (which would make the judge operate on the
-# caller's index) and the harness session ids (which would bill the audit to the
-# session under audit and hand it that session's context). A judge that inherits
-# the author's session is not an independent judge.
-judge_env_clean() {
-    env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE -u GIT_PREFIX \
-        -u GIT_COMMON_DIR -u GIT_AUTHOR_DATE -u GIT_COMMITTER_DATE \
-        -u CLAUDE_CODE_SESSION_ID -u CLAUDECODE -u CLAUDE_TRANSCRIPT_PATH \
-        -u CODEX_THREAD_ID -u CODEX_TRANSCRIPT_PATH \
-        "$@"
-}
-
-# Normalize raw CLI stdout to the judge contract: the first well-formed VERDICT
-# line, then any REASON lines. No verdict → exit 2 (the caller degrades).
-emit_verdict() {
-    awk '
-        !v && $0 ~ /^[ \t]*VERDICT:[ \t]*(PASS|REFUTED)[ \t]*\r?$/ {
-            line = $0
-            sub(/^[ \t]*VERDICT:[ \t]*/, "", line)
-            sub(/[ \t\r]*$/, "", line)
-            v = line
-            print "VERDICT: " v
-            next
-        }
-        v && $0 ~ /^[ \t]*REASON:/ {
-            line = $0
-            sub(/^[ \t]*/, "", line)
-            sub(/[ \t\r]*$/, "", line)
-            print line
-        }
-        END { if (!v) { exit 2 } }
-    '
-}
-
-do_judge() {
-    local tier="${1:-low}" model="${2:-}"
-    command -v claude >/dev/null 2>&1 || {
-        printf 'claude-code adapter: no `claude` CLI on PATH\n' >&2
-        return 2
-    }
-    if [[ -z "$model" ]]; then
-        # This adapter's own per-tier defaults, as CLI aliases rather than
-        # pinned model ids — an alias keeps working across model releases, and
-        # the kit has no business pinning someone else's model catalog.
-        case "$tier" in
-            high)   model="opus" ;;
-            medium) model="sonnet" ;;
-            *)      model="haiku" ;;
-        esac
-    fi
-    local prompt
-    prompt="$(cat)"
-    [[ -n "$prompt" ]] || return 2
-
-    local -a runner=()
-    if command -v timeout >/dev/null 2>&1; then
-        runner=(timeout "${AGENT_JUDGE_TIMEOUT:-120}")
-    elif command -v gtimeout >/dev/null 2>&1; then
-        runner=(gtimeout "${AGENT_JUDGE_TIMEOUT:-120}")
-    fi
-
-    local out
-    out="$(printf '%s\n' "$prompt" | judge_env_clean ${runner[@]+"${runner[@]}"} \
-        claude -p --output-format text --model "$model" 2>/dev/null)" || return 2
-    printf '%s\n' "$out" | emit_verdict || return 2
-    return 0
-}
 
 encode_path() {
     # Replace every `/` and `.` with `-`, matching Claude Code's project-dir convention.
@@ -318,10 +234,6 @@ EOF_PARSED
 }
 
 case "$VERB" in
-    judge)
-        do_judge "${2:-}" "${3:-}"
-        exit $?
-        ;;
     resolve)
         do_resolve "${2:-}" "${3:-}"
         exit $?
@@ -331,11 +243,11 @@ case "$VERB" in
         exit $?
         ;;
     "")
-        printf 'claude-code adapter: usage: claude-code.sh {resolve <session> [<declared>]|emit|judge [<tier>] [<model>]}\n' >&2
+        printf 'claude-code adapter: usage: claude-code.sh {resolve <session> [<declared>]|emit}\n' >&2
         exit 2
         ;;
     *)
-        printf 'claude-code adapter: unknown verb %s (supported: resolve, emit, judge)\n' "$VERB" >&2
+        printf 'claude-code adapter: unknown verb %s (supported: resolve, emit)\n' "$VERB" >&2
         exit 2
         ;;
 esac

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # governance-kit:managed kit-version=0.12.0
-# OpenCode runtime adapter — one file per harness, three verbs
+# OpenCode runtime adapter — one file per harness, two verbs
 # (issue #355 v2: identity at commit, measurement at rest).
 #
 # Verb interface (argv[1]; a bare invocation prints usage and exits 2):
@@ -36,95 +36,21 @@
 #     sidecar snapshot — OpenCode's push surface, if any, is undocumented, so
 #     this adapter records only what it is sure of: identity.
 #
-#   judge [<tier>] [<model>] — read a fully-built adjudication prompt on stdin,
-#     run the `opencode` CLI non-interactively, and print exactly:
-#         VERDICT: PASS            (or VERDICT: REFUTED)
-#         REASON: <text>           (zero or more lines)
-#     <tier> is the capability tier (low | medium | high; empty → low) and picks
-#     this adapter's own default model; <model> overrides it outright. Uses
-#     OpenCode's documented `opencode run` single-shot mode.
-#
 # Exit codes: 0 ok · 2 the runtime is present but its surface is unusable —
-# the server is unreachable or the response is unparseable (`resolve`), or a
-# missing CLI / transport failure / unparseable answer (`judge`). `emit` never
-# exits 2. Exit 2 is never fatal to the caller: the commit lane degrades to
-# the harness (sub-agent) path rather than blocking on a broken side channel.
+# the server is unreachable or the response is unparseable (`resolve`). `emit`
+# never exits 2. Exit 2 is never fatal to the caller: an unattributable session
+# is a row the ledger simply does not carry.
 #
 # Environment overrides:
 #   OPENCODE_SERVER         base URL of the local OpenCode server (default
 #                           http://127.0.0.1:4096).
 #   OPENCODE_SESSION_ID     the live session id (for `emit`'s identity refresh).
 #   OPENCODE_RESPONSE_FILE  TEST SEAM ONLY — see `resolve` above.
-#   AGENT_JUDGE_TIMEOUT     seconds to allow the judge CLI (default 120), when
-#                           a `timeout` binary is available.
 #
-# Self-contained by design: an adapter is one droppable file resolved by name,
-# so the small verdict normalizer below is duplicated per adapter rather than
-# sourced from a sibling.
 
 set -u
 
 VERB="${1:-}"
-
-judge_env_clean() {
-    env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE -u GIT_PREFIX \
-        -u GIT_COMMON_DIR -u GIT_AUTHOR_DATE -u GIT_COMMITTER_DATE \
-        -u OPENCODE -u OPENCODE_SERVER -u OPENCODE_SESSION_ID \
-        "$@"
-}
-
-# Normalize raw CLI stdout to the judge contract: the first well-formed VERDICT
-# line, then any REASON lines. No verdict → exit 2 (the caller degrades).
-emit_verdict() {
-    awk '
-        !v && $0 ~ /^[ \t]*VERDICT:[ \t]*(PASS|REFUTED)[ \t]*\r?$/ {
-            line = $0
-            sub(/^[ \t]*VERDICT:[ \t]*/, "", line)
-            sub(/[ \t\r]*$/, "", line)
-            v = line
-            print "VERDICT: " v
-            next
-        }
-        v && $0 ~ /^[ \t]*REASON:/ {
-            line = $0
-            sub(/^[ \t]*/, "", line)
-            sub(/[ \t\r]*$/, "", line)
-            print line
-        }
-        END { if (!v) { exit 2 } }
-    '
-}
-
-do_judge() {
-    local tier="${1:-low}" model="${2:-}"
-    command -v opencode >/dev/null 2>&1 || {
-        printf 'opencode adapter: no `opencode` CLI on PATH\n' >&2
-        return 2
-    }
-    if [[ -z "$model" ]]; then
-        case "$tier" in
-            high)   model="anthropic/claude-opus-4-5" ;;
-            medium) model="anthropic/claude-sonnet-4-5" ;;
-            *)      model="anthropic/claude-haiku-4-5" ;;
-        esac
-    fi
-    local prompt
-    prompt="$(cat)"
-    [[ -n "$prompt" ]] || return 2
-
-    local -a runner=()
-    if command -v timeout >/dev/null 2>&1; then
-        runner=(timeout "${AGENT_JUDGE_TIMEOUT:-120}")
-    elif command -v gtimeout >/dev/null 2>&1; then
-        runner=(gtimeout "${AGENT_JUDGE_TIMEOUT:-120}")
-    fi
-
-    local out
-    out="$(judge_env_clean ${runner[@]+"${runner[@]}"} \
-        opencode run --model "$model" "$prompt" 2>/dev/null)" || return 2
-    printf '%s\n' "$out" | emit_verdict || return 2
-    return 0
-}
 
 # Key-anchored extraction of the /session/<id> response body in POSIX awk
 # (issue #355 — no python on any path). Reasoning tokens are read by no
@@ -240,10 +166,6 @@ EOF_PARSED
 }
 
 case "$VERB" in
-    judge)
-        do_judge "${2:-}" "${3:-}"
-        exit $?
-        ;;
     resolve)
         do_resolve "${2:-}" "${3:-}"
         exit $?
@@ -253,11 +175,11 @@ case "$VERB" in
         exit $?
         ;;
     "")
-        printf 'opencode adapter: usage: opencode.sh {resolve <session> [<declared>]|emit|judge [<tier>] [<model>]}\n' >&2
+        printf 'opencode adapter: usage: opencode.sh {resolve <session> [<declared>]|emit}\n' >&2
         exit 2
         ;;
     *)
-        printf 'opencode adapter: unknown verb %s (supported: resolve, emit, judge)\n' "$VERB" >&2
+        printf 'opencode adapter: unknown verb %s (supported: resolve, emit)\n' "$VERB" >&2
         exit 2
         ;;
 esac

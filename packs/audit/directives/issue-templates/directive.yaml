@@ -4,3 +4,11 @@ recommended: true
 summary: GitHub issue forms include the required proposal and bug handoff fields.
 surface: repo-state
 hook: pre-commit
+judge:
+  inputs: [range-diff]
+  checks:
+    - "The proposal form's field labels and descriptions genuinely prompt for a settled decision, scope, and acceptance criteria — not placeholder text renamed to match required ids."
+    - "The bug form's fields would actually let a future agent reproduce the defect without going back to the reporter."
+    - "Required fields are meaningfully required, not marked required while carrying an empty or throwaway placeholder default that defeats the point."
+    - "No change to the templates narrows or waters down the brainstorming handoff to make the form easier to fill trivially."
+  group: bundled-intent

@@ -94,7 +94,9 @@ def _write_source_pack(base: Path, pack_id: str = "acme/widgets") -> Path:
 
 
 def _write_sweep_source_pack(base: Path, pack_id: str = "acme/shape", did: str = "no-shims") -> Path:
-    """A minimal valid `surface: sweep` source pack (triage.sh, not check.sh)."""
+    """A minimal valid sweep-only discovery source pack (issue #355): a
+    `judge:` block with no `section:` — no commit-lane gate, no check.sh —
+    judged only by the at-rest sweep driver against the range diff."""
     pack = base / "shape"
     ddir = pack / "directives" / did
     (ddir / "evals").mkdir(parents=True)
@@ -103,13 +105,15 @@ def _write_sweep_source_pack(base: Path, pack_id: str = "acme/shape", did: str =
         "description: test\nauthor: acme\nsource: gh\n")
     (ddir / "directive.yaml").write_text(
         "category: ArchitecturalShape\nrecommended: false\nsummary: no shims.\n"
-        "surface: sweep\nhook: none\nengine: llm\nmodel_tier: high\n")
-    (ddir / "triage.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
+        "surface: repo-state\nhook: none\n"
+        "judge:\n  inputs: [range-diff]\n  checks:\n    - no shims\n"
+        "  group: shape-intent\n")
     (ddir / "constitution.md").write_text(
         f"### {did}\n\n- **Directive**: no shims.\n"
-        f"- **Enforced by**: `.governance/packs/{pack_id}/directives/{did}/triage.sh`\n")
+        f"- **Enforced by**: the at-rest sweep driver `.governance/sweep.sh`, "
+        f"re-adjudicating the `judge:` block declared in "
+        f".governance/packs/{pack_id}/directives/{did}/directive.yaml\n")
     (ddir / "evals" / "test.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
-    (ddir / "triage.sh").chmod(0o755)
     (ddir / "evals" / "test.sh").chmod(0o755)
     return pack
 
@@ -284,10 +288,11 @@ def test_add_held_back_directive_via_decisions() -> None:
 
 
 def test_add_vendors_sweep_lane() -> None:
-    # issue #142 parity: `pack add` of a `surface: sweep` directive must lay down
-    # the kit-level sweep workflow + engine and ledger them — exactly as init
-    # does — so the lane is dispatchable when added to an already-initialized
-    # repo. (Before this fix, only init seeded them; pack add left them missing.)
+    # issue #142 parity (harness-pegged per #355): `pack add` of a directive
+    # carrying a live sweep tier must lay down the kit-level sweep workflow +
+    # at-rest driver and ledger them — exactly as init does — so the lane is
+    # dispatchable when added to an already-initialized repo. (Before this fix,
+    # only init seeded them; pack add left them missing.)
     with tempfile.TemporaryDirectory() as tmp:
         src = _write_sweep_source_pack(Path(tmp) / "src")
         root = _make_repo(Path(tmp) / "repo")
@@ -296,25 +301,25 @@ def test_add_vendors_sweep_lane() -> None:
             _ns(mode="add", root=str(root), target="gh:acme/shape")))
         assert rc == 0 and report["result"] == "applied", report
         wf = root / ".github/workflows/governance-sweep.yml"
-        eng = root / ".governance/sweep.py"
+        drv = root / ".governance/sweep.sh"
         assert wf.is_file() and "kit-version=" in wf.read_text().splitlines()[0]
-        assert eng.is_file() and "kit-version=" in eng.read_text().splitlines()[1]
-        assert os.access(eng, os.X_OK)
+        assert drv.is_file() and "kit-version=" in drv.read_text().splitlines()[1]
+        assert os.access(drv, os.X_OK)
         assert ".github/workflows/governance-sweep.yml" in report["seeded_assets"]
-        assert ".governance/sweep.py" in report["seeded_assets"]
+        assert ".governance/sweep.sh" in report["seeded_assets"]
         ledger = (root / ".governance/install.yaml").read_text()
-        assert ".governance/sweep.py" in ledger
+        assert ".governance/sweep.sh" in ledger
         assert ".github/workflows/governance-sweep.yml" in ledger
         # issue #259: pack-add records the sweep assets in `managed_digests:` too
         # (a two-space `  <relpath>: <sha>` row, not the dashed ledger row), so
         # managed-tree-integrity guards them offline — parity with init.
-        assert "\n  .governance/sweep.py: " in ledger, ledger
+        assert "\n  .governance/sweep.sh: " in ledger, ledger
         assert "\n  .github/workflows/governance-sweep.yml: " in ledger, ledger
 
 
 def test_add_held_back_sweep_directive_seeds_no_lane() -> None:
     # The lane is keyed to what actually installs: a held-back sweep directive
-    # must NOT pull in the workflow + engine.
+    # must NOT pull in the workflow + driver.
     with tempfile.TemporaryDirectory() as tmp:
         src = _write_sweep_source_pack(Path(tmp) / "src")
         root = _make_repo(Path(tmp) / "repo")
@@ -324,7 +329,7 @@ def test_add_held_back_sweep_directive_seeds_no_lane() -> None:
                 decisions='{"no-shims": "skip"}')))
         assert rc == 0, report
         assert report["held_back"] == ["no-shims"]
-        assert not (root / ".governance/sweep.py").exists()
+        assert not (root / ".governance/sweep.sh").exists()
         assert not (root / ".github/workflows/governance-sweep.yml").exists()
         assert report["seeded_assets"] == []
 

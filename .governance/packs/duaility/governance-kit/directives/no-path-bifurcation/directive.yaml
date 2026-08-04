@@ -2,7 +2,13 @@
 category: ArchitecturalShape
 recommended: false
 summary: "No bifurcated code paths — unify dual dispatch and local-vs-remote special-casing."
-surface: sweep
 hook: none
-engine: llm
-model_tier: high
+judge:
+  inputs: [range-diff]
+  checks:
+    - "The diff does not introduce a second implementation of an operation that already has one (an if/elif dual dispatch on transport, backend, mode, or protocol)."
+    - "The diff does not add a local-only (or fast-path) branch that special-cases what a general or remote path already handles for the same operation."
+    - "A \"local must mirror remote\" pair is not left free to quietly diverge in behavior — the two are not two hand-kept copies of the same logic."
+    - "A new conditional branches on data (an input value, a config flag read at one point), not on a second, separately-maintained copy of the same logic."
+    - "Any genuine environment-forced branch (a platform capability gap, a measured performance win) states its reason in the code, not left as an unexplained fork."
+  group: kit-architecture

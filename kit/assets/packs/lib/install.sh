@@ -127,11 +127,12 @@ install_directive_folder() {
     }
     mkdir -p "$(dirname "$dest")"
     copy_tree_without_evals "$src" "$dest"
-    # A directive ships exactly one entry script: check.sh for repo-state /
-    # change-set, triage.sh for surface: sweep (issue #142). chmod whichever
-    # came across rather than assuming check.sh exists.
+    # A directive ships check.sh, the commit/CI-lane pass/fail test — except a
+    # sweep-only discovery directive (`judge.sink: none`, issue #355), which
+    # ships no executable at all: it is judged only by the at-rest sweep driver.
+    # chmod it if it came across; its absence is not an error here (packctl.py
+    # validates when it's required).
     [[ -f "$dest/check.sh" ]] && chmod +x "$dest/check.sh"
-    [[ -f "$dest/triage.sh" ]] && chmod +x "$dest/triage.sh"
     if [[ -d "$dest/hooks" ]]; then
         chmod +x "$dest/hooks/"*.sh 2>/dev/null || true
     fi

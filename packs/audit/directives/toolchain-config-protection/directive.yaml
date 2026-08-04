@@ -4,3 +4,10 @@ recommended: true
 summary: "Commits that change toolchain config (lint, format, type-check, CI, git hooks) must carry a `governance: allow-toolchain-config <reason>` body line."
 surface: change-set
 hook: commit-msg
+judge:
+  inputs: [range-diff]
+  checks:
+    - "A waiver's reason genuinely explains what the toolchain-config change does and why, distinguishing a tightened rule from a loosened one gaming a failing check."
+    - "A change that relaxes a lint/type-check/CI rule to make an existing failure disappear is called out as such in the waiver, not described as an unrelated cleanup."
+    - "The change to toolchain config is proportionate to its stated reason — a whole rule category is not disabled to fix one narrow failure."
+  group: bundled-intent

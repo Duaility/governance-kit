@@ -15,11 +15,11 @@
 #   .githooks/*
 #
 # Deliberately NOT scanned:
-#   - kit/assets/dot-governance/sweep.py — the sweep engine is the scheduled
-#     cron lane, not the commit path; issue #355's lane table allows python there.
 #   - kit/assets/packs/lib/** — the lifecycle lane (install/update/pack verbs),
-#     also allowed python by the same lane table. It is governed instead by the
-#     sibling `stdlib-only-python`.
+#     allowed python by issue #355's lane table. It is governed instead by the
+#     sibling `stdlib-only-python`. (The sweep engine is bash —
+#     kit/assets/dot-governance/sweep.sh, as of the #355 sweep unification — so
+#     it carries no python and needs no exemption here.)
 #   - .governance/** — this repo's own installed tree is vendored from the LAST
 #     release and lags `packs/` / `kit/` by one cycle by design (see AGENTS.md,
 #     "The dogfood: a protected consumer"). Policing it here would gate this

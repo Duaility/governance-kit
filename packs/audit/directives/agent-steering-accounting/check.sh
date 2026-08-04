@@ -15,7 +15,7 @@
 # commit hook now makes no `claude -p` / network call. The sub-agent — handed the
 # session transcript — records every steering event AND renders the verdict;
 # check.sh only gates that the `## Steering` section is present + verdict-bearing
-# (via the shared `subagent_attest` infra) and that the rows are well-formed.
+# (via the shared `judge_attest` infra) and that the rows are well-formed.
 #
 # Steering rows are well-formed — v2 is 9 columns
 # (`steer-key | session | issue | type | tier | user-reason | commit | ordinal | timestamp`).
@@ -65,11 +65,11 @@ fi
 
 # ──────────────────────────────────────────────────────────────
 # `## Steering` attestation gate (issue #325), change-set scoped.
-# Skip cleanly on an older runtime lib.sh that predates subagent_attest — the
+# Skip cleanly on an older runtime lib.sh that predates judge_attest — the
 # shape check above still runs, and the attestation auto-activates the moment
 # this repo updates to a kit whose lib.sh defines the helper.
 # ──────────────────────────────────────────────────────────────
-if declare -F subagent_attest >/dev/null 2>&1 && [[ -d "$RECEIPTS_DIR" ]]; then
+if declare -F judge_attest >/dev/null 2>&1 && [[ -d "$RECEIPTS_DIR" ]]; then
     # Build the set of receipts ADDED in the current change set — these owe the
     # attestation; pre-existing receipts are grandfathered. Union of staged
     # additions (pre-commit) and base..HEAD additions (CI), so the one argless
@@ -128,12 +128,12 @@ if declare -F subagent_attest >/dev/null 2>&1 && [[ -d "$RECEIPTS_DIR" ]]; then
         [[ -f "$f" ]] || continue
         is_accounting_stub "$f" && continue
         has_steering_waiver "$f" && continue
-        # The judgment task is declared once in directive.yaml's `subagent:`
-        # block. subagent_attest reads it, gates the section's presence +
+        # The judgment task is declared once in directive.yaml's `judge:`
+        # block. judge_attest reads it, gates the section's presence +
         # verdict, and registers it (isolation: shared) so the run-level
         # orchestrator batches it with receipt-per-issue's `## Audit` into one
         # sub-agent per commit.
-        subagent_attest "$f"
+        judge_attest "$f"
     done <<< "$ADDED_RECEIPTS"
 fi
 

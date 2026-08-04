@@ -6,3 +6,10 @@ summary: No merge markers, oversized files, build artefacts, debug statements, o
 surface: repo-state
 hook: pre-commit
 always_install: true
+judge:
+  inputs: [range-diff]
+  checks:
+    - "A `debug-statements` waiver's reason genuinely explains why the statement is intentional and safe to ship, not cover for a leftover debug print."
+    - "A `file-size-limit` waiver's reason genuinely explains why the file cannot reasonably be split, not routine cover for an unrefactored god-file."
+    - "Content excluded from a hygiene sub-check (vendor, generated, migrations) is actually vendor/generated content, not real source code relocated under an excluded path to dodge the check."
+  group: bundled-intent

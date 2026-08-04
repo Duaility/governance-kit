@@ -2,7 +2,13 @@
 category: ArchitecturalShape
 recommended: false
 summary: "No backward-compat shims or legacy fallback paths in agent-authored changes."
-surface: sweep
 hook: none
-engine: llm
-model_tier: high
+judge:
+  inputs: [range-diff]
+  checks:
+    - "The diff does not keep an old, superseded code path alive behind a version check, a feature flag, or a \"for backward compatibility\" branch instead of just changing the behavior."
+    - "The diff does not add a fallback (a try/except around an old import, a getattr-with-old-default, an if/else on an old vs. new shape) whose only purpose is to keep deprecated behavior working."
+    - "Callers of changed behavior are migrated to the new path in this same change, not left calling through a compatibility shim."
+    - "No code is retained with no stated reason (a Chesterton's-fence keep with no comment explaining why)."
+    - "Any fallback that is retained names, in a code comment, the external contract it exists for and until when it applies."
+  group: kit-architecture

@@ -178,7 +178,7 @@ The key power is the depth of invariants you can express. Start with determinist
 | **Ledger** | "For each agent-authored change, show the issue, receipt, token cost, and human steering count." | Receipt accounting rows, cross-checked by directives. |
 | **Sub-agent attestation** | "Before merging a cross-layer refactor, have a fresh reader compare the diff to the architecture map." | Hook fails with a fresh-context sub-agent prompt; agent records a PASS/REFUTED section; hook verifies presence. |
 
-The failures that hurt are rarely mechanical ("forgot the formatter") — they're semantic, and no single enforcement style catches both. Governance kit matches each rule to a surface: cheap deterministic checks for the mechanical, [fresh-context attestation](kit/references/SUBAGENT_ATTESTATION.md) for the judgment calls.
+The failures that hurt are rarely mechanical ("forgot the formatter") — they're semantic, and no single enforcement style catches both. Governance kit matches each rule to a surface: cheap deterministic checks for the mechanical, [fresh-context attestation](kit/references/JUDGE.md) for the judgment calls.
 
 ### What are packs?
 

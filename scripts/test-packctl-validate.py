@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""validate_pack_dir matrix tests for packctl.py.
+"""validate_pack_dir matrix tests for packctl.py: pack/directive structural
+shape (required fields, id/directory scoping, preset references, hook/surface
+enums, check.sh/constitution.md/evals presence).
 
 Split from scripts/test-packctl.py to keep both files under the repo-hygiene
-500-line limit. Helpers (load_packctl, make_pack) are duplicated rather than
-extracted into a shared module — each test file in this repo stays standalone.
+500-line limit. judge.cmd/judge.group validation fixtures split further
+into scripts/test-packctl-subagent.py for the same reason. Helpers
+(load_packctl, make_pack) are duplicated rather than extracted into a shared
+module — each test file in this repo stays standalone.
 """
 
 from __future__ import annotations
@@ -321,6 +325,81 @@ def test_validate_pack_dir_requires_constitution_to_reference_check_path() -> No
         )
         errors = pkt.validate_pack_dir(pack)
         assert any("constitution.md must reference" in e for e in errors)
+
+
+def test_validate_pack_dir_allows_missing_check_sh_for_section_absent_judge() -> None:
+    """issue #355 amendment 3: a sweep-only discovery directive declares a
+    `judge:` block with no `section:` — no commit-lane gate, judged only by
+    the at-rest sweep driver — and so ships no check.sh and no `surface:`
+    field at all (a surface describes commit-lane check semantics it doesn't
+    have). Validation must allow both omissions, not flag them as missing."""
+    pkt = load_packctl()
+    with tempfile.TemporaryDirectory() as tmp:
+        pack = make_pack(
+            Path(tmp),
+            pack_yaml=textwrap.dedent("""\
+                id: acme/demo
+                name: D
+                version: "0.1"
+                min_governance_kit: "0.1"
+                description: d
+                author: T
+                presets: {}
+            """),
+            directives={
+                "x": {
+                    "directive_yaml": textwrap.dedent("""\
+                        category: Foundation
+                        recommended: true
+                        summary: x
+                        hook: none
+                        judge:
+                          inputs: [range-diff]
+                          checks:
+                            - no shims anywhere in tracked source
+                          cmd: { sweep: "claude -p --output-format text --model opus" }
+                    """),
+                    "constitution_md": "judged only by the at-rest sweep driver, no check.sh",
+                },
+            },
+        )
+        errors = pkt.validate_pack_dir(pack)
+        assert not any("check.sh" in e for e in errors), "\n".join(errors)
+        assert not any("surface" in e for e in errors), "\n".join(errors)
+
+
+def test_validate_pack_dir_flags_missing_check_sh_without_section_absent() -> None:
+    """A directive with neither check.sh nor a section-absent `judge:` block
+    is invalid — every commit/CI-lane directive still needs an executable
+    check.sh."""
+    pkt = load_packctl()
+    with tempfile.TemporaryDirectory() as tmp:
+        pack = make_pack(
+            Path(tmp),
+            pack_yaml=textwrap.dedent("""\
+                id: acme/demo
+                name: D
+                version: "0.1"
+                min_governance_kit: "0.1"
+                description: d
+                author: T
+                presets: {}
+            """),
+            directives={
+                "x": {
+                    "directive_yaml": textwrap.dedent("""\
+                        category: Foundation
+                        recommended: true
+                        summary: x
+                        surface: repo-state
+                        hook: none
+                    """),
+                    "constitution_md": "no path reference here",
+                },
+            },
+        )
+        errors = pkt.validate_pack_dir(pack)
+        assert any("check.sh missing" in e for e in errors), "\n".join(errors)
 
 
 def test_validate_pack_dir_flags_non_executable_check_sh() -> None:

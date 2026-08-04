@@ -80,10 +80,8 @@ Each directive folder has a `directive.yaml` with flat scalar keys:
 category: <category-label>
 recommended: true | false
 summary: <one-line menu description>
-surface: repo-state | change-set | sweep
+surface: repo-state | change-set
 hook: pre-commit | commit-msg | prepare-commit-msg | post-commit | pre-push | none
-engine: llm                     # required for (and reserved to) surface: sweep
-model_tier: low | high          # required for surface: sweep — a capability tier, not a model id
 standards:                      # optional; advisory standard-coverage metadata
   - "OpenSSF Scorecard: Token-Permissions"
   - "CWE-798"
@@ -93,13 +91,27 @@ reads:                          # optional capability declaration
   - .github/workflows/**
   - .governance/**
 writes: []                      # optional; most directives are read-only
-subagent:                       # optional; declares a sub-agent judgment task (issue #325)
+judge:                          # optional; declares a sub-agent judgment task (issues #325, #355)
   inputs:  [diff, receipt, issue]
   checks:
     - "'## What changed' faithfully describes the diff"
-  isolation: shared             # shared (default) | isolated
-  section: Audit
-  tiers:   { attest: low, sweep: high }
+  group:   bundled-intent        # optional repo-global label; absent = solo invocation
+  section: Audit                 # presence of this key puts the directive on the attest lane; absence = sweep-only, no check.sh needed
+  gate:    record                # record (default) | verdict | verdict-contestable
+```
+
+No `cmd` row — this is what a shareable pack ships. Absent `cmd.attest`
+defaults to `harness`; a directive with no `cmd.sweep` still sweeps regardless
+of whether it declares `section:`, through the repo-level `GOVERNANCE_SWEEP_CMD` env
+(see [SWEEP_FLOW.md](SWEEP_FLOW.md)). `cmd` remains a valid, optional field
+for the rare case one directive's judge must be fixed regardless of the
+consuming repo's `GOVERNANCE_SWEEP_CMD` — reach for it in a repo-local pack,
+not a pack you intend to share:
+
+```yaml
+  cmd:
+    attest: harness               # harness (default) | shell command string
+    sweep:  claude -p --output-format text --model opus   # shell command string only; overrides the repo-level ladder
 ```
 
 | Field | Notes |
@@ -107,15 +119,17 @@ subagent:                       # optional; declares a sub-agent judgment task (
 | `category` | Menu grouping. Canonical values: `Foundation`, `Security`, `SystemOfRecord`, `CommitHygiene`, `Quality`, `AgentDiscipline`. Packs may introduce new categories; the skill renders each category as its own menu screen. |
 | `recommended` | Pre-ticks the directive in the category menu. Presets override this per-preset. |
 | `summary` | Shown next to the id in the multi-select picker. Keep it to one line. |
-| `surface` | `repo-state` for directives that inspect the tree at rest; `change-set` for directives that inspect a specific commit or diff; `sweep` for off-commit-path, LLM-adjudicated directives (issue #142). A `sweep` directive ships `triage.sh` instead of `check.sh`, sets `hook: none`, and is never run by `run.sh` or any git hook — only by the scheduled sweep engine. See [SWEEP_FLOW.md](SWEEP_FLOW.md). |
-| `hook` | Hook kind the directive wants to run in. Drives dispatcher generation. Use `none` only if the directive runs exclusively in CI (or, for `surface: sweep`, off the commit path entirely). |
-| `engine` | Adjudication engine. Omit for grep directives (their `check.sh` is the engine). `llm` is required for — and reserved to — `surface: sweep`. |
-| `model_tier` | Required for `surface: sweep`: the *capability tier* (`low` / `high`) the judge needs, not a model id. Pinning the tier means a model upgrade within it doesn't silently rewrite the directive's verdicts. |
+| `surface` | `repo-state` for directives that inspect the tree at rest; `change-set` for directives that inspect a specific commit or diff. Whether a directive also runs off the commit path is a property of its `judge:` block (below), not a separate surface value — see [SWEEP_FLOW.md](SWEEP_FLOW.md). |
+| `hook` | Hook kind the directive wants to run in. Drives dispatcher generation. Use `none` if the directive runs exclusively in CI, or is a sweep-only `judge:` declaration (no `section:` key) that never runs on the commit path at all. |
 | `standards` | Optional advisory list of external standards the directive implements (e.g. `"OpenSSF Scorecard: Token-Permissions"`, `"CWE-798"`). Rendered as a Standards column in DIRECTIVES_CATALOG.md so coverage and gaps are visible. Not validated and never affects pass/fail. |
 | `always_install` | Reserved to the `governance-kit/*` bundled packs. Skips the menu. If you need an unconditionally installed directive in a third-party pack, file an issue first — the guarantee only holds for the bundled packs. |
 | `requires_hook_strategy` | Optional environment filter. Use this for directives whose check is only meaningful under one hook strategy — e.g. a directive asserting `.githooks/` scaffolding would declare `requires_hook_strategy: githooks` so it is skipped for husky/pre-commit.com repos. |
 | `reads` / `writes` | Optional capability declaration. List of path globs the directive's `check.sh` inspects (`reads`) or mutates (`writes`) relative to the target repo root. Most directives declare a short `reads:` list and an empty `writes:` — governance directives are overwhelmingly read-only. The schema is validated at install time (each entry must be a non-empty string); semantic enforcement (refusing install when a directive reaches outside its declared bounds) is scheduled for the `governance pack add` verb. Declare capabilities now so community packs are forward-compatible. |
-| `subagent` | Optional. Declares a **sub-agent judgment task** once (issue #325): `inputs` (typed tokens — `diff`, `receipt`, `issue`, `transcript`, `layer-map` — resolved to the handles the judge is given), `checks` (the numbered rubric), `isolation` (`shared` (default) batches with other shared sections into one sub-agent; `isolated` forces its own), `section` (the `## <Section>` the verdict lands in), and `tiers` (`{ attest: low, sweep: high }`). A `check.sh` calls `subagent_attest "$f"` to gate it; both the commit-time attest lane and the merge-time sweep lane consume the same block. **Author-fixed vs operator-tunable (issue #331):** `inputs`/`checks`/`section` are *semantic* — they must not be tweakable without a fork, so they stay read straight from `directive.yaml` (editing the vendored copy trips `managed-tree-integrity`). `isolation` and `tiers` are *operational* cost/batching dials a consumer tunes per-repo: ship a `defaults.conf` carrying `SUBAGENT_ISOLATION`, `SUBAGENT_TIERS_ATTEST`, and `SUBAGENT_TIERS_SWEEP` rows (with the `directive.yaml` values as defaults), and the overlay wins when a consumer writes one. See [SUBAGENT_ATTESTATION.md](SUBAGENT_ATTESTATION.md). |
+| `judge` | Optional. Declares a **judgment task** once (issues #325, #355): `inputs` (typed tokens — `diff`, `receipt`, `issue`, `transcript`, `layer-map`, `range-diff` — resolved to the handles the judge is given), `checks` (the numbered rubric — for a sweep-only directive with no `section:`, 3–6 single-sentence adjudicable items), `group` (optional; directives sharing one label batch into a single judge invocation — one sub-agent on the attest lane, one judge call on the sweep lane, demuxed by `DIRECTIVE:`-tagged blocks; absent = solo invocation), `section` (the `## <Section>` the verdict lands in — presence of this key is what puts the declaration on the commit-time attest lane at all; absence makes it a sweep-only discovery declaration with no commit-lane artifact and no `check.sh` at all), `gate` (`record` default — never blocks; `verdict` — blocks on a `REFUTED` or missing verdict, and a `CONTESTED` verdict does not ride through either; `verdict-contestable` — same blocking, but a `CONTESTED` round rides through with a loud stderr warning), and `cmd` — an **optional per-directive override**, not something a shareable pack declares: a map with keys `attest`/`sweep`, each value either the reserved word `harness` or a shell command string. `attest` defaults to `harness` when absent. `sweep` has no such single default — when the row is absent, the at-rest sweep driver falls back to the repo-level `GOVERNANCE_SWEEP_CMD` env before giving up on that directive for the run (see [SWEEP_FLOW.md](SWEEP_FLOW.md)). A `check.sh` calls `judge_attest "$f"` to gate it; both the commit-time attest lane and the at-rest sweep lane (`.governance/sweep.sh`) consume the same block, judging through the resolved command. **Author-fixed vs operator-tunable (issue #331):** `inputs`/`checks`/`section`/`gate`/`cmd`/`group` are *semantic* — they must not be tweakable without a fork, so they stay read straight from `directive.yaml` (editing the vendored copy trips `managed-tree-integrity`; a consumer on a different harness edits `cmd` through the normal pack/directive override flow, not a conf overlay). The adjudication round ceiling is the one remaining *operational* cost dial a consumer tunes per-repo: ship a `defaults.conf` carrying a `JUDGE_ROUNDS` row (with the `directive.yaml` value as default), and the overlay wins when a consumer writes one. `GOVERNANCE_SWEEP_CMD` is a third, separate knob — a plain repo-level env, not a `conf_get` row or a `directive.yaml` field — that names the sweep judge for every directive that leaves `cmd.sweep` unset. See [JUDGE.md](JUDGE.md). (Issue #355 deleted the separate `sink` and `contest` fields this schema used to carry: `sink` duplicated what `section` presence already said and was folded away, and `contest` folded into `gate` as its third value — an unknown `sink` or `contest` key is now a `packctl` validation error.) |
+
+A directive with **no `check.sh`** is valid iff its `judge:` block declares
+no `section:` — a sweep-only discovery directive has nothing for the commit
+path to gate.
 
 There is no `id`, `script`, or `constitution` field — the id is the folder name, the script is always `check.sh`, and the snippet is always `constitution.md`. Keeping the shape rigid means a new directive folder can be dropped in without editing any index.
 

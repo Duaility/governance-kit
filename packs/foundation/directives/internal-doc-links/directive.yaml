@@ -4,3 +4,10 @@ recommended: true
 summary: "Rolled-up doc-link health. resolve: every relative-path markdown link resolves to a real file (always on). reachable: every tracked doc is reachable by following internal links from a root declared in .governance/reachability.conf (no-op without the config)."
 surface: repo-state
 hook: pre-commit
+judge:
+  inputs: [range-diff]
+  checks:
+    - "A link's visible text honestly describes what the target document actually contains, not a stale description left over from a moved or renamed doc."
+    - "A `reachable` waiver or `exclude` line genuinely applies to a doc that should stay unlinked (a changelog, a generated doc), not to a doc that should be discoverable but was simply never linked."
+    - "A `resolve` line-level waiver's reason genuinely describes a placeholder or syntax-demonstrating link, not a real broken reference left uncorrected."
+  group: bundled-intent

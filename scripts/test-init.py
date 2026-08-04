@@ -281,30 +281,35 @@ def test_init_apply_refuses_collision() -> None:
 
 
 def _write_sweep_pack(base: Path, pack_id: str = "acme/shape", did: str = "no-shims") -> Path:
+    """A sweep-only discovery source pack (issue #355): a `judge:` block with
+    `sink: none` — no commit-lane gate, no check.sh — judged only by the at-rest
+    sweep driver against the range diff."""
     pack = base / "shape"
     ddir = pack / "directives" / did
     (ddir / "evals").mkdir(parents=True)
     (pack / "pack.yaml").write_text(
         f"id: {pack_id}\nname: Shape\nversion: \"0.1\"\nmin_governance_kit: \"0.0.1\"\n"
         "description: test\nauthor: acme\nsource: gh\n")
-    # surface: sweep ⇒ triage.sh, not check.sh; engine: llm; model_tier pinned.
     (ddir / "directive.yaml").write_text(
         "category: ArchitecturalShape\nrecommended: false\nsummary: no shims.\n"
-        "surface: sweep\nhook: none\nengine: llm\nmodel_tier: high\n")
-    (ddir / "triage.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
+        "surface: repo-state\nhook: none\n"
+        "judge:\n  inputs: [range-diff]\n  checks:\n    - no shims\n"
+        "  sink: none\n  tiers: { sweep: high }\n")
     (ddir / "constitution.md").write_text(
         f"### {did}\n\n- **Directive**: no shims.\n"
-        f"- **Enforced by**: `.governance/packs/{pack_id}/directives/{did}/triage.sh`\n")
+        f"- **Enforced by**: the at-rest sweep driver `.governance/sweep.sh`, "
+        f"re-adjudicating the `judge:` block declared in "
+        f".governance/packs/{pack_id}/directives/{did}/directive.yaml\n")
     (ddir / "evals" / "test.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
-    (ddir / "triage.sh").chmod(0o755)
     (ddir / "evals" / "test.sh").chmod(0o755)
     return pack
 
 
 def test_init_apply_vendors_sweep_lane() -> None:
-    # issue #142: selecting a `surface: sweep` directive lays down the scheduled
-    # workflow + the vendored engine, both recorded as seeded assets so uninstall
-    # removes them. A non-sweep install must NOT carry them.
+    # issue #142 (harness-pegged per #355): selecting a directive with a live
+    # sweep tier lays down the scheduled workflow + the at-rest driver, both
+    # recorded as seeded assets so uninstall removes them. A non-sweep install
+    # must NOT carry them.
     with tempfile.TemporaryDirectory() as tmp:
         src = _write_sweep_pack(Path(tmp) / "src")
         root = _fresh_repo(Path(tmp) / "repo")
@@ -315,20 +320,20 @@ def test_init_apply_vendors_sweep_lane() -> None:
         rc, report = init_apply_cli(root, d)
         assert rc == 0 and report["result"] == "applied", report
         wf = root / ".github/workflows/governance-sweep.yml"
-        eng = root / ".governance/sweep.py"
+        drv = root / ".governance/sweep.sh"
         assert wf.is_file() and "kit-version=" in wf.read_text().splitlines()[0]
-        assert eng.is_file() and "kit-version=" in eng.read_text().splitlines()[1]
-        assert os.access(eng, os.X_OK)
+        assert drv.is_file() and "kit-version=" in drv.read_text().splitlines()[1]
+        assert os.access(drv, os.X_OK)
         assert ".github/workflows/governance-sweep.yml" in report["seeded_assets"]
-        assert ".governance/sweep.py" in report["seeded_assets"]
+        assert ".governance/sweep.sh" in report["seeded_assets"]
         ledger = (root / ".governance/install.yaml").read_text()
-        assert ".governance/sweep.py" in ledger
-        # issue #259: the vendored sweep engine + its workflow are now first-class
+        assert ".governance/sweep.sh" in ledger
+        # issue #259: the vendored sweep driver + its workflow are now first-class
         # managed runtime files — recorded in `managed_digests:` (a two-space
         # `  <relpath>: <sha>` row, distinct from the dashed `install_assets_seeded`
         # ledger row) so a hand-edit is caught offline by managed-tree-integrity,
         # exactly like run.sh/lib.sh.
-        assert "\n  .governance/sweep.py: " in ledger, ledger
+        assert "\n  .governance/sweep.sh: " in ledger, ledger
         assert "\n  .github/workflows/governance-sweep.yml: " in ledger, ledger
 
     # A plain (non-sweep) install must not vendor the sweep lane.
@@ -338,7 +343,7 @@ def test_init_apply_vendors_sweep_lane() -> None:
         rc, report = init_apply_cli(root, _decisions(src))
         assert rc == 0, report
         assert not (root / ".github/workflows/governance-sweep.yml").exists()
-        assert not (root / ".governance/sweep.py").exists()
+        assert not (root / ".governance/sweep.sh").exists()
 
 
 def test_init_apply_seeds_the_runtime_adapter_registry() -> None:

@@ -9,17 +9,16 @@ hook: pre-commit
 # it is folded into a fresh-context sub-agent attestation instead of an in-hook
 # `claude -p` classifier (which polluted the transcript dir and made the commit
 # hook non-deterministic / online). Declared once here; check.sh gates it via
-# subagent_attest, and the shared orchestrator batches it (isolation: shared)
+# judge_attest, and the shared orchestrator batches it (group: bundled-intent)
 # with receipt-per-issue's `## Audit` into one sub-agent per commit — handed the
 # transcript, the sub-agent records every steering event AND renders the verdict.
-subagent:
+judge:
   inputs:  [transcript, receipt]
   checks:
     - "every human-steering event in the session transcript (an interrupt, or a user message that redirects/corrects the agent mid-task) is recorded as a row in this receipt's '### Steering' table under '## Accounting' — append rows with `bash .governance/packs/governance-kit/audit/directives/agent-steering-accounting/lib/steering.sh append-row <receipt> <steer-key> <session> <issue> <type> <tier> <user-reason> <commit> <ordinal> <timestamp>` (type ∈ interrupt|correction, tier=structural for interrupts / classifier for corrections); see the directive README for the schema"
     - "no non-steering message is recorded as a steering event (tool denials and ordinary task messages are NOT steering)"
-  isolation: shared
+  group: bundled-intent
   section: Steering
-  tiers: { attest: low, sweep: high }
 reads:
   - receipts/*.md
 writes:

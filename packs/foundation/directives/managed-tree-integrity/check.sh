@@ -33,7 +33,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # check below (issue #263) — see the header note in lib/digest.sh's sibling
 # comment and constitution.md for the rationale. The digest check still guards
 # their content fully.
-SWEEP_ASSET_RELPATHS=".github/workflows/governance-sweep.yml .governance/sweep.py"
+SWEEP_ASSET_RELPATHS=".github/workflows/governance-sweep.yml .governance/sweep.sh"
 
 # Waived units (pack/directive ids or runtime relpaths) from the conf overlay,
 # layered on the (empty) pack default. The `${waived[@]+...}` expansion keeps

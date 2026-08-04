@@ -9,6 +9,10 @@
 #                               (grammar, coercion, packs.lock byte parity,
 #                               shipped-corpus walk)
 #   1. test-packctl.py        — packctl.py library + CLI (preset, validation)
+#   1a. test-packctl-validate.py — validate_pack_dir structural matrix (pack/
+#                               directive shape, presets, check.sh/evals)
+#   1b. test-packctl-subagent.py — validate_pack_dir judge.cmd/judge.group
+#                               matrix (issue #355 cmd collapse + batching)
 #   2. test-packverb.py       — packverb.py (refs, capability glob, lockfile, catalog)
 #   2b. test-kitverb.py       — kitverb.py (kit-plan: version delta, manifest
 #                               reconstruction, managed-file inventory/status)
@@ -27,12 +31,13 @@
 #                               SKIP_GOVERNANCE handling
 #   5. test-runtime.sh        — runtime files shipped to consumer repos
 #                               (dot-governance/run.sh + lib.sh)
-#   5a. test-subagent.sh      — lib.sh sub-agent judgment surface: the awk
-#                               `subagent:` reader, the batched remediation
+#   5a. test-subagent.sh      — lib.sh judgment surface: the awk
+#                               `judge:` reader, the batched remediation
 #                               instruction, and the `gate: verdict`
 #                               adjudication gate (log, stamp, ladder)
-#   5b. test-sweep.py         — sweep.py digest-filing contract (ensure the
-#                               governance-sweep label, unlabeled fallback)
+#   5b. test-sweep.sh         — sweep.sh at-rest driver contract (adapter
+#                               resolution, range resolution, digest filing,
+#                               the governance-sweep label, unlabeled fallback)
 #   6. test-schema-split.sh   — install.yaml + packs.lock cross-file invariants
 #                               (no packs[] in install.yaml; every source kind
 #                               recorded in packs.lock with the right fields)
@@ -80,6 +85,10 @@ run_layer "packctl: preset/CLI (Python)" \
 run_layer "packctl: validate_pack_dir matrix (Python)" \
     python3 "$ROOT/scripts/test-packctl-validate.py" \
     || failed_layers+=("test-packctl-validate.py")
+
+run_layer "packctl: validate_pack_dir judge.cmd/group matrix (Python)" \
+    python3 "$ROOT/scripts/test-packctl-subagent.py" \
+    || failed_layers+=("test-packctl-subagent.py")
 
 run_layer "packverb (Python)" \
     python3 "$ROOT/scripts/test-packverb.py" \
@@ -133,9 +142,9 @@ run_layer "sub-agent judgment: declaration reader + adjudication gate (bash)" \
     bash "$ROOT/scripts/test-subagent.sh" \
     || failed_layers+=("test-subagent.sh")
 
-run_layer "sweep engine: digest filing + label ensure (Python)" \
-    python3 "$ROOT/scripts/test-sweep.py" \
-    || failed_layers+=("test-sweep.py")
+run_layer "sweep driver: adapter resolution + digest filing + label ensure (bash)" \
+    bash "$ROOT/scripts/test-sweep.sh" \
+    || failed_layers+=("test-sweep.sh")
 
 run_layer "schema split: install.yaml + packs.lock (bash)" \
     bash "$ROOT/scripts/test-schema-split.sh" \
