@@ -1,41 +1,53 @@
 #!/usr/bin/env bash
-# Shared runtime detection + native-cost resolution for agent-token-accounting.
-# Sourced by hooks/pre-commit.sh (the write path) and check.sh (runtime
-# detection before commit-time endpoint reconciliation).
+# Identity detection + kit-owned artifact locations for agent-token-accounting.
 #
-# The writer reads the runtime's own reported usage and freezes that coordinate
-# under a staged-tree endpoint. The checker calls this only to decide whether an
-# agent runtime is active; it then verifies the staged receipt row against the
-# frozen endpoint rather than a moving live transcript.
+# The split this file exists to enforce (issue #355): **identity at commit,
+# measurement at rest.** A pre-commit hook is the worst possible measurement
+# point — synchronous, blocking, unretryable, and racing a session whose cost
+# is not even final yet. But *identity* is cheap and only knowable there: the
+# harness announces itself in the environment. So the commit path resolves WHO
+# is committing and nothing else. It never opens a harness file, never parses a
+# transcript, never does arithmetic on tokens.
 #
-# resolve_runtime_cumulative
-#   Detects the active agent runtime from the environment and asks its adapter
-#   for the session's cumulative counters. On success sets the globals:
-#     RUNTIME SESSION_ID CUM_INPUT CUM_CACHE_CREATE CUM_CACHE_READ CUM_OUTPUT
-#     MODEL COST_USD
-#   COST_USD is the harness-reported dollar figure VERBATIM, or the literal `-`
-#   when the harness reports none. The kit never prices (issue #355) — a `-`
-#   becomes an empty cost cell, never an estimate, and never blocks a commit.
+# The second half of the rule is just as hard: **the kit never guesses
+# identity.** Every "newest file wins" / mtime heuristic is gone. No identity
+# means no session, which means no numbers — the row says `-` and `unresolved`
+# and a later resolve sweep fills it in. A guessed session id is worse than a
+# blank one: it silently bills one agent's spend to another.
+#
+# detect_runtime_identity
+#   Sets the globals RUNTIME, SESSION_ID and DECLARED from the environment,
+#   falling back to the kit-owned identity file (below) only when no env signal
+#   matched. SESSION_ID is the literal `-` when the harness is present but does
+#   not name its session. DECLARED is a harness-handed absolute path, or empty.
 #   Return codes:
-#     0 — runtime detected, usage resolved
-#     1 — no agent runtime detected (a human / manual-git commit; caller no-ops)
-#     2 — runtime detected but its adapter could not read the session
+#     0 — an agent runtime is present (RUNTIME set)
+#     1 — no agent runtime (a human / plain-git commit; every caller no-ops)
+#   There is no "unreadable" return code any more: reading a harness surface is
+#   not this file's job, so it has nothing to fail at.
 #
-# Detection mirrors the historical pre-commit contract:
-#   AGENT_NAME set            → manual   (explicit AGENT_SESSION_ID / AGENT_CUM_*
-#                                         / AGENT_MODEL / AGENT_COST_USD)
-#   CLAUDECODE=1              → claude-code
-#   CODEX_THREAD_ID or CODEX_TRANSCRIPT_PATH set → codex
+# Kit-owned artifacts, both under the per-worktree git dir (a worktree is the
+# natural session-disambiguation boundary — two worktrees never collide):
 #
-# Adapters are KIT-level, not pack-level (issue #355): one registry at
-# `.governance/runtimes/<runtime>.sh`, shared by this directive's `cost` verb and
-# lib.sh's `judge` verb, because "which harness am I talking to" is one fact
-# about the repo, not a per-directive one. Each adapter answers `cost` with
-#   <session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output> <model> <cost_usd>
-# Stdlib bash; Bash 3.2 compatible (macOS /bin/bash). No python.
+#   <git-dir>/governance/session-identity
+#       Flat `key=value` written by wired harness hooks (SessionStart and
+#       friends) or by an adapter's `emit` verb: harness=, session=,
+#       declared=, epoch=. Last writer wins. Optional — env detection works
+#       without it, and it is how a harness that exports nothing (grok) still
+#       gets identified. Trusted only while it is younger than
+#       COSTS_IDENTITY_MAX_AGE_HOURS.
+#
+#   <git-dir>/governance/costs/<harness>-<session>
+#       The snapshot sidecar: APPEND-only, one snapshot per line,
+#       `v1 <epoch> <input> <cache_create> <cache_read> <output> <model>
+#        <cost_usd|-> <source>`. Written off the commit path by adapter `emit`
+#       (live push) and adapter `resolve` (pull); read by the pre-commit stamp
+#       step. Numbers are the harness's own session-cumulatives, never deltas.
+#
+# Stdlib bash, Bash 3.2 compatible (macOS /bin/bash). No python anywhere.
 
 # _runtime_adapter_dir
-#   Where the adapter registry lives, in resolution order:
+#   Where the kit-level adapter registry lives, in resolution order:
 #     1. GOVERNANCE_RUNTIMES_DIR   — explicit override (tests, unusual layouts)
 #     2. $GOVERNANCE_ROOT/runtimes — when the runner exports a governance root
 #     3. <repo>/.governance/runtimes — the installed location
@@ -52,72 +64,189 @@ _runtime_adapter_dir() {
         "${root:+$root/.governance/runtimes}" \
         "$here/../../../../../kit/assets/dot-governance/runtimes"
     do
-        [[ -n "$cand" && -d "$cand" ]] || continue
+        [ -n "$cand" ] && [ -d "$cand" ] || continue
         (cd "$cand" && pwd) && return 0
     done
     return 1
 }
 
-resolve_runtime_cumulative() {
-    local runtimes out
-    runtimes="$(_runtime_adapter_dir)" || runtimes=""
+# adapter_for <runtime>  → the adapter path, or nothing (return 1).
+#   Adapters are invoked as `bash <adapter> <verb>`, never executed directly:
+#   the registry is a copied tree and a lost exec bit must not silently
+#   disable accounting.
+adapter_for() {
+    local dir
+    dir="$(_runtime_adapter_dir)" || return 1
+    [ -f "$dir/$1.sh" ] || return 1
+    printf '%s\n' "$dir/$1.sh"
+}
 
-    RUNTIME=""
-    SESSION_ID=""
-    CUM_INPUT=0
-    CUM_CACHE_CREATE=0
-    CUM_CACHE_READ=0
-    CUM_OUTPUT=0
-    MODEL=""
-    COST_USD="-"
-
-    if [[ -n "${AGENT_NAME:-}" ]]; then
-        RUNTIME="manual"
-    elif [[ "${CLAUDECODE:-}" == "1" ]]; then
-        RUNTIME="claude-code"
-    elif [[ -n "${CODEX_THREAD_ID:-}" || -n "${CODEX_TRANSCRIPT_PATH:-}" ]]; then
-        RUNTIME="codex"
-    fi
-
-    [[ -z "$RUNTIME" ]] && return 1
-
-    local adapter=""
-    [[ -n "$runtimes" && -f "$runtimes/$RUNTIME.sh" ]] && adapter="$runtimes/$RUNTIME.sh"
-
-    if [[ -n "$adapter" ]]; then
-        # `bash <adapter>` rather than executing it directly: the registry is a
-        # copied tree, and a lost exec bit must not silently disable accounting.
-        out="$(bash "$adapter" cost)" || return 2
-        read -r SESSION_ID CUM_INPUT CUM_CACHE_CREATE CUM_CACHE_READ \
-                CUM_OUTPUT MODEL COST_USD <<<"$out"
-    elif [[ "$RUNTIME" == "manual" ]]; then
-        # No registry on disk (a consumed tree from before the adapters were
-        # kit-level): the manual seam is pure environment, so read it inline
-        # rather than losing the escape hatch. `manual.sh cost` is byte-for-byte
-        # this logic — the two are pinned together by the directive's evals.
-        [[ -n "${AGENT_SESSION_ID:-}" && -n "${AGENT_CUM_INPUT:-}" && -n "${AGENT_CUM_OUTPUT:-}" ]] || return 2
-        SESSION_ID="$AGENT_SESSION_ID"
-        CUM_INPUT="$AGENT_CUM_INPUT"
-        CUM_CACHE_CREATE="${AGENT_CUM_CACHE_CREATE:-0}"
-        CUM_CACHE_READ="${AGENT_CUM_CACHE_READ:-0}"
-        CUM_OUTPUT="$AGENT_CUM_OUTPUT"
-        MODEL="${AGENT_MODEL:-unknown}"
-        COST_USD="${AGENT_COST_USD:--}"
-    else
-        return 2
-    fi
-
-    MODEL="${MODEL:-unknown}"
-    COST_USD="${COST_USD:--}"
-
-    # Cumulative counters must be non-negative integers.
-    local var val
-    for var in CUM_INPUT CUM_CACHE_CREATE CUM_CACHE_READ CUM_OUTPUT; do
-        val="${!var}"
-        [[ "$val" =~ ^[0-9]+$ ]] || return 2
+# adapter_names  → every registered adapter name, one per line.
+adapter_names() {
+    local dir f
+    dir="$(_runtime_adapter_dir)" || return 0
+    for f in "$dir"/*.sh; do
+        [ -f "$f" ] || continue
+        f="$(basename "$f")"
+        printf '%s\n' "${f%.sh}"
     done
-    # A reported cost is passed through verbatim; anything that is not a plain
-    # decimal degrades to `-` (an unreported cost), never to a guess.
-    [[ "$COST_USD" =~ ^[0-9]+(\.[0-9]+)?$ ]] || COST_USD="-"
+}
+
+# _gov_git_dir  → the absolute per-worktree git dir.
+_gov_git_dir() {
+    local d
+    d="$(git rev-parse --absolute-git-dir 2>/dev/null)" && [ -n "$d" ] && {
+        printf '%s\n' "$d"
+        return 0
+    }
+    d="$(git rev-parse --git-dir 2>/dev/null)" || return 1
+    case "$d" in
+        /*) printf '%s\n' "$d" ;;
+        *)  printf '%s/%s\n' "$(pwd)" "$d" ;;
+    esac
+}
+
+# identity_file  → path to the kit-owned identity file (may not exist).
+identity_file() {
+    local d
+    d="$(_gov_git_dir)" || return 1
+    printf '%s/governance/session-identity\n' "$d"
+}
+
+# identity_get <key>  → the value of a flat `key=value` row, or empty.
+identity_get() {
+    local f
+    f="$(identity_file)" || return 0
+    [ -f "$f" ] || return 0
+    IDENTITY_KEY="$1" awk '
+BEGIN { k = ENVIRON["IDENTITY_KEY"] }
+index($0, k "=") == 1 { print substr($0, length(k) + 2); exit }
+' "$f"
+}
+
+# _identity_max_age_hours
+#   The identity-file trust window. Resolved through the standard conf ladder
+#   (env GOVERNANCE_COSTS_IDENTITY_MAX_AGE_HOURS > user overlay > the
+#   pack-owned defaults.conf row) when lib.sh is in scope; check.sh and both
+#   hook helpers source it, so it always is in a real install. An
+#   unresolvable / non-numeric window returns 1 and the identity-file fallback
+#   is skipped entirely — fail-safe in the direction of "no identity", never
+#   toward a guessed one.
+_identity_max_age_hours() {
+    local defaults value=""
+    defaults="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/defaults.conf"
+    if declare -F conf_get >/dev/null 2>&1; then
+        value="$(conf_get agent-token-accounting COSTS_IDENTITY_MAX_AGE_HOURS "$defaults")" || value=""
+    else
+        value="$(grep -E '^COSTS_IDENTITY_MAX_AGE_HOURS=' "$defaults" 2>/dev/null | head -n 1)"
+        value="${value#*=}"
+    fi
+    case "$value" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    printf '%s\n' "$value"
+}
+
+# _identity_fresh  → 0 when the identity file exists and is inside the trust
+#   window. A file with no parseable `epoch=` is never fresh.
+_identity_fresh() {
+    local f epoch max now
+    f="$(identity_file)" || return 1
+    [ -f "$f" ] || return 1
+    epoch="$(identity_get epoch)"
+    case "$epoch" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    max="$(_identity_max_age_hours)" || return 1
+    now="$(date +%s)"
+    [ $(( now - epoch )) -lt $(( max * 3600 )) ]
+}
+
+# _sidecar_safe <text>  → a filesystem-safe path component.
+_sidecar_safe() {
+    printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '_'
+}
+
+# sidecar_dir  → the kit-owned snapshot sidecar directory (may not exist).
+sidecar_dir() {
+    local d
+    d="$(_gov_git_dir)" || return 1
+    printf '%s/governance/costs\n' "$d"
+}
+
+# sidecar_file <harness> <session>  → the session's sidecar path.
+sidecar_file() {
+    local d
+    d="$(sidecar_dir)" || return 1
+    printf '%s/%s-%s\n' "$d" "$(_sidecar_safe "$1")" "$(_sidecar_safe "$2")"
+}
+
+# sidecar_last <harness> <session>  → the sidecar's last raw snapshot line.
+#   The chronological tail. The *authoritative* snapshot is the one
+#   `costs_fold_snapshot` (lib/costs.sh) picks, which prefers a full-token
+#   `session-file` / `server` reading over a same-or-newer `harness-feed` push.
+sidecar_last() {
+    local f
+    f="$(sidecar_file "$1" "$2")" || return 0
+    [ -f "$f" ] || return 0
+    tail -n 1 "$f"
+}
+
+# detect_runtime_identity  → sets RUNTIME / SESSION_ID / DECLARED. See header.
+detect_runtime_identity() {
+    RUNTIME=""
+    SESSION_ID="-"
+    DECLARED=""
+
+    local id_harness="" id_session="" id_declared=""
+    if _identity_fresh; then
+        id_harness="$(identity_get harness)"
+        id_session="$(identity_get session)"
+        id_declared="$(identity_get declared)"
+    fi
+
+    if [ -n "${AGENT_NAME:-}" ]; then
+        RUNTIME="manual"
+        SESSION_ID="${AGENT_SESSION_ID:-manual}"
+    elif [ "${CLAUDECODE:-}" = "1" ]; then
+        RUNTIME="claude-code"
+        SESSION_ID="${CLAUDE_CODE_SESSION_ID:--}"
+        DECLARED="${CLAUDE_TRANSCRIPT_PATH:-}"
+    elif [ -n "${CODEX_THREAD_ID:-}" ] || [ -n "${CODEX_TRANSCRIPT_PATH:-}" ]; then
+        RUNTIME="codex"
+        SESSION_ID="${CODEX_THREAD_ID:--}"
+        DECLARED="${CODEX_TRANSCRIPT_PATH:-}"
+    elif [ "${PI_CODING_AGENT:-}" = "true" ] || [ -n "${PI_SESSION_ID:-}" ]; then
+        RUNTIME="pi"
+        SESSION_ID="${PI_SESSION_ID:--}"
+        DECLARED="${PI_SESSION_FILE:-}"
+    elif [ "${CURSOR_AGENT:-}" = "1" ]; then
+        RUNTIME="cursor-agent"
+    elif [ "${OPENCODE:-}" = "1" ] || [ -n "${OPENCODE_SERVER:-}" ]; then
+        RUNTIME="opencode"
+        SESSION_ID="${OPENCODE_SESSION_ID:--}"
+    elif [ -n "$id_harness" ]; then
+        # No env signal at all, but a wired harness hook left a fresh identity
+        # file. This is the seam that identifies a harness which exports
+        # nothing to its child processes.
+        RUNTIME="$id_harness"
+        SESSION_ID="${id_session:--}"
+        DECLARED="$id_declared"
+    fi
+
+    [ -n "$RUNTIME" ] || return 1
+
+    # Env identity beats the identity file — except that the file may fill a
+    # session (or a declared path) the environment left blank, and only when it
+    # names the same harness.
+    if [ "$id_harness" = "$RUNTIME" ]; then
+        if [ "$SESSION_ID" = "-" ] && [ -n "$id_session" ]; then
+            SESSION_ID="$id_session"
+        fi
+        if [ -z "$DECLARED" ] && [ -n "$id_declared" ]; then
+            DECLARED="$id_declared"
+        fi
+    fi
+    [ -n "$SESSION_ID" ] || SESSION_ID="-"
     return 0
 }

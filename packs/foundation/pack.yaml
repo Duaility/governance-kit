@@ -33,7 +33,4 @@ presets:
     directives: []
   strict:
     extends: standard
-    directives:
-      - no-commit-path-python
-      - stdlib-only-python
-      - no-package-manager
+    directives: []

@@ -1,6 +1,0 @@
-### no-package-manager
-
-- **Directive**: No non-comment line in a tracked `.sh` / `.py` / `.yml` file under `.governance/`, nor in any `.githooks/*` dispatcher, invokes `uv`, `pip`/`pipx`, `npx`, `pnpm dlx`, or `yarn dlx`.
-- **Rationale**: Issue #355 locks the product's dependency posture: nothing in governance-kit's own machinery ever needs a package manager. The commit path runs on bash + git (`no-commit-path-python`) and the kit's own tooling runs on a bare `python3` (`stdlib-only-python`); reaching for `uv run --with X` or `npx X` to route around either rule defeats the posture as surely as a raw third-party import would — it's still a package manager doing an install at commit/run time, with all the same offline and drift failure modes.
-- **Enforced by**: `.governance/packs/governance-kit/foundation/directives/no-package-manager/check.sh` (runs in `pre-commit`).
-- **Exceptions**: Path-glob waivers live in the sibling `defaults.conf` (empty by default) layered with the user overlay `.governance/conf/governance-kit/foundation/no-package-manager.conf` — a bare line exempts a path from the scan, `!<path-glob>` un-exempts one of the (currently empty) shipped defaults. Use this for a knowingly-opted-out community pack, never to launder a new violation. Marked `recommended: false` and shipped only in the `strict` preset.

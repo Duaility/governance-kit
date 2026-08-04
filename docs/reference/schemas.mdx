@@ -38,6 +38,8 @@ agents_md_snippet: true          # true when the marker-bounded block was insert
 agents_md_created: false         # true only when bootstrap Step 4b Case 2 ran (stub)
 install_assets_seeded:           # files seeded by directives' install-assets/
   - QUALITY.md
+emitters_wired:                  # harnesses whose emitter config line init wrote (issue #355)
+  - claude-code
 # NOTE: the accounting directives (agent-token-accounting / agent-steering-accounting)
 # seed no ledger file — they create the issue's receipt on demand at first commit
 # rather than seeding COSTS.md/STEERING.md, so neither appears here.
@@ -75,6 +77,7 @@ Notes on the emitted shape:
 - `collisions[*]` uses a flat `extra` field, not named `backup_path` / `userhook_path` sub-fields. Interpret `extra` based on `resolution`: `wrap` ⇒ userhook sibling path; `overwrite` ⇒ `.pre-governance.bak` backup path; `skip` ⇒ no extra.
 - Keys appear in the emitter's fixed order (metadata → flags → `install_assets_seeded` → `collisions` → optional `path_b`). Do not rely on order when parsing, but **do** preserve it when regenerating fixtures — byte-diffs matter for the eval harness.
 - The `packs:` block from v2 is gone. Pack pin state — id, version, source, ref, sha, directives — lives in `.governance/packs.lock`. See [LOCK_SCHEMA.md](/reference/schemas).
+- `emitters_wired` is a list of harness names (`claude-code`, `codex`, …) whose **emitter** — a config line in that harness's own settings pointing at `.governance/runtimes/<harness>.sh emit` — `init` wrote at the operator's request (issue #355; see [INIT_FLOW.md](https://github.com/Duaility/governance-kit/blob/main/kit/references/INIT_FLOW.md#step-6b--wire-the-accounting-emitter-offered-optional)). This is offered, never automatic, and orthogonal to whether `agent-token-accounting` itself is installed — the directive works with no emitter wired, just with a slower first snapshot. Absent or empty when nothing was wired. List form.
 
 ### Fields uninstall relies on
 
@@ -92,6 +95,7 @@ Notes on the emitted shape:
 | `enable_governance_script` | **Legacy only.** Pre-#267 installs vendored `scripts/enable-governance.sh` and recorded its path here; uninstall still deletes it when the field is present. New installs never write this field — enablement is kit-owned (the verb sets `core.hooksPath` itself). |
 | `path_b.framework` / `path_b.entries` | Which framework config to edit instead of `.githooks/`, and which entries to remove. |
 | `collisions[*]` | Which hooks came from Path A wrap/overwrite resolution; drives *restore wrap* and *delete with backup* offers. |
+| `emitters_wired` | Harnesses whose emitter config line `uninstall` should offer to remove from that harness's own settings (issue #355). Empty or absent means nothing to reverse. |
 
 The list of installed pack/directive folders comes from [`packs.lock`](/reference/schemas), not this file. Fields not listed here are reserved for future use; uninstall ignores them.
 

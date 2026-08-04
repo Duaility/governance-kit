@@ -324,7 +324,8 @@ After injecting, run `bash .governance/run.sh` once so the user sees whether the
 (the entrypoint — discovers and runs every `directives/<id>/check.sh`),
 `lib.sh` → `.governance/lib.sh` (shared pass/fail/skip + `tracked_files`
 helpers), and `runtimes/*.sh` → `.governance/runtimes/*.sh` (the kit-level
-executor adapters — `cost`/`judge` verbs per harness, issue #355), makes them
+executor adapters — `judge` for sub-agent attestation and `resolve`/`emit` for
+off-commit-path accounting measurement, per harness, issue #355), makes them
 executable, and stamps each with the per-file version pin
 (`# governance-kit:managed kit-version=<v>`, byte-stable, no wall-clock date) —
 the pin `governance kit update` reads to detect drift, mirrored by
@@ -389,6 +390,33 @@ In this path:
 - Record each materialized hook file under `path_b.entries` with its fingerprint so `governance uninstall` and `governance reset` can recognize the kit's output.
 - Tell the user explicitly that the repo is using its existing tracked hook framework instead of `.githooks/`, and that populator coverage (token-accounting, steering-accounting) now matches Path A.
 
+### Step 6b — Wire the accounting emitter (offered, optional)
+
+If `agent-token-accounting` was installed, offer to wire its **emitter**: one
+config line in the operator's own harness settings that routes a push payload
+the harness already exposes (a statusline hook, a session-event hook, …) into
+`.governance/runtimes/<harness>.sh emit`, so the accounting sidecar picks up
+live snapshots instead of waiting for the first `post-commit`/`pre-push`
+`resolve` sweep. This is **optional and additive** — the identity ladder plus
+the `resolve` sweep already cover accounting end to end; wiring the emitter
+only shortens the delay before a running session's numbers show up in the
+receipt.
+
+1. Detect the harness `init` is running under the same way
+   `agent-token-accounting`'s pre-commit hook does (env markers, then the
+   identity file). Ask the operator once: wire the emitter for this harness,
+   or skip.
+2. If accepted, add the one config line that harness's own
+   `.governance/runtimes/<harness>.sh` header comment documents (the exact
+   settings file and hook shape vary per harness — this is not templated by
+   `init`, only pointed to). Never edit harness settings without asking first;
+   that file commonly lives outside this repo's own tracked tree.
+3. Record the harness under `emitters_wired` in `.governance/install.yaml`
+   (see [INSTALL_SCHEMA.md](INSTALL_SCHEMA.md)) so `governance uninstall` can
+   offer to remove exactly that line later.
+4. Skipping leaves accounting fully functional; say so explicitly so the
+   operator doesn't read the skip as a gap.
+
 ### Step 7 — The CI workflow (installed by `init-apply`)
 
 `init-apply` copies `../assets/governance.yml` → `.github/workflows/governance.yml`
@@ -434,12 +462,12 @@ git commit -m "feat(governance): bootstrap governance-driven development (#<N>)"
 
 What happens on this commit:
 
-- **`hooks/pre-commit.sh` populators** fire normally. `agent-token-accounting` reads the active session transcript via `lib/runtime.sh` → `runtimes/<runtime>.sh`, resolves the bootstrap issue number, and appends the matching cost row (with its absolute `cum-*` coordinates) to that issue's receipt (`receipts/issue-<N>.md`, under `## Accounting` — creating the receipt with just that section if absent). `agent-steering-accounting` does the same for any steering rows. There are no commit trailers to stamp (issue #293 retired them).
-- **`commit-msg` validators** all pass — the tree is clean (Step 8) and the receipt is in place (Step 8.2). `agent-token-accounting` reconciles the receipt's recorded cumulative against the transcript (equal by construction, since the pre-commit hook just wrote the row); `agent-steering-accounting` validates the ledger shape.
+- **`hooks/pre-commit.sh` populators** fire normally. `agent-token-accounting` detects the active harness from the environment alone (`lib/runtime.sh` — never a harness file, never a transcript), resolves the bootstrap issue number, and stamps/folds a v6 cost row (`date`, `harness`, `session`, `model`, `input`, `cache-create`, `cache-read`, `output`, `cost-usd`, `source`) into that issue's receipt (`receipts/issue-<N>.md`, under `## Accounting` — creating the receipt with just that section if absent). Numbers come from the kit-owned snapshot sidecar's last known value for that session, or the row records `unresolved` when no snapshot exists yet — measurement catches up off the commit path via `post-commit`/`pre-push`. `agent-steering-accounting` does the same for any steering rows. There are no commit trailers to stamp (issue #293 retired them).
+- **`commit-msg` validators** all pass — the tree is clean (Step 8) and the receipt is in place (Step 8.2). `agent-token-accounting` checks that the staged receipt carries a v6 row for the detected harness+session — identity and row format only, since the pre-commit hook just wrote it and numbers are never re-derived or compared for equality; `agent-steering-accounting` validates the ledger shape.
 
-The install commit lands with a **real cost row in the bootstrap issue's receipt**, reconciled against the transcript — the directives are satisfied with data, not with exemptions, and no trailers are stamped onto the message.
+The install commit lands with an **identity-stamped cost row in the bootstrap issue's receipt** — numbers filled in when already known, honestly `unresolved` otherwise — the directives are satisfied with identity truth, not with exemptions, and no trailers are stamped onto the message.
 
-**Runtime not detected.** If `init` was invoked from a shell with no `CLAUDECODE` / `CODEX_THREAD_ID` / `CODEX_TRANSCRIPT_PATH` (etc.), the token-accounting populator can't read a transcript and writes no row — and the commit-msg endpoint reconciliation no-ops too (no runtime, nothing to reconcile), so the install commit passes with **no waiver needed**. The steering side likewise no-ops. The accounting simply records nothing for a non-agent bootstrap commit, which is correct.
+**Runtime not detected.** If `init` was invoked from a shell with no harness env markers (`CLAUDECODE`, `CODEX_THREAD_ID`, `PI_CODING_AGENT`, `CURSOR_AGENT`, `OPENCODE`, etc.) and no identity file, the token-accounting populator can't detect an identity and writes no row — and the commit-msg identity check no-ops too (no runtime, nothing to check), so the install commit passes with **no waiver needed**. The steering side likewise no-ops. The accounting simply records nothing for a non-agent bootstrap commit, which is correct.
 
 Print a concise summary:
 
@@ -452,7 +480,7 @@ Print a concise summary:
 - **Findings resolved in Step 8** — every inline fix and every per-file/per-line waiver added, with the reason recorded against it.
 - **Findings escalated** — anything Step 8 could not inline-fix and surfaced to the operator (with the action they need to take).
 - **Resolved kit** (Step 0): the target version and how it resolved (`published-tag` / `explicit` / `cache`).
-- **Detected runtime** at commit time: `claude-code`, `codex`, or `none`. If `none`, mention the body waiver that was applied.
+- **Detected runtime** at commit time: the detected harness (`claude-code` / `codex` / `pi` / `grok` / `cursor-agent` / `opencode` / `manual`) or `none`. If `none`, mention the body waiver that was applied.
 - **Install commit SHA** that just landed.
 - How to run locally: `bash .governance/run.sh`.
 - How to skip in an emergency: `SKIP_GOVERNANCE=1 git commit ...` or `git commit --no-verify`. (Not for the install commit — that's what Step 8 is for. Emergencies only.)
@@ -472,7 +500,7 @@ Every successful `install` run should leave the user with a summary that include
 - `Hook collisions:` the resolution chosen for each pre-existing unmarked hook, or `none`.
 - `Findings resolved:` every inline fix or waiver added in Step 8, with reason.
 - `Findings escalated:` anything Step 8 could not inline-fix, with the action the operator needs to take, or `none`.
-- `Detected runtime:` `claude-code` / `codex` / `none`. If `none` and audit-chain directives were installed, mention the unsupported-runtime waiver applied to the install commit.
+- `Detected runtime:` the detected harness (`claude-code` / `codex` / `pi` / `grok` / `cursor-agent` / `opencode` / `manual`) or `none`. If `none` and audit-chain directives were installed, mention the unsupported-runtime waiver applied to the install commit.
 - `Install commit:` SHA of the commit Step 9 just landed.
 - `Assumptions:` any material assumptions, or `none`.
 - `Next command:` `bash .governance/run.sh`
@@ -487,7 +515,7 @@ Every successful `install` run should leave the user with a summary that include
 - **Preset semantics are union, not fallback.** If a pack lacks the selected preset, it contributes nothing for that preset.
 - **Escape hatches are a feature, not a bug.** `SKIP_GOVERNANCE=1` exists because governance that blocks emergency hotfixes will get ripped out. CI enforces the directive even when the hook is skipped, which is the right layering.
 - **The install commit passes validators on the first try.** Step 8 dry-runs every directive against the staged tree and inline-fixes findings (or escalates them); Step 9 commits through normal hooks. `SKIP_GOVERNANCE` is not a bootstrap tool — using it on the install commit skips the populators too, which leaves the audit chain unsatisfiable for that commit forever. Inline-fix is the contract; bypass is the emergency exit.
-- **No bootstrap exemption in directive `check.sh` files.** If a directive needs an install-commit accommodation, that's a flow gap in Step 8 — fix the flow, not the directive. The one body-level waiver this PR keeps (`allow-agent-token-accounting unsupported-runtime: <reason>`) is for subsequent commits with no `runtimes/<name>.sh` adapter, not a bootstrap workaround.
+- **No bootstrap exemption in directive `check.sh` files.** If a directive needs an install-commit accommodation, that's a flow gap in Step 8 — fix the flow, not the directive. The one body-level waiver this PR keeps (`governance: allow-agent-token-accounting <reason>`) is for subsequent commits where the detected harness has no matching `runtimes/<name>.sh` adapter, not a bootstrap workaround.
 - **Bash-only at bootstrap; native is post-init.** Governance is a meta-layer over the project's code, so the directive suite must not depend on the project's own toolchain. `init` only installs the bash runner. Native test wrappers (pytest / jest / go test) are an opt-in users add later via [NATIVE_TESTS.md](NATIVE_TESTS.md) — never asked at bootstrap.
 - **Respect the repo's existing hook framework.** `.githooks/` is the default only when no tracked hook framework already exists. Do not force repos off husky or `pre-commit`.
 - **Hook ownership is explicit.** Every generated hook carries a `governance-kit:managed kit-version=<v>` marker on line 2 — the same shape runtime templates use. An unmarked hook at a target path is somebody else's file — prompt before touching it.

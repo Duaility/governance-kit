@@ -1,17 +1,35 @@
 #!/usr/bin/env bash
 # governance-kit:managed kit-version=0.12.0
-# Codex runtime adapter — one file per harness, two verbs (issue #355).
+# Codex runtime adapter — one file per harness, three verbs
+# (issue #355 v2: identity at commit, measurement at rest).
 #
-# Verb interface (argv[1]; a bare invocation defaults to `cost`):
+# Verb interface (argv[1]; a bare invocation prints usage and exits 2):
 #
-#   cost — the harness's OWN reported session usage, one line to stdout:
-#       <session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output> <model> <cost_usd>
+#   resolve <thread-id> [<declared-path>] — OFF the commit path. Prints one
+#     line to stdout:
+#         <input> <cache_create> <cache_read> <output> <model> <cost_usd|-> <source>
+#     or exits 2 when the session cannot be resolved (caller records nothing —
+#     never a guess). IDENTITY-PINNED ONLY: the only rollout file this adapter
+#     will open is (a) the <declared-path> argument, (b) $CODEX_TRANSCRIPT_PATH,
+#     or (c) a file under $CODEX_SESSIONS_DIR / $CODEX_ARCHIVED_SESSIONS_DIR
+#     whose NAME ends with the exact `<thread-id>.jsonl`. No `ls -t`, no
+#     newest-file selection of any kind.
 #
 #     `cost_usd` is the figure the HARNESS reported, verbatim, or the literal
 #     `-` when it reports none. The current Codex stream carries no dollar
 #     figure, so `-` is the normal answer; if a future stream adds
 #     `total_cost_usd` to the token-count payload it is passed through
 #     untouched. The adapter never prices anything (issue #355).
+#
+#   emit — accepts the Codex notify hook's payload, either as argv[1] (a JSON
+#     string) or on stdin, and refreshes the commit-path identity file.
+#     IDENTITY ONLY: this adapter records no sidecar snapshot from `emit` —
+#     the notify payload carries no reliable session-cumulative token or cost
+#     figures, so pushing a snapshot here would risk a `harness-feed` row of
+#     zeros racing ahead of a real `resolve` at fold time. Session id is read
+#     from a documented `thread_id` (or `session_id`) key; silently exits 0
+#     when the payload names no session, or when the payload's `cwd` (or
+#     $PWD) is not inside a git working tree.
 #
 #   judge [<tier>] [<model>] — read a fully-built adjudication prompt on stdin,
 #     run `codex exec` non-interactively, and print exactly:
@@ -23,10 +41,11 @@
 #     outright (the caller's SUBAGENT_MODELS_<TIER> conf value).
 #
 # Exit codes: 0 ok · 2 the runtime is present but its surface is unusable —
-# an unreadable transcript (`cost`), or a missing CLI / transport failure /
-# unparseable answer (`judge`). Exit 2 is never fatal to the caller: the commit
-# lane degrades to the harness (sub-agent) path rather than blocking on a
-# broken side channel.
+# an unreadable transcript (`resolve`), or a missing CLI / transport failure /
+# unparseable answer (`judge`). `emit` never exits 2 — a push that cannot be
+# attributed is simply dropped (exit 0). Exit 2 is never fatal to the caller:
+# the commit lane degrades to the harness (sub-agent) path rather than
+# blocking on a broken side channel.
 #
 # Codex reports OpenAI cached input as a SUBSET of input tokens. The ledger
 # wants lossless split columns, so this adapter records:
@@ -37,11 +56,11 @@
 # adapter uniformly.
 #
 # Environment overrides:
-#   CODEX_TRANSCRIPT_PATH    absolute path to the session JSONL
+#   CODEX_TRANSCRIPT_PATH    absolute path to the session JSONL — also the
+#                            declared-path source `resolve` prefers when the
+#                            caller passed no explicit <declared-path>.
 #   CODEX_SESSIONS_DIR       override ~/.codex/sessions
 #   CODEX_ARCHIVED_SESSIONS_DIR override ~/.codex/archived_sessions
-#   CODEX_THREAD_ID          the live thread/session id (exported into the hook
-#                            env by Codex) — names the transcript.
 #   AGENT_JUDGE_TIMEOUT      seconds to allow the judge CLI (default 120), when
 #                            a `timeout` binary is available.
 #
@@ -51,7 +70,7 @@
 
 set -u
 
-VERB="${1:-cost}"
+VERB="${1:-}"
 
 # Every environment handle that ties a nested CLI run to the CALLING session:
 # the git plumbing a hook exports (which would make the judge operate on the
@@ -116,41 +135,15 @@ do_judge() {
     return 0
 }
 
-case "$VERB" in
-    cost) ;;
-    judge)
-        do_judge "${2:-}" "${3:-}"
-        exit $?
-        ;;
-    *)
-        printf 'codex adapter: unknown verb %s (supported: cost, judge)\n' "$VERB" >&2
-        exit 2
-        ;;
-esac
-
-CODEX_SESSIONS="${CODEX_SESSIONS_DIR:-${HOME}/.codex/sessions}"
-CODEX_ARCHIVED_SESSIONS="${CODEX_ARCHIVED_SESSIONS_DIR:-${HOME}/.codex/archived_sessions}"
-
-TRANSCRIPT="${CODEX_TRANSCRIPT_PATH:-}"
-if [[ -z "$TRANSCRIPT" ]]; then
-    [[ -n "${CODEX_THREAD_ID:-}" ]] || exit 2
-    for dir in "$CODEX_SESSIONS" "$CODEX_ARCHIVED_SESSIONS"; do
-        [[ -d "$dir" ]] || continue
-        TRANSCRIPT="$(find "$dir" -type f -name "*${CODEX_THREAD_ID}.jsonl" -print 2>/dev/null | LC_ALL=C sort | head -n1)"
-        [[ -n "$TRANSCRIPT" ]] && break
-    done
-fi
-
-[[ -z "$TRANSCRIPT" || ! -f "$TRANSCRIPT" ]] && exit 2
-
-# JSONL extraction in POSIX awk (issue #355 — no python on the commit path).
-# The Codex Desktop transcript shape this reads:
+# JSONL extraction in POSIX awk (issue #355 — no python on any path). The
+# Codex rollout transcript shape this reads:
 #   - session_meta.payload.id                                    → session id
 #   - turn_context.payload.collaboration_mode.settings.model     → model
 #   - event_msg.payload.info.total_token_usage                   → cumulative
 # The token lookup is scoped to the `total_token_usage` object, because the same
 # line also carries `last_token_usage` with the per-turn numbers.
-CODEX_ENV_SID="${CODEX_THREAD_ID:-}" awk '
+sum_transcript() {
+    awk '
 function jstr(line, key,   p, rest, e) {
     p = index(line, "\"" key "\":\"")
     if (p == 0) { return "" }
@@ -181,7 +174,7 @@ function jobj(line, key,   p, rest, e) {
     if (e == 0) { return rest }
     return substr(rest, 1, e - 1)
 }
-BEGIN { sid = ENVIRON["CODEX_ENV_SID"]; have_total = 0 }
+BEGIN { have_total = 0 }
 {
     if (sid == "" && index($0, "\"session_meta\"") > 0) {
         v = jstr($0, "id")
@@ -210,6 +203,109 @@ END {
     if (model == "") { model = "unknown" }
     if (!have_total) { t_in = 0; t_cr = 0; t_out = 0 }
     c = have_cost ? sprintf("%.4f", cost) : "-"
-    printf "%s %d 0 %d %d %s %s\n", sid, t_in, t_cr, t_out, model, c
+    printf "%d 0 %d %d %s %s session-file\n", t_in, t_cr, t_out, model, c
 }
-' "$TRANSCRIPT"
+' "$1"
+}
+
+do_resolve() {
+    local thread="${1:-}" declared="${2:-}"
+    [[ -n "$thread" ]] || return 2
+
+    local CODEX_SESSIONS CODEX_ARCHIVED_SESSIONS
+    CODEX_SESSIONS="${CODEX_SESSIONS_DIR:-${HOME}/.codex/sessions}"
+    CODEX_ARCHIVED_SESSIONS="${CODEX_ARCHIVED_SESSIONS_DIR:-${HOME}/.codex/archived_sessions}"
+
+    local transcript="$declared"
+    [[ -z "$transcript" ]] && transcript="${CODEX_TRANSCRIPT_PATH:-}"
+    if [[ -z "$transcript" ]]; then
+        local dir
+        for dir in "$CODEX_SESSIONS" "$CODEX_ARCHIVED_SESSIONS"; do
+            [[ -d "$dir" ]] || continue
+            transcript="$(find "$dir" -type f -name "*${thread}.jsonl" -print 2>/dev/null | LC_ALL=C sort | head -n1)"
+            [[ -n "$transcript" ]] && break
+        done
+    fi
+
+    [[ -n "$transcript" && -f "$transcript" ]] || return 2
+    sum_transcript "$transcript"
+}
+
+# Extract identity fields from a Codex notify-hook payload. Field names are
+# speculative-but-cheap (Codex documents no formal notify schema at the time
+# of writing): a `thread_id` key is preferred, falling back to `session_id`;
+# `cwd` locates the repo the hook fired in.
+parse_notify() {
+    awk '
+function jstr(line, key,   p, rest, e) {
+    p = index(line, "\"" key "\":\"")
+    if (p == 0) { return "" }
+    rest = substr(line, p + length(key) + 4)
+    e = index(rest, "\"")
+    if (e == 0) { return "" }
+    return substr(rest, 1, e - 1)
+}
+{ buf = buf $0 "\n" }
+END {
+    sid = jstr(buf, "thread_id")
+    if (sid == "") { sid = jstr(buf, "session_id") }
+    cwd = jstr(buf, "cwd")
+    printf "%s\t%s\n", sid, cwd
+}
+'
+}
+
+do_emit() {
+    local raw="${1:-}"
+    if [[ -n "$raw" ]]; then
+        # Drain stdin anyway so a caller that also piped JSON doesn't SIGPIPE.
+        cat >/dev/null 2>&1 || true
+    else
+        raw="$(cat)"
+    fi
+    [[ -n "$raw" ]] || return 0
+
+    local parsed session cwd
+    parsed="$(printf '%s\n' "$raw" | parse_notify)"
+    IFS=$'\t' read -r session cwd <<EOF_PARSED
+$parsed
+EOF_PARSED
+    [[ -n "$session" ]] || return 0
+
+    [[ -n "$cwd" ]] || cwd="$PWD"
+    local gitd
+    gitd="$(git -C "$cwd" rev-parse --absolute-git-dir 2>/dev/null)" || return 0
+    [[ -n "$gitd" ]] || return 0
+
+    mkdir -p "$gitd/governance" 2>/dev/null || return 0
+    {
+        printf 'harness=codex\n'
+        printf 'session=%s\n' "$session"
+        printf 'declared=%s\n' "${CODEX_TRANSCRIPT_PATH:-}"
+        printf 'epoch=%s\n' "$(date +%s)"
+    } > "$gitd/governance/session-identity"
+    return 0
+}
+
+case "$VERB" in
+    judge)
+        do_judge "${2:-}" "${3:-}"
+        exit $?
+        ;;
+    resolve)
+        do_resolve "${2:-}" "${3:-}"
+        exit $?
+        ;;
+    emit)
+        do_emit "${2:-}"
+        exit $?
+        ;;
+    "")
+        printf 'codex adapter: usage: codex.sh {resolve <thread-id> [<declared>]|emit|judge [<tier>] [<model>]}\n' >&2
+        exit 2
+        ;;
+    *)
+        printf 'codex adapter: unknown verb %s (supported: resolve, emit, judge)\n' "$VERB" >&2
+        exit 2
+        ;;
+esac

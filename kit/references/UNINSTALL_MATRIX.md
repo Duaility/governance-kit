@@ -25,6 +25,7 @@ Legend:
 | `scripts/enable-governance.sh` (legacy) | pre-#267 install | manifest: `enable_governance_script: scripts/enable-governance.sh` | delete; `rmdir scripts/` only if empty (it often is not) | same |
 | `.governance/install.yaml` | Step 3 (`write_installed_manifest`) | file exists | delete **last** (after it has been read); `rmdir .governance/` if empty | same |
 | `.governance/packs.lock` | Step 3 (`packverb lock-add` per installed pack) | file exists | delete **last** (after it has been read); `rmdir .governance/` if empty | same |
+| Emitter config line in a harness's own settings (outside `.governance/`) | Step 6b (offered — `agent-token-accounting`'s emitter, issue #355) | manifest: `emitters_wired: [<harness>, …]` | offer to remove the wired line only; leave the rest of the harness's settings untouched | same |
 
 ## Hooks (Path A — `.githooks/`)
 

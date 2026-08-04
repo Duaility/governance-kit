@@ -9,9 +9,9 @@ Closes [#355](https://github.com/Duaility/governance-kit/issues/355).
 - [x] Wire the sweep engine to read `subagent:` declarations directly (Phase 2)
 - [x] Add the executor abstraction — harness | cli:<adapter> | api:<provider> (Phase 3)
 - [x] Generalize batching across the commit lane and the sweep engine (Phase 4)
-- [x] Replace the hand-rolled accounting Python with native-cost runtime adapters and Costs schema v5 (Track B)
+- [x] Replace the hand-rolled accounting Python with identity-at-commit / measurement-at-rest accounting — Costs v6, snapshot sidecar, off-path resolver, seven runtime adapters (Track B)
 - [x] Eliminate PyYAML and uv via a restricted-YAML stdlib parser; port managed-tree-integrity to bash (Q11)
-- [x] Ship the dependency-posture directives — no-commit-path-python, stdlib-only-python, no-package-manager (Q11)
+- [x] Ship the dependency-posture directives — no-commit-path-python, stdlib-only-python, no-package-manager — as repo-local self-directives (Q11)
 
 ## What changed
 
@@ -50,12 +50,14 @@ on merits). Legacy `surface: sweep` directives (triage.sh + constitution.md)
 are unchanged.
 
 **Phase 3 — executor abstraction.** A kit-level runtime adapter registry at
-`kit/assets/dot-governance/runtimes/` (claude-code.sh, codex.sh, manual.sh) is
-seeded into consumer repos as `.governance/runtimes/<name>.sh`, managed and
-digest-guarded like lib.sh. Each adapter speaks two verbs: `cost` (emit the
-harness's own reported session usage) and `judge` (read a declaration-built
-prompt on stdin, run the CLI non-interactively, answer `VERDICT: PASS|REFUTED`
-plus `REASON:` lines). `SUBAGENT_EXECUTOR=cli:<adapter>` (conf-resolved,
+`kit/assets/dot-governance/runtimes/` — seven adapters: claude-code, codex,
+pi, grok, cursor-agent, opencode, manual — is seeded into consumer repos as
+`.governance/runtimes/<name>.sh`, managed and digest-guarded like lib.sh.
+Each adapter speaks three verbs: `judge` (read a declaration-built prompt on
+stdin, run the CLI non-interactively, answer `VERDICT: PASS|REFUTED` plus
+`REASON:` lines), `resolve` (report the session's cumulative usage from
+declared surfaces only), and `emit` (accept the harness's own push payload
+and append a snapshot; see Track B). `SUBAGENT_EXECUTOR=cli:<adapter>` (conf-resolved,
 default `harness`) lets a different-vendor CLI adjudicate a verdict gate
 in-hook — separation of duties against shared-model failure modes — with
 per-tier model selection via `SUBAGENT_MODELS_LOW/MEDIUM/HIGH`. Every failure
@@ -71,21 +73,31 @@ sections. The sweep lane retries a failed judgment once before counting it
 un-adjudicated; the commit lane's cli executor does not retry — any failure
 there degrades to the harness remediation loop, which is its recovery path.
 
-**Track B — native-cost accounting.** The audit pack's re-derivation layer is
-deleted: `ledger.py`, `rates.py`, `endpoint.py`, `reconcile.py`, `validate.py`,
-`receipt_io.py`, `argv.py` in agent-token-accounting and `ledger.py` +
-`receipt_io.py` in agent-steering-accounting (~1,900 lines of commit-path
-Python), along with every `rate` row in the rate card. The commit path is now
-bash/awk: `lib/costs.sh`, `lib/validate.sh`, `lib/endpoint.sh`,
-`lib/receipt.sh` (token), `lib/steering.sh` + `lib/receipt.sh` (steering).
-Adapters emit the harness's own reported usage; `cost-usd` is the
-harness-reported figure verbatim or blank — the kit never prices, and the
-unpriced-model-blocks-commit failure mode is gone. Receipt Costs schema is v5
-(17 columns, new `source` column naming the adapter); v1–v4 rows still parse
-under their own rules. Endpoint freezing keyed to `git write-tree` and
-per-session checkpoints survive as flat key=value files. `report.py` stays as
-an off-commit-path stdlib utility. macOS argv recovery falls back to
-`ps -ww -o args=` (UTF-8 caveat documented inline).
+**Track B — accounting: identity at commit, measurement at rest.** The audit
+pack's re-derivation layer is deleted twice over. First the Python:
+`ledger.py`, `rates.py`, `endpoint.py`, `reconcile.py`, `validate.py`,
+`receipt_io.py`, `argv.py`, `report.py` in agent-token-accounting and
+`ledger.py` + `receipt_io.py` in agent-steering-accounting (~2,100 lines),
+along with every rate row in the rate card. Then the design that made a
+blocking pre-commit hook measure a live session: endpoint freezing,
+per-session checkpoints, per-commit delta columns, and every newest-file
+heuristic are gone. The commit path records identity only —
+`detect_runtime_identity` reads the harness's own environment announcement
+(claude-code, codex, pi, cursor-agent, opencode, manual via env; grok via a
+hook-written identity file) and the pre-commit writer stamps one Costs v6
+row (10 columns) per session per issue, folding in the freshest numbers from
+a kit-owned snapshot sidecar under the worktree's git dir. Measurement
+happens off the commit path: best-effort post-commit and pre-push sweeps
+(`lib/resolve.sh`) ask each session's adapter to `resolve` from declared
+surfaces only — a payload the harness itself pushed (`emit`, e.g. a
+statusline command), a file the harness itself named, or a local server the
+harness itself runs — with provenance recorded per row (`harness-feed` |
+`session-file` | `server` | `manual` | `unresolved`). A session that cannot
+be resolved honestly reads `unresolved`, never a guessed number; `cost-usd`
+stays the harness's own figure verbatim or `-`. The kit never prices, and
+now never guesses identity either. Rows are session-cumulative (the
+squash-merge workflow discards per-intermediate-commit precision anyway);
+v5 and older rows are tolerated as legacy by cell count and never re-judged.
 
 **Q11 — dependency endgame.** New stdlib restricted-YAML parser/writer
 `kit/assets/packs/lib/kityaml.py` replaces PyYAML across the lifecycle verbs
@@ -95,10 +107,19 @@ against the real packs.lock); every `uv run --with PyYAML` incantation in
 setup-uv step is removed from `.github/workflows/tests.yml`).
 `managed-tree-integrity` is ported to pure bash (`lib/digest.sh`, byte-pinned
 to `digestlib.py` by `scripts/test-digestlib.py`); `lib/integrity.py` is
-deleted. Three opt-in foundation directives (strict preset) enforce the
-posture: `no-commit-path-python`, `stdlib-only-python`, `no-package-manager` —
-a consumer repo needs nothing but bash + git to commit; the kit's own tooling
-needs nothing but a bare python3; nothing needs a package manager.
+deleted. Three directives enforce the posture — `no-commit-path-python`,
+`stdlib-only-python`, `no-package-manager` — and they are **repo-local
+self-directives**, not kit-bundled ones: Q11's wording is that "the kit should
+hold itself to them", and in a consumer repo they would police the vendored
+`.governance/` tree, which is kit-authored content the consumer cannot repair
+without a release. They live in the hand-authored `duaility/governance-kit`
+dogfood pack and scan the trees this repo actually authors (`kit/`, `packs/`,
+`skill/`, `.githooks/`), with Q11's sanctioned Python lanes — `sweep.py`, the
+lifecycle libs — and the never-shipped `scripts/` excluded by scope. Each
+matches at command position rather than by bare word, so prose and Markdown
+never trip them. They run live here on every commit: a consumer repo needs
+nothing but bash + git to commit; the kit's own tooling needs nothing but a
+bare python3; nothing the kit ships needs a package manager.
 
 **Install/update plumbing.** `applylib.py` gains the adapter enumeration and
 widens `selects_sweep_directive` so a `subagent:` declaration with a live
@@ -111,15 +132,19 @@ directive scalars with awk instead of a PyYAML heredoc.
 parity, remediation grouping, stamp, gate, ladder, executor dispatch) and
 `scripts/test-kityaml.py` (grammar, coercion, byte parity, corpus walk);
 `scripts/test.sh` runs every Python layer on bare python3;
-`test-runtime.sh`, `test-digestlib.py`, `test-init.py`, `test-kitverb.py`,
-`test-sweep.py`, `test-packs.sh`, `test-schema-split.sh` updated in place.
-Directive evals rewritten for the bash stacks (token 34, steering 18
-assertions) including adapter-extraction fixtures pinning each harness's
-native-output parsing. Verified under bash 3.2 and both BSD awk and mawk.
+`test-runtime.sh` (206 assertions across the seven adapters, including a
+fixture proving two transcripts present with no identity yields exit 2 —
+never a newest-file pick), `test-digestlib.py`, `test-init.py`,
+`test-kitverb.py`, `test-sweep.py`, `test-packs.sh`, `test-schema-split.sh`
+updated in place. Directive evals rewritten for the bash stacks (token 51,
+steering 18 assertions) including identity-ladder, sidecar-fold, and
+resolve-sweep fixtures. Verified under bash 3.2 and both BSD awk and mawk.
 
 **Docs.** `SUBAGENT_ATTESTATION.md` (adjudicated gates, executors),
-`SWEEP_FLOW.md` (subagent-declared path), `LIB_API.md`, `INSTALL_SCHEMA.md`,
-`UNINSTALL_MATRIX.md`, `UPDATE_FLOW.md`, `INIT_FLOW.md`,
+`SWEEP_FLOW.md` (subagent-declared path), `LIB_API.md`, `INSTALL_SCHEMA.md`
+(new `emitters_wired` ledger field), `UNINSTALL_MATRIX.md`,
+`UNINSTALL_FLOW.md` (emitter unwiring), `UPDATE_FLOW.md`, `INIT_FLOW.md`
+(new Step 6b: emitter wiring, offered and ledgered), `NATIVE_TESTS.md`,
 `DIRECTIVES_CATALOG.md`, `PACK_AUTHORING.md`, README dependency statement,
 site concepts (`audit-chain.mdx`, `runtime.mdx`), directive constitution.md
 snippets, and the regenerated `docs/reference/*` pages.
@@ -138,12 +163,18 @@ snippets, and the regenerated `docs/reference/*` pages.
   to the first kit tag shipping the adapter registry (its `lib/runtime.sh` now
   resolves `.governance/runtimes/`), and the kit/audit/foundation axes all
   have releasable changes here.
-- **Migrating pre-#355 local caches.** Legacy JSON endpoint/checkpoint files
-  under `.git/` are ignored, not migrated — disposable local state; a stale
-  one costs one zero-delta row.
-- **CONSTITUTION.md.** This repo's live constitution reflects the installed
-  (pinned) directive set; the updated pack `constitution.md` snippets land in
-  it at the next release via the real verbs.
+- **Migrating pre-#355 local caches.** Legacy endpoint/checkpoint files under
+  `.git/` (JSON or flat key=value) are ignored, not migrated — disposable
+  local state with no consumer left.
+- **Wiring an emitter in this repo.** Emitter wiring is an install-time
+  offered side effect (INIT Step 6b); this PR ships the mechanism and the
+  flow text, and wires nothing into anyone's harness config.
+- **CONSTITUTION.md subsections for the *bundled* packs.** The live
+  constitution reflects the installed (pinned) directive set, so the reworked
+  `governance-kit/*` pack snippets land in it at the next release via the real
+  verbs. The three repo-local self-directives are the deliberate exception —
+  their pack is `source: local` and not release-managed, so their subsections
+  and the Evolution Log entry land in this commit (the #280 precedent).
 
 ## Decisions
 
@@ -172,6 +203,55 @@ snippets, and the regenerated `docs/reference/*` pages.
 - **Adapters are eval-gated.** Each harness adapter ships fixtures pinning its
   native-output extraction, and the `manual` adapter is the deterministic eval
   seam for the judge verb — "no eval, no ship" extends to executors.
+- **Identity at commit, measurement at rest.** A pre-commit hook is the worst
+  possible measurement point — synchronous, blocking, unretryable, racing a
+  live session whose spend is not final yet — and the squash-merge workflow
+  discards per-intermediate-commit precision anyway. So the commit path
+  records only what is knowable at commit time (which harness, which session)
+  and validates structure; measurement moves to non-blocking post-commit and
+  pre-push resolve sweeps whose failures mean "retry later", never a blocked
+  commit or a guessed number. This replaces the endpoint-freeze/checkpoint
+  design from this PR's first iteration.
+- **Resolve reads declared surfaces only.** An adapter may open a path it was
+  explicitly handed, a file whose name contains the exact session id under
+  the harness's documented state dir, or a server the harness runs — never
+  `ls -t`, never an mtime window. Unidentifiable session → `unresolved` row.
+- **cursor-agent ships honest-blank.** Cursor exposes no documented per-session
+  usage surface, so its rows carry identity with `-` numbers until upstream
+  ships usage in its hook or JSON output — blank pressure on upstream beats a
+  fabricated figure.
+- **`report.py` is deleted without a bash replacement.** It only parsed the
+  retired delta schemas and its per-issue sum would double-count cumulative
+  v6 rows; cross-issue totals are a grep away, and any future reporting tool
+  belongs off the commit path.
+- **Emitter wiring is a consented, ledgered side effect.** Wiring a harness's
+  statusline/hook config to `.governance/runtimes/<name>.sh emit` touches
+  user-owned config, so INIT offers it, records it under `emitters_wired` in
+  install.yaml, and UNINSTALL reverses it.
+- **The dependency-posture trio are self-directives, not product.** They were
+  first authored as bundled `governance-kit/foundation` directives; that was
+  wrong on the issue's own terms ("the kit should hold itself to them") and
+  wrong in effect — in a consumer repo they scan `.governance/`, which is
+  kit-authored vendored content the consumer cannot repair without a release,
+  so the only available remedy would be a waiver. They moved to the
+  hand-authored `duaility/governance-kit` pack, following the #280
+  architecture-pack precedent exactly, including landing in full now because
+  that pack is not release-managed.
+- **The move required a re-scope, not just a relocation.** Pointed at the
+  installed tree they would fail here immediately: this repo's `.governance/`
+  is pinned to the last release and still full of Python by design. As
+  self-directives they scan what this repo authors — `kit/`, `packs/`,
+  `skill/`, `.githooks/` — with Q11's sanctioned Python lanes (`sweep.py`, the
+  lifecycle libs) and the never-shipped `scripts/` out of scope, and
+  `.github/workflows/` excluded from the package-manager rule because the docs
+  site legitimately runs npm.
+- **Command-position matching beats word matching.** Bare `grep -w python`
+  fired on prose and on the directives' own ids; both checks now match only at
+  command position (start of line, after a pipe/semicolon/subshell, or a
+  workflow `run:`), so shipped Markdown and docstrings never trip them and no
+  file needs a blanket exemption. `no-commit-path-python` also fails on a
+  `#!…python` shebang — the comment filter had been silently ignoring the most
+  literal form of the violation.
 
 ## Verification
 
@@ -186,47 +266,80 @@ Results:
 - Port the sub-agent attestation machinery in lib.sh to pure bash (Phase 0) — done; `grep python kit/assets/dot-governance/lib.sh` hits only a comment, and `scripts/test-subagent.sh` pins parser parity (140 assertions, green under bash 3.2 and mawk).
 - Ship `gate: verdict` — blocking adjudication log, freshness stamp, escalation ladder (Phase 1) — done; gate end-to-end cases (missing log, stale stamp, scrubbed round, contested, ladder rendering) all covered in `scripts/test-subagent.sh`.
 - Wire the sweep engine to read `subagent:` declarations directly (Phase 2) — done; `python3 scripts/test-sweep.py` runs 33 tests including an end-to-end subagent-only directive discovery→triage→adjudicate→file.
-- Add the executor abstraction — harness | cli:<adapter> | api:<provider> (Phase 3) — done; registry seeding verified by `test-init.py`/`test-kitverb.py`, judge dispatch + degrade paths by `test-subagent.sh` and `test-runtime.sh` (139 assertions).
+- Add the executor abstraction — harness | cli:<adapter> | api:<provider> (Phase 3) — done; registry seeding verified by `test-init.py`/`test-kitverb.py`, judge dispatch + degrade paths by `test-subagent.sh` (140 assertions) and `test-runtime.sh` (206 assertions).
 - Generalize batching across the commit lane and the sweep engine (Phase 4) — done; executor-aware grouping and batch demux/retry covered in the same suites.
-- Replace the hand-rolled accounting Python with native-cost runtime adapters and Costs schema v5 (Track B) — done; token eval 34 assertions, steering eval 18, both green under BSD awk and mawk; a real pre-commit smoke wrote a v5 row, froze the endpoint, advanced the checkpoint.
+- Replace the hand-rolled accounting Python with identity-at-commit / measurement-at-rest accounting — Costs v6, snapshot sidecar, off-path resolver, seven runtime adapters (Track B) — done; token eval 51 assertions, steering eval 18, both green under BSD awk and mawk; an end-to-end smoke in a throwaway repo ran the post-commit resolve sweep against the real `manual.sh` adapter (sidecar snapshot appended), then the pre-commit stamp-and-fold produced a valid v6 row and `check.sh` passed; a two-transcripts-no-identity fixture proves the no-guessing rule (exit 2, no row).
 - Eliminate PyYAML and uv via a restricted-YAML stdlib parser; port managed-tree-integrity to bash (Q11) — done; `git grep "import yaml"` over shipped code returns nothing, `scripts/test-kityaml.py` proves packs.lock byte parity, `scripts/test-digestlib.py` pins bash/python digest parity, and CI no longer installs uv.
-- Ship the dependency-posture directives — no-commit-path-python, stdlib-only-python, no-package-manager (Q11) — done; all three evals green inside `scripts/test-packs.sh` (18 directive evals total).
+- Ship the dependency-posture directives — no-commit-path-python, stdlib-only-python, no-package-manager — as repo-local self-directives (Q11) — done; all three run live in `bash .governance/run.sh`, which passes 19/19 (16 before this change). They carry no `evals/`, matching the five pre-existing repo-local directives: nothing runs evals under `.governance/`, and executing against this repo on every commit is the stronger signal. Each was teeth-tested by perturbing a real in-scope file (a `python3 -c` in a hook, a python shebang on a `check.sh`, a third-party import in `skill/bootstrap.py`, an `os.system("uv run …")`, a workflow `- run: npx …`), confirming the failure, and restoring.
 
 `bash scripts/test.sh` → "✓ all kit-internal test layers passed" on the final
 integrated tree.
 
 ## Audit
 
-1. **`## What changed` faithfully describes the diff — PASS.** The large majority of claims verify directly against the staged diff: `grep -n python kit/assets/dot-governance/lib.sh` hits only a comment (line 265); `git diff --cached --diff-filter=D -- packs/audit` shows exactly the eleven deleted files named (`ledger.py`×2, `rates.py`, `endpoint.py`, `reconcile.py`, `validate.py`, `receipt_io.py`×2, `argv.py`, and the two `runtimes/*.sh` under `agent-token-accounting`); `kit/assets/packs/lib/kityaml.py` exists (627 new lines) and both `packctl.py` and `packverb.py` `import kityaml` and call `kityaml.load`/`kityaml.dump`; `sweep.py` gained a full `subagent:`-block reader (`_subagent_block_lines`, `_subagent_gate`, `_subagent_rounds_resolve`, etc.) plus a batched-call path (`_build_batch_rubric`/`_demux_batch_violations`); the three new foundation directive folders (`no-commit-path-python`, `no-package-manager`, `stdlib-only-python`) exist fully populated (check.sh/constitution.md/defaults.conf/directive.yaml/evals); the runtime registry (`claude-code.sh`, `codex.sh`, `manual.sh`) exists at `kit/assets/dot-governance/runtimes/` with `cost`/`judge` verbs in each; `.github/workflows/tests.yml` lost exactly the `astral-sh/setup-uv` step (confirmed via `git diff --cached`); `git grep "import yaml"` over `kit/ packs/ skill/` returns nothing but a doc comment; `bash scripts/test.sh` (run fresh in this audit) exits 0 with "✓ all kit-internal test layers passed", including the 18 packs evals, 139 `test-runtime` assertions, and the full `test-subagent`/`test-kityaml`/`test-digestlib` suites named in the receipt. `node scripts/docs-site/gen-reference.mjs --check` also passes clean. The Phase 4 paragraph's retry sentence — now "The sweep lane retries a failed judgment once before counting it un-adjudicated; the commit lane's cli executor does not retry — any failure there degrades to the harness remediation loop, which is its recovery path." — matches the code exactly: sweep.py's `_adjudicate_retrying` (line 314) calls the judge function, and on `adjudicated: False` calls it exactly once more before the caller counts the hunk `un-adjudicated` (the docstring: "one retry on a transport/parse failure... before the caller counts the hunk as un-adjudicated"); the commit-lane analog, `_subagent_cli_adjudicate` in `lib.sh` (lines 903–963), is called exactly once from the `gate: verdict` path (lines 1053–1057) with no retry loop, and on any failure (missing adapter, exhausted round budget, transport error, or an unparseable `VERDICT:` line) returns 1 immediately, at which point the caller falls back straight to the harness sub-agent path (marking the row `executor+fallback`) — precisely the "degrades to the harness remediation loop" recovery path the corrected sentence now describes, and the commit lane correctly has no "un-adjudicated" bookkeeping (that concept, and the `unadjudicated`/`sub_unadjudicated` lists, remain sweep-only, which the sentence no longer claims otherwise). The underlying Phase 4 work (executor-keyed batching in `attestation_remediation`, verified directly by reading lines 1136–1300 of `lib.sh`) is real and correctly described.
-2. **Each `- [x]` Checklist item is realized in the diff — PASS (8 of 8).** (1) lib.sh bash port — confirmed, zero python invocations left, `test-subagent.sh`'s "sub-agent judgment" suite (visible in the fresh `scripts/test.sh` run) exercises `_subagent_yaml`/`_subagent_tier`/`attestation_remediation` end to end. (2) `gate: verdict` — `_subagent_verdict_gate`, `_SUBAGENT_ROUND_RE`, `_adjudication_stamp`, `SUBAGENT_ROUNDS` ceiling, and the escalation-round logic (`eff_tier="high"` at `rounds >= ceiling-1`) are all present and covered by the "gate: verdict (end to end)" and "escalation ladder" test groups. (3) sweep reads `subagent:` — confirmed above; `python3 scripts/test-sweep.py` ran clean inside `scripts/test.sh`. (4) executor abstraction — `SUBAGENT_EXECUTOR` conf resolution (`harness | cli:?*` else degrade to harness), the registry-seeding tests (`test_apply_adds_the_runtime_registry_to_a_pre_registry_install`, `test_init_apply_seeds_the_runtime_adapter_registry`) and adapter-eval fixtures all present and green. (5) generalized batching — `attestation_remediation`'s executor-keyed grouping (`ekeys`/`group` loop, lines ~1136–1172) is real and matches the claim, and the retry-symmetry description now matches the code per finding 1. (6) native-cost accounting / Costs v5 — `packs/audit/directives/agent-token-accounting/lib/costs.sh` declares `COSTS_COLS_V5=17` and a `source` column; the old Python accounting libs are deleted as claimed. (7) PyYAML/uv elimination — `git grep -n "uv run\|astral-sh/setup-uv"` over `kit/ packs/ skill/ .github/ scripts/` returns only doc/comment/eval-fixture hits, none live; `managed-tree-integrity/lib/integrity.py` is deleted and `lib/digest.sh` added, parity-pinned by `scripts/test-digestlib.py` (19 assertions, both bash and python variants, all green in the fresh run). (8) the three posture directives ship with populated eval suites (18 total pack evals reported, matches `scripts/test.sh`'s "3 pack(s), 18 directive(s), 18 eval(s) passed" line from the fresh run).
-3. **The `## Checklist` mirrors the issue's stated scope — PASS.** Issue #355 is a prose umbrella (Q1–Q11, no literal `- [ ]` list); its "Recommendation" call-outs under Q9 (Phasing) name Phase 0–4 exactly as the receipt's checklist items 1–5 do, Q10 is Track B (checklist item 6), and Q11 is the dependency endgame (checklist items 7–8, matching Q11's explicit `no-commit-path-python` / `stdlib-only-python` / `no-package-manager` naming and its PyYAML/uv elimination plan). No named phase, question recommendation, or Q11 deliverable is missing from the checklist. The receipt's own "Out of scope" section additionally discloses the two items a reader might expect but that the issue itself does not mandate for this PR (flipping any shipped directive to `gate: verdict`, and updating the consumed `.governance/` tree) — consistent with Q3's "existing directives are untouched until they opt in" and this repo's documented dogfood-lags-by-one-release convention.
+*(Re-audited fresh, from a clean sub-agent context, against the full change set — commit `7fecf8e` plus the uncommitted worktree layer, i.e. `git diff origin/main` — after Track B was redesigned mid-PR from an endpoint/checkpoint freeze scheme to identity-at-commit / measurement-at-rest. The prior audit below this line covered only `7fecf8e` in isolation and is superseded; its "Costs v5 / 17 columns" and "eleven deleted files" findings no longer hold against current code, and its "one user message" `## Steering` finding covered a transcript that has since grown from 325 to 711 lines.)*
+
+1. **`## What changed` faithfully describes the diff — PASS.** Re-verified independently, not by trusting the receipt's own citations. Zero-Python commit path: `grep -n python kit/assets/dot-governance/lib.sh` hits only a comment. Deletions: `git diff origin/main --diff-filter=D --name-only -- packs/audit` returns exactly 12 paths — `ledger.py`×2 (token + steering), `receipt_io.py`×2, `rates.py`, `endpoint.py`, `reconcile.py`, `validate.py`, `argv.py`, `report.py`, and `runtimes/{claude-code,codex}.sh` (relocated to `kit/`) — matching the receipt's "the audit pack's re-derivation layer is deleted twice over" paragraph precisely (`report.py` is now in the deleted list too, unlike the stale prior audit). Track B / identity-at-commit: `detect_runtime_identity` is a real function in `packs/audit/directives/agent-token-accounting/lib/runtime.sh:196`, whose header states the split verbatim ("identity at commit, measurement at rest... the commit path resolves WHO is committing and nothing else"); `grep -rn -i "endpoint\|checkpoint" packs/audit/directives/agent-token-accounting/{lib,hooks,check.sh}` returns nothing live (only historical mentions in README/evals discussing the retired design) — and, decisively, `lib/endpoint.sh` and `lib/report.py`, both present in the committed tree at `7fecf8e` (`git show 7fecf8e:.../lib/endpoint.py` resolves), are confirmed **deleted** in the uncommitted layer (`git status --short` shows `D` for both; absent from the worktree). `lib/costs.sh` declares `COSTS_COLS_V6=10` with the exact `date|harness|session|model|input|cache-create|cache-read|output|cost-usd|source` header the receipt claims, and `lib/validate.sh:69` enforces exactly that 10-cell shape ("expected 10 (v6: ...)"), tolerating 17/16/12-cell legacy rows by cell count only, never re-validating them — matches "v5 and older rows are tolerated as legacy... and never re-judged." `lib/resolve.sh` and `hooks/{post-commit.sh,pre-push.sh}` exist with the documented `resolve_candidates`/`resolve_session`/`resolve_sweep` functions, and `hooks/pre-commit.sh`'s own header states verbatim: "It never reads a harness file, never parses a transcript, never sums a token... measurement lives in hooks/post-commit.sh and hooks/pre-push.sh" — exactly the stamp/fold split the receipt describes. The seven adapters at `kit/assets/dot-governance/runtimes/` (`claude-code`, `codex`, `cursor-agent`, `grok`, `manual`, `opencode`, `pi`) each dispatch `judge`/`resolve`/`emit` and nothing else — `grep -n '^\s*cost)' kit/assets/dot-governance/runtimes/*.sh` is empty, confirming the receipt's "three verbs... no `cost` verb" framing, and `grep -rn -- "ls -t\|-mmin" kit/assets/dot-governance/runtimes/ packs/audit/directives/agent-token-accounting/` hits only comments/docs/the eval's own forbidding regex, never live code — matching "no `ls -t`, no `-mmin`... those heuristics are deleted, not just avoided" in `claude-code.sh`'s own header. `bash scripts/test.sh` (re-run fresh for this delta pass) exits 0 with "✓ all kit-internal test layers passed," now including "3 pack(s), **15** directive(s), 15 eval(s) passed" — down from the 18/18 this same finding reported one pass ago, because the three dependency-posture directives no longer live under a pack-evaluated tree (see finding 2 item (8) and the `## Layer boundaries` update below). Independently, `bash .governance/run.sh` (also re-run fresh) now reports "✓ governance: all **19** directive(s) passed" — up from 16 before this delta — confirming the relocated trio is registered and passing live against this repo, not just present on disk. One methodology note, not a receipt defect, carried forward unchanged: `lib/resolve.sh`, `hooks/post-commit.sh`, `hooks/pre-push.sh`, and four of the seven adapters (`cursor-agent.sh`, `grok.sh`, `opencode.sh`, `pi.sh`) are still **untracked** (`git status --short` shows `??`), so a bare `git diff origin/main` silently omits them from its stat/patch output — this audit verified their existence and content directly via `ls`/`grep`/`Read` rather than trusting that diff. The receipt's own `## Files` section already lists all of them correctly, so nothing there needs correction.
+2. **Each `- [x]` Checklist item is realized in the diff — PASS (8 of 8).** (1) lib.sh bash port — zero python invocations left, confirmed above. (2) `gate: verdict` machinery (`_subagent_verdict_gate`, `_adjudication_stamp`, the round-log ERE, the escalation ladder) is present in `lib.sh` and covered by `scripts/test-subagent.sh`, run clean inside `scripts/test.sh`; no shipped `directive.yaml` sets `gate: verdict` (`grep -rn "gate:" packs/*/directives/*/directive.yaml` is empty), matching the receipt's own "Out of scope" disclosure that no existing directive opts in yet. (3) sweep reads `subagent:` directly — `python3 scripts/test-sweep.py` runs inside `scripts/test.sh`. (4) executor abstraction — `SUBAGENT_EXECUTOR` conf resolution and the seven-adapter `judge` verb are real, per finding 1. (5) generalized batching — `attestation_remediation`'s executor-keyed grouping is unchanged from the prior audit's verified reading and still exercised by the same suites. (6) **the checklist item's own wording has changed since the prior audit** — it now reads "Replace the hand-rolled accounting Python with identity-at-commit / measurement-at-rest accounting — Costs v6, snapshot sidecar, off-path resolver, seven runtime adapters (Track B)," and every clause of that updated wording is independently verified true in finding 1 (v6/10-cell schema, the sidecar under `<git-dir>/governance/costs/<harness>-<session>` documented in `runtime.sh`'s header, the off-path `resolve.sh`, and the seven adapters). (7) PyYAML/uv elimination — `git grep -n "uv run\|astral-sh/setup-uv"` over `kit/ packs/ skill/ .github/ scripts/` returns only doc/comment/eval-fixture hits; `managed-tree-integrity/lib/integrity.py` is deleted and `lib/digest.sh` added, parity-pinned by `scripts/test-digestlib.py`. (8) **re-verified against the relocation delta, location updated.** The three posture directives no longer live under `packs/foundation/directives/` — `ls packs/foundation/directives/ | grep -E "no-commit-path-python|no-package-manager|stdlib-only-python"` returns nothing, and `git status --short` shows all fifteen of their old files (`check.sh`/`constitution.md`/`defaults.conf`/`directive.yaml`/`evals/test.sh` × 3) as `D`. They now live at `.governance/packs/duaility/governance-kit/directives/{no-commit-path-python,no-package-manager,stdlib-only-python}/` (confirmed present via `ls`), each carrying `check.sh`/`constitution.md`/`defaults.conf`/`directive.yaml` and, correctly, **no** `evals/` — matching the shape of the five pre-existing repo-local directives in the same pack (`architecture-map-holds`, `consumed-tree-integrity`, `layer-boundaries`, `no-legacy-fallbacks`, `no-path-bifurcation`, none of which ship evals either) and CONSTITUTION.md's Evolution Log entry's own claim that "these three now get their signal by running live on this repo every commit" rather than from fixtures. All three ids are registered in `.governance/packs.lock`'s `duaility/governance-kit` entry (`source: local`, no `digest:` block — consistent with every other directive on that entry) — confirmed by reading the lock directly. `bash .governance/run.sh` (re-run fresh) passes all three live, part of the "all 19 directive(s) passed" total in finding 1. The pack-eval count in finding 1 (now 15/15, was 18/18) reflects exactly this move — the trio's coverage relocated from `scripts/test-packs.sh` fixtures to live execution, it did not disappear.
+3. **The `## Checklist` mirrors issue #355's Track B/Q10 intent — PASS**, judged against what the user actually redirected the work toward rather than Q10's original literal text (which specified "Endpoint semantics survive, implementation shrinks" — a scheme this PR itself superseded mid-flight). The session transcript's genuine steering events (cross-referenced against the fresh `## Steering` audit below) show the redirect explicitly: at transcript line 418 the user says "figure out creative way of extractig cost without falling back to transcript parsing..it is highly fragile," and at line 527, after a round of brainstorming, "take a step back, rethink from first principle, come up with elegant solution for the problem" — the `## Decisions` section's "Identity at commit, measurement at rest... This replaces the endpoint-freeze/checkpoint design from this PR's first iteration" entry is the direct record of that redirect. Judged against Q10's actual mandate ("the kit stops re-deriving session cost from transcripts and pricing tables... the harness's own number is strictly more reliable than anything the kit can reconstruct... All hand-rolled accounting Python goes away") and Q11's dependency endgame, every checklist item is realized: the kit still resolves a transcript path only where a harness (Claude Code, Codex) exposes no non-interactive cost surface — a documented transport constraint, not a re-derivation — and it never prices and never guesses identity via mtime (finding 1). No named phase, Q10 deliverable, or Q11 posture directive is missing.
 
 ## Layer boundaries
 
-1. **Every changed file sits in the layer its role belongs to — PASS.** `kit/assets/dot-governance/{lib.sh,sweep.py,runtimes/*}` and `kit/assets/packs/lib/*.py` are kit engine/runtime code, correctly under `kit/`. The three new directives (`no-commit-path-python`, `no-package-manager`, `stdlib-only-python`) and the accounting/integrity rewrites are pack-owned directive content, correctly under `packs/foundation/directives/` and `packs/audit/directives/`. Tests live under `scripts/`. The one notable relocation — `packs/audit/directives/agent-token-accounting/runtimes/{claude-code,codex}.sh` moving to `kit/assets/dot-governance/runtimes/` — matches its own stated rationale, confirmed by reading `lib/runtime.sh`'s header comment verbatim: "Adapters are KIT-level, not pack-level (issue #355): one registry at `.governance/runtimes/<runtime>.sh`, shared by this directive's `cost` verb and lib.sh's `judge` verb, because 'which harness am I talking to' is one fact about the repo, not a per-directive one." That is a correct architectural call: the registry now serves two independent consumers (accounting's `cost` verb and the commit gate's `judge` verb via `cli:<adapter>`), so kit-level ownership is the right layer, not a leftover of one directive.
-2. **No dependency points the wrong way across a layer edge — PASS.** `grep -rn "packs/audit\|packs/foundation\|packs/commits\|packs/docs" kit/` (excluding markdown) returns nothing — no kit code references a pack path. The reverse edge (pack → kit) is present but honest and floor-documented: `packs/audit/directives/agent-token-accounting/lib/runtime.sh`'s `_runtime_adapter_dir()` resolves the registry through an explicit fallback chain — `.governance/runtimes` (the installed, kit-managed location) first, falling through to the kit source tree (`.../kit/assets/dot-governance/runtimes`) only for the uninstalled-checkout case — exactly the "installed tree" resolution pattern every other directive in this repo already uses to reach `lib.sh`, and it is backed by `packs/audit/pack.yaml`'s `min_governance_kit: "0.12.0"` floor. This is the pack depending on an artifact the kit ships to every installed consumer, not the pack reaching into kit source at authoring time — consistent with `ARCHITECTURE.md`'s "kit consumes packs" arrow describing build/authoring dependencies, not the installed runtime layout every directive already assumes.
-3. **New shared logic lives in the layer that owns it — PASS, including the deliberate exception.** The runtime registry (shared cost+judge logic) was correctly relocated to kit ownership per finding 1, not left duplicated per-pack. The one place logic *is* duplicated — `packs/audit/directives/agent-token-accounting/lib/receipt.sh` and `packs/audit/directives/agent-steering-accounting/lib/receipt.sh` (155 and 161 lines, near-identical `diff` shows only header-comment and directive-name differences) — is explicitly labelled as intentional in the steering copy's own header: "This file is deliberately a verbatim twin of the one in the sibling agent-token-accounting directive: a directive folder installs as a self-contained unit, so shared plumbing is duplicated rather than reached across directive boundaries... Keep the two in sync when either changes." This matches the task framing's instruction to judge the convention on its own terms (self-contained-directive-folder is a documented repo convention, confirmed in `AGENTS.md`'s "Directive folders are self-contained. Relocating a directive is one `git mv`" invariant and `ARCHITECTURE.md`'s "Invariants" section) rather than fault it for not being deduplicated into a shared kit lib.
+1. **Every changed file sits in the layer its role belongs to — PASS, including the mid-audit relocation.** `kit/assets/dot-governance/{lib.sh,sweep.py,runtimes/*}` and `kit/assets/packs/lib/*.py` are kit engine/runtime code, correctly under `kit/`. The accounting/integrity rewrites (including the new `lib/resolve.sh` and `hooks/{post-commit,pre-push}.sh` under `agent-token-accounting`) are pack-owned directive content, correctly under `packs/audit/directives/`. Tests live under `scripts/`. The one notable adapter relocation — `packs/audit/directives/agent-token-accounting/runtimes/{claude-code,codex}.sh` moving to `kit/assets/dot-governance/runtimes/`, now joined by four more adapters that were never pack-owned in the first place (`cursor-agent.sh`, `grok.sh`, `opencode.sh`, `pi.sh`) — matches its own stated rationale, confirmed by reading `lib/runtime.sh`'s header comment: the registry is kit-level "because 'which harness am I talking to' is one fact about the repo, not a per-directive one." That is a correct architectural call: the registry now serves three independent consumers per adapter (accounting's `resolve`/`emit` verbs and the commit gate's `judge` verb via `cli:<adapter>`), so kit-level ownership is the right layer, not a leftover of one directive. **The three dependency-posture directives, re-judged after their relocation, are now correctly placed too — PASS, not a wrong layer corrected to another wrong layer.** They no longer sit under `packs/foundation/directives/` (verified absent, per the Audit update) but under `.governance/packs/duaility/governance-kit/directives/{no-commit-path-python,no-package-manager,stdlib-only-python}/` — the repo-local, hand-authored (`source: local`) dogfood pack, the one location under `.governance/` this repo's own conventions carve out as legitimately hand-edited (AGENTS.md: "the one place under `.governance/` that is legitimately hand-authored"; confirmed structurally by `consumed-tree-integrity/check.sh`'s own comment: "For `source: local` packs it checks the vendored directive set matches the lock," i.e. no digest-byte-matching against an upstream release the way `gh`-sourced packs get). Judged on the merits against the CONSTITUTION.md Evolution Log's 2026-06-15 `#280` precedent (re-read directly, not taken on faith): `#280` relocated `no-legacy-fallbacks`, `no-path-bifurcation`, and `layer-boundaries` out of a bundled `governance-kit/architecture` pack into this exact same `duaility/governance-kit` pack for the identical reason — "architectural-*shape* invariants for *this* repo's own codebase... belong with the repo that declares the layer model, not in the published kit every consumer installs." The dependency-posture trio fits that test precisely: `no-commit-path-python`/`stdlib-only-python`/`no-package-manager` encode what *governance-kit itself* may ship, not a rule a consumer's own commit path should be judged against — and unlike a true consumer-facing rule, the previous placement was structurally unfixable in the field (it policed the vendored `.governance/` tree, kit-authored content a consumer cannot repair without a release). Relocating to the pack that is re-evaluated on every commit of *this* repo, rather than shipped for consumers to run against content they didn't write, is the correct layer call, not merely a defensible one.
+2. **No dependency points the wrong way across a layer edge — PASS.** `grep -rn "packs/audit\|packs/foundation\|packs/commits\|packs/docs" kit/assets kit/references` returns nothing outside markdown prose (`DIRECTIVES_CATALOG.md`, `LOCK_SCHEMA.md`, `PACK_VERBS.md`, `VERSIONING.md` mention pack paths only in narrative text, never in executable code) — no kit code references a pack path. The reverse edge (pack → kit) is present but honest and floor-documented: `packs/audit/directives/agent-token-accounting/lib/runtime.sh`'s `_runtime_adapter_dir()` resolves the registry through an explicit fallback chain — `GOVERNANCE_RUNTIMES_DIR` override, `$GOVERNANCE_ROOT/runtimes`, `.governance/runtimes` (the installed, kit-managed location), then the kit source tree only for the uninstalled-checkout case — exactly the "installed tree" resolution pattern every other directive in this repo already uses to reach `lib.sh`, backed by `packs/audit/pack.yaml`'s `min_governance_kit: "0.12.0"` floor (re-confirmed unchanged). This is the pack depending on an artifact the kit ships to every installed consumer, not the pack reaching into kit source at authoring time.
+3. **New shared logic lives in the layer that owns it — PASS, including the deliberate exception.** The runtime registry (shared resolve+judge logic) was correctly relocated to kit ownership per finding 1, not left duplicated per-pack. The one place logic *is* duplicated — `packs/audit/directives/agent-token-accounting/lib/receipt.sh` and `packs/audit/directives/agent-steering-accounting/lib/receipt.sh` — is explicitly labelled intentional in the steering copy's own header: "This file is deliberately a verbatim twin of the one in the sibling agent-token-accounting directive: a directive folder installs as a self-contained unit, so shared plumbing is duplicated rather than reached across directive boundaries... Keep the two in sync when either changes." This is judged on the convention's own documented terms (a self-contained-directive-folder invariant this repo already applies elsewhere), not faulted for failing to be deduplicated into a shared kit lib.
 
 ## Steering
 
-1. **Every human-steering event is recorded — PASS (none owed).** Extracting real user-authored text from the session transcript (`/Users/srikanth/.claude/projects/-Users-srikanth-gitspace-governance-kit--claude-worktrees-governance-kit-issue-355-d2b39d/1419af64-024c-4b9a-97ec-a471fe4c95b5.jsonl`, 325 lines) with a filter that drops any content starting with `<` (task-notification/system-block markup) yields exactly **one** genuine user message in the entire session, at 1-based line 3: the initial task assignment — "can you please work on the entire scope of https://github.com/Duaility/governance-kit/issues/355 and create PR ...no follow up issue splease unless really needed. Act as orcehstrator and span opus/sonnet/haiku subagents depending on your decision..." This is task-setting, not steering (explicitly excluded by the directive's own definition — an interrupt or a message that redirects/corrects the agent *mid-task*). Every other `type: user` entry in the transcript (checked at lines 45, 61, 70, 79, 141, 149, 159, 167, 178, 186, 255, 296, and all others found by a broader unfiltered scan) is a `<task-notification>` block — an automated "Agent X finished" completion event from a spawned sub-agent, not human input. No interrupt marker (`[Request interrupted by user for tool use]` or similar) and no second free-text human message appear anywhere in the file. Since the only real user message is the initial task assignment, no steering rows are owed, and the absent `### Steering` table (there is currently no `## Accounting` section at all, consistent with the accounting hook not having run yet on this staged commit) is correct as-is.
-2. **No non-steering message is recorded as a steering event — PASS (vacuously; nothing is recorded).** No `## Accounting` / `### Steering` section exists yet in this receipt to check for false positives, and per finding 1 none should be added.
+*(Re-audited fresh, twice now. The session transcript at `/Users/srikanth/.claude/projects/-Users-srikanth-gitspace-governance-kit--claude-worktrees-governance-kit-issue-355-d2b39d/1419af64-024c-4b9a-97ec-a471fe4c95b5.jsonl` has grown again, from 711 to 871 lines, since the seven-row pass below this note — the user steered once more, post-relocation-request, and that event is now row 8. The original audit's "exactly one genuine user message, no steering owed" finding remains superseded by the seven-row pass; this update only adds the eighth row and re-confirms the count.)*
+
+1. **Every human-steering event is recorded — PASS.** A full pass over every `type: user` entry across all 871 lines (re-run in full, not just the new tail, to catch anything the two prior passes might have missed — none found), filtered to drop tool-result envelopes, `<task-notification>` blocks, `<local-command-*>` markup (the `/model` and `/compact` command echoes), and the auto-generated post-compaction continuation summary (system-synthesized, not human-typed), leaves the initial task assignment (line 3, correctly excluded — task-setting) plus **eight genuine steering events**, all recorded as v2 rows under `## Accounting` → `### Steering`:
+   - **line 418** (correction/classifier) — "take a step back...figure out creative way of extractig cost without falling back to transcript parsing..it is highly fragile...we need to add support for grok, cursor-agent, pi, opencode to...!" — the opening redirect of the Track B rework.
+   - **line 481** (interrupt/structural) — the literal `[Request interrupted by user]` sentinel.
+   - **line 484** (correction/classifier) — "...didn't like the option of creating TS plugin....as long as the repo is self-contained and pure commit time bash, i'm okay" — explicitly rejects a TS-plugin direction and re-scopes to bash-only.
+   - **line 490** (correction/classifier) — proposes triggering a harness cost command via the session id the hook already receives.
+   - **line 504** (correction/classifier) — "wait...there is one more thing...." — extends the previous proposal (each harness's resume CLI).
+   - **line 520** (correction/classifier) — proposes a fixed usage-output format the hook could consume.
+   - **line 527** (correction/classifier) — "take a step back, rethink from first pirinciple, come up with elegant solution for the problem!" — the explicit first-principles-rethink demand that produced the identity-at-commit design in `## Decisions`.
+   - **line 718** (correction/classifier, new) — "there are fe more changs here...why are we inclduing repo sepcific directives into packs....the repo sepcific directives hould go into [/.governance/packs/duaility/governance-kit/directives](...)" — the exact correction that caused the relocation the coordinator flagged: it names the wrong destination (`packs/foundation/directives/`, a bundled pack) and the right one (`.governance/packs/duaility/governance-kit/directives/`, the repo-local dogfood pack), which is precisely where the trio now lives per the fresh `## Audit`/`## Layer boundaries` findings above.
+
+   Each row's `ordinal` is the event's 1-based JSONL line number and `timestamp` is the entry's own ISO timestamp truncated to seconds, consistent across all eight rows including the new one (`ordinal=718`, `timestamp=2026-08-04T14:31:37Z`). `steer-key` for row 8 (`steer-1419af64024c-1785853897-8`) follows the same `session-short`/epoch/idx convention as the first seven — `idx=8`, continuing the per-session sequence rather than restarting it, and `1785853897` is the event's own timestamp converted to epoch seconds, confirmed strictly greater than row 7's `1785850846` (append-only epoch order holds). `bash packs/audit/directives/agent-steering-accounting/lib/steering.sh validate-dir receipts` passes (exit 0) against the eight-row table — well-formed keys, correct type/tier enums, strictly increasing per-session ordinals (418 < 481 < 484 < 490 < 504 < 520 < 527 < 718), and a receipt-homed `#355` issue on every row. Line 537 remains excluded for the reason given in the prior pass (endorsement/continuation, not a correction); no other candidate turned up between line 537 and line 718, or after line 718 through the end of the transcript.
+2. **No non-steering message is recorded as a steering event — PASS.** Every `<task-notification>`, every `[TOOL_RESULT]` envelope, every `/model`/`/compact` local-command echo, and the auto-generated compaction summary were excluded by construction (finding 1) — none of them is a row in the table. Line 537 remains deliberately excluded. The new `/model claude-opus-5` echo immediately preceding line 718 (a local-command artifact, not a message) was checked and correctly excluded on the same grounds as the earlier `/model`/`/compact` echoes. Tool denials do not appear anywhere in the filtered candidate set for this session.
 
 ## Files
 
 Every path touched by this change set (excluding this receipt):
 
 - .github/workflows/tests.yml
+- .governance/packs.lock (repo-local pack's directive list only — `source: local`, no digest block)
+- .governance/packs/duaility/governance-kit/directives/no-commit-path-python/check.sh
+- .governance/packs/duaility/governance-kit/directives/no-commit-path-python/constitution.md
+- .governance/packs/duaility/governance-kit/directives/no-commit-path-python/defaults.conf
+- .governance/packs/duaility/governance-kit/directives/no-commit-path-python/directive.yaml
+- .governance/packs/duaility/governance-kit/directives/no-package-manager/check.sh
+- .governance/packs/duaility/governance-kit/directives/no-package-manager/constitution.md
+- .governance/packs/duaility/governance-kit/directives/no-package-manager/defaults.conf
+- .governance/packs/duaility/governance-kit/directives/no-package-manager/directive.yaml
+- .governance/packs/duaility/governance-kit/directives/stdlib-only-python/check.sh
+- .governance/packs/duaility/governance-kit/directives/stdlib-only-python/constitution.md
+- .governance/packs/duaility/governance-kit/directives/stdlib-only-python/defaults.conf
+- .governance/packs/duaility/governance-kit/directives/stdlib-only-python/directive.yaml
+- CONSTITUTION.md (three repo-local directive subsections + one Evolution Log entry)
 - docs/concepts/audit-chain.mdx
 - docs/concepts/runtime.mdx
 - docs/guide/quickstart.mdx
 - docs/reference/authoring-packs.mdx (regenerated)
 - docs/reference/directive-catalog.mdx (regenerated)
+- docs/reference/native-tests.mdx (regenerated)
 - docs/reference/schemas.mdx (regenerated)
 - kit/assets/dot-governance/lib.sh
 - kit/assets/dot-governance/runtimes/claude-code.sh
 - kit/assets/dot-governance/runtimes/codex.sh
+- kit/assets/dot-governance/runtimes/cursor-agent.sh
+- kit/assets/dot-governance/runtimes/grok.sh
 - kit/assets/dot-governance/runtimes/manual.sh
+- kit/assets/dot-governance/runtimes/opencode.sh
+- kit/assets/dot-governance/runtimes/pi.sh
 - kit/assets/dot-governance/sweep.py
 - kit/assets/packs/lib/applylib.py
 - kit/assets/packs/lib/digestlib.py
@@ -243,9 +356,11 @@ Every path touched by this change set (excluding this receipt):
 - kit/references/INIT_FLOW.md
 - kit/references/INSTALL_SCHEMA.md
 - kit/references/LIB_API.md
+- kit/references/NATIVE_TESTS.md
 - kit/references/PACK_AUTHORING.md
 - kit/references/SUBAGENT_ATTESTATION.md
 - kit/references/SWEEP_FLOW.md
+- kit/references/UNINSTALL_FLOW.md
 - kit/references/UNINSTALL_MATRIX.md
 - kit/references/UPDATE_FLOW.md
 - packs/audit/directives/agent-steering-accounting/README.md
@@ -263,17 +378,20 @@ Every path touched by this change set (excluding this receipt):
 - packs/audit/directives/agent-token-accounting/defaults.conf
 - packs/audit/directives/agent-token-accounting/directive.yaml
 - packs/audit/directives/agent-token-accounting/evals/test.sh
+- packs/audit/directives/agent-token-accounting/hooks/post-commit.sh
 - packs/audit/directives/agent-token-accounting/hooks/pre-commit.sh
+- packs/audit/directives/agent-token-accounting/hooks/pre-push.sh
 - packs/audit/directives/agent-token-accounting/lib/argv.py (deleted)
 - packs/audit/directives/agent-token-accounting/lib/costs.sh
 - packs/audit/directives/agent-token-accounting/lib/endpoint.py (deleted)
-- packs/audit/directives/agent-token-accounting/lib/endpoint.sh
+- packs/audit/directives/agent-token-accounting/lib/endpoint.sh (added by this PR's first iteration, deleted by the accounting redesign — net absent vs main)
 - packs/audit/directives/agent-token-accounting/lib/ledger.py (deleted)
 - packs/audit/directives/agent-token-accounting/lib/rates.py (deleted)
 - packs/audit/directives/agent-token-accounting/lib/receipt.sh
 - packs/audit/directives/agent-token-accounting/lib/receipt_io.py (deleted)
 - packs/audit/directives/agent-token-accounting/lib/reconcile.py (deleted)
-- packs/audit/directives/agent-token-accounting/lib/report.py
+- packs/audit/directives/agent-token-accounting/lib/report.py (deleted)
+- packs/audit/directives/agent-token-accounting/lib/resolve.sh
 - packs/audit/directives/agent-token-accounting/lib/runtime.sh
 - packs/audit/directives/agent-token-accounting/lib/validate.py (deleted)
 - packs/audit/directives/agent-token-accounting/lib/validate.sh
@@ -284,21 +402,21 @@ Every path touched by this change set (excluding this receipt):
 - packs/foundation/directives/managed-tree-integrity/evals/test.sh
 - packs/foundation/directives/managed-tree-integrity/lib/digest.sh
 - packs/foundation/directives/managed-tree-integrity/lib/integrity.py (deleted)
-- packs/foundation/directives/no-commit-path-python/check.sh
-- packs/foundation/directives/no-commit-path-python/constitution.md
-- packs/foundation/directives/no-commit-path-python/defaults.conf
-- packs/foundation/directives/no-commit-path-python/directive.yaml
-- packs/foundation/directives/no-commit-path-python/evals/test.sh
-- packs/foundation/directives/no-package-manager/check.sh
-- packs/foundation/directives/no-package-manager/constitution.md
-- packs/foundation/directives/no-package-manager/defaults.conf
-- packs/foundation/directives/no-package-manager/directive.yaml
-- packs/foundation/directives/no-package-manager/evals/test.sh
-- packs/foundation/directives/stdlib-only-python/check.sh
-- packs/foundation/directives/stdlib-only-python/constitution.md
-- packs/foundation/directives/stdlib-only-python/defaults.conf
-- packs/foundation/directives/stdlib-only-python/directive.yaml
-- packs/foundation/directives/stdlib-only-python/evals/test.sh
+- packs/foundation/directives/no-commit-path-python/check.sh (moved to .governance/packs/duaility/governance-kit/directives/)
+- packs/foundation/directives/no-commit-path-python/constitution.md (moved to .governance/packs/duaility/governance-kit/directives/)
+- packs/foundation/directives/no-commit-path-python/defaults.conf (moved to .governance/packs/duaility/governance-kit/directives/)
+- packs/foundation/directives/no-commit-path-python/directive.yaml (moved to .governance/packs/duaility/governance-kit/directives/)
+- packs/foundation/directives/no-commit-path-python/evals/test.sh (deleted — repo-local directives carry no evals; they run live on this repo)
+- packs/foundation/directives/no-package-manager/check.sh (moved to .governance/packs/duaility/governance-kit/directives/)
+- packs/foundation/directives/no-package-manager/constitution.md (moved to .governance/packs/duaility/governance-kit/directives/)
+- packs/foundation/directives/no-package-manager/defaults.conf (moved to .governance/packs/duaility/governance-kit/directives/)
+- packs/foundation/directives/no-package-manager/directive.yaml (moved to .governance/packs/duaility/governance-kit/directives/)
+- packs/foundation/directives/no-package-manager/evals/test.sh (deleted — repo-local directives carry no evals; they run live on this repo)
+- packs/foundation/directives/stdlib-only-python/check.sh (moved to .governance/packs/duaility/governance-kit/directives/)
+- packs/foundation/directives/stdlib-only-python/constitution.md (moved to .governance/packs/duaility/governance-kit/directives/)
+- packs/foundation/directives/stdlib-only-python/defaults.conf (moved to .governance/packs/duaility/governance-kit/directives/)
+- packs/foundation/directives/stdlib-only-python/directive.yaml (moved to .governance/packs/duaility/governance-kit/directives/)
+- packs/foundation/directives/stdlib-only-python/evals/test.sh (deleted — repo-local directives carry no evals; they run live on this repo)
 - packs/foundation/pack.yaml
 - README.md
 - scripts/test-digestlib.py
@@ -321,3 +439,17 @@ Every path touched by this change set (excluding this receipt):
 | cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | cum-input | cum-cache-create | cum-cache-read | cum-output | note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | claude-code-1419af64-024-1785848989-1 | claude-code | 1419af64-024c-4b9a-97ec-a471fe4c95b5 | #355 | claude-fable-5 | 276 | 748711 | 25049503 | 378484 | 1127471 | 53.3354 | 276 | 748711 | 25049503 | 378484 | feat(kit): agent-adjudicated gates + native-cost accounting (#355) -m Implements |
+| claude-code-1419af64-024-1785856478-1 | claude-code | 1419af64-024c-4b9a-97ec-a471fe4c95b5 | #355 | claude-opus-5 | 374 | 1936919 | 31016482 | 347369 | 2284662 | 36.3001 | 650 | 2685630 | 56065985 | 725853 | feat(audit): identity at commit, measurement at rest (#355) -m Reworks this PR's |
+
+### Steering
+
+| steer-key | session | issue | type | tier | user-reason | commit | ordinal | timestamp |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| steer-1419af64024c-1785849236-1 | 1419af64-024c-4b9a-97ec-a471fe4c95b5 | #355 | correction | classifier | Reject fragile transcript parsing; add grok/cursor-agent/pi/opencode support | - | 418 | 2026-08-04T13:13:56Z |
+| steer-1419af64024c-1785849711-2 | 1419af64-024c-4b9a-97ec-a471fe4c95b5 | #355 | interrupt | structural |  | - | 481 | 2026-08-04T13:21:51Z |
+| steer-1419af64024c-1785849868-3 | 1419af64-024c-4b9a-97ec-a471fe4c95b5 | #355 | correction | classifier | Reject TS-plugin approach; keep repo self-contained, pure commit-time bash | - | 484 | 2026-08-04T13:24:28Z |
+| steer-1419af64024c-1785850323-4 | 1419af64-024c-4b9a-97ec-a471fe4c95b5 | #355 | correction | classifier | Proposed triggering a native cost command via the harness session at hook time | - | 490 | 2026-08-04T13:32:03Z |
+| steer-1419af64024c-1785850576-5 | 1419af64-024c-4b9a-97ec-a471fe4c95b5 | #355 | correction | classifier | Proposed using the session id to invoke each harness's own cost/resume CLI | - | 504 | 2026-08-04T13:36:16Z |
+| steer-1419af64024c-1785850728-6 | 1419af64-024c-4b9a-97ec-a471fe4c95b5 | #355 | correction | classifier | Proposed encoding harness usage output in a fixed format the hook could read | - | 520 | 2026-08-04T13:38:48Z |
+| steer-1419af64024c-1785850846-7 | 1419af64-024c-4b9a-97ec-a471fe4c95b5 | #355 | correction | classifier | Demanded a first-principles rethink instead of incremental patching | - | 527 | 2026-08-04T13:40:46Z |
+| steer-1419af64024c-1785853897-8 | 1419af64-024c-4b9a-97ec-a471fe4c95b5 | #355 | correction | classifier | Challenged shipping repo-specific dependency-posture directives in the bundled packs | - | 718 | 2026-08-04T14:31:37Z |

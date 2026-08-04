@@ -1,0 +1,11 @@
+# no-package-manager — repo-local dogfood. Nothing governance-kit SHIPS invokes
+# a package manager (uv, pip/pipx, npx, pnpm dlx, yarn dlx): the shipped trees
+# kit/**, packs/**, skill/** plus this repo's own .githooks/*. Part of the issue
+# #355 dependency-posture trio, held by the repo that MAKES the promise.
+# .github/workflows/** is out of scope (docs.yml legitimately runs npm for the
+# docs site, which the kit does not ship) and so is scripts/** (test harness).
+category: Foundation
+recommended: false
+summary: Nothing this repo ships (kit/**, packs/**, skill/**, .githooks/*) invokes a package manager.
+surface: repo-state
+hook: pre-commit

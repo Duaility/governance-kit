@@ -28,6 +28,31 @@
 #     - conf_rule_lines strips comments/blanks/KEY= and trims the rest
 #     - conf_list layers defaults.conf with the overlay (+add / !remove),
 #       normalizing whitespace for ! removal
+#   runtime adapters (kit/assets/dot-governance/runtimes/*.sh, issue #355 v2 —
+#   "identity at commit, measurement at rest"; every adapter answers
+#   resolve/emit/judge, never cost, never guesses identity):
+#     - claude-code.sh: `resolve` finds the exact-name transcript (declared
+#       path, then <projects>/<encoded>/<session>.jsonl, then a cross-worktree
+#       exact-name find — no mtime fallback survives), sums usage + cost,
+#       source `session-file`; wrong-named transcript is never picked; no
+#       identity → exit 2 even with other transcripts present; `emit` parses
+#       a statusline JSON payload from stdin, appends a `harness-feed`
+#       sidecar snapshot (zero tokens, real cost) and refreshes the identity
+#       file, inside a real tmp git repo; silently exits 0 outside one
+#     - codex.sh: `resolve` finds the exact-thread-id-suffixed rollout file,
+#       sums cumulative usage, cost passes through verbatim or `-`; `emit`
+#       refreshes identity only (no sidecar row)
+#     - manual.sh: `resolve` is the env-passthrough seam; `emit` refreshes
+#       identity from AGENT_SESSION_ID
+#     - pi.sh: `resolve` sums the `usage` objects (input/output/cacheRead/
+#       cacheWrite/cost.total) from the exact-name-suffixed session file
+#     - grok.sh: `resolve` reads `signals.json` from the exact session-id
+#       directory; missing counters → exit 2
+#     - cursor-agent.sh: `resolve` always exits 2 (no documented surface)
+#     - opencode.sh: `resolve` parses a `/session/<id>` response body via the
+#       $OPENCODE_RESPONSE_FILE test seam (no real network call in CI)
+#     - every adapter: bare invocation → usage + exit 2; unknown verb →
+#       named-verbs message + exit 2; a vendor CLI absent → `judge` exits 2
 
 set -eu
 
@@ -42,9 +67,15 @@ RUN_SH="$ROOT/kit/assets/dot-governance/run.sh"
 LIB_SH="$ROOT/kit/assets/dot-governance/lib.sh"
 TOKEN_RUNTIME_LIB="$ROOT/packs/audit/directives/agent-token-accounting/lib/runtime.sh"
 # The adapter registry is kit-level since issue #355 — one file per harness,
-# shared by the accounting lane's `cost` verb and lib.sh's `judge` verb.
+# shared by the accounting lane's resolve/emit verbs and lib.sh's `judge` verb.
 RUNTIMES_DIR="$ROOT/kit/assets/dot-governance/runtimes"
+TOKEN_CLAUDE_SH="$RUNTIMES_DIR/claude-code.sh"
 TOKEN_CODEX_SH="$RUNTIMES_DIR/codex.sh"
+TOKEN_MANUAL_SH="$RUNTIMES_DIR/manual.sh"
+TOKEN_PI_SH="$RUNTIMES_DIR/pi.sh"
+TOKEN_GROK_SH="$RUNTIMES_DIR/grok.sh"
+TOKEN_CURSOR_SH="$RUNTIMES_DIR/cursor-agent.sh"
+TOKEN_OPENCODE_SH="$RUNTIMES_DIR/opencode.sh"
 
 PASS=0
 FAIL=0
@@ -868,79 +899,143 @@ EOF
 output=$(cd "$list_repo"; set +u; source "$LIB_SH"; conf_list cmf ./defaults.conf)
 assert_eq "conf_list can empty the list" "" "$output"
 
-# ---- agent-token-accounting: Codex runtime adapter ------------------------
-# The adapter answers the unified `cost` verb (issue #355) with
-#   <session> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output> <model> <cost_usd>
-# extracted in POSIX awk — no python anywhere on this path — and reports the
-# harness's own dollar figure or the literal `-`. It never prices.
+# Runtime identity-ladder tests (env detection → RUNTIME/SESSION_ID, the
+# packs/audit/directives/agent-token-accounting/lib/runtime.sh side of #355 v2)
+# live in that directive's own evals/test.sh, not here — this file owns the
+# adapter files themselves (kit/assets/dot-governance/runtimes/**), which the
+# identity ladder and the resolve sweep both call into as a black box.
 
-printf '── agent-token-accounting: codex runtime adapter ───────\n'
+# ---- runtime adapters: claude-code.sh --------------------------------------
+# resolve/emit (issue #355 v2 — identity at commit, measurement at rest).
+# `resolve` never guesses: only a declared path or an exact session-id-named
+# transcript is opened; `emit` never blocks a hook on identity — it drops
+# silently when there is nothing to attribute.
+
+printf '── runtime adapters: claude-code.sh ──────────────────────\n'
+claude_projects="$WORK/claude-projects"
+mkdir -p "$claude_projects/-Users-agent-repo"
+claude_wanted="$claude_projects/-Users-agent-repo/session-wanted.jsonl"
+claude_other="$claude_projects/-Users-agent-repo/session-other.jsonl"
+cat > "$claude_wanted" <<'EOF'
+{"sessionId":"session-wanted","type":"assistant","model":"claude-sonnet-4-5","usage":{"input_tokens":100,"cache_creation_input_tokens":10,"cache_read_input_tokens":5,"output_tokens":20},"costUSD":0.0100}
+{"sessionId":"session-wanted","type":"assistant","model":"claude-sonnet-4-5","usage":{"input_tokens":50,"cache_creation_input_tokens":0,"cache_read_input_tokens":5,"output_tokens":10},"costUSD":0.0050}
+EOF
+cat > "$claude_other" <<'EOF'
+{"sessionId":"session-other","type":"assistant","model":"claude-opus-4-5","usage":{"input_tokens":9000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":900},"costUSD":9.0000}
+EOF
+
+set +e
+output=$(CLAUDE_PROJECTS_DIR="$claude_projects" bash "$TOKEN_CLAUDE_SH" resolve session-wanted)
+exit_code=$?
+set -e
+assert_eq "claude-code resolve exits 0 on an exact-name match" 0 "$exit_code"
+assert_eq "claude-code resolve sums the named transcript only" \
+    "150 10 10 30 claude-sonnet-4-5 0.0150 session-file" "$output"
+if [[ "$output" != *"9000"* && "$output" != *"9.0000"* ]]; then
+    PASS=$((PASS + 1)); printf '  ok - claude-code resolve does not pick the other transcript in the same dir (two transcripts present, wrong one not chosen)\n'
+else
+    FAIL=$((FAIL + 1)); printf '  not ok - claude-code resolve leaked numbers from the wrong transcript\n'
+fi
+
+# The declared-path argument (how the identity file's `declared=` field
+# reaches the adapter from a resolve sweep) is honored directly.
+set +e
+output=$(bash "$TOKEN_CLAUDE_SH" resolve session-wanted "$claude_wanted")
+exit_code=$?
+set -e
+assert_eq "claude-code resolve honors an explicit declared path" 0 "$exit_code"
+assert_eq "claude-code resolve via declared path sums correctly" \
+    "150 10 10 30 claude-sonnet-4-5 0.0150 session-file" "$output"
+
+# No identity → no numbers, even with two real transcripts sitting right
+# there. This is the "no mtime guessing" contract: a session id that names
+# nothing on disk gets exit 2, never the newest or only file in the directory.
+set +e
+output=$(CLAUDE_PROJECTS_DIR="$claude_projects" bash "$TOKEN_CLAUDE_SH" resolve session-unknown)
+exit_code=$?
+set -e
+assert_eq "claude-code resolve refuses to guess an unnamed session" 2 "$exit_code"
+
+# emit: statusline JSON on stdin, inside a real tmp git repo.
+claude_repo="$WORK/claude-emit-repo"
+mkdir -p "$claude_repo"
+git -C "$claude_repo" init -q
+git -C "$claude_repo" -c user.email=t@e -c user.name=t commit -q --allow-empty -m init
+claude_payload='{"session_id":"emit-sess-1","transcript_path":"/tmp/emit-sess-1.jsonl","cwd":"'"$claude_repo"'","model":{"id":"claude-opus-4-5","display_name":"Opus"},"cost":{"total_cost_usd":1.2500}}'
+set +e
+output=$(printf '%s' "$claude_payload" | bash "$TOKEN_CLAUDE_SH" emit)
+exit_code=$?
+set -e
+assert_eq "claude-code emit exits 0" 0 "$exit_code"
+claude_gitd="$(git -C "$claude_repo" rev-parse --absolute-git-dir)"
+sidecar_out="$(cat "$claude_gitd/governance/costs/claude-code-emit-sess-1" 2>/dev/null)"
+assert_contains "claude-code emit appends a harness-feed sidecar snapshot" \
+    "v1 " "$sidecar_out"
+assert_contains "claude-code emit sidecar carries cost + harness-feed source" \
+    "claude-opus-4-5 1.2500 harness-feed" "$sidecar_out"
+identity_out="$(cat "$claude_gitd/governance/session-identity" 2>/dev/null)"
+assert_contains "claude-code emit refreshes identity harness" "harness=claude-code" "$identity_out"
+assert_contains "claude-code emit refreshes identity session" "session=emit-sess-1" "$identity_out"
+assert_contains "claude-code emit records the declared transcript path" \
+    "declared=/tmp/emit-sess-1.jsonl" "$identity_out"
+
+# emit outside a git repo silently exits 0 and writes nothing.
+claude_nongit="$WORK/claude-emit-nongit"
+mkdir -p "$claude_nongit"
+nongit_payload='{"session_id":"outside-sess","cwd":"'"$claude_nongit"'","model":{"id":"m"},"cost":{"total_cost_usd":0.5}}'
+set +e
+output=$(printf '%s' "$nongit_payload" | bash "$TOKEN_CLAUDE_SH" emit)
+exit_code=$?
+set -e
+assert_eq "claude-code emit exits 0 outside a git repo (never an error)" 0 "$exit_code"
+
+# ---- runtime adapters: codex.sh --------------------------------------------
+
+printf '── runtime adapters: codex.sh ────────────────────────────\n'
 codex_sessions="$WORK/codex-sessions"
 codex_archived="$WORK/codex-archived"
 mkdir -p "$codex_sessions/2026/06/18" "$codex_archived"
 codex_thread="019ed941-f410-7871-bacf-6db3af231768"
 codex_wanted="$codex_sessions/2026/06/18/rollout-2026-06-18T11-13-58-$codex_thread.jsonl"
-codex_newer="$codex_sessions/2026/06/18/rollout-2026-06-18T11-14-30-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jsonl"
+codex_other="$codex_sessions/2026/06/18/rollout-2026-06-18T11-14-30-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jsonl"
 cat > "$codex_wanted" <<EOF
 {"type":"session_meta","payload":{"id":"$codex_thread"}}
 {"type":"turn_context","payload":{"collaboration_mode":{"settings":{"model":"gpt-5.5"}}}}
 {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":30,"output_tokens":7}}}}
 EOF
-cat > "$codex_newer" <<'EOF'
+cat > "$codex_other" <<'EOF'
 {"type":"session_meta","payload":{"id":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}}
 {"type":"turn_context","payload":{"collaboration_mode":{"settings":{"model":"gpt-5.5"}}}}
 {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":900,"cached_input_tokens":0,"output_tokens":9}}}}
 EOF
-touch -t 202606181114 "$codex_wanted"
-touch -t 202606181115 "$codex_newer"
 
 set +e
 output=$(
-    CODEX_THREAD_ID="$codex_thread" \
     CODEX_SESSIONS_DIR="$codex_sessions" \
     CODEX_ARCHIVED_SESSIONS_DIR="$codex_archived" \
-    bash "$TOKEN_CODEX_SH" cost
+    bash "$TOKEN_CODEX_SH" resolve "$codex_thread"
 )
 exit_code=$?
 set -e
-assert_eq "codex adapter exits 0 with CODEX_THREAD_ID" 0 "$exit_code"
-assert_eq "codex adapter chooses thread match over newer unrelated transcript" "$codex_thread 70 0 30 7 gpt-5.5 -" "$output"
+assert_eq "codex resolve exits 0 on an exact thread-id match" 0 "$exit_code"
+assert_eq "codex resolve chooses the thread match over an unrelated transcript (two present, wrong one not chosen)" \
+    "70 0 30 7 gpt-5.5 - session-file" "$output"
 
-# A bare invocation (no verb) still behaves as `cost` — lib/runtime.sh's
-# pre-#355 contract stays valid for any vendored caller.
 set +e
 output=$(
-    CODEX_THREAD_ID="$codex_thread" \
     CODEX_SESSIONS_DIR="$codex_sessions" \
     CODEX_ARCHIVED_SESSIONS_DIR="$codex_archived" \
-    bash "$TOKEN_CODEX_SH"
-)
-set -e
-assert_eq "codex adapter defaults a bare invocation to the cost verb" "$codex_thread 70 0 30 7 gpt-5.5 -" "$output"
-
-# An unknown verb is refused loudly rather than silently treated as `cost`.
-set +e
-output=$(
-    CODEX_THREAD_ID="$codex_thread" \
-    CODEX_SESSIONS_DIR="$codex_sessions" \
-    CODEX_ARCHIVED_SESSIONS_DIR="$codex_archived" \
-    bash "$TOKEN_CODEX_SH" summarize 2>&1
+    bash "$TOKEN_CODEX_SH" resolve "no-such-thread"
 )
 exit_code=$?
 set -e
-assert_eq "codex adapter rejects an unimplemented verb with exit 2" 2 "$exit_code"
-assert_contains "codex adapter names the supported verbs" "supported: cost, judge" "$output"
+assert_eq "codex resolve refuses to guess an unnamed thread" 2 "$exit_code"
 
 set +e
-output=$(
-    unset CODEX_THREAD_ID CODEX_TRANSCRIPT_PATH
-    CODEX_SESSIONS_DIR="$codex_sessions" \
-    CODEX_ARCHIVED_SESSIONS_DIR="$codex_archived" \
-    bash "$TOKEN_CODEX_SH" cost
-)
+output=$(bash "$TOKEN_CODEX_SH" resolve "$codex_thread" 2>&1)
 exit_code=$?
 set -e
-assert_eq "codex adapter refuses to guess without thread id or transcript path" 2 "$exit_code"
+assert_eq "codex resolve with no sessions dir and no declared path exits 2" 2 "$exit_code"
 
 # A harness-reported dollar figure rides through verbatim; the kit never prices.
 codex_priced="$codex_sessions/2026/06/18/rollout-2026-06-18T12-00-00-priced.jsonl"
@@ -950,42 +1045,61 @@ cat > "$codex_priced" <<'EOF'
 {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"cached_input_tokens":4,"output_tokens":2},"total_cost_usd":0.0125}}}
 EOF
 set +e
-output=$(CODEX_TRANSCRIPT_PATH="$codex_priced" bash "$TOKEN_CODEX_SH" cost)
+output=$(bash "$TOKEN_CODEX_SH" resolve priced-thread "$codex_priced")
 set -e
-assert_eq "codex adapter passes a native cost through verbatim" "priced-thread 6 0 4 2 gpt-5.5 0.0125" "$output"
+assert_eq "codex resolve passes a native cost through verbatim (via declared path)" \
+    "6 0 4 2 gpt-5.5 0.0125 session-file" "$output"
 
-# No python is reachable from the adapters or the runtime dispatcher.
+# emit: identity only — no sidecar snapshot, since the notify payload carries
+# no reliable session-cumulative numbers to push.
+codex_repo="$WORK/codex-emit-repo"
+mkdir -p "$codex_repo"
+git -C "$codex_repo" init -q
+git -C "$codex_repo" -c user.email=t@e -c user.name=t commit -q --allow-empty -m init
 set +e
-output=$(grep -nE '(^|[^[:alnum:]_])python3?[[:space:]]' "$RUNTIMES_DIR"/*.sh "$TOKEN_RUNTIME_LIB" \
-    2>/dev/null | grep -vE ':[[:space:]]*#')
-set -e
-assert_eq "runtime adapters invoke no python" "" "$output"
-
-# ── the adapter registry: the `judge` verb, and the manual seam ─────────────
-# Every adapter answers two verbs. `cost` is covered above against synthetic
-# transcripts; `judge` is covered here through the `manual` adapter, which is
-# the deterministic seam that makes an executor lane testable with no vendor
-# CLI on PATH and no network. The vendor adapters are covered for the one
-# behavior that must hold without their CLI installed: degrade, never hang.
-for _adapter in claude-code codex manual; do
-    assert_eq "the registry ships the $_adapter adapter" "1" \
-        "$([[ -f "$RUNTIMES_DIR/$_adapter.sh" ]] && echo 1 || echo 0)"
-done
-
-set +e
-output=$(
-    AGENT_SESSION_ID=man-1 AGENT_CUM_INPUT=10 AGENT_CUM_OUTPUT=5 \
-    AGENT_MODEL=some-model-9 AGENT_COST_USD=0.4200 \
-    bash "$RUNTIMES_DIR/manual.sh" cost
-)
-set -e
-assert_eq "manual adapter cost mirrors the env seam" "man-1 10 0 0 5 some-model-9 0.4200" "$output"
-
-set +e
-output=$(unset AGENT_SESSION_ID; bash "$RUNTIMES_DIR/manual.sh" cost 2>&1)
+output=$(printf '{"thread_id":"%s","cwd":"%s"}' "$codex_thread" "$codex_repo" | bash "$TOKEN_CODEX_SH" emit)
 exit_code=$?
 set -e
-assert_eq "manual adapter cost exits 2 when the seam is unset" 2 "$exit_code"
+assert_eq "codex emit exits 0" 0 "$exit_code"
+codex_gitd="$(git -C "$codex_repo" rev-parse --absolute-git-dir)"
+assert_contains "codex emit refreshes identity" "harness=codex" "$(cat "$codex_gitd/governance/session-identity" 2>/dev/null)"
+assert_contains "codex emit records the thread id as the session" "session=$codex_thread" "$(cat "$codex_gitd/governance/session-identity" 2>/dev/null)"
+if [[ ! -d "$codex_gitd/governance/costs" ]]; then
+    PASS=$((PASS + 1)); printf '  ok - codex emit writes no sidecar snapshot (identity only)\n'
+else
+    FAIL=$((FAIL + 1)); printf '  not ok - codex emit should not have written a sidecar\n'
+fi
+
+# ---- runtime adapters: manual.sh -------------------------------------------
+
+printf '── runtime adapters: manual.sh ────────────────────────────\n'
+set +e
+output=$(
+    AGENT_CUM_INPUT=10 AGENT_CUM_OUTPUT=5 \
+    AGENT_MODEL=some-model-9 AGENT_COST_USD=0.4200 \
+    bash "$TOKEN_MANUAL_SH" resolve man-1
+)
+set -e
+assert_eq "manual resolve mirrors the env seam" "10 0 0 5 some-model-9 0.4200 manual" "$output"
+
+set +e
+output=$(unset AGENT_CUM_INPUT; bash "$TOKEN_MANUAL_SH" resolve man-1 2>&1)
+exit_code=$?
+set -e
+assert_eq "manual resolve exits 2 when the seam is unset" 2 "$exit_code"
+
+manual_repo="$WORK/manual-emit-repo"
+mkdir -p "$manual_repo"
+git -C "$manual_repo" init -q
+git -C "$manual_repo" -c user.email=t@e -c user.name=t commit -q --allow-empty -m init
+set +e
+output=$(cd "$manual_repo" && AGENT_SESSION_ID=man-emit-1 bash "$TOKEN_MANUAL_SH" emit </dev/null)
+exit_code=$?
+set -e
+assert_eq "manual emit exits 0" 0 "$exit_code"
+manual_gitd="$(git -C "$manual_repo" rev-parse --absolute-git-dir)"
+assert_contains "manual emit refreshes identity from AGENT_SESSION_ID" \
+    "session=man-emit-1" "$(cat "$manual_gitd/governance/session-identity" 2>/dev/null)"
 
 prompt_sink="$WORK/judge-prompt.txt"
 set +e
@@ -994,7 +1108,7 @@ output=$(
     | AGENT_JUDGE_VERDICT=PASS \
       AGENT_JUDGE_REASON="the receipt matches the diff" \
       AGENT_JUDGE_PROMPT_SINK="$prompt_sink" \
-      bash "$RUNTIMES_DIR/manual.sh" judge low ""
+      bash "$TOKEN_MANUAL_SH" judge low ""
 )
 exit_code=$?
 set -e
@@ -1006,15 +1120,159 @@ assert_contains "manual adapter judge records the prompt it was handed" \
     "RUBRIC: (1) x" "$(cat "$prompt_sink" 2>/dev/null)"
 
 set +e
-output=$(printf 'x\n' | bash "$RUNTIMES_DIR/manual.sh" judge low "" 2>&1)
+output=$(printf 'x\n' | bash "$TOKEN_MANUAL_SH" judge low "" 2>&1)
 exit_code=$?
 set -e
 assert_eq "manual adapter judge exits 2 with no verdict configured" 2 "$exit_code"
 
+# ---- runtime adapters: pi.sh ------------------------------------------------
+# resolve sums Pi's per-message `usage` objects (input/output/cacheRead/
+# cacheWrite/cost.total — Pi DOES report cost) from an exact-name-suffixed
+# session file.
+
+printf '── runtime adapters: pi.sh ────────────────────────────────\n'
+pi_sessions="$WORK/pi-sessions"
+mkdir -p "$pi_sessions"
+pi_session_id="pisess-1"
+cat > "$pi_sessions/20260618-103000_${pi_session_id}.jsonl" <<EOF
+{"model":"pi-large","usage":{"input":10,"output":5,"cacheRead":2,"cacheWrite":1,"cost":{"total":0.0200}}}
+{"model":"pi-large","usage":{"input":5,"output":2,"cacheRead":0,"cacheWrite":0,"cost":{"total":0.0100}}}
+EOF
+set +e
+output=$(PI_SESSIONS_DIR="$pi_sessions" bash "$TOKEN_PI_SH" resolve "$pi_session_id")
+exit_code=$?
+set -e
+assert_eq "pi resolve exits 0 on an exact-name session file" 0 "$exit_code"
+assert_eq "pi resolve sums usage + cost.total" "15 1 2 7 pi-large 0.0300 session-file" "$output"
+
+set +e
+output=$(PI_SESSIONS_DIR="$pi_sessions" bash "$TOKEN_PI_SH" resolve "no-such-session" 2>&1)
+exit_code=$?
+set -e
+assert_eq "pi resolve refuses to guess an unnamed session" 2 "$exit_code"
+
+# ---- runtime adapters: grok.sh ----------------------------------------------
+# resolve reads signals.json from the exact session-id directory — never a
+# glob, never the newest directory.
+
+printf '── runtime adapters: grok.sh ──────────────────────────────\n'
+grok_home="$WORK/grok-home"
+mkdir -p "$grok_home/sessions/groksess-1"
+cat > "$grok_home/sessions/groksess-1/signals.json" <<'EOF'
+{"input_tokens":40,"output_tokens":8,"cache_read_tokens":3,"cache_write_tokens":1,"total_cost_usd":0.0300,"model":"grok-4"}
+EOF
+set +e
+output=$(GROK_HOME="$grok_home" bash "$TOKEN_GROK_SH" resolve groksess-1)
+exit_code=$?
+set -e
+assert_eq "grok resolve exits 0 on an exact session-id directory" 0 "$exit_code"
+assert_eq "grok resolve reads signals.json counters" "40 1 3 8 grok-4 0.0300 session-file" "$output"
+
+# A session directory with no signals.json/summary.json fails honestly.
+mkdir -p "$grok_home/sessions/groksess-empty"
+set +e
+output=$(GROK_HOME="$grok_home" bash "$TOKEN_GROK_SH" resolve groksess-empty 2>&1)
+exit_code=$?
+set -e
+assert_eq "grok resolve exits 2 with no signals/summary file" 2 "$exit_code"
+
+# A signals.json missing a required counter is honest, not zero-filled.
+mkdir -p "$grok_home/sessions/groksess-partial"
+cat > "$grok_home/sessions/groksess-partial/signals.json" <<'EOF'
+{"input_tokens":10}
+EOF
+set +e
+output=$(GROK_HOME="$grok_home" bash "$TOKEN_GROK_SH" resolve groksess-partial 2>&1)
+exit_code=$?
+set -e
+assert_eq "grok resolve exits 2 when output_tokens is missing" 2 "$exit_code"
+
+set +e
+output=$(GROK_HOME="$grok_home" bash "$TOKEN_GROK_SH" resolve no-such-dir 2>&1)
+exit_code=$?
+set -e
+assert_eq "grok resolve refuses to guess an unnamed session directory" 2 "$exit_code"
+
+# ---- runtime adapters: cursor-agent.sh --------------------------------------
+# Cursor exposes no documented per-session usage surface, so resolve always
+# refuses — an honest `-`/unresolved row beats a guess.
+
+printf '── runtime adapters: cursor-agent.sh ──────────────────────\n'
+set +e
+output=$(bash "$TOKEN_CURSOR_SH" resolve any-session 2>&1)
+exit_code=$?
+set -e
+assert_eq "cursor-agent resolve always exits 2 (no documented usage surface)" 2 "$exit_code"
+
+cursor_repo="$WORK/cursor-emit-repo"
+mkdir -p "$cursor_repo"
+git -C "$cursor_repo" init -q
+git -C "$cursor_repo" -c user.email=t@e -c user.name=t commit -q --allow-empty -m init
+set +e
+output=$(printf '{"conversation_id":"conv-1","cwd":"%s"}' "$cursor_repo" | bash "$TOKEN_CURSOR_SH" emit)
+exit_code=$?
+set -e
+assert_eq "cursor-agent emit exits 0" 0 "$exit_code"
+cursor_gitd="$(git -C "$cursor_repo" rev-parse --absolute-git-dir)"
+assert_contains "cursor-agent emit refreshes identity from conversation_id" \
+    "session=conv-1" "$(cat "$cursor_gitd/governance/session-identity" 2>/dev/null)"
+
+# ---- runtime adapters: opencode.sh ------------------------------------------
+# resolve probes a local server; the $OPENCODE_RESPONSE_FILE test seam lets
+# this suite exercise the JSON parse without depending on a real network call
+# or a running opencode server.
+
+printf '── runtime adapters: opencode.sh ──────────────────────────\n'
+opencode_resp="$WORK/opencode-response.json"
+cat > "$opencode_resp" <<'EOF'
+{"cost":0.0500,"tokens":{"input":20,"output":6,"cache":{"read":4,"write":2}}}
+EOF
+set +e
+output=$(OPENCODE_RESPONSE_FILE="$opencode_resp" bash "$TOKEN_OPENCODE_SH" resolve ocsess-1)
+exit_code=$?
+set -e
+assert_eq "opencode resolve exits 0 via the response-file test seam" 0 "$exit_code"
+assert_eq "opencode resolve parses tokens + cost, drops reasoning tokens" \
+    "20 2 4 6 unknown 0.0500 server" "$output"
+
+# No test-seam file and no reachable server → exit 2, never a guess.
+set +e
+output=$(OPENCODE_SERVER="http://127.0.0.1:19999" bash "$TOKEN_OPENCODE_SH" resolve ocsess-1 2>&1)
+exit_code=$?
+set -e
+assert_eq "opencode resolve exits 2 when the server is unreachable" 2 "$exit_code"
+
+# ---- runtime adapters: uniform verb contract --------------------------------
+# Every adapter answers exactly resolve/emit/judge (never `cost` — deleted).
+# A bare invocation and an unknown verb both refuse loudly rather than
+# silently defaulting to anything.
+
+printf '── runtime adapters: uniform verb contract ────────────────\n'
+for _adapter in claude-code codex manual pi grok cursor-agent opencode; do
+    assert_eq "the registry ships the $_adapter adapter" "1" \
+        "$([[ -f "$RUNTIMES_DIR/$_adapter.sh" ]] && echo 1 || echo 0)"
+
+    set +e
+    output=$(bash "$RUNTIMES_DIR/$_adapter.sh" 2>&1)
+    exit_code=$?
+    set -e
+    assert_eq "$_adapter adapter: bare invocation exits 2" 2 "$exit_code"
+    assert_contains "$_adapter adapter: bare invocation prints usage" "usage:" "$output"
+
+    set +e
+    output=$(bash "$RUNTIMES_DIR/$_adapter.sh" bogus-verb 2>&1)
+    exit_code=$?
+    set -e
+    assert_eq "$_adapter adapter: unknown verb exits 2" 2 "$exit_code"
+    assert_contains "$_adapter adapter: unknown verb names the supported verbs" \
+        "supported: resolve, emit, judge" "$output"
+done
+
 # A vendor adapter with its CLI absent must exit 2 promptly — that exit is what
-# the commit lane reads as "degrade to the sub-agent path".
+# the commit lane reads as "degrade to the sub-agent path". `manual` is
+# excluded: its judge is the env seam, not a vendor CLI.
 _bash_bin="$(command -v bash)"
-for _adapter in claude-code codex; do
+for _adapter in claude-code codex pi grok cursor-agent opencode; do
     # An absolute bash + an empty PATH: the adapter must decide "no CLI here"
     # with shell builtins alone, before it needs anything external.
     set +e
@@ -1026,46 +1284,12 @@ for _adapter in claude-code codex; do
     assert_contains "$_adapter adapter says which CLI is missing" "CLI on PATH" "$output"
 done
 
+# No python is reachable from any adapter or the runtime dispatcher.
 set +e
-output=$(
-    unset AGENT_NAME CLAUDECODE CODEX_THREAD_ID
-    export CODEX_TRANSCRIPT_PATH="$codex_wanted"
-    source "$TOKEN_RUNTIME_LIB"
-    resolve_runtime_cumulative
-    rc=$?
-    printf '%s %s %s %s %s %s %s\n' "$rc" "$RUNTIME" "$SESSION_ID" "$CUM_INPUT" "$CUM_CACHE_READ" "$MODEL" "$COST_USD"
-)
-exit_code=$?
+output=$(grep -nE '(^|[^[:alnum:]_])python3?[[:space:]]' "$RUNTIMES_DIR"/*.sh "$TOKEN_RUNTIME_LIB" \
+    2>/dev/null | grep -vE ':[[:space:]]*#')
 set -e
-assert_eq "runtime detection accepts explicit Codex transcript path" 0 "$exit_code"
-assert_eq "runtime detection reads Codex adapter coordinates + model + cost" "0 codex $codex_thread 70 30 gpt-5.5 -" "$output"
-
-# The manual env seam carries a harness-reported model and cost through, and
-# defaults an unreported cost to `-` rather than to an estimate.
-set +e
-output=$(
-    unset CLAUDECODE CODEX_THREAD_ID CODEX_TRANSCRIPT_PATH
-    export AGENT_NAME=manual-harness AGENT_SESSION_ID=manual-sess \
-           AGENT_CUM_INPUT=11 AGENT_CUM_OUTPUT=3 \
-           AGENT_MODEL=some-model-9 AGENT_COST_USD=0.4200
-    source "$TOKEN_RUNTIME_LIB"
-    resolve_runtime_cumulative
-    printf '%s %s %s %s\n' "$RUNTIME" "$SESSION_ID" "$MODEL" "$COST_USD"
-)
-set -e
-assert_eq "manual seam carries AGENT_MODEL + AGENT_COST_USD" "manual manual-sess some-model-9 0.4200" "$output"
-
-set +e
-output=$(
-    unset CLAUDECODE CODEX_THREAD_ID CODEX_TRANSCRIPT_PATH AGENT_MODEL AGENT_COST_USD
-    export AGENT_NAME=manual-harness AGENT_SESSION_ID=manual-sess \
-           AGENT_CUM_INPUT=11 AGENT_CUM_OUTPUT=3
-    source "$TOKEN_RUNTIME_LIB"
-    resolve_runtime_cumulative
-    printf '%s %s\n' "$MODEL" "$COST_USD"
-)
-set -e
-assert_eq "manual seam defaults an unreported cost to '-'" "unknown -" "$output"
+assert_eq "runtime adapters invoke no python" "" "$output"
 
 # ---- summary --------------------------------------------------------------
 

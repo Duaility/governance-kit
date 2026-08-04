@@ -375,12 +375,10 @@ harness path — a commit attempt always terminates.
 
 One file per harness at `.governance/runtimes/<name>.sh`, kit-managed exactly
 like `run.sh` and `lib.sh` (stamped with `kit-version=`, digested by
-`managed-tree-integrity`, re-synced by `governance update`). Each adapter answers
-two verbs, because "which harness am I talking to" is one fact about the repo,
-not a per-directive one:
+`managed-tree-integrity`, re-synced by `governance update`). "Which harness am I
+talking to" is one fact about the repo, not a per-directive one, so the registry
+is shared — but not every adapter implements every verb:
 
-- **`cost`** — the harness's own reported session usage, for the accounting lane
-  (`agent-token-accounting`).
 - **`judge [<tier>] [<model>]`** — read a fully-built prompt on stdin, run the
   CLI non-interactively, print `VERDICT: PASS|REFUTED` then zero or more
   `REASON:` lines. Exit 2 on a missing CLI, a transport failure, or an
@@ -388,9 +386,18 @@ not a per-directive one:
   plumbing (`GIT_DIR`, `GIT_INDEX_FILE`, `GIT_WORK_TREE`) and the harness session
   ids (`CLAUDE_CODE_SESSION_ID`, `CLAUDECODE`, `CODEX_THREAD_ID`, …) — a judge
   that inherits the author's session is not an independent judge, and it would
-  bill the audit to the session under audit.
-
-Three ship: `claude-code`, `codex`, and `manual`.
+  bill the audit to the session under audit. Three adapters ship `judge`:
+  `claude-code`, `codex`, and `manual`.
+- **`resolve <session-id> [<declared-path>]` / `emit`** — off-commit-path
+  session measurement for `agent-token-accounting` (issue #355): `resolve`
+  reads an identity-pinned harness surface (a declared path, a session-id-named
+  file under the harness's documented state dir, or a documented local server)
+  and prints one usage line, or exits 2 when it cannot resolve; `emit` accepts
+  the harness's own push payload (statusline/hook JSON) and appends a snapshot
+  to the accounting sidecar. Seven adapters ship these:
+  `claude-code`, `codex`, `pi`, `grok`, `cursor-agent`, `opencode`, and
+  `manual`. See [DIRECTIVES_CATALOG.md](DIRECTIVES_CATALOG.md) for the
+  accounting contract these verbs feed.
 
 **No eval, no ship applies to executors too.** An executor lane that can only be
 exercised by really spawning a paid CLI is an untested lane, so `manual` is a
@@ -402,10 +409,11 @@ runs through it, offline, in a throwaway repo.
 
 One interaction to know about: a `cli:` executor **stages the receipt** mid-hook
 (that is how the round it just wrote reaches the pending commit). A directive
-that freezes a coordinate over the staged tree — `agent-token-accounting`'s
-endpoint — sees the tree move underneath it, exactly as it does when a harness
-remediation loop re-stages. The stamp itself is immune (it excludes the receipt
-from the tree it hashes), and this is why the executor is opt-in.
+that computed a coordinate over the staged tree at one hook stage and re-checked
+it at a later stage would see the tree move underneath it, exactly as it does
+when a harness remediation loop re-stages. The `_adjudication_stamp` above is
+immune to this because it excludes the receipt from the tree it hashes, which is
+why the executor is opt-in.
 
 ## Model tier: use a small model
 

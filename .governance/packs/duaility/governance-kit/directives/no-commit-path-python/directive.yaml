@@ -1,0 +1,12 @@
+# no-commit-path-python — repo-local dogfood. Nothing governance-kit AUTHORS for
+# the consumer commit path invokes python: the shipped runtime source
+# (kit/assets/dot-governance/lib.sh, run.sh, runtimes/*.sh), every pack
+# directive's check.sh / hooks/*.sh / runtimes/*.sh under packs/, and this repo's
+# own .githooks/*. Part of the issue #355 dependency-posture trio, held by the
+# repo that MAKES the promise rather than shipped to consumers — a consumer's
+# .governance/ tree is kit-authored content the consumer cannot fix.
+category: Foundation
+recommended: false
+summary: The source commit path this repo authors (kit/assets/dot-governance runtime, packs/*/directives/* checks and hook scripts, .githooks/*) invokes no python.
+surface: repo-state
+hook: pre-commit

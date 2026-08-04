@@ -1,7 +1,7 @@
-# agent-token-accounting — Each agent commit's token usage lands in the issue's receipt; a commit-time check reconciles the staged row against the endpoint the writer froze. The cost column is the harness's own figure, never a kit estimate.
+# agent-token-accounting — Identity at commit, measurement at rest. The commit records which session authored it; adapters measure that session off the commit path and the row converges. The cost column is the harness's own figure, never a kit estimate.
 category: AgentDiscipline
 recommended: true
-summary: Each agent commit's token usage lands in the issue's receipt (receipts/issue-<N>.md) as a v5 Costs row, and a commit-time check reconciles the staged row against the frozen token endpoint. `cost-usd` is whatever the runtime harness reported (blank when it reported nothing) — the kit keeps no rate card and never prices.
+summary: Each agent session's spend lands as one row per issue in the issue's receipt (receipts/issue-<N>.md) as a v6 Costs row. The commit path records identity only — never a token, never a guess; adapters measure the session off the commit path (post-commit, pre-push) and the next commit folds the newest snapshot in. `cost-usd` is whatever the harness reported (`-` when it reported nothing) — the kit keeps no rate card and never prices.
 surface: change-set
 hook: commit-msg
 reads:

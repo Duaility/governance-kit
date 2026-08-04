@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # governance-kit:managed kit-version=0.12.0
 # Manual runtime adapter — the environment seam, as a first-class adapter
-# (issue #355). Same two verbs as every other adapter; the difference is that
-# the "harness" it reads is a set of environment variables the caller sets.
+# (issue #355 v2: identity at commit, measurement at rest). Same three verbs
+# as every other adapter; the difference is that the "harness" it reads is a
+# set of environment variables the caller sets.
 #
 # Two jobs:
 #
@@ -15,13 +16,22 @@
 #      the re-evaluation, and the degrade path are all covered deterministically,
 #      offline, with no vendor on PATH.
 #
-# Verb interface (argv[1]; a bare invocation defaults to `cost`):
+# Verb interface (argv[1]; a bare invocation prints usage and exits 2):
 #
-#   cost — one line to stdout, from the environment:
-#       <session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output> <model> <cost_usd>
-#     Requires AGENT_SESSION_ID, AGENT_CUM_INPUT, AGENT_CUM_OUTPUT; optional
+#   resolve [<session-id>] [<declared-path>] — env passthrough, one line to
+#     stdout:
+#         <input> <cache_create> <cache_read> <output> <model> <cost_usd|-> manual
+#     Requires AGENT_CUM_INPUT, AGENT_CUM_OUTPUT; optional
 #     AGENT_CUM_CACHE_CREATE, AGENT_CUM_CACHE_READ (0), AGENT_MODEL (`unknown`),
-#     AGENT_COST_USD (`-`). Like every adapter it reports, never prices.
+#     AGENT_COST_USD (`-`). <session-id>/<declared-path> are accepted for
+#     interface parity with every other adapter but unused: there is no file
+#     to pin — the "declared" measurement IS the environment. Like every
+#     adapter it reports, never prices.
+#
+#   emit — identity-only: if AGENT_SESSION_ID is set and the caller is inside
+#     a git working tree ($PWD, since a manual harness has no payload to read
+#     a cwd from), refreshes the commit-path identity file. No session id →
+#     silently exits 0 (nothing to attribute).
 #
 #   judge [<tier>] [<model>] — drains the prompt on stdin and answers from
 #     AGENT_JUDGE_VERDICT (PASS | REFUTED) plus optional AGENT_JUDGE_REASON:
@@ -33,10 +43,11 @@
 #     verbatim — that is how tests assert what the caller actually asked.
 #
 # Exit codes: 0 ok · 2 the seam is not configured (the caller degrades).
+# `emit` never exits 2 — see above.
 
 set -u
 
-VERB="${1:-cost}"
+VERB="${1:-}"
 
 do_judge() {
     local prompt
@@ -58,10 +69,9 @@ do_judge() {
     return 0
 }
 
-do_cost() {
-    [[ -n "${AGENT_SESSION_ID:-}" && -n "${AGENT_CUM_INPUT:-}" && -n "${AGENT_CUM_OUTPUT:-}" ]] || return 2
-    printf '%s %s %s %s %s %s %s\n' \
-        "$AGENT_SESSION_ID" \
+do_resolve() {
+    [[ -n "${AGENT_CUM_INPUT:-}" && -n "${AGENT_CUM_OUTPUT:-}" ]] || return 2
+    printf '%s %s %s %s %s %s manual\n' \
         "$AGENT_CUM_INPUT" \
         "${AGENT_CUM_CACHE_CREATE:-0}" \
         "${AGENT_CUM_CACHE_READ:-0}" \
@@ -71,17 +81,40 @@ do_cost() {
     return 0
 }
 
+do_emit() {
+    [[ -n "${AGENT_SESSION_ID:-}" ]] || return 0
+    local gitd
+    gitd="$(git -C "$PWD" rev-parse --absolute-git-dir 2>/dev/null)" || return 0
+    [[ -n "$gitd" ]] || return 0
+    mkdir -p "$gitd/governance" 2>/dev/null || return 0
+    {
+        printf 'harness=manual\n'
+        printf 'session=%s\n' "$AGENT_SESSION_ID"
+        printf 'declared=\n'
+        printf 'epoch=%s\n' "$(date +%s)"
+    } > "$gitd/governance/session-identity"
+    return 0
+}
+
 case "$VERB" in
-    cost)
-        do_cost
-        exit $?
-        ;;
     judge)
         do_judge "${2:-}" "${3:-}"
         exit $?
         ;;
+    resolve)
+        do_resolve
+        exit $?
+        ;;
+    emit)
+        do_emit
+        exit $?
+        ;;
+    "")
+        printf 'manual adapter: usage: manual.sh {resolve [<session>] [<declared>]|emit|judge [<tier>] [<model>]}\n' >&2
+        exit 2
+        ;;
     *)
-        printf 'manual adapter: unknown verb %s (supported: cost, judge)\n' "$VERB" >&2
+        printf 'manual adapter: unknown verb %s (supported: resolve, emit, judge)\n' "$VERB" >&2
         exit 2
         ;;
 esac
