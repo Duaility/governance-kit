@@ -420,13 +420,10 @@ FOOTER
 # the ref list, so we slurp stdin into a tempfile once and replay it to
 # each helper / check.sh invocation.
 #
-# The dispatcher also carries the kit-level, OPT-IN sweep stanza: with
-# GOVERNANCE_SWEEP_ON_PUSH=1 it runs `.governance/sweep.sh run --push-mode`
-# over the range being pushed. Judging costs minutes, so the default (unset)
-# is zero new work at push time — the scheduled workflow is the standing lane
-# and local push mode is the tightening that makes a REFUTED round land while
-# the receipt is still editable. Its exit status is ALWAYS ignored: judges
-# never block where they run.
+# The dispatcher carries the blocking checks and nothing else. At-rest judging
+# is not a hook's business: it lives in the scheduled lanes a consumer defines
+# (`run.sh --scheduled`), on their own cadence, where minutes of judging cost
+# nobody a push.
 _emit_pre_push() {
     local out="$1" version="$2"
 
@@ -480,42 +477,6 @@ Fix the violations above, or bypass (CI will still enforce):
 ────────────────────────────────────────
 EOF
     exit 1
-fi
-
-# ── Opt-in at-rest sweep (GOVERNANCE_SWEEP_ON_PUSH=1) ──────────────────────
-# The same `judge:` declarations the commit gate reads, re-adjudicated over
-# the range being pushed. Runs only when asked (judging costs minutes), only
-# after the blocking checks have passed, and NEVER decides the push: its exit
-# status is discarded on purpose — judges never block where they run.
-if [[ "${GOVERNANCE_SWEEP_ON_PUSH:-0}" == "1" && -f "$GOVERNANCE_DIR/sweep.sh" ]]; then
-    ZERO_SHA="0000000000000000000000000000000000000000"
-    push_range=""
-    while read -r _lref local_sha _rref remote_sha; do
-        [[ -n "${local_sha:-}" ]] || continue
-        [[ "$local_sha" == "$ZERO_SHA" ]] && continue   # a deletion pushes nothing to judge
-        if [[ -z "${remote_sha:-}" || "$remote_sha" == "$ZERO_SHA" ]]; then
-            # A new branch: judge everything it adds over the remote's trunk,
-            # falling back to the root commit when no trunk resolves.
-            base=""
-            for cand in "refs/remotes/$REMOTE_NAME/HEAD" \
-                        "refs/remotes/$REMOTE_NAME/main" \
-                        "refs/remotes/$REMOTE_NAME/master"; do
-                git rev-parse --verify --quiet "$cand" >/dev/null 2>&1 || continue
-                base="$(git merge-base "$local_sha" "$cand" 2>/dev/null)" || base=""
-                [[ -n "$base" ]] && break
-            done
-            [[ -n "$base" ]] || base="$(git rev-list --max-parents=0 "$local_sha" 2>/dev/null | tail -n 1)"
-            [[ -n "$base" ]] && push_range="$base..$local_sha"
-        else
-            push_range="$remote_sha..$local_sha"
-        fi
-        [[ -n "$push_range" ]] && break
-    done < "$REFS_FILE"
-    if [[ -n "$push_range" ]]; then
-        echo "governance: sweeping $push_range at rest (GOVERNANCE_SWEEP_ON_PUSH=1; the push is not gated on it)" >&2
-        GOVERNANCE_PUSH_RANGE="$push_range" \
-            bash "$GOVERNANCE_DIR/sweep.sh" run --push-mode || true
-    fi
 fi
 
 exit 0

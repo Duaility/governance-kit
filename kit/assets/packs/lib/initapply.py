@@ -36,7 +36,6 @@ from applylib import (
     load_decisions,
     refuse,
     regen_hooks_step,
-    seed_sweep_assets,
     smoke_test,
 )
 from initplan import assemble_constitution, collisions
@@ -208,8 +207,12 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
             agents.write_text(f"# AGENTS.md\n\nGovernance-driven development.\n\n{snippet}\n\n## What this repo is\n\nTODO.\n")
             report["agents_md"] = "stub created"
 
-        # Runtime + CI workflow (copy + stamp).
-        for fn in ("run.sh", "lib.sh"):
+        # Runtime + CI workflow (copy + stamp). schedule.sh (the scheduled-lane
+        # engine, replacing the retired sweep.sh) is unconditional here, like
+        # run.sh/lib.sh — it is a kit-managed runtime file synced by every kit
+        # update regardless of which directives are selected, not a seed-once
+        # asset (issue: scheduled triggers, sweep retirement).
+        for fn in ("run.sh", "lib.sh", "schedule.sh"):
             _copy_stamp(KIT_ASSETS / "dot-governance" / fn, root / ".governance" / fn)
             (root / ".governance" / fn).chmod(0o755)
         # The runtime adapter registry (issue #355) — same treatment as run.sh /
@@ -224,18 +227,15 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
             dest.chmod(0o755)
         _copy_stamp(KIT_ASSETS / "governance.yml", root / ".github" / "workflows" / "governance.yml")
 
-        # Sweep lane (issue #142, harness-pegged per #355): when a directive
-        # carrying a live sweep tier is selected, lay down the scheduled
-        # workflow + the at-rest driver so the lane runs in plain CI — the
-        # consumer brings the runtime adapter CLI + credentials, no skill and
-        # no kit-owned secret. Both are recorded as seeded assets so
-        # `governance uninstall` removes them with everything else. Shared with
-        # pack-apply via applylib.seed_sweep_assets so the two install paths
-        # vendor the lane identically (no path bifurcation).
-        sweep_rels = seed_sweep_assets(root, packs, KIT_VERSION)
-        if sweep_rels:
-            seeded = sorted(set(seeded) | set(sweep_rels))
-            report["seeded_assets"] = seeded
+        # No scheduled-lane workflow is seeded here (unlike the retired sweep
+        # lane, which vendored its workflow the moment a live-sweep directive
+        # was selected). A schedule lane is a consumer-defined artifact — the
+        # workflow IS the config, one lane per file, named members only —
+        # created explicitly via `governance schedule` (packverb.py
+        # schedule-apply), never implied by which directives happen to be
+        # installed. `schedule.sh` itself (copied above alongside run.sh/
+        # lib.sh) needs no directive to opt in; it is idle until a lane
+        # workflow invokes it.
 
         # Hooks + Path-A onboarding.
         hooks_rc = regen_hooks_step(
@@ -251,9 +251,10 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
             subprocess.run(["git", "-C", str(root), "config", "core.hooksPath", ".githooks"], check=False)
 
         _write_manifest(root, decisions, seeded, report)
-        # Record the kit-runtime managed-file digests (run.sh, lib.sh, CI
-        # workflow, and the sweep pair when installed) so `managed-tree-integrity`
-        # can verify them offline (issue #253). The local-only hook dispatchers
+        # Record the kit-runtime managed-file digests (run.sh, lib.sh,
+        # schedule.sh, CI workflow, and any generated schedule-lane workflows)
+        # so `managed-tree-integrity` can verify them offline (issue #253).
+        # The local-only hook dispatchers
         # are intentionally NOT digested (issue #267). Written after every
         # managed file is laid down + stamped, so the digests match disk.
         digestlib.write_managed_digests_block(

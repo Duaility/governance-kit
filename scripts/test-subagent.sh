@@ -23,11 +23,10 @@
 #   _judge_rounds_resolve  default, clamp floor, conf + env override
 #   _judge_full_id      owner/pack/id off an installed directory; nothing for
 #                       a pack's own source tree
-#   _judge_group_resolve   the batching partition in `.governance/conf/repo.conf`:
-#                       judge-solo > judge-group > declaration > solo, bare vs
-#                       full member ids, an ambiguous claim degrading to solo
-#                       with one warning, and the same resolution end to end
-#                       through judge_attest
+#   _judge_group_resolve   the batching label, per directive: an overlay
+#                       `JUDGE_GROUP=` row (empty ⇒ solo) beats the declared
+#                       `judge.group`, which beats solo, and the same
+#                       resolution end to end through judge_attest
 #   attestation_remediation   group batching, solo rows, empty-ledger silence,
 #                       verdict bullets, escalation round, terminal stall
 #   _adjudication_stamp stable across a log append; moves when the receipt's
@@ -37,7 +36,7 @@
 #                       missing log, fresh PASS, stale stamp, scrubbed REFUTED
 #                       (append-only guard), CONTESTED under `verdict` vs
 #                       `verdict-contestable`, a declaration with no section
-#                       (sweep-only discovery), escalation rendering
+#                       (schedule-only discovery), escalation rendering
 
 set -u
 
@@ -102,7 +101,7 @@ judge:
   gate: verdict-contestable
   cmd:
     attest: harness
-    sweep: claude -p --output-format text --model opus
+    schedule: claude -p --output-format text --model opus
 hook: pre-commit
 EOF
 cat > "$Y/minimal.yaml" <<'EOF'
@@ -111,7 +110,7 @@ judge:
   section: "Layer boundaries"
 EOF
 cat > "$Y/none.yaml" <<'EOF'
-surface: sweep
+surface: repo-state
 hook: none
 EOF
 
@@ -163,49 +162,49 @@ printf '── _judge_cmd_resolve (the judge command) ────────�
 
 assert_eq "block map, attest lane" "harness" \
     "$(lib "_judge_cmd_resolve '$Y/full.yaml' attest")"
-assert_eq "block map, sweep lane keeps the whole command" \
+assert_eq "block map, schedule lane keeps the whole command" \
     "claude -p --output-format text --model opus" \
-    "$(lib "_judge_cmd_resolve '$Y/full.yaml' sweep")"
+    "$(lib "_judge_cmd_resolve '$Y/full.yaml' schedule")"
 assert_eq "no cmd map at all prints nothing" "" \
     "$(lib "_judge_cmd_resolve '$Y/minimal.yaml' attest")"
 assert_eq "no cmd map returns 1 (the caller applies the harness default)" "1" \
     "$(lib "_judge_cmd_resolve '$Y/minimal.yaml' attest >/dev/null; printf %s \$?")"
 assert_eq "no judge block prints nothing" "" \
-    "$(lib "_judge_cmd_resolve '$Y/none.yaml' sweep")"
+    "$(lib "_judge_cmd_resolve '$Y/none.yaml' schedule")"
 assert_eq "a missing file prints nothing" "" \
-    "$(lib "_judge_cmd_resolve '$Y/absent.yaml' sweep")"
+    "$(lib "_judge_cmd_resolve '$Y/absent.yaml' schedule")"
 
-# The sweep-only shape: an attest row is optional, and its absence is not the
-# absence of the map.
-cat > "$Y/sweeponly.yaml" <<'EOF'
+# The schedule-only shape: an attest row is optional, and its absence is not
+# the absence of the map.
+cat > "$Y/scheduleonly.yaml" <<'EOF'
 judge:
   section: Audit
   cmd:
-    sweep: claude -p --model opus
+    schedule: claude -p --model opus
 EOF
-assert_eq "a sweep-only map answers the sweep lane" "claude -p --model opus" \
-    "$(lib "_judge_cmd_resolve '$Y/sweeponly.yaml' sweep")"
-assert_eq "a sweep-only map answers nothing for attest" "" \
-    "$(lib "_judge_cmd_resolve '$Y/sweeponly.yaml' attest")"
+assert_eq "a schedule-only map answers the schedule lane" "claude -p --model opus" \
+    "$(lib "_judge_cmd_resolve '$Y/scheduleonly.yaml' schedule")"
+assert_eq "a schedule-only map answers nothing for attest" "" \
+    "$(lib "_judge_cmd_resolve '$Y/scheduleonly.yaml' attest")"
 
 # The flow form, including a quoted value carrying a comma — the split is on
 # TOP-LEVEL commas only, or half the command would be lost.
 cat > "$Y/flowcmd.yaml" <<'EOF'
 judge:
-  cmd: { attest: harness, sweep: "judge --flags a,b --model opus" }
+  cmd: { attest: harness, schedule: "judge --flags a,b --model opus" }
   section: Audit
 EOF
 assert_eq "flow map, attest lane" "harness" \
     "$(lib "_judge_cmd_resolve '$Y/flowcmd.yaml' attest")"
 assert_eq "flow map keeps a comma inside a quoted value" \
     "judge --flags a,b --model opus" \
-    "$(lib "_judge_cmd_resolve '$Y/flowcmd.yaml' sweep")"
+    "$(lib "_judge_cmd_resolve '$Y/flowcmd.yaml' schedule")"
 cat > "$Y/tightcmd.yaml" <<'EOF'
 judge:
-  cmd: {sweep: claude -p}
+  cmd: {schedule: claude -p}
 EOF
 assert_eq "whitespace-free flow map still parses" "claude -p" \
-    "$(lib "_judge_cmd_resolve '$Y/tightcmd.yaml' sweep")"
+    "$(lib "_judge_cmd_resolve '$Y/tightcmd.yaml' schedule")"
 assert_eq "a lane the flow map does not name prints nothing" "" \
     "$(lib "_judge_cmd_resolve '$Y/tightcmd.yaml' attest")"
 
@@ -327,89 +326,57 @@ assert_eq "a pack's own source tree carries no owner, so no full id" "" \
 assert_eq "a directory that is not a directive at all yields nothing" "" \
     "$(lib "_judge_full_id /r/some/where/else")"
 
-printf '── _judge_group_resolve (the repo.conf partition) ───\n'
+printf '── _judge_group_resolve (the per-directive overlay) ─\n'
 
 # Batching is a fidelity-vs-tokens trade only the consuming repo can price, and
-# what it prices is a PARTITION — so the operator surface is one committed file,
-# `.governance/conf/repo.conf`, not a knob repeated per directive. Bundled packs
-# declare no `group:` at all, so a stock install (no repo.conf, no label) is all
-# solo, and a consumer changes that without forking anything.
-gr_repo="$WORK/group-repo"; mkdir -p "$gr_repo/.governance/conf"; git -C "$gr_repo" init -q
-GRC="$gr_repo/.governance/conf/repo.conf"
+# there is no repo-level partition object to be ambiguous about any more
+# (repo.conf is gone): the operator surface is the directive's own overlay,
+# `.governance/conf/<owner>/<pack>/<id>.conf`, one `JUDGE_GROUP=` row per
+# directive. Bundled packs declare no `group:` at all, so a stock install (no
+# overlay, no label) is all solo, and a consumer changes that per directive
+# without forking anything.
+gr_repo="$WORK/group-repo"; mkdir -p "$gr_repo"; git -C "$gr_repo" init -q
+git -C "$gr_repo" config user.email test@example.com
+git -C "$gr_repo" config user.name "Test"
+git -C "$gr_repo" commit -q --allow-empty -m init
+GOV="$gr_repo/.governance/conf"
 gres() {  # <full-id> <yaml> → the resolved label, from inside the fixture repo
     (cd "$gr_repo" && lib "_judge_group_resolve '$1' g '$2'" 2>/dev/null)
 }
-gres_err() {  # the same call, stderr only
-    (cd "$gr_repo" && lib "_judge_group_resolve '$1' g '$2'" 2>&1 >/dev/null)
+overlay_write() {  # <full-id> <line>
+    local f="$GOV/$1.conf"
+    mkdir -p "$(dirname "$f")"
+    printf '%s\n' "$2" > "$f"
 }
 
-# (1) No repo.conf at all — the stock install. Tier 3 (the declaration) and
-#     tier 4 (solo) are all that is left.
-rm -f "$GRC"
-assert_eq "with no repo.conf and no declaration → the ledger's solo marker" "-" \
+# (1) No overlay file at all, and no declared judge.group — the stock install,
+#     all solo.
+rm -rf "$GOV"
+assert_eq "with no overlay and no declaration → the ledger's solo marker" "-" \
     "$(gres acme/audit/g "$Y/minimal.yaml")"
-assert_eq "with no repo.conf the declared judge.group is honoured" "bundled-intent" \
+
+# (2) No overlay file, but the directive declares a group about itself — the
+#     declaration is honoured.
+assert_eq "with no overlay the declared judge.group is honoured" "bundled-intent" \
     "$(gres acme/audit/g "$Y/full.yaml")"
 
-# (2) A partition that says nothing about this directive changes nothing.
-printf 'judge-group intent  someone-else other-thing\n' > "$GRC"
-assert_eq "a partition naming other directives leaves the declaration alone" \
-    "bundled-intent" "$(gres acme/audit/g "$Y/full.yaml")"
-
-# (3) Membership by bare id and by full id, with the file's whole tolerated
-#     vocabulary around it: comments, blank lines, ragged column alignment, and
-#     row kinds this reader does not own.
-cat > "$GRC" <<'EOF'
-# Repo-level execution policy.
-SWEEP_CMD=some-judge --flag
-
-judge-group   intent     receipt-per-issue   g   commit-message-format
-someday-a-new-row-kind   g
-EOF
-assert_eq "a bare-id member wins over the declared label" "intent" \
+# (3) An overlay JUDGE_GROUP row wins over the declared judge.group.
+overlay_write acme/audit/g "JUDGE_GROUP=bar"
+assert_eq "an overlay JUDGE_GROUP row overrides the declared group" "bar" \
     "$(gres acme/audit/g "$Y/full.yaml")"
-printf 'judge-group intent acme/audit/g\n' > "$GRC"
-assert_eq "a full-id member matches too" "intent" \
+
+# (4) A present-but-EMPTY overlay row is a decision — solo — not an absent
+#     one, so it strips a declared label without forking the pack.
+overlay_write acme/audit/g "JUDGE_GROUP="
+assert_eq "an empty overlay row strips a declared group down to solo" "-" \
     "$(gres acme/audit/g "$Y/full.yaml")"
-assert_eq "and a full-id member does NOT match a homonym in another pack" \
+
+# (5) The overlay is addressed by full id, so a homonym directive in another
+#     pack has its own file and is unaffected.
+assert_eq "a homonym in another pack keeps its own declaration" \
     "bundled-intent" "$(gres other/pack/g "$Y/full.yaml")"
 
-# (4) judge-solo is how a consumer strips a label a pack declared about itself,
-#     and it beats judge-group wherever both claim the same directive.
-printf 'judge-solo g\n' > "$GRC"
-assert_eq "judge-solo strips a declared label" "-" \
-    "$(gres acme/audit/g "$Y/full.yaml")"
-printf 'judge-solo acme/audit/g\n' > "$GRC"
-assert_eq "judge-solo matches on the full id as well" "-" \
-    "$(gres acme/audit/g "$Y/full.yaml")"
-printf 'judge-group intent g\njudge-solo g\n' > "$GRC"
-assert_eq "judge-solo beats judge-group for the same directive" "-" \
-    "$(gres acme/audit/g "$Y/full.yaml")"
-
-# (5) Two judge-group lines claiming one directive for different labels is an
-#     ambiguous partition, and the honest answer is to stop partitioning.
-printf 'judge-group intent g other\njudge-group security g repo-hygiene\n' > "$GRC"
-assert_eq "a doubly-claimed directive degrades to solo, never a coin flip" "-" \
-    "$(gres acme/audit/g "$Y/full.yaml")"
-err="$(gres_err acme/audit/g "$Y/full.yaml")"
-assert_contains "and says so once, naming the directive" "acme/audit/g" "$err"
-assert_contains "naming the first label" '`intent`' "$err"
-assert_contains "and naming the label it collided with" '`security`' "$err"
-
-# Repetition that decides nothing warns about nothing: twice inside one line,
-# or across two lines carrying the same label, is still one answer.
-printf 'judge-group intent g g other\njudge-group intent g\n' > "$GRC"
-assert_eq "repeating a member under one label is harmless" "intent" \
-    "$(gres acme/audit/g "$Y/full.yaml")"
-assert_eq "and it warns about nothing" "" \
-    "$(gres_err acme/audit/g "$Y/full.yaml")"
-
-# (6) Malformed rows are ignored rather than fatal — a `judge-group` with a
-#     label and no members partitions nothing.
-printf 'judge-group lonely\n' > "$GRC"
-assert_eq "a member-less judge-group line is inert" "bundled-intent" \
-    "$(gres acme/audit/g "$Y/full.yaml")"
-rm -f "$GRC"
+rm -rf "$GOV"
 
 # ── attestation_remediation ────────────────────────────────────────────────
 printf '── attestation_remediation (grouped instruction) ───────\n'
@@ -457,8 +424,8 @@ assert_contains "the round-line format is spelled out" \
 assert_contains "the stamp is computed, never invented" \
     "bash -c 'source .governance/lib.sh; _adjudication_stamp <receipt-path>'" "$out"
 assert_contains "append-only is stated" "Never edit, reword, renumber, or delete an existing round line" "$out"
-assert_contains "an unearned PASS is named as the failure sweep catches" \
-    "precisely the failure the merge-time sweep lane exists to catch" "$out"
+assert_contains "an unearned PASS is named as the failure the schedule lane catches" \
+    "precisely the failure the scheduled lane exists to catch" "$out"
 assert_lacks "round 1 is not the escalation round" "ESCALATION ROUND" "$out"
 
 printf 'bundled\tattest\treceipts/issue-3-c.md\tAudit\tthe diff\tfirst check\tverdict\t2\t3\n' > "$led"
@@ -538,7 +505,8 @@ DIR_REL=".governance/packs/acme/audit/directives/gated"
 
 # install_directive <repo> <gate> [<attest-cmd>] [<section>]
 #   <section> defaults to `Audit`; pass `-` to omit the row entirely, which is
-#   what a sweep-only discovery declaration looks like now that `sink` is gone.
+#   what a schedule-only discovery declaration looks like now that `sink` is
+#   gone.
 install_directive() {
     local repo="$1" gate="$2" cmd="${3:-harness}" section="${4:-Audit}"
     mkdir -p "$repo/$DIR_REL"
@@ -739,7 +707,7 @@ assert_eq "verdict-contestable still blocks on REFUTED" "1" "$RC"
 assert_eq "the ledger carries the declared gate verbatim" "verdict-contestable" \
     "$(cut -f7 "$vled")"
 
-# 9. No `section:` — a sweep-only discovery declaration. It names no place for
+# 9. No `section:` — a schedule-only discovery declaration. It names no place for
 #    a verdict to land, so the commit lane ignores it whatever its gate says.
 nrepo="$WORK/no-section-repo"
 mkrepo "$nrepo"
@@ -967,8 +935,8 @@ assert_eq "the harness row is labeled harness" "harness" "$(cut -f10 "$eled")"
 assert_eq "the ledger carries the declared group label" "bundled" "$(cut -f1 "$eled")"
 unset AGENT_JUDGE_VERDICT
 
-# ── the repo.conf partition, end to end through judge_attest ───────────────
-printf '── group off the repo.conf partition (end to end) ──────\n'
+# ── the per-directive overlay label, end to end through judge_attest ───────
+printf '── group off the per-directive overlay (end to end) ────\n'
 
 # install_labeled <repo> <id> <section> <yaml-group>
 #   A `gate: record` directive under acme/audit. <yaml-group> is `-` for a
@@ -998,12 +966,13 @@ judge_attest "\$1"
 directive_end
 EOF
 }
-# repo_conf <repo> <line>… — write the repo-level policy file the partition
-# lives in. One file for the whole repo, not one per directive.
-repo_conf() {
-    local repo="$1"; shift
-    mkdir -p "$repo/.governance/conf"
-    printf '%s\n' "$@" > "$repo/.governance/conf/repo.conf"
+# overlay_set <repo> <id> <line> — write the directive's own overlay row. One
+# file per directive, addressed by its full id, not a repo-wide partition.
+overlay_set() {
+    local repo="$1" id="$2" f
+    f="$repo/.governance/conf/acme/audit/$id.conf"
+    mkdir -p "$(dirname "$f")"
+    printf '%s\n' "$3" > "$f"
 }
 run_labeled() {  # <repo> <id> <receipt> <ledger>
     ( cd "$1" && GOVERNANCE_ATTEST_LEDGER="$4" \
@@ -1024,16 +993,19 @@ cled="$WORK/conf-group-ledger.tsv"
 
 install_labeled "$crepo" opinionated "Steering" pack-label
 
-# (a) Two directives that declare NOTHING are paired by the consuming repo
-#     alone: one judge-group line, one spawn covering both sections.
-repo_conf "$crepo" 'judge-group paired  audited  layered'
+# (a) Two directives that declare NOTHING are paired by the consumer alone:
+#     one overlay row apiece, naming the same label, is one spawn covering
+#     both sections.
+rm -rf "$crepo/.governance/conf"
+overlay_set "$crepo" audited "JUDGE_GROUP=paired"
+overlay_set "$crepo" layered "JUDGE_GROUP=paired"
 : > "$cled"
 run_labeled "$crepo" audited receipts/issue-30-a.md "$cled"
 run_labeled "$crepo" layered receipts/issue-30-a.md "$cled"
-assert_eq "both bare directives land in the partition's label" "paired
+assert_eq "both bare directives land in the shared label" "paired
 paired" "$(cut -f1 "$cled")"
 out="$(lib "attestation_remediation '$cled'" 2>&1)"
-assert_contains "a partitioned pair is ONE spawn" \
+assert_contains "a paired pair is ONE spawn" \
     "Spawn ONE fresh-context sub-agent for group \`paired\`" "$out"
 assert_contains "and it covers the first section" \
     "write the '## Audit' section" "$out"
@@ -1042,50 +1014,26 @@ assert_contains "and the second, in the same instruction" \
 assert_lacks "nothing is spawned solo once the operator paired them" \
     "Spawn a separate fresh-context sub-agent (solo" "$out"
 
-# (b) A pack that declares a label about itself is honoured while repo.conf
-#     says nothing about it — tier 3, the reason a repo-local pack can carry
-#     its own batching opinion at all.
+# (b) A pack that declares a label about itself is honoured while the overlay
+#     says nothing about it — the reason a repo-local pack can carry its own
+#     batching opinion at all.
+rm -rf "$crepo/.governance/conf"
 : > "$cled"
 run_labeled "$crepo" opinionated receipts/issue-30-a.md "$cled"
-assert_eq "a silent partition leaves the declared label standing" "pack-label" \
+assert_eq "a silent overlay leaves the declared label standing" "pack-label" \
     "$(cut -f1 "$cled")"
 
-# (c) `judge-solo` is how the consumer strips that declared label, addressed by
-#     full id. The ledger row reads `-` — the wire encoding for solo.
-repo_conf "$crepo" 'judge-solo acme/audit/opinionated'
+# (c) An empty overlay row is how the consumer strips that declared label.
+#     The ledger row reads `-` — the wire encoding for solo.
+overlay_set "$crepo" opinionated "JUDGE_GROUP="
 : > "$cled"
 run_labeled "$crepo" opinionated receipts/issue-30-a.md "$cled"
-assert_eq "judge-solo beats the declared label, end to end" "-" "$(cut -f1 "$cled")"
+assert_eq "an empty overlay row beats the declared label, end to end" "-" \
+    "$(cut -f1 "$cled")"
 out="$(lib "attestation_remediation '$cled'" 2>&1)"
 assert_contains "a forced-solo section gets its own spawn" \
     "Spawn a separate fresh-context sub-agent (solo" "$out"
-
-# (d) The whole partition in one file: a full-id member and a bare-id member
-#     under one label, and the third directive left out of it entirely.
-repo_conf "$crepo" \
-    '# the repo prices its own fidelity-vs-tokens trade here' \
-    'judge-group intent  acme/audit/audited  layered'
-: > "$cled"
-run_labeled "$crepo" audited receipts/issue-30-a.md "$cled"
-run_labeled "$crepo" layered receipts/issue-30-a.md "$cled"
-run_labeled "$crepo" opinionated receipts/issue-30-a.md "$cled"
-assert_eq "full-id and bare-id members share one label; the unlisted one keeps its own" \
-    "intent
-intent
-pack-label" "$(cut -f1 "$cled")"
-
-# (e) A directive claimed by two judge-group lines is an ambiguous partition:
-#     one warning, then solo — the ledger never records a coin flip.
-repo_conf "$crepo" \
-    'judge-group intent    audited' \
-    'judge-group security  acme/audit/audited'
-: > "$cled"
-err="$(run_labeled_err "$crepo" audited receipts/issue-30-a.md "$cled")"
-assert_eq "a doubly-claimed directive is recorded solo" "-" "$(cut -f1 "$cled")"
-assert_contains "and the ambiguity is announced, naming both labels" \
-    'claimed by two judge-group lines' "$err"
-assert_contains "the warning names the colliding labels" '`intent` and `security`' "$err"
-rm -f "$crepo/.governance/conf/repo.conf"
+rm -rf "$crepo/.governance/conf"
 
 # ── summary ────────────────────────────────────────────────────────────────
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"

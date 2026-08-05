@@ -8,6 +8,17 @@
 # Usage:
 #   bash .governance/run.sh              # run all directive checks
 #   bash .governance/run.sh required-docs   # run a single directive by id
+#   bash .governance/run.sh --scheduled --lane <name> [--evidence range|commits] \
+#       [--range A..B] [--budget N] [--dry-run] [--no-gh] <member>...
+#                                        # one scheduled lane, at rest
+#
+# `--scheduled` is the at-rest mode a generated schedule workflow invokes: the
+# named lane's members are re-run (mechanical `check.sh` members) and
+# re-adjudicated (judge members) over the commits since that lane's last run.
+# This file recognizes the flag and nothing more — every other option belongs
+# to the engine, `schedule.sh`, which it delegates to whole. run.sh stays the
+# one documented entry point; schedule.sh is no more meant to be invoked by
+# hand than lib.sh is.
 #
 # Environment:
 #   SKIP_GOVERNANCE=1   skip all directive checks (for emergency commits)
@@ -21,6 +32,17 @@ fi
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PACKS_DIR="$HERE/packs"
+
+# ── The scheduled mode. Recognized here, parsed nowhere here: every remaining
+#    argument is the engine's to validate, so there is exactly one place that
+#    knows the lane grammar. `exec` because this process has nothing left to do.
+if [[ "${1:-}" == "--scheduled" ]]; then
+    if [[ ! -f "$HERE/schedule.sh" ]]; then
+        echo "✗ governance: --scheduled needs $HERE/schedule.sh (run \`governance update\` to sync the kit runtime)"
+        exit 1
+    fi
+    exec bash "$HERE/schedule.sh" run "${@:2}"
+fi
 
 # Sub-agent attestation orchestration (issue #325). A directive that declares a
 # `judge:` block registers any pending attestation into a shared ledger when

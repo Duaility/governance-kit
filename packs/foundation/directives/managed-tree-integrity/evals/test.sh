@@ -107,41 +107,55 @@ printf '.governance/lib.sh\n' > .governance/conf/governance-kit/foundation/$EVAL
 EVAL_LABEL="$EVAL_ID waiver" expect_pass "$CHECK"
 rm -f .governance/conf/governance-kit/foundation/$EVAL_ID.conf
 
-# 8. issue #259 — the vendored at-rest sweep driver is a first-class managed
-#    runtime file (harness-pegged bash per #355). A manifest naming only
-#    `.governance/sweep.sh` isolates this case from the (still-tampered) lib.sh
-#    above: a registered sweep driver that matches its recorded digest passes,
-#    a hand-edit fails offline, and a conf-overlay waiver still lets it through.
-printf '#!/usr/bin/env bash\n# governance-kit:managed kit-version=%s\necho sweep\n' "$KIT_VER" > .governance/sweep.sh
-SWEEP_D="$(file_digest ".governance/sweep.sh")"
+# 8. schedule lane — a generated `.github/workflows/governance-schedule-<lane>.yml`
+#    is a first-class managed runtime file, stamped at verb-run time (not kit-
+#    release time). A manifest naming only the schedule workflow isolates this
+#    case from the (still-tampered) lib.sh above: a registered schedule
+#    workflow that matches its recorded digest passes, a hand-edit fails
+#    offline, and a conf-overlay waiver still lets it through.
+SCHEDULE_WF=".github/workflows/governance-schedule-nightly.yml"
+mkdir -p .github/workflows
+printf 'name: governance-schedule-nightly\n# governance-kit:managed kit-version=%s\non: {}\n' "$KIT_VER" > "$SCHEDULE_WF"
+SCHEDULE_D="$(file_digest "$SCHEDULE_WF")"
 write_manifest "managed_digests:
-  .governance/sweep.sh: $SWEEP_D"
-EVAL_LABEL="$EVAL_ID sweep driver match" expect_pass "$CHECK"
+  $SCHEDULE_WF: $SCHEDULE_D"
+EVAL_LABEL="$EVAL_ID schedule workflow match" expect_pass "$CHECK"
 
-# 8a. fail — sweep driver hand-edited after its digest was recorded
-printf '\n# tampered sweep driver\n' >> .governance/sweep.sh
-EVAL_LABEL="$EVAL_ID sweep driver modified" expect_fail "$CHECK"
+# 8a. fail — schedule workflow hand-edited after its digest was recorded
+printf '\n# tampered schedule workflow\n' >> "$SCHEDULE_WF"
+EVAL_LABEL="$EVAL_ID schedule workflow modified" expect_fail "$CHECK"
 
-# 8b. pass — drifted sweep driver waived via the conf overlay
+# 8b. pass — drifted schedule workflow waived via the conf overlay
 mkdir -p .governance/conf/governance-kit/foundation
-printf '.governance/sweep.sh\n' > .governance/conf/governance-kit/foundation/$EVAL_ID.conf
-EVAL_LABEL="$EVAL_ID sweep driver waiver" expect_pass "$CHECK"
+printf '%s\n' "$SCHEDULE_WF" > .governance/conf/governance-kit/foundation/$EVAL_ID.conf
+EVAL_LABEL="$EVAL_ID schedule workflow waiver" expect_pass "$CHECK"
 rm -f .governance/conf/governance-kit/foundation/$EVAL_ID.conf
 
-# 8c. issue #263 — a sweep asset carries its *seed-time* marker and is never
-#     re-stamped on a kit update, so its `kit-version=` legitimately differs from
-#     the manifest pin. That divergence must NOT be a violation (unlike a true
-#     runtime file, cf. case 1b): the digest still guards the content. Stamp the
-#     driver with an older marker than the pin, record its matching digest →
-#     passes on digest alone, no marker-vs-manifest false positive.
+# 8c. issue #263 — a generated schedule workflow carries its *generation-time*
+#     marker (stamped when `governance schedule create` last (re)rendered it),
+#     not the kit-release marker, so its `kit-version=` legitimately differs
+#     from the manifest pin. That divergence must NOT be a violation (unlike a
+#     true runtime file, cf. case 1b): the digest still guards the content.
+#     Stamp the workflow with an older marker than the pin, record its
+#     matching digest → passes on digest alone, no marker-vs-manifest false
+#     positive.
+printf 'name: governance-schedule-nightly\n# governance-kit:managed kit-version=0.0.1\non: {}\n' > "$SCHEDULE_WF"
+write_manifest "managed_digests:
+  $SCHEDULE_WF: $(file_digest "$SCHEDULE_WF")"
+EVAL_LABEL="$EVAL_ID schedule workflow generation-time marker" expect_pass "$CHECK"
+
+# 8d. fail — the digest still guards the schedule workflow even when its
+#     marker diverges from the pin: a content hand-edit is caught.
+printf '\n# tampered\n' >> "$SCHEDULE_WF"
+EVAL_LABEL="$EVAL_ID schedule workflow divergent marker + tamper" expect_fail "$CHECK"
+rm -f "$SCHEDULE_WF"
+
+# 9. legacy sweep pair (issue #259/#263) — pre-retirement installs still carry
+#    the exact-path sweep driver; its seed-time marker must still be exempt
+#    from the marker-vs-manifest check while the digest keeps guarding content.
 printf '#!/usr/bin/env bash\n# governance-kit:managed kit-version=0.0.1\necho sweep\n' > .governance/sweep.sh
 write_manifest "managed_digests:
   .governance/sweep.sh: $(file_digest ".governance/sweep.sh")"
-EVAL_LABEL="$EVAL_ID sweep driver seed-time marker" expect_pass "$CHECK"
-
-# 8d. fail — the digest still guards the sweep driver even when its marker
-#     diverges from the pin: a content hand-edit is caught.
-printf '\n# tampered\n' >> .governance/sweep.sh
-EVAL_LABEL="$EVAL_ID sweep driver divergent marker + tamper" expect_fail "$CHECK"
+EVAL_LABEL="$EVAL_ID legacy sweep driver seed-time marker" expect_pass "$CHECK"
 
 eval_done

@@ -591,7 +591,7 @@ judge:
   group: bundled
   section: Audit
   cmd:
-    sweep: claude -p --output-format text --model opus
+    schedule: claude -p --output-format text --model opus
 EOF
 cat > "$sa_dir/check.sh" <<EOF
 set -u
@@ -606,8 +606,8 @@ output=$(set +u; source "$LIB_SH"; _judge_yaml "$sa_dir/directive.yaml" section)
 assert_eq "_judge_yaml reads the section scalar" "Audit" "$output"
 output=$(set +u; source "$LIB_SH"; _judge_yaml "$sa_dir/directive.yaml" group)
 assert_eq "_judge_yaml reads the group scalar" "bundled" "$output"
-output=$(set +u; source "$LIB_SH"; _judge_cmd_resolve "$sa_dir/directive.yaml" sweep)
-assert_eq "_judge_cmd_resolve reads the sweep command" \
+output=$(set +u; source "$LIB_SH"; _judge_cmd_resolve "$sa_dir/directive.yaml" schedule)
+assert_eq "_judge_cmd_resolve reads the schedule command" \
     "claude -p --output-format text --model opus" "$output"
 output=$(set +u; source "$LIB_SH"; _judge_yaml "$sa_dir/directive.yaml" inputs | tr '\n' ',')
 assert_eq "_judge_yaml reads the inputs flow list" "diff,receipt,issue," "$output"
@@ -698,7 +698,7 @@ judge:
   group: bundled-intent
   section: Audit
   cmd:
-    sweep: claude -p --output-format text --model opus
+    schedule: claude -p --output-format text --model opus
 EOF
 cat > "$k_chk/defaults.conf" <<'EOF'
 JUDGE_ROUNDS=3
@@ -737,9 +737,10 @@ output=$(set +u; source "$LIB_SH"; attestation_remediation "$k_ledger" 2>&1)
 assert_contains "remediation routes an unlabeled row to its own sub-agent" \
     "Spawn a separate fresh-context sub-agent (solo" "$output"
 
-# A declaration with NO `section:` is sweep-only discovery: it names no place in
-# the receipt for a verdict to land, so the commit lane no-ops on it instead of
-# gating anything — the lane is read off `section:` and nothing else.
+# A declaration with NO `section:` is schedule-only discovery: it names no
+# place in the receipt for a verdict to land, so the commit lane no-ops on it
+# instead of gating anything — the lane is read off `section:` and nothing
+# else.
 k_disc="$k_dir/.governance/packs/acme/audit/directives/disc"
 mkdir -p "$k_disc"
 sed '/^  section:/d' "$k_chk/directive.yaml" > "$k_disc/directive.yaml"
@@ -755,8 +756,8 @@ assert_eq "and registers nothing for the orchestrator" "" "$(cat "$k_ledger")"
 
 # The judge command is read from the directive, per lane — no conf ladder, no
 # env override, no tier vocabulary (issue #355).
-output=$(set +u; source "$LIB_SH"; _judge_cmd_resolve "$k_chk/directive.yaml" sweep)
-assert_eq "the sweep command is the directive's own" \
+output=$(set +u; source "$LIB_SH"; _judge_cmd_resolve "$k_chk/directive.yaml" schedule)
+assert_eq "the schedule command is the directive's own" \
     "claude -p --output-format text --model opus" "$output"
 output=$(set +u; source "$LIB_SH"; _judge_cmd_resolve "$k_chk/directive.yaml" attest || printf '(none)')
 assert_eq "no attest row means the harness path, and prints nothing" "(none)" "$output"

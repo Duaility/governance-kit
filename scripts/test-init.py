@@ -280,10 +280,10 @@ def test_init_apply_refuses_collision() -> None:
         assert rc == 2 and "more than one pack" in report["reason"], report
 
 
-def _write_sweep_pack(base: Path, pack_id: str = "acme/shape", did: str = "no-shims") -> Path:
-    """A sweep-only discovery source pack (issue #355): a `judge:` block with
-    `sink: none` — no commit-lane gate, no check.sh — judged only by the at-rest
-    sweep driver against the range diff."""
+def _write_judge_pack(base: Path, pack_id: str = "acme/shape", did: str = "no-shims") -> Path:
+    """A discovery source pack (issue #355) with a `judge:` block and no
+    `section:` key — re-adjudicated by the scheduled lane's driver
+    (`.governance/schedule.sh`), not by a commit-lane check.sh."""
     pack = base / "shape"
     ddir = pack / "directives" / did
     (ddir / "evals").mkdir(parents=True)
@@ -293,11 +293,10 @@ def _write_sweep_pack(base: Path, pack_id: str = "acme/shape", did: str = "no-sh
     (ddir / "directive.yaml").write_text(
         "category: ArchitecturalShape\nrecommended: false\nsummary: no shims.\n"
         "surface: repo-state\nhook: none\n"
-        "judge:\n  inputs: [range-diff]\n  checks:\n    - no shims\n"
-        "  sink: none\n  tiers: { sweep: high }\n")
+        "judge:\n  inputs: [range-diff]\n  checks:\n    - no shims\n")
     (ddir / "constitution.md").write_text(
         f"### {did}\n\n- **Directive**: no shims.\n"
-        f"- **Enforced by**: the at-rest sweep driver `.governance/sweep.sh`, "
+        f"- **Enforced by**: the scheduled-lane driver `.governance/schedule.sh`, "
         f"re-adjudicating the `judge:` block declared in "
         f".governance/packs/{pack_id}/directives/{did}/directive.yaml\n")
     (ddir / "evals" / "test.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
@@ -305,13 +304,15 @@ def _write_sweep_pack(base: Path, pack_id: str = "acme/shape", did: str = "no-sh
     return pack
 
 
-def test_init_apply_vendors_sweep_lane() -> None:
-    # issue #142 (harness-pegged per #355): selecting a directive with a live
-    # sweep tier lays down the scheduled workflow + the at-rest driver, both
-    # recorded as seeded assets so uninstall removes them. A non-sweep install
-    # must NOT carry them.
+def test_init_apply_lays_down_schedule_runtime() -> None:
+    # issue #355 (schedule redesign): `.governance/schedule.sh` (renamed from
+    # the retired sweep.sh) is an unconditional runtime file, copied and
+    # digested on every install exactly like run.sh/lib.sh — regardless of
+    # whether any installed directive has a `judge:` block. No workflow file
+    # is auto-created; a schedule-lane workflow is only created explicitly via
+    # `governance schedule create`.
     with tempfile.TemporaryDirectory() as tmp:
-        src = _write_sweep_pack(Path(tmp) / "src")
+        src = _write_judge_pack(Path(tmp) / "src")
         root = _fresh_repo(Path(tmp) / "repo")
         d = _decisions(src)
         d["packs"] = [{"id": "acme/shape", "version": "0.1", "source": "gh",
@@ -319,31 +320,27 @@ def test_init_apply_vendors_sweep_lane() -> None:
                        "pack_dir": str(src), "directives": ["no-shims"]}]
         rc, report = init_apply_cli(root, d)
         assert rc == 0 and report["result"] == "applied", report
-        wf = root / ".github/workflows/governance-sweep.yml"
-        drv = root / ".governance/sweep.sh"
-        assert wf.is_file() and "kit-version=" in wf.read_text().splitlines()[0]
+        drv = root / ".governance/schedule.sh"
         assert drv.is_file() and "kit-version=" in drv.read_text().splitlines()[1]
         assert os.access(drv, os.X_OK)
-        assert ".github/workflows/governance-sweep.yml" in report["seeded_assets"]
-        assert ".governance/sweep.sh" in report["seeded_assets"]
+        # No workflow is auto-created, and schedule.sh is a managed runtime
+        # file (managed_digests), not a one-time seeded asset.
+        assert ".governance/schedule.sh" not in report.get("seeded_assets", [])
+        assert not (root / ".github/workflows/governance-sweep.yml").exists()
+        assert not list((root / ".github/workflows").glob("governance-schedule-*.yml"))
         ledger = (root / ".governance/install.yaml").read_text()
-        assert ".governance/sweep.sh" in ledger
-        # issue #259: the vendored sweep driver + its workflow are now first-class
-        # managed runtime files — recorded in `managed_digests:` (a two-space
-        # `  <relpath>: <sha>` row, distinct from the dashed `install_assets_seeded`
-        # ledger row) so a hand-edit is caught offline by managed-tree-integrity,
-        # exactly like run.sh/lib.sh.
-        assert "\n  .governance/sweep.sh: " in ledger, ledger
-        assert "\n  .github/workflows/governance-sweep.yml: " in ledger, ledger
+        assert "\n  .governance/schedule.sh: " in ledger, ledger
 
-    # A plain (non-sweep) install must not vendor the sweep lane.
+    # A plain install (no judge-block directive at all) still lays down
+    # schedule.sh unconditionally, same as run.sh/lib.sh.
     with tempfile.TemporaryDirectory() as tmp:
         src = _write_source_pack(Path(tmp) / "src")
         root = _fresh_repo(Path(tmp) / "repo")
         rc, report = init_apply_cli(root, _decisions(src))
         assert rc == 0, report
+        assert (root / ".governance/schedule.sh").is_file()
         assert not (root / ".github/workflows/governance-sweep.yml").exists()
-        assert not (root / ".governance/sweep.sh").exists()
+        assert not list((root / ".github/workflows").glob("governance-schedule-*.yml"))
 
 
 def test_init_apply_seeds_the_runtime_adapter_registry() -> None:

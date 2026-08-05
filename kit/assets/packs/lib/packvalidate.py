@@ -41,6 +41,8 @@ from packctl import (
     JUDGE_GATE_VALUES,
     SURFACES,
     KIT_VERSION,
+    TRIGGER_VALUES,
+    TRIGGER_HOOK_VALUES,
     directive_manifest,
     directives_for_pack,
     kit_supports,
@@ -51,12 +53,13 @@ from packctl import (
 
 
 def judge_section_absent(judge: Any) -> bool:
-    """True when a `judge:` block carries no `section:` — the sweep-only
-    discovery lane (issue #355 amendment 3). `section:` presence is now the
-    ONLY thing that puts a declaration on the attest lane; the old `sink`
-    field is deleted (a forbidden key, see `validate_judge_cmd`) because it
-    carried no information `section` didn't already carry. Sweep-only
-    declarations need no `check.sh` and no `surface:` (see callers below)."""
+    """True when a `judge:` block carries no `section:` — the schedule-only
+    discovery lane (issue #355 amendment 3, renamed sweep->schedule per the
+    scheduled-lane redesign). `section:` presence is now the ONLY thing that
+    puts a declaration on the attest lane; the old `sink` field is deleted (a
+    forbidden key, see `validate_judge_cmd`) because it carried no information
+    `section` didn't already carry. Schedule-only declarations need no
+    `check.sh` and no `surface:` (see callers below)."""
     return isinstance(judge, dict) and not scalar(judge.get("section"))
 
 
@@ -64,25 +67,27 @@ def validate_judge_cmd(
     pack_dir: Path, directive_id: str, judge: dict[str, Any]
 ) -> tuple[list[str], list[str], str | None, str | None]:
     """Validate a directive's `judge.cmd` map, `gate`, and lane-derivation
-    fields (issue #355). Returns `(errors, warnings, group, sweep_cmd)`. `cmd`
-    is optional; when present it is a map whose keys are exactly a subset of
-    {attest, sweep} with non-empty scalar values. `sweep: harness` is an
-    error — there is no live session at rest to spawn an in-session
+    fields (issue #355, cmd lane renamed sweep->schedule by the scheduled-lane
+    redesign). Returns `(errors, warnings, group, schedule_cmd)`. `cmd` is
+    optional; when present it is a map whose keys are exactly a subset of
+    {attest, schedule} with non-empty scalar values. `schedule: harness` is
+    an error — there is no live session at rest to spawn an in-session
     sub-agent. `tiers:` is a forbidden leftover of the retired tier
     vocabulary (v0, no deprecation lane). `isolation:` is likewise forbidden
     — batching is now expressed by the optional `group: <slug>` scalar
     instead of `isolation: shared|isolated`.
 
     Amendment 3: `sink:` is deleted — the lane is derived purely from whether
-    `section:` is present (present = attest lane; absent = sweep-only
+    `section:` is present (present = attest lane; absent = schedule-only
     discovery), so `sink` is now a forbidden key. `contest:` is folded into a
     three-valued `gate:` (`record` default, `verdict`,
     `verdict-contestable`) and is likewise forbidden. A `gate:` other than
     `record` requires `section:` — a verdict with nowhere to land is a
-    declaration error. A sweep-only declaration carrying no `cmd.sweep` is the
-    NORM, not a defect — bundled packs name no judge at all, and the sweep
-    driver resolves one from the repo-level `GOVERNANCE_SWEEP_CMD` knob — so
-    that case is silent. `group` and the resolved `cmd.sweep` string are
+    declaration error. A schedule-only declaration carrying no `cmd.schedule`
+    is the NORM, not a defect — bundled packs name no judge at all, and the
+    scheduled workflow resolves one from its own `GOVERNANCE_JUDGE_CMD` env
+    (exported by the generated `governance-schedule-<lane>.yml`) — so that
+    case is silent. `group` and the resolved `cmd.schedule` string are
     returned so the caller can enforce the cross-directive "one group, one
     command" rule."""
     errors: list[str] = []
@@ -98,7 +103,7 @@ def validate_judge_cmd(
         errors.append(
             f"{prefix}: judge.isolation is no longer supported — replace `isolation: shared|isolated` "
             "with an optional `group: <slug>` scalar (batching is now keyed on byte-identical "
-            "judge.cmd.sweep values within a shared group, issue #355)"
+            "judge.cmd.schedule values within a shared group, issue #355)"
         )
     if "sink" in judge:
         errors.append(
@@ -136,8 +141,8 @@ def validate_judge_cmd(
             group = raw_group.strip()
 
     cmd = judge.get("cmd")
-    has_sweep_cmd = False
-    sweep_cmd: str | None = None
+    has_schedule_cmd = False
+    schedule_cmd: str | None = None
     if cmd is not None:
         if not isinstance(cmd, dict):
             errors.append(f"{prefix}: judge.cmd must be a mapping")
@@ -152,18 +157,74 @@ def validate_judge_cmd(
                 if not isinstance(value, str) or not value.strip():
                     errors.append(f"{prefix}: judge.cmd.{key} must be a non-empty string")
                     continue
-                if key == "sweep":
+                if key == "schedule":
                     if value.strip() == "harness":
                         errors.append(
-                            f"{prefix}: judge.cmd.sweep cannot be 'harness' — the sweep runs "
-                            "at rest with no live session, so there is nobody to spawn an "
-                            "in-session sub-agent"
+                            f"{prefix}: judge.cmd.schedule cannot be 'harness' — the scheduled "
+                            "lane runs at rest with no live session, so there is nobody to spawn "
+                            "an in-session sub-agent"
                         )
                     else:
-                        has_sweep_cmd = True
-                        sweep_cmd = value.strip()
+                        has_schedule_cmd = True
+                        schedule_cmd = value.strip()
 
-    return errors, warnings, group, sweep_cmd
+    return errors, warnings, group, schedule_cmd
+
+
+def validate_triggers(pack_dir: Path, directive_id: str, triggers: Any, hook: str) -> list[str]:
+    """Validate a directive's optional `triggers:` field (scheduled-lane
+    redesign, replaces the sweep lane's implicit hook-only eligibility).
+
+    `triggers:` is a flow or block list of non-empty strings, each one of
+    `TRIGGER_VALUES` (the five git-hook kinds, `none`, or `schedule`).
+    Absent is fine — a directive's effective triggers are then derived as
+    `[<hook>]` (or `[]` when `hook: none`) by the runner/verb, not written
+    out here.
+
+    When `triggers:` IS present and `hook:` != `none`, two consistency rules
+    apply (both must hold, or the directive's declared eligibility disagrees
+    with its own commit-lane wiring): the list MUST contain the `hook:`
+    value, and it may contain AT MOST ONE git-hook value overall — which,
+    combined with the first rule, means that one value must be `hook:`
+    itself. A `hook: none` directive is unconstrained here (nothing to be
+    consistent with)."""
+    errors: list[str] = []
+    prefix = f"{pack_dir}/{directive_id}"
+    if triggers is None:
+        return errors
+    if not isinstance(triggers, list) or not triggers:
+        errors.append(f"{prefix}: directive.yaml triggers must be a non-empty list")
+        return errors
+
+    hook_values_seen: list[str] = []
+    for item in triggers:
+        if not isinstance(item, str) or not item.strip():
+            errors.append(f"{prefix}: directive.yaml triggers entries must be non-empty strings")
+            continue
+        value = item.strip()
+        if value not in TRIGGER_VALUES:
+            errors.append(
+                f"{prefix}: directive.yaml triggers has unknown value {value!r} "
+                f"(allowed: {', '.join(sorted(TRIGGER_VALUES))})"
+            )
+            continue
+        if value in TRIGGER_HOOK_VALUES:
+            hook_values_seen.append(value)
+
+    if hook != "none":
+        if hook not in triggers:
+            errors.append(
+                f"{prefix}: directive.yaml triggers must contain the hook: value {hook!r} "
+                "when triggers: is present and hook: is not 'none'"
+            )
+        distinct_hook_values = sorted(set(hook_values_seen))
+        if len(distinct_hook_values) > 1 or (distinct_hook_values and distinct_hook_values != [hook]):
+            errors.append(
+                f"{prefix}: directive.yaml triggers may contain at most one git-hook value, "
+                f"and it must equal hook: {hook!r} (found {distinct_hook_values!r})"
+            )
+
+    return errors
 
 
 def validate_pack_dir(pack_dir: Path) -> list[str]:
@@ -254,32 +315,32 @@ def validate_pack_dir_with_warnings(pack_dir: Path) -> tuple[list[str], list[str
         except Exception as exc:  # noqa: BLE001 - validation reports all manifest errors.
             errors.append(f"{pack_dir}: preset {preset_name!r} cannot resolve: {exc}")
 
-    # group -> [(directive_id, sweep_cmd), ...] within THIS pack. A `group` is
-    # a batching label: at sweep time every directive sharing a group is
+    # group -> [(directive_id, schedule_cmd), ...] within THIS pack. A `group`
+    # is a batching label: at schedule time every directive sharing a group is
     # meant to ride in the same call, so two directives in one group naming
-    # different `cmd.sweep` strings is a contradiction — "a group is one
+    # different `cmd.schedule` strings is a contradiction — "a group is one
     # invocation, one command" (issue #355 amendment).
-    group_sweep_cmds: dict[str, list[tuple[str, str | None]]] = {}
+    group_schedule_cmds: dict[str, list[tuple[str, str | None]]] = {}
 
     for directive_id in sorted(directive_ids):
         directive_path = directives_root / directive_id
         directive = directive_manifest(pack_dir, directive_id)
-        # A sweep-only discovery directive — a `judge:` block with no
+        # A schedule-only discovery directive — a `judge:` block with no
         # `section:` (issue #355 amendment 3) — has no commit-lane script, so
         # the fields that describe commit-lane semantics (`surface`, and
         # check.sh below) don't apply to it. Resolved once, up front, because
         # both the required-field loop and the check.sh rule key off it.
         judge = directive.get("judge")
-        sweep_only = judge_section_absent(judge)
+        schedule_only = judge_section_absent(judge)
         if isinstance(judge, dict):
-            cmd_errors, cmd_warnings, group, sweep_cmd = validate_judge_cmd(pack_dir, directive_id, judge)
+            cmd_errors, cmd_warnings, group, schedule_cmd = validate_judge_cmd(pack_dir, directive_id, judge)
             errors.extend(cmd_errors)
             warnings.extend(cmd_warnings)
             if group is not None:
-                existing = group_sweep_cmds.setdefault(group, [])
-                existing.append((directive_id, sweep_cmd))
+                existing = group_schedule_cmds.setdefault(group, [])
+                existing.append((directive_id, schedule_cmd))
         for field in DIRECTIVE_FIELDS:
-            if field == "surface" and sweep_only:
+            if field == "surface" and schedule_only:
                 continue
             if field not in directive or directive.get(field) in (None, ""):
                 errors.append(f"{pack_dir}/{directive_id}: directive.yaml missing required field {field!r}")
@@ -288,7 +349,8 @@ def validate_pack_dir_with_warnings(pack_dir: Path) -> tuple[list[str], list[str
         hook_strategy = scalar(directive.get("requires_hook_strategy"))
         if hook not in HOOKS:
             errors.append(f"{pack_dir}/{directive_id}: unknown hook value {hook!r}")
-        if surface not in SURFACES and not (sweep_only and not surface):
+        errors.extend(validate_triggers(pack_dir, directive_id, directive.get("triggers"), hook))
+        if surface not in SURFACES and not (schedule_only and not surface):
             errors.append(f"{pack_dir}/{directive_id}: unknown surface value {surface!r}")
         if hook_strategy and hook_strategy not in HOOK_STRATEGIES:
             errors.append(
@@ -332,18 +394,19 @@ def validate_pack_dir_with_warnings(pack_dir: Path) -> tuple[list[str], list[str
                     f"{pack_dir}/{directive_id}: {capability!r} must be a list of non-empty path globs"
                 )
         # A directive's `check.sh` is the commit/CI-lane pass/fail test. The one
-        # exemption (issue #355 amendment 3): a sweep-only discovery directive
-        # (the hoisted `sweep_only` above, i.e. `section:` absent) has no
-        # commit-lane gate and no section to attest, so there is nothing for a
-        # commit-path script to test; it is judged only by the at-rest sweep
-        # driver re-adjudicating its `checks` against the range diff. Every
-        # other directive still requires an executable check.sh.
+        # exemption (issue #355 amendment 3): a schedule-only discovery
+        # directive (the hoisted `schedule_only` above, i.e. `section:`
+        # absent) has no commit-lane gate and no section to attest, so there
+        # is nothing for a commit-path script to test; it is judged only by
+        # the at-rest scheduled driver re-adjudicating its `checks` against
+        # the range diff. Every other directive still requires an executable
+        # check.sh.
         script = directive_path / "check.sh"
         constitution = directive_path / "constitution.md"
         if script.is_file():
             if not os.access(script, os.X_OK):
                 errors.append(f"{pack_dir}/{directive_id}: check.sh is not executable")
-        elif not sweep_only:
+        elif not schedule_only:
             errors.append(f"{pack_dir}/{directive_id}: check.sh missing")
         if not constitution.is_file():
             errors.append(f"{pack_dir}/{directive_id}: constitution.md missing")
@@ -361,12 +424,12 @@ def validate_pack_dir_with_warnings(pack_dir: Path) -> tuple[list[str], list[str
             if not os.access(hook_script, os.X_OK):
                 errors.append(f"{pack_dir}/{directive_id}: hooks/{hook_script.name} is not executable")
 
-    for group, members in sorted(group_sweep_cmds.items()):
+    for group, members in sorted(group_schedule_cmds.items()):
         distinct_cmds = {cmd for _directive_id, cmd in members if cmd is not None}
         if len(distinct_cmds) > 1:
             member_desc = ", ".join(f"{did}={cmd!r}" for did, cmd in members)
             errors.append(
-                f"{pack_dir}: group {group!r} mixes different judge.cmd.sweep values "
+                f"{pack_dir}: group {group!r} mixes different judge.cmd.schedule values "
                 f"({member_desc}) — a group is one invocation, one command"
             )
 

@@ -1,0 +1,5 @@
+category: Local
+recommended: true
+summary: Local naming-convention check.
+surface: repo-state
+hook: pre-commit

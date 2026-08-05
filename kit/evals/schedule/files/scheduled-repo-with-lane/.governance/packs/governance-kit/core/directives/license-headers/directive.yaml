@@ -1,0 +1,6 @@
+category: Compliance
+recommended: false
+summary: Every tracked source file carries the required license header (an at-rest, sweep-style check with no commit-time hook).
+surface: repo-state
+hook: none
+triggers: [schedule]

@@ -131,8 +131,8 @@ def test_hash_not_preceded_by_whitespace_is_not_a_comment() -> None:
 
 
 def test_flow_list_and_map() -> None:
-    d = KY.loads("inputs: [diff, receipt]\ntiers: { attest: low, sweep: high }\n")
-    assert d == {"inputs": ["diff", "receipt"], "tiers": {"attest": "low", "sweep": "high"}}
+    d = KY.loads("inputs: [diff, receipt]\ntiers: { attest: low, schedule: high }\n")
+    assert d == {"inputs": ["diff", "receipt"], "tiers": {"attest": "low", "schedule": "high"}}
 
 
 def test_empty_flow_collections() -> None:

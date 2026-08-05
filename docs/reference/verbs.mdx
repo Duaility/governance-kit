@@ -18,11 +18,12 @@ full rearchitecture context.
 
 **Two kinds of verb (issue #194).** `install` / `update` / `uninstall` are
 **lifecycle** verbs the installed skill bootstraps (it fetches a kit tree and
-follows that tree's flow doc). `pack *` / `directive *` / `reset` are **routed**
-verbs: the skill resolves the kit the repo pins (`bootstrap.py current`, see the
-installed skill's `SKILL.md`, "Delegate everything else to the pinned kit") and
-runs them from *that* kit's `<lib_dir>` + `<references_dir>`. The per-verb
-sections below describe behavior regardless of where the engine runs.
+follows that tree's flow doc). `pack *` / `directive *` / `reset` / `schedule *`
+are **routed** verbs: the skill resolves the kit the repo pins (`bootstrap.py
+current`, see the installed skill's `SKILL.md`, "Delegate everything else to
+the pinned kit") and runs them from *that* kit's `<lib_dir>` +
+`<references_dir>`. The per-verb sections below describe behavior regardless
+of where the engine runs.
 
 ## `install` (alias: `init`)
 
@@ -103,6 +104,25 @@ Full flows live in [DIRECTIVE_VERBS.md](https://github.com/Duaility/governance-k
 | `directive remove <id>` | Delete the directive folder, remove its subsection from `CONSTITUTION.md`, log the removal, surface dangling references. |
 
 All three follow [DIRECTIVE_AMEND_FLOW.md](https://github.com/Duaility/governance-kit/blob/main/kit/references/DIRECTIVE_AMEND_FLOW.md) Steps 1–7. Directives installed via `governance pack add` are off-limits for `directive *` — touch them through the matching `pack *` verb.
+
+## `schedule`
+
+Full flow lives in [SCHEDULE_FLOW.md](https://github.com/Duaility/governance-kit/blob/main/kit/references/SCHEDULE_FLOW.md). A **routed** verb,
+same as `pack *` / `directive *` / `reset` — the skill resolves the pinned
+kit and runs the engine from that kit's tree.
+
+| Verb | Intent |
+|---|---|
+| `schedule create <lane> --cron <expr> --members <id>...` | Define or overwrite a named scheduled lane: resolve + validate the member directives (each must be eligible for `schedule`, per its own `triggers:` or an overlay `TRIGGERS=` override), render the generated workflow, and write it. |
+| `schedule remove <lane>` | Delete the lane's generated workflow and drop its ledger rows. |
+| `schedule list` | Enumerate the lanes currently on disk. |
+
+- **Aliases a user might type:** `governance schedule`, `schedule a nightly run`, `add a scheduled lane`, `set up a judge cadence`, `remove the nightly lane`, `list scheduled lanes`.
+- **Deterministic plan/apply.** `create` resolves via `packverb schedule-plan <lane> --cron <expr> --members <id>... [--evidence range|commits] [--budget N]` (member resolution + eligibility validation + rendered preview + exists/overwrite flag) and executes via `packverb schedule-apply` (renders `governance-schedule.template.yml`, stamps the `governance-kit:managed kit-version=<v>` marker, writes `.github/workflows/governance-schedule-<lane>.yml`, updates the ledger). `schedule remove <lane>` routes to `packverb schedule-remove <lane>`. The skill never hand-executes the render or the write.
+- **Assets used:** `../assets/governance-schedule.template.yml`.
+- **Install-state keys touched:** `install_assets_seeded` (the generated workflow path, on first `create` for a lane) and `managed_digests` (rewritten by `schedule-apply`/`schedule-remove` via `digestlib`, keyed by the workflow's repo-relative path).
+- **Single writer.** The verb is the only writer of any `governance-schedule-<lane>.yml` file; a hand-edit changes its digest and trips `managed-tree-integrity` offline, the same as any other kit-managed file.
+- **Idempotent.** Re-running `create` with identical inputs against an existing lane produces a byte-identical file.
 
 ## Trigger words this skill should NOT claim
 

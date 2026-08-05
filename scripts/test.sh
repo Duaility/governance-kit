@@ -13,6 +13,8 @@
 #                               directive shape, presets, check.sh/evals)
 #   1b. test-packctl-subagent.py — validate_pack_dir judge.cmd/judge.group
 #                               matrix (issue #355 cmd collapse + batching)
+#   1c. test-packctl-triggers.py — validate_pack_dir triggers:/judge-cmd-lane
+#                               matrix (scheduled-trigger redesign)
 #   2. test-packverb.py       — packverb.py (refs, capability glob, lockfile, catalog)
 #   2b. test-kitverb.py       — kitverb.py (kit-plan: version delta, manifest
 #                               reconstruction, managed-file inventory/status)
@@ -24,6 +26,10 @@
 #   2c. test-packverb-apply.py — packplan.py/packapply.py (pack-plan/pack-apply
 #                               add/update/remove) + docsurgery.py CONSTITUTION
 #                               subsection surgery
+#   2d. test-schedulelib.py   — schedulelib.py (governance schedule
+#                               create/list/remove: consumer-authored
+#                               schedule-lane workflow generation, replacing
+#                               the retired sweep auto-seeding)
 #   3. test-install-sh.sh     — install.sh helpers (copy_tree_without_evals,
 #                               install_directive_folder, install_directive_assets,
 #                               write_installed_manifest flag matrix)
@@ -35,9 +41,10 @@
 #                               `judge:` reader, the batched remediation
 #                               instruction, and the `gate: verdict`
 #                               adjudication gate (log, stamp, ladder)
-#   5b. test-sweep.sh         — sweep.sh at-rest driver contract (adapter
+#   5b. test-schedule.sh      — schedule.sh at-rest driver contract (adapter
 #                               resolution, range resolution, digest filing,
-#                               the governance-sweep label, unlabeled fallback)
+#                               the lane-scoped governance-schedule-<lane>
+#                               label, unlabeled fallback)
 #   6. test-schema-split.sh   — install.yaml + packs.lock cross-file invariants
 #                               (no packs[] in install.yaml; every source kind
 #                               recorded in packs.lock with the right fields)
@@ -86,6 +93,10 @@ run_layer "packctl: validate_pack_dir matrix (Python)" \
     python3 "$ROOT/scripts/test-packctl-validate.py" \
     || failed_layers+=("test-packctl-validate.py")
 
+run_layer "packctl: validate_pack_dir triggers/judge-cmd-lane matrix (Python)" \
+    python3 "$ROOT/scripts/test-packctl-triggers.py" \
+    || failed_layers+=("test-packctl-triggers.py")
+
 run_layer "packctl: validate_pack_dir judge.cmd/group matrix (Python)" \
     python3 "$ROOT/scripts/test-packctl-subagent.py" \
     || failed_layers+=("test-packctl-subagent.py")
@@ -118,6 +129,10 @@ run_layer "pack-apply: plan/apply add/update/remove + doc surgery (Python)" \
     python3 "$ROOT/scripts/test-packverb-apply.py" \
     || failed_layers+=("test-packverb-apply.py")
 
+run_layer "schedulelib: schedule create/list/remove (Python)" \
+    python3 "$ROOT/scripts/test-schedulelib.py" \
+    || failed_layers+=("test-schedulelib.py")
+
 run_layer "reset/uninstall: plan/apply engines (Python)" \
     python3 "$ROOT/scripts/test-reset-uninstall.py" \
     || failed_layers+=("test-reset-uninstall.py")
@@ -142,9 +157,9 @@ run_layer "sub-agent judgment: declaration reader + adjudication gate (bash)" \
     bash "$ROOT/scripts/test-subagent.sh" \
     || failed_layers+=("test-subagent.sh")
 
-run_layer "sweep driver: adapter resolution + digest filing + label ensure (bash)" \
-    bash "$ROOT/scripts/test-sweep.sh" \
-    || failed_layers+=("test-sweep.sh")
+run_layer "schedule driver: adapter resolution + digest filing + label ensure (bash)" \
+    bash "$ROOT/scripts/test-schedule.sh" \
+    || failed_layers+=("test-schedule.sh")
 
 run_layer "schema split: install.yaml + packs.lock (bash)" \
     bash "$ROOT/scripts/test-schema-split.sh" \

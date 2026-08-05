@@ -59,10 +59,16 @@ def make_pack(tmp: Path, *, pack_yaml: str, directives: dict[str, dict] | None =
 #
 # Amendment 3 retired `sink:` and `contest:`. The lane a directive rides on
 # is now derived purely from whether `section:` is present (attest lane) or
-# absent (sweep-only discovery) — fixtures below use `section: Audit` where
-# the old fixtures used `sink: none` to mean "no section at all", and simply
-# omit `section:` where the old fixtures used `sink: none` to mean
-# "sweep-only". `contest:` is folded into a three-valued `gate:`.
+# absent (schedule-only discovery) — fixtures below use `section: Audit`
+# where the old fixtures used `sink: none` to mean "no section at all", and
+# simply omit `section:` where the old fixtures used `sink: none` to mean
+# "schedule-only". `contest:` is folded into a three-valued `gate:`.
+#
+# The scheduled-lane redesign further renamed the `judge.cmd` lane key itself
+# from `sweep` to `schedule` (JUDGE_CMD_LANES = {"attest", "schedule"} in
+# packctl.py) — fixtures below use `cmd: { schedule: ... }`; the old `sweep`
+# key is now rejected as an unknown cmd key (see
+# test_validate_pack_dir_flags_sweep_as_unknown_cmd_key below).
 
 
 def _cmd_pack(tmp: Path, judge_block: str, *, hook: str = "none") -> Path:
@@ -112,13 +118,28 @@ def test_validate_pack_dir_accepts_attest_harness() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         pack = _cmd_pack(
             Path(tmp),
-            "  cmd: { attest: harness, sweep: \"claude -p --output-format text --model opus\" }\n",
+            "  cmd: { attest: harness, schedule: \"claude -p --output-format text --model opus\" }\n",
         )
         errors = pkt.validate_pack_dir(pack)
         assert not any("cmd" in e for e in errors), "\n".join(errors)
 
 
-def test_validate_pack_dir_accepts_sweep_string_cmd() -> None:
+def test_validate_pack_dir_accepts_schedule_string_cmd() -> None:
+    pkt = load_packctl()
+    with tempfile.TemporaryDirectory() as tmp:
+        pack = _cmd_pack(
+            Path(tmp),
+            '  cmd: { schedule: "claude -p --output-format text --model opus" }\n',
+        )
+        errors = pkt.validate_pack_dir(pack)
+        assert errors == [], "\n".join(errors)
+
+
+def test_validate_pack_dir_flags_sweep_as_unknown_cmd_key() -> None:
+    """The scheduled-lane redesign renamed the `judge.cmd` lane key from
+    `sweep` to `schedule` (JUDGE_CMD_LANES is now {attest, schedule}). The
+    old `sweep` key is not a deprecated-but-tolerated alias — it is simply an
+    unknown cmd key, same as any other typo."""
     pkt = load_packctl()
     with tempfile.TemporaryDirectory() as tmp:
         pack = _cmd_pack(
@@ -126,7 +147,7 @@ def test_validate_pack_dir_accepts_sweep_string_cmd() -> None:
             '  cmd: { sweep: "claude -p --output-format text --model opus" }\n',
         )
         errors = pkt.validate_pack_dir(pack)
-        assert errors == [], "\n".join(errors)
+        assert any("unknown key" in e and "sweep" in e for e in errors), "\n".join(errors)
 
 
 def test_validate_pack_dir_flags_unknown_cmd_key() -> None:
@@ -140,15 +161,15 @@ def test_validate_pack_dir_flags_unknown_cmd_key() -> None:
         assert any("unknown key" in e and "triage" in e for e in errors), "\n".join(errors)
 
 
-def test_validate_pack_dir_flags_sweep_harness() -> None:
+def test_validate_pack_dir_flags_schedule_harness() -> None:
     pkt = load_packctl()
     with tempfile.TemporaryDirectory() as tmp:
         pack = _cmd_pack(
             Path(tmp),
-            "  cmd: { sweep: harness }\n",
+            "  cmd: { schedule: harness }\n",
         )
         errors = pkt.validate_pack_dir(pack)
-        assert any("cmd.sweep" in e and "harness" in e for e in errors), "\n".join(errors)
+        assert any("cmd.schedule" in e and "harness" in e for e in errors), "\n".join(errors)
 
 
 def test_validate_pack_dir_flags_tiers_as_forbidden() -> None:
@@ -162,10 +183,10 @@ def test_validate_pack_dir_flags_tiers_as_forbidden() -> None:
         assert any("judge.tiers" in e for e in errors), "\n".join(errors)
 
 
-def test_validate_pack_dir_silent_on_section_absent_without_sweep_cmd() -> None:
-    # The bundled norm: a sweep-only directive names no judge of its own and
-    # the driver resolves one from GOVERNANCE_SWEEP_CMD. Not a defect, so not
-    # a warning — 15 bundled directives would otherwise each emit one.
+def test_validate_pack_dir_silent_on_section_absent_without_schedule_cmd() -> None:
+    # The bundled norm: a schedule-only directive names no judge of its own
+    # and the driver resolves one from GOVERNANCE_JUDGE_CMD. Not a defect, so
+    # not a warning — 15 bundled directives would otherwise each emit one.
     pkt = load_packctl()
     with tempfile.TemporaryDirectory() as tmp:
         pack = _cmd_pack(Path(tmp), "")
@@ -174,12 +195,12 @@ def test_validate_pack_dir_silent_on_section_absent_without_sweep_cmd() -> None:
         assert warnings == [], "\n".join(warnings)
 
 
-def test_validate_pack_dir_no_warning_when_section_absent_has_sweep_cmd() -> None:
+def test_validate_pack_dir_no_warning_when_section_absent_has_schedule_cmd() -> None:
     pkt = load_packctl()
     with tempfile.TemporaryDirectory() as tmp:
         pack = _cmd_pack(
             Path(tmp),
-            '  cmd: { sweep: "claude -p --output-format text --model opus" }\n',
+            '  cmd: { schedule: "claude -p --output-format text --model opus" }\n',
         )
         errors, warnings = pkt.validate_pack_dir_with_warnings(pack)
         assert errors == [], "\n".join(errors)
@@ -194,20 +215,21 @@ def test_validate_pack_dir_flags_sink_as_forbidden() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         pack = _cmd_pack(
             Path(tmp),
-            '  sink: none\n  cmd: { sweep: "claude -p --output-format text --model opus" }\n',
+            '  sink: none\n  cmd: { schedule: "claude -p --output-format text --model opus" }\n',
         )
         errors = pkt.validate_pack_dir(pack)
         assert any("judge.sink" in e for e in errors), "\n".join(errors)
 
 
 def test_validate_pack_dir_no_check_sh_or_surface_required_when_section_absent() -> None:
-    """Amendment 3: the sweep-only exemption (no check.sh, no surface: needed)
-    now keys purely on `section:` being absent — no `sink:` field involved."""
+    """Amendment 3: the schedule-only exemption (no check.sh, no surface:
+    needed) now keys purely on `section:` being absent — no `sink:` field
+    involved."""
     pkt = load_packctl()
     with tempfile.TemporaryDirectory() as tmp:
         pack = _cmd_pack(
             Path(tmp),
-            '  cmd: { sweep: "claude -p --output-format text --model opus" }\n',
+            '  cmd: { schedule: "claude -p --output-format text --model opus" }\n',
         )
         errors = pkt.validate_pack_dir(pack)
         assert not any("check.sh" in e for e in errors), "\n".join(errors)
@@ -292,7 +314,7 @@ def test_validate_pack_dir_flags_isolation_as_forbidden() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         pack = _cmd_pack(
             Path(tmp),
-            '  isolation: shared\n  cmd: { sweep: "claude -p --output-format text --model opus" }\n',
+            '  isolation: shared\n  cmd: { schedule: "claude -p --output-format text --model opus" }\n',
         )
         errors = pkt.validate_pack_dir(pack)
         assert any("judge.isolation" in e for e in errors), "\n".join(errors)
@@ -303,13 +325,13 @@ def test_validate_pack_dir_accepts_plain_group_scalar() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         pack = _cmd_pack(
             Path(tmp),
-            '  group: bundled-intent\n  cmd: { sweep: "claude -p --output-format text --model opus" }\n',
+            '  group: bundled-intent\n  cmd: { schedule: "claude -p --output-format text --model opus" }\n',
         )
         errors = pkt.validate_pack_dir(pack)
         assert errors == [], "\n".join(errors)
 
 
-def test_validate_pack_dir_flags_group_with_differing_sweep_cmds() -> None:
+def test_validate_pack_dir_flags_group_with_differing_schedule_cmds() -> None:
     pkt = load_packctl()
     with tempfile.TemporaryDirectory() as tmp:
         pack = make_pack(
@@ -335,7 +357,7 @@ def test_validate_pack_dir_flags_group_with_differing_sweep_cmds() -> None:
                           checks:
                             - some rubric
                           group: bundled-intent
-                          cmd: { sweep: "claude -p --output-format text --model opus" }
+                          cmd: { schedule: "claude -p --output-format text --model opus" }
                     """),
                     "constitution_md": "no path reference here",
                 },
@@ -350,7 +372,7 @@ def test_validate_pack_dir_flags_group_with_differing_sweep_cmds() -> None:
                           checks:
                             - another rubric
                           group: bundled-intent
-                          cmd: { sweep: "claude -p --output-format text --model haiku" }
+                          cmd: { schedule: "claude -p --output-format text --model haiku" }
                     """),
                     "constitution_md": "no path reference here",
                 },

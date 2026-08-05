@@ -1,4 +1,4 @@
-# Judge declaration (attest + sweep)
+# Judge declaration (attest + schedule)
 
 Some directives ask a question a hook structurally cannot answer: *does this
 artifact correspond to reality* — does the receipt match the diff, does the
@@ -10,20 +10,21 @@ The kit expresses every such judgment as **one declaration** — a `judge:`
 block in the directive's `directive.yaml` — executed by **one mechanism** at two
 lanes and two times (issues #325, #355):
 
-| | **attest** (commit) | **sweep** (at rest) |
+| | **attest** (commit) | **schedule** (at rest) |
 |---|---|---|
 | does | renders a verdict on a rubric | re-renders a verdict on the same rubric |
-| judge | `cmd.attest` — `harness` (a fresh-context sub-agent the calling agent spawns, the default; no bundled directive overrides it) or a shell command string | resolved through a ladder: the directive's own `cmd.sweep` (a rare override), else the ephemeral `GOVERNANCE_SWEEP_CMD` env, else the committed `SWEEP_CMD=` row in `.governance/conf/repo.conf`, else the directive is skipped honestly |
-| result | verdict written into a `## Section` | a round line appended to the section (attestation-backed) or a `FINDING` filed to the `governance-sweep` digest issue (discovery, or a frozen receipt) |
+| judge | `cmd.attest` — `harness` (a fresh-context sub-agent the calling agent spawns, the default; no bundled directive overrides it) or a shell command string | resolved through a ladder: the directive's own `cmd.schedule` (a rare override), else the ephemeral `GOVERNANCE_JUDGE_CMD` env (exported by the lane's generated workflow), else the directive is skipped honestly |
+| result | verdict written into a `## Section` | a round line appended to the section (attestation-backed) or a `FINDING` filed to the lane's `governance-schedule-<lane>` digest issue (discovery, or a frozen receipt) |
 
 The two are the same task — a rubric-framed model judgment — executed through
 **one mechanism**: a `cmd` the framework pipes a rendered prompt into on
 stdin, parsing the verdict grammar off stdout. There is no second engine, no
-vendor transport, no stub judge — attest and sweep are two **moments** of one
-`judge:` declaration, not two parallel features. This page covers the
-**attest** mode (the commit lane). The **sweep** mode is in
-[SWEEP_FLOW.md](SWEEP_FLOW.md); the at-rest driver reads the same declaration
-unchanged and re-derives the verdict through `cmd.sweep`, off the commit path.
+vendor transport, no stub judge — attest and schedule are two **moments** of
+one `judge:` declaration, not two parallel features. This page covers the
+**attest** mode (the commit lane). The **schedule** mode is in
+[SCHEDULE_FLOW.md](SCHEDULE_FLOW.md); the at-rest driver reads the same
+declaration unchanged and re-derives the verdict through `cmd.schedule`, off
+the commit path.
 
 First shipped for `receipt-per-issue`'s `## Audit` (issue #272); the consumers
 today are `## Audit`, the repo-local `layer-boundaries` `## Layer boundaries`
@@ -42,8 +43,8 @@ receipt's own prose, never that either matches the diff.
 
 Closing that gap needs an **independent reader** of the ground truth. The
 attestation is an **author-time** independent audit, recorded into the artifact
-and gated for *presence*, with the truth of its verdict deferred to the sweep
-lane at merge. The independence is the point: a sub-agent handed only the ground
+and gated for *presence*, with the truth of its verdict deferred to the
+schedule lane at merge. The independence is the point: a sub-agent handed only the ground
 truth — never the code-author's reasoning — is a genuinely independent auditor.
 That is the author≠auditor split happening at author-time.
 
@@ -64,18 +65,18 @@ judge:
 ```
 
 No `cmd` row: this is the norm for every bundled directive. Absent `cmd.attest`
-defaults to `harness`. Absent `cmd.sweep` means the directive names no judge of
-its own — the sweep driver falls back to the ephemeral `GOVERNANCE_SWEEP_CMD`
-env, then to the committed `SWEEP_CMD=` row in `.governance/conf/repo.conf`
-(see [SWEEP_FLOW.md](SWEEP_FLOW.md#judge-resolution-per-directive-not-per-driver)),
-and skips the directive honestly if none of those answer. `cmd` stays in the
-schema as an optional per-directive override — a value of `harness` for
+defaults to `harness`. Absent `cmd.schedule` means the directive names no
+judge of its own — the schedule driver falls back to the ephemeral
+`GOVERNANCE_JUDGE_CMD` env (exported by the lane's generated workflow; see
+[SCHEDULE_FLOW.md](SCHEDULE_FLOW.md#the-judge-resolution-ladder-scheduled)),
+and skips the directive honestly if that doesn't answer either. `cmd` stays in
+the schema as an optional per-directive override — a value of `harness` for
 `attest`, or a shell command string for either lane:
 
 ```yaml
   cmd:
-    attest: harness                       # harness (default) | shell command string
-    sweep:  claude -p --output-format text --model opus   # shell command string only; overrides the ladder below
+    attest:   harness                       # harness (default) | shell command string
+    schedule: claude -p --output-format text --model opus   # shell command string only; overrides the ladder below
 ```
 
 Reach for it only when one directive genuinely needs a judge different from
@@ -93,83 +94,72 @@ instead.
   `GOVERNANCE_LAYER_DOC`. An unknown token passes through verbatim.
 - **`checks`** — the numbered rubric the judge adjudicates (the prose rubric is
   the directive's `constitution.md`).
-- **`group`** — an optional, repo-global, free-form label. Every directive
-  declaring the same `group` label is batched into **one** judge invocation —
-  one sub-agent on the attest lane, one judge call on the sweep lane —
-  demuxed back out per directive by its `DIRECTIVE:`-tagged blocks. A
-  directive with no `group` gets its own solo invocation (use this when
-  inter-attestation independence — avoiding a halo effect across verdicts —
-  matters). A group is one invocation running **one** command: every member
-  of a group must *resolve* to the same command for the lane being batched
-  (for `sweep`, after the resolution ladder below runs) — `packctl` rejects a
-  group whose declared `cmd` rows disagree at validation time, and the sweep
-  driver refuses to split a group whose members resolve to different commands
-  at runtime, reporting the whole group un-adjudicated with one honest line
+- **`group`** — an optional, free-form label. Every directive resolving the
+  same `group` label is batched into **one** judge invocation — one sub-agent
+  on the attest lane, one judge call on the schedule lane — demuxed back out
+  per directive by its `DIRECTIVE:`-tagged blocks. A directive resolving no
+  `group` gets its own solo invocation (use this when inter-attestation
+  independence — avoiding a halo effect across verdicts — matters). A group
+  is one invocation running **one** command: every member of a group must
+  *resolve* to the same command for the lane being batched (for `schedule`,
+  after the resolution ladder above runs) — `packctl` rejects a group whose
+  declared `cmd` rows disagree at validation time, and the schedule driver
+  refuses to split a group whose members resolve to different commands at
+  runtime, reporting the whole group un-adjudicated with one honest line
   rather than silently invoking a subset.
 
-  **The batching partition is operator-owned and lives in one committed,
-  repo-level file**, `.governance/conf/repo.conf` (see *Author-owned vs
-  operator-owned* below) — not a per-directive conf overlay, and not an env
-  var. The file is optional (absent → every directive falls to its own
-  `directive.yaml` default, or solo) and, like every conf artifact, is never
-  touched by `pack update` / `governance update` / `reset`. It reads
-  CODEOWNERS-style, `judge-group` and `judge-solo` rows:
+  **The batching label is operator-owned and lives in the per-directive conf
+  overlay** (see *Author-owned vs operator-owned* below) — a single
+  `JUDGE_GROUP=<label>` row in
+  `.governance/conf/<owner>/<pack>/<id>.conf`, read by the bespoke
+  `_judge_group_resolve` helper (not `conf_get`'s hard-fail `defaults.conf`
+  tier, since batching has no author-owned default to fail against). Like
+  every conf overlay, it is seeded once at install and never touched again by
+  `pack update` / `governance update` / `reset`.
 
-  ```
-  # .governance/conf/repo.conf
-  judge-group intent    audit/receipt-per-issue  commits/commit-message-format  issues-tracked
-  judge-group security  repo-hygiene  no-unjustified-suppressions
-  judge-solo  duaility/governance-kit/no-path-bifurcation
-  ```
-
-  - **`judge-group <label> <member> [<member> ...]`** assigns members to a
-    batching group named `<label>`. A member token matches a directive when
-    it equals the directive's full id `<owner>/<pack>/<id>` or its bare
-    `<id>` — a bare token hits every homonym across packs, the same rule
-    `run.sh <bare-id>` already applies.
-  - **`judge-solo <member> [<member> ...]`** forces the listed directives to
-    solo, overriding any `judge.group` label their own `directive.yaml`
-    declares. This is how a consumer strips a label a community or
-    repo-local pack shipped, without forking it.
   - **Resolution order**, per directive:
-    1. `repo.conf` `judge-solo` match → solo.
-    2. `repo.conf` `judge-group` match → that label.
-    3. `directive.yaml` `judge.group` → that label (a repo-local or
-       community pack's declared default).
-    4. Solo.
-  - A directive named by `judge-group` lines carrying **different labels** is
-    ambiguous (repeats of the *same* label, on one line or several, decide the
-    same thing and are harmless): the resolver warns once to stderr, naming
-    the directive and both labels,
-    and treats it as solo — an honest degrade, never a coin flip. Repeating a
-    member inside one `judge-group` line is harmless.
-  - Because resolution runs per directive, a group assembled in `repo.conf`
-    can end up with members that resolve to *different* judge commands; the
-    sweep driver refuses that group whole at runtime with one honest
-    un-adjudicated line rather than silently judging a subset — `packctl`
-    cannot see `repo.conf` at author time, so this mismatch is caught only at
-    runtime, never at validation.
+    1. The overlay's `JUDGE_GROUP=` row — a **present but empty** value
+       forces solo, even if `directive.yaml` declares a `group` default. This
+       is how a consumer strips a label a community or repo-local pack
+       shipped, without forking it.
+    2. `directive.yaml`'s own `judge.group` — a repo-local or community
+       pack's declared default — when the overlay names no row at all for
+       this directive.
+    3. Solo.
+  - Because resolution runs per directive against its own overlay file, there
+    is no cross-directive partition to go ambiguous, and no
+    double-membership warn-and-degrade case left to reason about — the old
+    repo-wide `judge-group` / `judge-solo` grammar (and the ambiguity it
+    could produce when the same directive appeared under two labels) is gone
+    along with the file it lived in.
+  - A group can still end up with members that resolve to *different* judge
+    commands (one directive's own `cmd.schedule` override disagreeing with
+    another's); the schedule driver refuses that group whole at runtime with
+    one honest un-adjudicated line rather than silently judging a subset —
+    `packctl` cannot see the overlay tier at author time, so this mismatch is
+    caught only at runtime, never at validation.
 
   **Bundled packs declare no `group`** — for the same reason they declare no
   `cmd`. Batching is not part of what a directive means; it is a trade of
   fidelity for tokens, and which side of that trade a repo wants is the
   repo's call, not a pack author's. Unlike a shipped `cmd`, though, a shipped
-  `group` is not stuck: `repo.conf` is exactly where the choice lives —
-  repo-level, user-owned, not digest-guarded — so a consumer sets, changes,
-  or strips a label (including one a community pack shipped, via
-  `judge-solo`) without touching the vendored tree at all. Every
+  `group` is not stuck: the per-directive overlay is exactly where the
+  choice lives — repo-level in effect, user-owned, not digest-guarded — so a
+  consumer sets, changes, or strips a label (including one a community pack
+  shipped) per directive without touching the vendored tree at all. Every
   kit-bundled judgment ships adjudicated solo by default; a repo that wants
-  otherwise reaches for `repo.conf`, not a fork.
+  otherwise writes an overlay row, not a fork.
 - **`section`** — the `## <Section>` the verdict is written into. Its
   presence is what puts a declaration on the **attest** lane at all — there is
   no separate field for this. A declaration that carries `section:` attests
   into that receipt section at commit time (`gate:` decides whether the
-  commit blocks on it), and the sweep re-derives the same verdict at rest. A
-  declaration with no `section:` is **sweep-only**: it never participates on
-  the commit path — `judge_attest` returns immediately and nothing is
-  gated or registered — needs no `check.sh` and no `surface:`, and its
-  findings go only to the sweep digest, filed as an issue rather than written
-  into any receipt. Use the no-`section:` shape for a judgment worth making
+  commit blocks on it), and the schedule lane re-derives the same verdict at
+  rest. A declaration with no `section:` is **schedule-only**: it never
+  participates on the commit path — `judge_attest` returns immediately and
+  nothing is gated or registered — needs no `check.sh` and no `surface:`, and
+  its findings go only to the lane's digest issue, filed as an issue rather
+  than written into any receipt. Use the no-`section:` shape for a judgment
+  worth making
   at merge that has no author-time artifact to sit in. (Before issue #355
   this was a separate `sink: section | none` field; `sink` duplicated what
   `section` presence already said, and `none` misnamed a sink that actually
@@ -193,7 +183,7 @@ instead.
   verdict-contestable` is exactly yesterday's `gate: verdict` + `contest:
   allow`. An unknown `contest` key is now a `packctl` validation error.)
 - **`cmd`** — an **optional per-directive override** of who judges each lane,
-  a map with keys `attest` and/or `sweep`. Not the normal case: no bundled
+  a map with keys `attest` and/or `schedule`. Not the normal case: no bundled
   `governance-kit/*` directive declares it. Each value is either the reserved
   word `harness` or a full shell command string:
   - `harness` — the live session's own sub-agent mechanism (Claude Code Task,
@@ -206,22 +196,20 @@ instead.
   - a shell string — a detached CLI judge, run via `bash -c "$cmd"` with the
     rendered prompt on **stdin** and the answer read from **stdout**. No
     other channel.
-  - `attest` accepts `harness` or a shell string. `sweep` accepts a shell
-    string **only** — `sweep: harness` is invalid (`packctl` rejects it):
-    the sweep runs at rest with no live session, so there is nobody to spawn
-    an in-session sub-agent.
+  - `attest` accepts `harness` or a shell string. `schedule` accepts a shell
+    string **only** — `schedule: harness` is invalid (`packctl` rejects it):
+    the schedule lane runs at rest with no live session, so there is nobody
+    to spawn an in-session sub-agent.
   - **Resolution differs by lane.** `attest` has no env-var ladder: absent
-    `cmd.attest` is always `harness`, full stop. `sweep` resolves through a
-    four-rung ladder — the directive's own `cmd.sweep` first (a rare
+    `cmd.attest` is always `harness`, full stop. `schedule` resolves through
+    a three-rung ladder — the directive's own `cmd.schedule` first (a rare
     per-directive override, and the only rung a fork or `directive modify`
-    is needed to change), then the ephemeral `GOVERNANCE_SWEEP_CMD` env (set
-    by the scheduled sweep workflow from a gated repository variable; the
-    pre-push opt-in inherits whatever the developer's own environment has),
-    then the committed `SWEEP_CMD=` row in `.governance/conf/repo.conf` (the
-    repo's own standing choice of judge), then the directive is skipped for
-    that run with one honest log line naming both the env and the row as the
-    ways to supply a judge — never a guessed or downgraded judge. See
-    [SWEEP_FLOW.md](SWEEP_FLOW.md#judge-resolution-per-directive-not-per-driver).
+    is needed to change), then the ephemeral `GOVERNANCE_JUDGE_CMD` env (set
+    by the lane's generated workflow from a gated repository variable), then
+    the directive is skipped for that run with one honest log line naming
+    the env as the way to supply a judge — never a guessed or downgraded
+    judge. See
+    [SCHEDULE_FLOW.md](SCHEDULE_FLOW.md#the-judge-resolution-ladder-scheduled).
   - A directive that genuinely needs a fixed judge (a per-directive `cmd`
     override) edits it through the normal pack/directive override flow (fork
     or `directive modify`), the same way it would edit any other author-fixed
@@ -235,41 +223,41 @@ differently:
 
 - **Semantic — author-fixed in `directive.yaml`** (`inputs`, `checks`,
   `section`, `gate`, `cmd`). These *are* the
-  directive's substance: `checks` is the rubric the sweep lane re-derives the
-  verdict against, `inputs` decides what ground truth the judge sees,
+  directive's substance: `checks` is the rubric the schedule lane re-derives
+  the verdict against, `inputs` decides what ground truth the judge sees,
   `section` is a code contract `check.sh` greps for, and `cmd` names the judge
   itself — a consumer who could edit any of them would grade the attest and
-  sweep verdicts against a different rubric or a different judge, so none of
-  them are tweakable without a fork — `managed-tree-integrity` rejecting a
+  schedule verdicts against a different rubric or a different judge, so none
+  of them are tweakable without a fork — `managed-tree-integrity` rejecting a
   hand-edit of the vendored `directive.yaml` is the system working. A repo on
   a different harness edits `cmd` through the normal pack/directive override
   flow, not a conf overlay.
-- **Operational — operator-tunable, but through two different surfaces**
-  (the adjudication round ceiling stays a per-directive conf knob; the
-  `group` batching label moved to a repo-level committed file as of issue
-  #355 — see the *batching partition* above). Both are pure execution-shape
-  dials, not rubric or judge changes:
+- **Operational — operator-tunable, both through the per-directive conf
+  overlay** (the adjudication round ceiling; the `group` batching label,
+  which moved off any repo-level file as of this change — see the *batching
+  partition* above). Both are pure execution-shape dials, not rubric or judge
+  changes:
 
-  A third, separate knob sits outside both of these: `SWEEP_CMD`, a row in
-  `.governance/conf/repo.conf` (overridden by the ephemeral `GOVERNANCE_SWEEP_CMD`
-  env). It supplies the sweep judge for every directive that declares no
-  `cmd.sweep` of its own — see the resolution ladder above and
-  [SWEEP_FLOW.md](SWEEP_FLOW.md).
+  A third, separate knob sits outside both of these: `GOVERNANCE_JUDGE_CMD`,
+  an ephemeral env exported by a schedule lane's generated workflow (from a
+  gated repository variable). It supplies the schedule judge for every
+  directive in that lane that declares no `cmd.schedule` of its own — see the
+  resolution ladder above and [SCHEDULE_FLOW.md](SCHEDULE_FLOW.md).
 
   | knob | overrides | default |
   |---|---|---|
   | `JUDGE_ROUNDS` | the adjudication round ceiling *K* (`gate: verdict` only) | `3` (floor `2` — a lower value is clamped up) |
-  | `repo.conf` `judge-group` / `judge-solo` | the batching label the directive resolves | the directive's own `judge.group` in `directive.yaml`, or solo if absent |
+  | overlay `JUDGE_GROUP=` | the batching label the directive resolves | the directive's own `judge.group` in `directive.yaml`, or solo if the overlay row is absent |
 
-  `JUDGE_ROUNDS` keeps the usual `conf_get` precedence — env
-  `GOVERNANCE_<KEY>` > user overlay row > pack `defaults.conf` row > the
-  `directive.yaml` value — so behavior is **unchanged until a consumer writes
-  an overlay row**. A directive exposing it ships a `defaults.conf` carrying
-  the row (with docs). `group` is not on that ladder at all: it resolves
-  straight from `repo.conf`'s partition (see *resolution order* above), which
-  is a repo-level object, not a per-directive one — `JUDGE_ROUNDS` genuinely
-  differs directive to directive, while a batching partition only makes sense
-  read as a whole.
+  Both keep the usual `conf_get`-family shape — an env override for
+  `JUDGE_ROUNDS` (`GOVERNANCE_<KEY>` > user overlay row > pack
+  `defaults.conf` row > the `directive.yaml` value), and the bespoke
+  `_judge_group_resolve` reader for `JUDGE_GROUP` (overlay row, empty value
+  forcing solo, else `directive.yaml`, else solo) — so behavior is
+  **unchanged until a consumer writes an overlay row**. A directive exposing
+  `JUDGE_ROUNDS` ships a `defaults.conf` carrying the row (with docs);
+  `group` has no `defaults.conf` row at all, since there is no author-owned
+  default to document — the overlay is the only place it is ever written.
 
 ## The remediation loop (no hook ever spawns anything)
 
@@ -295,12 +283,12 @@ Two honest limits this pattern owns rather than hides:
 
 - **Under `gate: record` it records; it does not adjudicate.** `check.sh`
   verifies the section *exists and is verdict-bearing*, never that the verdict is
-  *true*. Trusting the verdict is the sweep lane's job. The commit-path guarantee
-  is "the audit was recorded," not "the audit passed." A directive that needs the
-  stronger guarantee declares
+  *true*. Trusting the verdict is the schedule lane's job. The commit-path
+  guarantee is "the audit was recorded," not "the audit passed." A directive
+  that needs the stronger guarantee declares
   [`gate: verdict`](#adjudicated-gates-gate-verdict) — then the commit blocks
-  until the verdict itself reads PASS, and the sweep lane's job becomes checking
-  whether that PASS was *earned*.
+  until the verdict itself reads PASS, and the schedule lane's job becomes
+  checking whether that PASS was *earned*.
 - **Harness-only authoring.** A bare human commit or a CI run has no agent to
   spawn anything, so `check.sh` simply hard-fails on the missing section —
   correct (the audit step did not run); the hook can *demand* the section, never
@@ -323,19 +311,19 @@ of the artifact*.
 The attested section carries an append-only log, one ASCII line per round:
 
 ```
-- [round N] VERDICT lane=attest|sweep stamp=<12-hex> — <free text>
+- [round N] VERDICT lane=attest|schedule stamp=<12-hex> — <free text>
 ```
 
 - `VERDICT` is one of `PASS`, `REFUTED`, `ESCALATED`, `CONTESTED`.
 - `N` starts at 1 and increases strictly.
-- `lane` is which moment produced the round — `attest` (commit-time) or `sweep`
-  (at-rest re-adjudication).
+- `lane` is which moment produced the round — `attest` (commit-time) or
+  `schedule` (at-rest re-adjudication; the renamed `sweep`).
 - The free text after the em dash is optional and unconstrained — it is where the
   adjudicator says *why*.
 
 Everything else in the section is free prose; the gate reads only the round
 lines. The exact ERE the gate matches is
-`^- \[round ([0-9]+)\] (PASS|REFUTED|ESCALATED|CONTESTED) lane=(attest|sweep) stamp=([0-9a-f]{12})( — .*)?$`.
+`^- \[round ([0-9]+)\] (PASS|REFUTED|ESCALATED|CONTESTED) lane=(attest|schedule) stamp=([0-9a-f]{12})( — .*)?$`.
 
 ### The stamp
 
@@ -375,7 +363,7 @@ In order, and all deterministic:
    strictly increasing.
 4. **The latest round is `PASS`** — or `CONTESTED` when the directive declares
    `gate: verdict-contestable`, which rides through with a loud stderr warning
-   (`governance: CONTESTED verdict riding on <receipt> — sweep will
+   (`governance: CONTESTED verdict riding on <receipt> — schedule will
    re-adjudicate`). Under plain `gate: verdict` a `CONTESTED` round does not
    ride through. `REFUTED` and `ESCALATED` block under both.
 5. **The stamp is fresh** — the latest round's stamp equals the stamp recomputed
@@ -384,8 +372,8 @@ In order, and all deterministic:
 The honest limit worth naming: within a *single* pending commit, rounds that were
 never committed have no base version to compare against, so the append-only guard
 protects rounds from earlier commits, not rounds written and scrubbed between two
-attempts at the same one. The sweep lane, which sees the merged result, is what
-catches a log that was quietly pruned before it ever landed.
+attempts at the same one. The schedule lane, which sees the merged result, is
+what catches a log that was quietly pruned before it ever landed.
 
 ### The escalation ladder
 
@@ -405,7 +393,7 @@ letting the agent grind against a rubric until something says PASS.
 The instruction the harness receives spells out the round-line format, the
 `_adjudication_stamp` invocation, the append-only rule, and the point that a
 `PASS` recorded without actually checking the rubric against the ground truth is
-exactly the failure the sweep lane re-adjudicates every one of these logs to
+exactly the failure the schedule lane re-adjudicates every one of these logs to
 catch.
 
 ## Batched orchestration (issue #325)
@@ -428,11 +416,11 @@ from the instruction:
   sub-agent per section that declares no `group`.
 
 With no `group` resolved anywhere — the bundled default, and the outcome for
-any repo that has not written a `repo.conf` — that is one spawn per section: a
+any repo that has not written an overlay row — that is one spawn per section: a
 newly added receipt owing `## Audit`, `## Layer boundaries`, and `## Steering`
 costs three sub-agents, each reading the diff with nothing else in its
-context. A repo that labels all three into one group — via a `judge-group`
-line in `.governance/conf/repo.conf`, see *The batching partition* above —
+context. A repo that labels all three into one group — via a `JUDGE_GROUP=`
+row in each directive's conf overlay, see *The batching partition* above —
 costs one sub-agent and one diff read instead. The
 critical author≠auditor independence (the auditor is always a fresh context,
 never the harness) holds either way; what batching trades is
@@ -455,15 +443,14 @@ operator-owned* above):
 
 The `attest` lane has no env-var or conf-overlay ladder that changes who
 judges — the `cmd.attest` value in `directive.yaml` (or its absence, meaning
-`harness`) is the whole answer. The sweep lane is never `harness`:
-`.governance/sweep.sh` always judges through a shell command string, but that
-string is resolved rather than declared outright — the directive's own
-`cmd.sweep` when present (rare; no bundled directive sets one), otherwise the
-ephemeral `GOVERNANCE_SWEEP_CMD` env, otherwise the committed `SWEEP_CMD=`
-row in `.governance/conf/repo.conf`, otherwise the directive is skipped for
-that run (see [SWEEP_FLOW.md](SWEEP_FLOW.md)). Same helper, same prompt
-builder, same honesty rule on both lanes — no vendor HTTP transport, no
-second engine.
+`harness`) is the whole answer. The schedule lane is never `harness`:
+`.governance/schedule.sh` always judges through a shell command string, but
+that string is resolved rather than declared outright — the directive's own
+`cmd.schedule` when present (rare; no bundled directive sets one), otherwise
+the ephemeral `GOVERNANCE_JUDGE_CMD` env exported by the lane's generated
+workflow, otherwise the directive is skipped for that run (see
+[SCHEDULE_FLOW.md](SCHEDULE_FLOW.md)). Same helper, same prompt builder, same
+honesty rule on both lanes — no vendor HTTP transport, no second engine.
 
 ### Why a different vendor's CLI is a real control
 
@@ -484,7 +471,7 @@ receipt — never out of anything the agent under audit wrote into its own
 context. That prompt build is the baseline mitigation on **both** shapes of
 `cmd.attest`: even on `harness`, the rubric comes from `directive.yaml`, and
 the ground truth is fenced as untrusted data the judge must analyze, not obey
-(the same universal contract the sweep lane's system prompt carries).
+(the same universal contract the schedule lane's system prompt carries).
 
 Neither shape makes in-context collusion *impossible* on the harness path —
 the calling agent still spawns that sub-agent. A shell-string `cmd.attest` is
@@ -555,30 +542,30 @@ off-commit-path accounting verbs for `agent-token-accounting`:
 Before issue #355 the registry also carried `judge` and `can-judge` verbs; both
 are deleted, along with the per-adapter tier→model alias tables. A directive
 that wants a specific vendor's CLI as its judge now says so directly in
-`cmd.attest` / `cmd.sweep` — there is no adapter indirection between the
+`cmd.attest` / `cmd.schedule` — there is no adapter indirection between the
 declaration and the process that runs.
 
 ## Use a small model where cost matters
 
 The author-time attestation is a **bounded read-and-record audit**, not the
 final word on truth — the verdict's correctness is independently re-derived
-by the merge-time sweep lane, typically on a stronger model. No bundled pack
-fixes either model in `directive.yaml`: `cmd.attest` is absent (the harness
-default is the common case, see the schema above), so the attest-lane model
-is whatever the calling agent's own sub-agent mechanism uses; `cmd.sweep` is
-absent too, so the sweep-lane model is whatever the resolved `SWEEP_CMD`
-names — ordinarily the committed `.governance/conf/repo.conf` row, with the
-scheduled sweep workflow's `GOVERNANCE_SWEEP_CMD` env available as an
-ephemeral override — deliberately picked stronger than the attest default
-since the sweep only fires on a schedule, not on every commit (issue #321).
+by the merge-time schedule lane, typically on a stronger model. No bundled
+pack fixes either model in `directive.yaml`: `cmd.attest` is absent (the
+harness default is the common case, see the schema above), so the attest-lane
+model is whatever the calling agent's own sub-agent mechanism uses;
+`cmd.schedule` is absent too, so the schedule-lane model is whatever the
+resolved `GOVERNANCE_JUDGE_CMD` env — exported by the lane's generated
+workflow from a gated repository variable — names, deliberately picked
+stronger than the attest default since a schedule lane fires on a cadence,
+not on every commit (issue #321).
 The auditor renders the verdict as literally `PASS` or `REFUTED`; the gate
 matches that token case-insensitively anywhere in the section.
 
 The model is whatever the resolved judge command names — there is no
-separate tier knob. A consumer who wants every sweep re-adjudication run on a
-stronger (or cheaper) model changes the `SWEEP_CMD=` row in `repo.conf` (or
-the `GOVERNANCE_SWEEP_CMD` env for a one-shot run), not a per-directive
-field. A consumer who wants one *specific* directive's
+separate tier knob. A consumer who wants every schedule re-adjudication run
+on a stronger (or cheaper) model changes the `GOVERNANCE_JUDGE_CMD` value the
+lane's workflow exports, not a per-directive field. A consumer who wants one
+*specific* directive's
 author-time verdict run on a different model overrides that directive's
 `cmd.attest` string through the normal pack/directive override flow (issue
 #331, see *Author-owned vs operator-owned* above) — but this is the rare
@@ -601,7 +588,7 @@ These sit alongside the rest of the `lib.sh` surface catalogued in the
   Reads the sibling `directive.yaml`'s `judge:` block, runs the gate the
   block declares (`record`, `verdict`, or `verdict-contestable`), and
   registers a pending section for the orchestrator. Returns 0 immediately
-  when the declaration has no `section:` — a sweep-only declaration the
+  when the declaration has no `section:` — a schedule-only declaration the
   commit lane ignores.
 - **`attestation_remediation [<ledger>]`** (issue #325) — the orchestrator that
   emits the single grouped remediation instruction, including the escalation
@@ -613,7 +600,7 @@ These sit alongside the rest of the `lib.sh` surface catalogued in the
   described above. Private to the kit, but deliberately callable standalone so a
   fresh-context adjudicator can compute the stamp it must record.
 - **`_judge_cmd_resolve <yaml> <lane>`** (issue #355) — print the `cmd`
-  string declared for `lane` (`attest` or `sweep`) out of the directive's
+  string declared for `lane` (`attest` or `schedule`) out of the directive's
   flattened `judge:` yaml, or nothing (return `1`) when the row is absent.
 - **`_judge_cmd_run <cmd>`** (issue #355) — run one judge round: prompt on
   stdin, normalized verdict on stdout. Checks the command's first word is on
@@ -663,16 +650,16 @@ must declare a `min_governance_kit` floor at the kit version that **ships** them
 first shipped in `kit/v0.10.0`; `judge_attest` / `attestation_remediation`
 ship in the kit release that carries issue #325. A directive that declares
 `gate: verdict` or `gate: verdict-contestable`, omits `section:` for a
-sweep-only declaration, or leans on `_adjudication_stamp` floors at the
+schedule-only declaration, or leans on `_adjudication_stamp` floors at the
 release carrying issue #355 — an older `lib.sh` ignores the new keys and
 gates on presence alone, which is a silent downgrade, not an error. See
 [LIB_API.md](LIB_API.md#version-floor-obligation) and [VERSIONING.md](VERSIONING.md).
 
 ## See also
 
-- [SWEEP_FLOW.md](SWEEP_FLOW.md) — the **sweep** mode: the off-path LLM-judge
-  lane that re-derives recorded verdicts through `cmd.sweep` and files a
-  digest.
+- [SCHEDULE_FLOW.md](SCHEDULE_FLOW.md) — the **schedule** mode: the off-path
+  LLM-judge lane that re-derives recorded verdicts through `cmd.schedule` and
+  files a digest.
 - [LIB_API.md](LIB_API.md) — the full `lib.sh` helper surface, with signatures
   and landed-in versions.
 - [DIRECTIVE_AUTHORING.md](DIRECTIVE_AUTHORING.md) — patterns for writing checks.
