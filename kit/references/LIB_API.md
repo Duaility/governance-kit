@@ -71,8 +71,10 @@ shows when to reach for it.
 | `resolve_judge_input` | `resolve_judge_input <token> <receipt>` | Map a typed input token (`diff`, `receipt`, `issue`, `transcript`, `layer-map`) to the concrete handle phrase the sub-agent is handed; unknown tokens pass through verbatim. | 0.11.0 |
 
 Operator knobs these read, all through the standard `conf_get` ladder (env
-`GOVERNANCE_<KEY>` > user overlay > pack `defaults.conf`): `JUDGE_ROUNDS`.
-`group` and `cmd` are **not** conf-tunable — they are semantic fields fixed in
+`GOVERNANCE_<KEY>` > user overlay > pack `defaults.conf`): `JUDGE_ROUNDS`, and
+`JUDGE_GROUP` (the batching partition — falls through to the directive's own
+`judge.group` when no conf tier answers; a resolved literal `-` forces solo).
+`cmd` is **not** conf-tunable — it stays a semantic field fixed in
 `directive.yaml`. `GOVERNANCE_SWEEP_CMD` (consulted by `sweep.sh`, not a
 `lib.sh` helper) is a third, separate kind of knob again: a plain repo-level
 env outside the `conf_get` ladder, naming the sweep judge for any directive

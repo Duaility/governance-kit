@@ -45,6 +45,10 @@
 #                              partition into two calls; a group whose members
 #                              resolve DIFFERENT cmds → runtime refusal, the
 #                              whole group un-adjudicated, never silently split
+#   conf-ladder batching       the label is operator-settable: overlay rows
+#                               assemble a group out of directives that declare
+#                               none, `JUDGE_GROUP=-` pulls one back out solo,
+#                               and env `GOVERNANCE_JUDGE_GROUP` lumps them all
 #   homonym demotion           a repeated directive id inside one group is
 #                               forced solo — one `DIRECTIVE:` delimiter cannot
 #                               address two same-named blocks unambiguously
@@ -883,6 +887,75 @@ assert_contains "a malformed batched answer un-adjudicates the whole batch" \
     "- un-adjudicated (NOT a clean bill): 2" "$out"
 assert_lacks "and files no findings from it" "**src.txt" "$out"
 STUB_RAW=""; export STUB_RAW
+
+# ── Batching assembled by the operator, not the pack ────────────────────────
+printf '── batching off the conf ladder (JUDGE_GROUP) ──────────\n'
+
+# Bundled packs ship NO `group:` — batching is a fidelity-vs-tokens trade the
+# consuming repo prices, so the label comes off the same conf ladder the commit
+# lane reads. Two directives that declare nothing, given one label by two
+# overlay rows, become one call here exactly as if the pack had said so.
+r7c="$WORK/batch-conf"
+mkfixture "$r7c"
+install_discovery "$r7c" no-fallbacks
+install_discovery "$r7c" no-bifurcation
+mkdir -p "$r7c/.governance/conf/acme/quality"
+printf 'JUDGE_GROUP=operator-lump\n' > "$r7c/.governance/conf/acme/quality/no-fallbacks.conf"
+printf 'JUDGE_GROUP=operator-lump\n' > "$r7c/.governance/conf/acme/quality/no-bifurcation.conf"
+printf 'one\n' > "$r7c/src.txt"
+git -C "$r7c" add -A; git -C "$r7c" commit -qm init
+BASE7C="$(git -C "$r7c" rev-parse HEAD)"
+printf 'two\n' >> "$r7c/src.txt"
+git -C "$r7c" add -A; git -C "$r7c" commit -qm second
+HEAD7C="$(git -C "$r7c" rev-parse HEAD)"
+
+STUB_CALLS="$WORK/calls7c.txt"; : > "$STUB_CALLS"
+STUB_RAW="DIRECTIVE: no-fallbacks
+VERDICT: PASS
+REASON: nothing swallowed
+DIRECTIVE: no-bifurcation
+VERDICT: REFUTED
+REASON: a second path landed
+FINDING: src.txt:2 — two — a second code path for the same job"
+export STUB_CALLS STUB_RAW
+sweep "$r7c" --range "$BASE7C..$HEAD7C" --no-gh --dry-run
+assert_eq "two overlay-labeled directives that declare nothing share ONE call" "1" \
+    "$(grep -c '^judge$' "$STUB_CALLS" | tr -d ' ')"
+assert_contains "the run announces the operator-assembled batch" \
+    "batching 2 shared directive(s) into one judgment" "$out"
+assert_contains "and the batched answer is still DIRECTIVE-demuxed per member" \
+    '## `no-bifurcation`' "$out"
+assert_lacks "the passing member of a conf-assembled group files nothing" \
+    '## `no-fallbacks`' "$out"
+
+# The force-solo sentinel, at rest: an overlay `JUDGE_GROUP=-` on one member
+# pulls it back out of the group the other rows assembled.
+printf 'JUDGE_GROUP=-\n' > "$r7c/.governance/conf/acme/quality/no-bifurcation.conf"
+STUB_CALLS="$WORK/calls7d.txt"; : > "$STUB_CALLS"
+STUB_RAW=""; STUB_VERDICT=PASS; STUB_REASON="fine"
+export STUB_CALLS STUB_RAW STUB_VERDICT STUB_REASON
+sweep "$r7c" --range "$BASE7C..$HEAD7C" --no-gh --dry-run
+assert_eq "JUDGE_GROUP=- pulls a member back out into a solo call" "2" \
+    "$(grep -c '^judge$' "$STUB_CALLS" | tr -d ' ')"
+
+# The env knob is the crude repo-global lump: every swept directive lands in
+# the one group, whatever the overlays say.
+STUB_CALLS="$WORK/calls7e.txt"; : > "$STUB_CALLS"
+STUB_RAW="DIRECTIVE: no-fallbacks
+VERDICT: PASS
+REASON: nothing swallowed
+DIRECTIVE: no-bifurcation
+VERDICT: PASS
+REASON: nothing swallowed"
+export STUB_CALLS STUB_RAW
+GOVERNANCE_JUDGE_GROUP=everything sweep "$r7c" --range "$BASE7C..$HEAD7C" --no-gh --dry-run
+assert_eq "the env lump overrides every overlay row, at rest too" "1" \
+    "$(grep -c '^judge$' "$STUB_CALLS" | tr -d ' ')"
+STUB_RAW=""; export STUB_RAW
+
+# A group the operator assembled is refused for mixed cmds on exactly the same
+# terms a declared one is — the refusal above reads the resolved `cmd` off the
+# row, and knows nothing about where the row's group label came from.
 
 # ── Homonym-id demotion ─────────────────────────────────────────────────────
 printf '── homonym demotion (same id, two packs, one group) ────\n'

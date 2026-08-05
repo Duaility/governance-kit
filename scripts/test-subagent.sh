@@ -21,6 +21,10 @@
 #   _judge_cmd_run    a stub command on PATH, a missing binary, no verdict
 #   _judge_emit_verdict the relocated grammar filter, incl. DIRECTIVE: re-arm
 #   _judge_rounds_resolve  default, clamp floor, conf + env override
+#   _judge_group_resolve   the batching label off the operator conf ladder:
+#                       env > overlay > pack defaults > declaration > solo,
+#                       the `-` force-solo sentinel, empty-is-not-an-answer,
+#                       and the same ladder end to end through judge_attest
 #   attestation_remediation   group batching, solo rows, empty-ledger silence,
 #                       verdict bullets, escalation round, terminal stall
 #   _adjudication_stamp stable across a log append; moves when the receipt's
@@ -307,6 +311,55 @@ assert_eq "a ceiling below the floor clamps up to 2" "2" \
     "$(cd "$rr_repo" && GOVERNANCE_JUDGE_ROUNDS=1 lib "_judge_rounds_resolve g '$WORK/def/defaults.conf' '$Y/full.yaml'")"
 assert_eq "a non-numeric ceiling falls back to 3" "3" \
     "$(cd "$rr_repo" && GOVERNANCE_JUDGE_ROUNDS=lots lib "_judge_rounds_resolve g '$WORK/def/defaults.conf' '$Y/full.yaml'")"
+
+# ── _judge_group_resolve ────────────────────────────────────────────────
+printf '── _judge_group_resolve (the batching label) ────────\n'
+
+# The label rides the operator conf ladder, because batching is a
+# fidelity-vs-tokens trade only the consuming repo can price. Bundled packs
+# ship no `group:` and no `JUDGE_GROUP=` row at all, so a stock install
+# resolves solo — and a consumer changes that without forking anything.
+gr_repo="$WORK/group-repo"; mkdir -p "$gr_repo/.governance/conf"; git -C "$gr_repo" init -q
+gdef="$WORK/gdef"; mkdir -p "$gdef"
+printf 'JUDGE_ROUNDS=3\n' > "$gdef/defaults.conf"
+gres() {  # <defaults> <yaml> → the resolved label, from inside the fixture repo
+    (cd "$gr_repo" && lib "_judge_group_resolve g '$1' '$2'")
+}
+
+assert_eq "no tier answers → the solo marker, which is what the ledger wants" "-" \
+    "$(gres "$gdef/defaults.conf" "$Y/minimal.yaml")"
+assert_eq "a missing defaults.conf is swallowed, not fatal" "-" \
+    "$(gres "$WORK/nosuch/defaults.conf" "$Y/minimal.yaml")"
+assert_eq "the declared judge.group is the last tier before solo" "bundled-intent" \
+    "$(gres "$gdef/defaults.conf" "$Y/full.yaml")"
+
+printf 'JUDGE_ROUNDS=3\nJUDGE_GROUP=from-defaults\n' > "$gdef/defaults.conf"
+assert_eq "a pack defaults row outranks the declared label" "from-defaults" \
+    "$(gres "$gdef/defaults.conf" "$Y/full.yaml")"
+
+printf 'JUDGE_GROUP=from-overlay\n' > "$gr_repo/.governance/conf/g.conf"
+assert_eq "the user overlay outranks the pack defaults row" "from-overlay" \
+    "$(gres "$gdef/defaults.conf" "$Y/full.yaml")"
+assert_eq "env outranks every file tier — the repo-global lump" "from-env" \
+    "$(cd "$gr_repo" && GOVERNANCE_JUDGE_GROUP=from-env \
+        lib "_judge_group_resolve g '$gdef/defaults.conf' '$Y/full.yaml'")"
+
+# The force-solo sentinel: an operator has to be able to say "judge this one on
+# its own" from the conf side, against a label the pack declares.
+printf 'JUDGE_GROUP=-\n' > "$gr_repo/.governance/conf/g.conf"
+assert_eq "JUDGE_GROUP=- forces solo over a declared label" "-" \
+    "$(gres "$gdef/defaults.conf" "$Y/full.yaml")"
+
+# An empty value is not an answer. `conf_get` prints it and returns 0, so the
+# ladder treats it exactly as the round ceiling does: fall through — and since
+# conf_get itself collapses env/overlay/defaults into one lookup, the next tier
+# after an empty overlay row is the declaration, not the defaults row.
+printf 'JUDGE_GROUP=\n' > "$gr_repo/.governance/conf/g.conf"
+assert_eq "an empty overlay row falls through to the declared label" "bundled-intent" \
+    "$(gres "$gdef/defaults.conf" "$Y/full.yaml")"
+assert_eq "and with nothing declared either, an empty row still resolves solo" "-" \
+    "$(gres "$gdef/defaults.conf" "$Y/minimal.yaml")"
+rm -f "$gr_repo/.governance/conf/g.conf"
 
 # ── attestation_remediation ────────────────────────────────────────────────
 printf '── attestation_remediation (grouped instruction) ───────\n'
@@ -863,6 +916,98 @@ assert_lacks "no round is written on the harness path" \
 assert_eq "the harness row is labeled harness" "harness" "$(cut -f10 "$eled")"
 assert_eq "the ledger carries the declared group label" "bundled" "$(cut -f1 "$eled")"
 unset AGENT_JUDGE_VERDICT
+
+# ── the conf ladder, end to end through judge_attest ───────────────────────
+printf '── group off the conf ladder (end to end) ──────────────\n'
+
+# install_labeled <repo> <id> <section> <yaml-group>
+#   A `gate: record` directive under acme/audit. <yaml-group> is `-` for a
+#   directive that declares NO label — the bundled norm, since packs ship no
+#   batching opinion — or the label it declares about itself.
+install_labeled() {
+    local repo="$1" id="$2" section="$3" ygroup="$4"
+    local dir="$repo/.governance/packs/acme/audit/directives/$id"
+    mkdir -p "$dir"
+    {
+        printf 'surface: change-set\n'
+        printf 'hook: pre-commit\n'
+        printf 'judge:\n'
+        printf '  inputs:  [receipt]\n'
+        printf '  checks:\n'
+        printf '    - "the %s section is earned"\n' "$id"
+        printf '  section: %s\n' "$section"
+        printf '  gate: record\n'
+        [[ "$ygroup" == "-" ]] || printf '  group: %s\n' "$ygroup"
+    } > "$dir/directive.yaml"
+    cat > "$dir/check.sh" <<EOF
+#!/usr/bin/env bash
+set -u
+source "\$(dirname "\$0")/../../../../../lib.sh"
+directive_start $id
+judge_attest "\$1"
+directive_end
+EOF
+}
+# conf_overlay <repo> <id> <row> — the user-owned, pack-qualified overlay the
+# conf ladder reads for that directive.
+conf_overlay() {
+    mkdir -p "$1/.governance/conf/acme/audit"
+    printf '%s\n' "$3" > "$1/.governance/conf/acme/audit/$2.conf"
+}
+run_labeled() {  # <repo> <id> <receipt> <ledger>
+    ( cd "$1" && GOVERNANCE_ATTEST_LEDGER="$4" \
+        bash ".governance/packs/acme/audit/directives/$2/check.sh" "$3" ) >/dev/null 2>&1
+}
+
+crepo="$WORK/conf-group-repo"
+mkrepo "$crepo"
+install_labeled "$crepo" audited "Audit" -
+install_labeled "$crepo" layered "Layer boundaries" -
+printf '# receipt\n\n## What changed\n\nx\n' > "$crepo/receipts/issue-30-a.md"
+git -C "$crepo" add -A; git -C "$crepo" commit -qm init
+cled="$WORK/conf-group-ledger.tsv"
+
+# (a) Two directives that declare NOTHING are batched by the consuming repo
+#     alone: one overlay row each, the same label, one spawn for both sections.
+conf_overlay "$crepo" audited 'JUDGE_GROUP=paired'
+conf_overlay "$crepo" layered 'JUDGE_GROUP=paired'
+: > "$cled"
+run_labeled "$crepo" audited receipts/issue-30-a.md "$cled"
+run_labeled "$crepo" layered receipts/issue-30-a.md "$cled"
+assert_eq "both bare directives land in the overlay's label" "paired
+paired" "$(cut -f1 "$cled")"
+out="$(lib "attestation_remediation '$cled'" 2>&1)"
+assert_contains "an overlay-assembled group is ONE spawn" \
+    "Spawn ONE fresh-context sub-agent for group \`paired\`" "$out"
+assert_contains "and it covers the first section" \
+    "write the '## Audit' section" "$out"
+assert_contains "and the second, in the same instruction" \
+    "write the '## Layer boundaries' section" "$out"
+assert_lacks "nothing is spawned solo once the operator paired them" \
+    "Spawn a separate fresh-context sub-agent (solo" "$out"
+
+# (b) The force-solo sentinel, against a label the pack declares: the overlay
+#     wins, and the ledger row reads `-` — the solo marker, not the label.
+install_labeled "$crepo" opinionated "Steering" pack-label
+conf_overlay "$crepo" opinionated 'JUDGE_GROUP=-'
+: > "$cled"
+run_labeled "$crepo" opinionated receipts/issue-30-a.md "$cled"
+assert_eq "JUDGE_GROUP=- beats the declared label, end to end" "-" "$(cut -f1 "$cled")"
+out="$(lib "attestation_remediation '$cled'" 2>&1)"
+assert_contains "a forced-solo section gets its own spawn" \
+    "Spawn a separate fresh-context sub-agent (solo" "$out"
+
+# (c) The env knob is the crude repo-global lump: every directive lands in the
+#     one group, whatever its yaml or its overlay says.
+: > "$cled"
+GOVERNANCE_JUDGE_GROUP=everything run_labeled "$crepo" audited receipts/issue-30-a.md "$cled"
+GOVERNANCE_JUDGE_GROUP=everything run_labeled "$crepo" opinionated receipts/issue-30-a.md "$cled"
+unset GOVERNANCE_JUDGE_GROUP
+assert_eq "the env lump overrides declaration and overlay alike" "everything
+everything" "$(cut -f1 "$cled")"
+out="$(lib "attestation_remediation '$cled'" 2>&1)"
+assert_contains "one lump is one spawn per commit" \
+    "Spawn ONE fresh-context sub-agent for group \`everything\`" "$out"
 
 # ── summary ────────────────────────────────────────────────────────────────
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"

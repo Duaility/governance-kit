@@ -372,7 +372,11 @@ _sweep_receipts_in_range() {
 # repo-global label. Directives that carry the SAME group label are judged in
 # one call, `DIRECTIVE:`-demuxed the same way a shared batch always was; a
 # directive with no group label is always a solo invocation — there is no
-# implicit sharing any more. A group is one invocation, one command: if its
+# implicit sharing any more. The label is not the pack's last word: it is
+# resolved through `_judge_group_resolve`, the operator conf ladder (env
+# `GOVERNANCE_JUDGE_GROUP` > the user overlay row > the pack defaults row >
+# the declared `judge.group`), because how much fidelity to trade for tokens
+# is the consuming repo's call. A group is one invocation, one command: if its
 # members resolved DIFFERENT sweep cmds, the driver refuses to silently split
 # it — the whole group is reported un-adjudicated with one honest line, never
 # partially judged.
@@ -745,10 +749,19 @@ cmd_run() {
         # directive is re-adjudicated (attest) or only discovered (findings).
         section="$(_judge_yaml "$yaml" section)"
         DIRS=$((DIRS + 1))
-        # The batching knob: an optional, free-form, repo-global `group:`
-        # label straight off the directive.yaml. No conf ladder — a directive
-        # either declares the label it shares with others or it does not.
-        group="$(_judge_yaml "$yaml" group)"
+        # The batching knob: a free-form, repo-global label off the SAME
+        # operator conf ladder the commit lane resolves (env
+        # `GOVERNANCE_JUDGE_GROUP` > user overlay row > pack defaults row >
+        # the directive's own `judge.group`), so a repo that batches on the
+        # attest lane batches identically here. It goes through the lib shim
+        # for the same reason the cmd does: the overlay path is derived from
+        # `$0`, and resolving it any other way would read a different conf
+        # file than the commit lane reads for this directive. The resolver
+        # speaks the ledger's dialect — `-` for solo — while the batching code
+        # below tests for an EMPTY label, so normalize the sentinel back here
+        # rather than teaching every downstream test a second spelling.
+        group="$(_sweep_lib_call "$dir" _judge_group_resolve "$id" "$defaults" "$yaml" 2>/dev/null)"
+        [[ "$group" == "-" ]] && group=""
         checks=""
         while IFS= read -r c; do
             [[ -n "$c" ]] || continue

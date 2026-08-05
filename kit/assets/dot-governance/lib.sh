@@ -229,13 +229,18 @@ require_attestation() {
 #     the section is pending REGISTERS it into a shared ledger.
 #   * `attestation_remediation` is the orchestrator. run.sh / the pre-commit
 #     dispatcher runs it ONCE after every check.sh; it reads the ledger and emits
-#     a single grouped remediation instruction — one sub-agent per `group:`
-#     label (handed the union of that group's inputs), plus one sub-agent per
-#     section that declares no group. Worst case (no labels anywhere) = one spawn
-#     per section; best case (one label everywhere) = one spawn per commit.
+#     a single grouped remediation instruction — one sub-agent per resolved
+#     group label (handed the union of that group's inputs), plus one sub-agent
+#     per section that resolves no group. Worst case (no labels anywhere) = one
+#     spawn per section; best case (one label everywhere) = one spawn per commit.
 # The author≠auditor independence (the auditor is always a fresh context, never
 # the harness) is preserved in every case; only inter-attestation independence is
-# traded by batching, which a directive opts out of by declaring no `group:`.
+# traded by batching. WHERE on that dial a repo sits is the repo's call, not the
+# pack's: the label comes off the operator conf ladder in `_judge_group_resolve`
+# (env `GOVERNANCE_JUDGE_GROUP` > overlay row > pack defaults row > the
+# directive's own `judge.group`), so a consumer opts in to one lump, labels
+# directives pairwise, or forces a directive solo with `JUDGE_GROUP=-` —
+# all without forking the pack that ships it.
 
 # _judge_yaml <directive.yaml> <key>
 #   Print the value(s) of `judge.<key>`. List keys (inputs, checks) print one
@@ -338,6 +343,36 @@ _judge_rounds_resolve() {
     [[ "$k" =~ ^[0-9]+$ ]] || k=3
     if [[ "$k" -lt 2 ]]; then k=2; fi
     printf '%s\n' "$k"
+}
+
+# _judge_group_resolve <id> <defaults-file> <directive.yaml>
+#   The batching label for a judgment (issue #355). Batching is a fidelity-vs-
+#   tokens trade, and the repo consuming a pack is the only party that can make
+#   it — so the label rides the same operator conf ladder the round ceiling
+#   does, and a consumer never has to fork a pack to change it:
+#     1. env `GOVERNANCE_JUDGE_GROUP` — the repo-global lump. Every directive
+#        lands in that one group; deliberately crude, deliberately one knob.
+#     2. the user overlay row `JUDGE_GROUP=` in
+#        `.governance/conf/<owner>/<pack>/<id>.conf` — per directive.
+#     3. a pack `defaults.conf` row `JUDGE_GROUP=` — the tier exists for free;
+#        the bundled packs ship no batching opinion, so it finds nothing.
+#     4. the `judge.group` scalar in directive.yaml — what a repo-local or
+#        community pack declares about itself.
+#     5. nothing → solo.
+#   The literal `-` is the force-solo sentinel: an operator who sets it at any
+#   tier overrides a label the directive.yaml declares, because "judge this one
+#   on its own" has to be expressible from the conf side too. Since solo already
+#   travels through the tab-separated ledger as `-`, that is also what this
+#   prints when no tier answers — callers use the value as the field directly.
+#   An EMPTY answer is not an answer: `conf_get` prints an empty value for a
+#   bare `JUDGE_GROUP=` row and still returns 0, so empty falls through to the
+#   next tier exactly as it does for the round ceiling.
+_judge_group_resolve() {
+    local id="$1" defaults="$2" yaml="$3" g
+    g="$(conf_get "$id" JUDGE_GROUP "$defaults" 2>/dev/null)" || g=""
+    [[ -n "$g" ]] || g="$(_judge_yaml "$yaml" group)"
+    [[ -n "$g" ]] || g="-"
+    printf '%s\n' "$g"
 }
 
 # ── WHO judges: `judge.cmd` (issue #355) ─────────────────────────────────
@@ -1198,12 +1233,14 @@ judge_attest() {
     [[ -n "$section" ]] || return 0
     # Author-owned gate shape: record (default) | verdict | verdict-contestable.
     local gate; gate="$(_judge_yaml "$yaml" gate)"; [[ -n "$gate" ]] || gate="record"
-    # Batching identity (issue #355): an optional repo-global `group:` label.
-    # Same label = same invocation; no label = a spawn of its own. The ledger is
-    # tab-separated, so "no label" travels as `-`, never as an empty field.
+    # Batching identity (issue #355): a free-form label off the operator conf
+    # ladder — env `GOVERNANCE_JUDGE_GROUP`, then the user overlay row, then the
+    # pack defaults row, then the directive's own `judge.group`. Same label =
+    # same invocation; no label (or the force-solo sentinel `-`) = a spawn of
+    # its own. The resolver already prints `-` for solo, which is exactly what
+    # the tab-separated ledger needs — never an empty field.
     local id defaults; id="$(basename "$dir")"; defaults="$dir/defaults.conf"
-    local group; group="$(_judge_yaml "$yaml" group)"
-    [[ -n "$group" ]] || group="-"
+    local group; group="$(_judge_group_resolve "$id" "$defaults" "$yaml")"
 
     # Resolve the declared inputs to handle phrases and join with US separators.
     local inputs_joined="" tok phrase

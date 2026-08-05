@@ -58,7 +58,7 @@ judge:
     - "'## What changed' faithfully describes the diff"
     - "each '- [x]' item is realized in the diff"
     - "the '## Checklist' mirrors the issue's checklist"
-  # group: <label>                   # optional batching label; bundled packs ship none (below)
+  # group: <label>                   # optional batching label; operator-tunable via conf, bundled packs declare no default (below)
   section: Audit                     # the receipt section the verdict lands in — presence of this key is what puts the directive on the attest lane
   gate:    record                    # record (default) | verdict | verdict-contestable
 ```
@@ -106,18 +106,45 @@ instead.
   at runtime, reporting the whole group un-adjudicated with one honest line
   rather than silently invoking a subset.
 
+  **`group` is operator-tunable, resolved through the same conf ladder as
+  `JUDGE_ROUNDS`** (see *Author-owned vs operator-owned* below), in
+  precedence order:
+
+  1. **`GOVERNANCE_JUDGE_GROUP` env** — repo-global: every judge-declaring
+     directive is lumped into this one label, full stop. Crude by design — an
+     explicit operator opt-in for "batch everything," not a per-directive
+     dial.
+  2. **`JUDGE_GROUP=` in the user overlay** —
+     `.governance/conf/<owner>/<pack>/<id>.conf`, one directive at a time.
+  3. **A pack's `defaults.conf` row** — bundled packs ship none (below).
+  4. **The `directive.yaml` `judge.group` value** — a repo-local or community
+     pack's declared default.
+  5. **Solo** — no label resolves at any tier.
+
+  A resolved literal `-` forces solo even when `directive.yaml` declares a
+  label — this is how a consumer strips a `group` a community pack shipped,
+  without forking it. An empty value never resolves to "no group" outright —
+  it falls through, with one `conf_get`-inherited wrinkle shared with
+  `JUDGE_ROUNDS`: the conf ladder (tiers 1–3) answers as a unit with the
+  first `JUDGE_GROUP=` row it finds, so a bare `JUDGE_GROUP=` overlay row
+  falls through to the *declaration* (tier 4), not to the defaults row
+  beneath it. Use `-`, not an empty value, to say "solo". Because resolution runs
+  per directive, a conf-assembled group can end up with members that resolve
+  to *different* judge commands; the sweep driver refuses that group whole at
+  runtime with one honest un-adjudicated line rather than silently judging a
+  subset — `packctl` cannot see conf overlays at author time, so this
+  mismatch is caught only at runtime, never at validation.
+
   **Bundled packs declare no `group`** — for the same reason they declare no
   `cmd`. Batching is not part of what a directive means; it is a trade of
   fidelity for tokens, and which side of that trade a repo wants is the
-  repo's call, not a pack author's. A shipped label is worse than a shipped
-  command, in fact: a consumer can override `cmd` through the directive
-  override flow, but the vendored tree is digest-guarded, so a shipped
-  `group` cannot be unshipped. So every kit-bundled judgment is adjudicated
-  solo, and the field is for packs whose author *is* the repo owner —
-  repo-local packs, and community packs a repo adopts eyes-open. (A repo-level
-  knob to batch bundled directives would be the right shape if one is ever
-  wanted; it does not exist, and inventing it before anyone asks would just be
-  the presumption re-introduced one layer down.)
+  repo's call, not a pack author's. Unlike a shipped `cmd`, though, a shipped
+  `group` is not stuck: the conf overlay above is exactly where the choice
+  lives — per-directive, user-owned, not digest-guarded — so a consumer sets,
+  changes, or strips a label (including one a community pack shipped, via
+  `JUDGE_GROUP=-`) without touching the vendored tree at all. Every
+  kit-bundled judgment ships adjudicated solo by default; a repo that wants
+  otherwise reaches for the overlay, not a fork.
 - **`section`** — the `## <Section>` the verdict is written into. Its
   presence is what puts a declaration on the **attest** lane at all — there is
   no separate field for this. A declaration that carries `section:` attests
@@ -189,20 +216,20 @@ The fields are two different kinds of thing, and the kit treats them
 differently:
 
 - **Semantic — author-fixed in `directive.yaml`** (`inputs`, `checks`,
-  `section`, `gate`, `cmd`, `group`). These *are* the
+  `section`, `gate`, `cmd`). These *are* the
   directive's substance: `checks` is the rubric the sweep lane re-derives the
   verdict against, `inputs` decides what ground truth the judge sees,
-  `section` is a code contract `check.sh` greps for, `cmd` names the judge
-  itself, and `group` decides which other directives it is batched with — a
-  consumer who could edit any of them would grade the attest and sweep
-  verdicts against a different rubric, a different judge, or a mismatched
-  batch, so none of them are tweakable without a fork —
-  `managed-tree-integrity` rejecting a hand-edit of the vendored
-  `directive.yaml` is the system working. A repo on a different harness edits
-  `cmd` through the normal pack/directive override flow, not a conf overlay.
+  `section` is a code contract `check.sh` greps for, and `cmd` names the judge
+  itself — a consumer who could edit any of them would grade the attest and
+  sweep verdicts against a different rubric or a different judge, so none of
+  them are tweakable without a fork — `managed-tree-integrity` rejecting a
+  hand-edit of the vendored `directive.yaml` is the system working. A repo on
+  a different harness edits `cmd` through the normal pack/directive override
+  flow, not a conf overlay.
 - **Operational — operator-tunable through the conf overlay** (the
-  adjudication round ceiling only). A pure cost dial. A consumer tunes it
-  per-repo via the pack's
+  adjudication round ceiling, and — as of issue #355 — the `group` batching
+  label). Both are pure execution-shape dials, not rubric or judge changes: a
+  consumer tunes each per-repo via the pack's
   [`defaults.conf` + `.governance/conf/...` overlay](PACK_AUTHORING.md)
   mechanism, resolved with `conf_get`:
 
@@ -215,12 +242,17 @@ differently:
   | knob | overrides | default |
   |---|---|---|
   | `JUDGE_ROUNDS` | the adjudication round ceiling *K* (`gate: verdict` only) | `3` (floor `2` — a lower value is clamped up) |
+  | `JUDGE_GROUP` (env: `GOVERNANCE_JUDGE_GROUP`) | the batching label the directive resolves (`-` forces solo) | the directive's own `judge.group` in `directive.yaml`, or solo if absent |
 
   Resolution precedence is the usual `conf_get` ladder — env `GOVERNANCE_<KEY>` >
   user overlay row > pack `defaults.conf` row > the `directive.yaml` value — so
   behavior is **unchanged until a consumer writes an overlay row**. A directive
-  exposing this knob ships a `defaults.conf` carrying the row (with docs); the
-  overlay wins when a consumer writes one.
+  exposing either knob ships a `defaults.conf` carrying the row (with docs);
+  the overlay wins when a consumer writes one. `JUDGE_GROUP` differs from
+  `JUDGE_ROUNDS` in one respect: the env tier (`GOVERNANCE_JUDGE_GROUP`) is
+  repo-global rather than per-directive — it lumps every judge-declaring
+  directive into one group at once, a coarser knob than the per-directive
+  overlay row beneath it.
 
 ## The remediation loop (no hook ever spawns anything)
 
@@ -378,16 +410,19 @@ from the instruction:
   asked for each verdict, demuxed by `DIRECTIVE:`-tagged blocks), plus one solo
   sub-agent per section that declares no `group`.
 
-With no `group` anywhere — the bundled default — that is one spawn per
-section: a newly added receipt owing `## Audit`, `## Layer boundaries`, and
-`## Steering` costs three sub-agents, each reading the diff with nothing else
-in its context. Labelling all three into one group costs one sub-agent and one
-diff read instead. The critical author≠auditor independence (the auditor is
-always a fresh context, never the harness) holds either way; what batching
-trades is *inter-attestation* independence — fourteen prior PASSes make the
-fifteenth cheaper to wave through, and one malformed response loses the whole
-group rather than one verdict. That is why the default is solo and the label
-is opt-in.
+With no `group` resolved anywhere — the bundled default, and the outcome for
+any repo that has not written a `JUDGE_GROUP` overlay row or set
+`GOVERNANCE_JUDGE_GROUP` — that is one spawn per section: a newly added
+receipt owing `## Audit`, `## Layer boundaries`, and `## Steering` costs three
+sub-agents, each reading the diff with nothing else in its context. A repo
+that labels all three into one group — via the conf ladder in *Author-owned
+vs operator-owned* above — costs one sub-agent and one diff read instead. The
+critical author≠auditor independence (the auditor is always a fresh context,
+never the harness) holds either way; what batching trades is
+*inter-attestation* independence — fourteen prior PASSes make the fifteenth
+cheaper to wave through, and one malformed response loses the whole group
+rather than one verdict. That is why the default is solo and the label is
+opt-in.
 
 ## Judges: who renders the verdict (issue #355, Phase 3)
 

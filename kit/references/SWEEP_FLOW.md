@@ -99,11 +99,19 @@ alongside its mechanical `check.sh` — the two are not alternatives.
 rubric names the *intent* behind the rule that a grep structurally cannot see
 (whether a waiver's reason is genuine, whether a suppression's scope is
 proportionate, whether a commit subject honestly names what it did) and hands
-it to the sweep lane. Bundled directives declare no `group` label (see
+it to the sweep lane. Bundled directives declare no `group` default (see
 [JUDGE.md](JUDGE.md)), so a sweep run costs one judge call per participating
 bundled directive — each reading the range with only its own rubric in
-context. A repo that would rather pay one call for the set labels them itself,
-in a pack it owns. Repo-local and community packs still author
+context — unless the repo has opted into batching. `group` resolves per
+directive through the same operator conf ladder as `JUDGE_ROUNDS` — env
+`GOVERNANCE_JUDGE_GROUP` (repo-global, lumps every judge-declaring directive
+into one group) > a `JUDGE_GROUP=` row in the consumer's own
+`.governance/conf/<owner>/<pack>/<id>.conf` overlay > a pack's
+`defaults.conf` row > the `directive.yaml` value > solo — with a resolved `-`
+forcing solo even over a declared label. A repo that would rather pay one
+call for the set labels them itself via that overlay, no pack ownership
+required; full resolution rules and the `-` sentinel are in
+[JUDGE.md](JUDGE.md). Repo-local and community packs still author
 standalone discovery directives the same way — a `judge:` block with no
 `section:` and no `check.sh` at all — for invariants that have no mechanical
 half whatsoever.
@@ -200,20 +208,23 @@ For `sweep.sh run`, the swept range resolves in order:
    helpers the commit path uses — without staging or committing anything; the
    next real commit picks the round up.
 3. **Discovery directives** (`section:` absent): the `group` label a directive
-   declares (see [JUDGE.md](JUDGE.md)) batches
-   every directive sharing that label into **one** judge call against the
+   resolves (declared in `directive.yaml`, or overridden through the operator
+   conf ladder — see [JUDGE.md](JUDGE.md)) batches
+   every directive resolving to that same label into **one** judge call against the
    whole range diff (the `range-diff` input, fenced and size-capped) — a
    one-member group degrades to a plain single-directive call, so the
-   unbatched prompt and answer grammar are unchanged. A directive with no
-   `group` gets its own solo call. Batching keys on the `group` label, and
-   every member of a group must **resolve** to the identical sweep command —
-   a group whose declared `cmd` rows disagree is a `packctl` validation error
-   at author time, and if members resolve to different commands anyway (only
-   reachable through a mix of per-directive overrides — a group is never
-   bundled-only, since bundled packs declare no label), the driver
-   refuses to split it: the whole group is reported un-adjudicated with one
-   honest line rather than silently invoking a subset. Findings route to the
-   digest, tagged by directive.
+   unbatched prompt and answer grammar are unchanged. A directive resolving no
+   `group` gets its own solo call. Batching keys on the resolved `group`
+   label, and every member of a group must **resolve** to the identical sweep
+   command — a group whose declared `cmd` rows disagree is a `packctl`
+   validation error at author time, but that check only sees `directive.yaml`,
+   not conf overlays: a group assembled by a `JUDGE_GROUP` overlay row or a
+   repo-wide `GOVERNANCE_JUDGE_GROUP` lump (which can now pull bundled
+   directives into a group they shipped with no label at all) is invisible to
+   `packctl` and can only be caught at runtime. If its members resolve to
+   different sweep commands anyway, the driver refuses to split it: the whole
+   group is reported un-adjudicated with one honest line rather than silently
+   invoking a subset. Findings route to the digest, tagged by directive.
 4. **Digest** — one GitHub issue per run when there are findings, labelled
    `governance-sweep` (created idempotently; a label-creation failure files
    the digest unlabeled with a warning rather than dropping findings). One
