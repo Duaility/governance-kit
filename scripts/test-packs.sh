@@ -344,8 +344,7 @@ EOF
         for rid in "${pack_dids[@]}"; do
             lock_args+=(--directive "$rid")
         done
-        uv run --quiet --isolated --with PyYAML python \
-            "$ROOT/kit/assets/packs/lib/packverb.py" "${lock_args[@]}" >/dev/null
+        python3 "$ROOT/kit/assets/packs/lib/packverb.py" "${lock_args[@]}" >/dev/null
     done < <(list_packs_all)
 
     write_installed_manifest "$fresh_tmp" \
@@ -381,7 +380,7 @@ rm -rf "$fresh_tmp"
 
 printf '\n── pack verb contract ────────────────────────────────────\n'
 
-if uv run --quiet --isolated --with PyYAML python "$ROOT/scripts/test-packverb.py"; then
+if python3 "$ROOT/scripts/test-packverb.py"; then
     printf '  ✓ packverb public contract smoke passed\n'
 else
     printf '  ✗ packverb public contract smoke failed\n'

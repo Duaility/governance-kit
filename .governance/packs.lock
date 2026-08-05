@@ -7,8 +7,11 @@ packs:
   - architecture-map-holds
   - consumed-tree-integrity
   - layer-boundaries
+  - no-commit-path-python
   - no-legacy-fallbacks
+  - no-package-manager
   - no-path-bifurcation
+  - stdlib-only-python
 - id: governance-kit/audit
   version: 0.7.0
   source: gh

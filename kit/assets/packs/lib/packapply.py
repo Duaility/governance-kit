@@ -208,9 +208,10 @@ def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str
             _lock_upsert(root / ".governance" / "packs.lock", lock_entry)
         report["lock"].append({"id": pack["id"], "sha": pack["sha"], "directives": sorted(installed_dids)})
 
-    # Sweep lane (issue #142): the workflow + engine are kit-level assets, seeded
-    # the moment a `surface: sweep` directive is installed — by init or, now, by
-    # pack add (the parity gap this fixes). Done once after the directive loop
+    # Sweep lane (issue #142, harness-pegged per #355): the workflow + at-rest
+    # driver are kit-level assets, seeded the moment a directive with a live
+    # sweep tier is installed — by init or, now, by pack add (the parity gap
+    # this fixes). Done once after the directive loop
     # (the assets are kit-level, not per-pack) via the shared helper init uses,
     # and recorded in the seeded ledger so `governance uninstall` reverses them.
     if dry_run:

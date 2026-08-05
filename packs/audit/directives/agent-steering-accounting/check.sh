@@ -15,7 +15,7 @@
 # commit hook now makes no `claude -p` / network call. The sub-agent — handed the
 # session transcript — records every steering event AND renders the verdict;
 # check.sh only gates that the `## Steering` section is present + verdict-bearing
-# (via the shared `subagent_attest` infra) and that the rows are well-formed.
+# (via the shared `judge_attest` infra) and that the rows are well-formed.
 #
 # Steering rows are well-formed — v2 is 9 columns
 # (`steer-key | session | issue | type | tier | user-reason | commit | ordinal | timestamp`).
@@ -28,7 +28,9 @@
 # (forward-looking, same scope as receipt-per-issue's `## Audit`); pre-existing
 # receipts are grandfathered. `validate-dir` runs repo-wide in every mode.
 #
-# Ledger row I/O lives in sibling lib/ledger.py.
+# Ledger row I/O lives in sibling lib/steering.sh (schema, append, validate) and
+# lib/receipt.sh (Markdown plumbing) — bash + POSIX awk, no python anywhere on
+# the commit path (issue #355).
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$(dirname "$0")/../../../../../lib.sh"
@@ -40,10 +42,16 @@ cd "$ROOT" || exit 1
 RECEIPTS_DIR="$ROOT/receipts"
 LIB="$HERE/lib"
 
-if [[ ! -f "$LIB/ledger.py" ]]; then
-    violation "directive folder is missing lib/ledger.py — cannot validate"
-    directive_end
-fi
+for _f in receipt.sh steering.sh; do
+    if [[ ! -f "$LIB/$_f" ]]; then
+        violation "directive folder is missing lib/$_f — cannot validate"
+        directive_end
+    fi
+done
+# shellcheck disable=SC1090
+source "$LIB/receipt.sh"
+# shellcheck disable=SC1090
+source "$LIB/steering.sh"
 
 # ──────────────────────────────────────────────────────────────
 # Receipt steering-ledger shape check (repo-wide, independent of any commit).
@@ -52,16 +60,16 @@ if [[ -d "$RECEIPTS_DIR" ]]; then
     while IFS= read -r v; do
         [[ -z "$v" ]] && continue
         violation "$v"
-    done < <(python3 "$LIB/ledger.py" validate-dir "$RECEIPTS_DIR" || true)
+    done < <(steering_validate_dir "$RECEIPTS_DIR" || true)
 fi
 
 # ──────────────────────────────────────────────────────────────
 # `## Steering` attestation gate (issue #325), change-set scoped.
-# Skip cleanly on an older runtime lib.sh that predates subagent_attest — the
+# Skip cleanly on an older runtime lib.sh that predates judge_attest — the
 # shape check above still runs, and the attestation auto-activates the moment
 # this repo updates to a kit whose lib.sh defines the helper.
 # ──────────────────────────────────────────────────────────────
-if declare -F subagent_attest >/dev/null 2>&1 && [[ -d "$RECEIPTS_DIR" ]]; then
+if declare -F judge_attest >/dev/null 2>&1 && [[ -d "$RECEIPTS_DIR" ]]; then
     # Build the set of receipts ADDED in the current change set — these owe the
     # attestation; pre-existing receipts are grandfathered. Union of staged
     # additions (pre-commit) and base..HEAD additions (CI), so the one argless
@@ -120,12 +128,12 @@ if declare -F subagent_attest >/dev/null 2>&1 && [[ -d "$RECEIPTS_DIR" ]]; then
         [[ -f "$f" ]] || continue
         is_accounting_stub "$f" && continue
         has_steering_waiver "$f" && continue
-        # The judgment task is declared once in directive.yaml's `subagent:`
-        # block. subagent_attest reads it, gates the section's presence +
+        # The judgment task is declared once in directive.yaml's `judge:`
+        # block. judge_attest reads it, gates the section's presence +
         # verdict, and registers it (isolation: shared) so the run-level
         # orchestrator batches it with receipt-per-issue's `## Audit` into one
         # sub-agent per commit.
-        subagent_attest "$f"
+        judge_attest "$f"
     done <<< "$ADDED_RECEIPTS"
 fi
 

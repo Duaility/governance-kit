@@ -26,15 +26,36 @@ from typing import Any
 LIB_DIR = Path(__file__).resolve().parent
 KIT_ASSETS = LIB_DIR.parents[1]  # kit/assets
 
-# The sweep lane's vendored assets (issue #142): kit-level files laid down into a
-# target repo whenever a `surface: sweep` directive is installed. Each value is
-# the path parts under KIT_ASSETS. This is the single source of truth, shared by
-# init-apply and pack-apply so the two install paths can never diverge — the
+# The sweep lane's vendored assets (issue #142, harness-pegged per #355): kit-level
+# files laid down into a target repo whenever a directive declares a live sweep
+# tier. There is one judgment primitive — a `judge:` block re-adjudicated at
+# rest by a bash driver through the same runtime-adapter `judge` verb the commit
+# lane uses; no separate engine, no vendor transport, no keyword stub. Each value
+# is the path parts under KIT_ASSETS. This is the single source of truth, shared
+# by init-apply and pack-apply so the two install paths can never diverge — the
 # no-path-bifurcation invariant the sweep lane itself enforces.
 SWEEP_ASSETS = {
     ".github/workflows/governance-sweep.yml": ("governance-sweep.yml",),
-    ".governance/sweep.py": ("dot-governance", "sweep.py"),
+    ".governance/sweep.sh": ("dot-governance", "sweep.sh"),
 }
+
+# The kit-level runtime adapter registry (issue #355). One file per harness at
+# `<tests_dir>/runtimes/<name>.sh`, answering the accounting lane's two verbs —
+# `resolve` and `emit` (session identity). Judging is not an adapter concern:
+# each directive's `judge.cmd` names its own judge CLI, run by lib.sh. These
+# are ordinary kit-managed runtime files, not seed-once assets: `init` lays them
+# down stamped, `kit update` re-syncs them, `managed-tree-integrity` digests
+# them. Enumerated from the shipped tree so adding an adapter is one file drop.
+RUNTIMES_SUBDIR = "runtimes"
+
+
+def kit_runtime_adapters(assets_root: Path | None = None) -> list[str]:
+    """Filenames of the runtime adapters shipped in `dot-governance/runtimes/`,
+    sorted. Empty when the kit being applied predates the registry."""
+    src = (assets_root or KIT_ASSETS) / "dot-governance" / RUNTIMES_SUBDIR
+    if not src.is_dir():
+        return []
+    return sorted(p.name for p in src.glob("*.sh") if p.is_file())
 
 # Where each hook strategy lands its dispatchers — kept in sync with
 # hooks.sh `generate_hooks_for_strategy`.
@@ -112,13 +133,31 @@ def bash_lib(script: str, *argv: str, lib_dir: Path | None = None) -> subprocess
     )
 
 
-def selects_sweep_directive(packs: list[dict[str, Any]]) -> bool:
-    """True if any directive in `packs` declares `surface: sweep` (issue #142).
+def _participates_in_sweep(directive_yaml: Path) -> bool:
+    """True when this directive.yaml puts the directive in the sweep lane.
 
-    Reading the flat scalar `surface:` line directly keeps this stdlib-only (the
-    apply engines avoid PyYAML in the runtime path), and is enough — surface is a
-    flat scalar. `packs` entries carry `pack_dir` + a `directives` id list, the
-    shape both init-plan and pack-plan emit.
+    One way in (issue #355): the directive declares a `judge:` block at all.
+    Every judgment is re-adjudicated at rest — a sectionless declaration is
+    sweep-ONLY, and one with a `section:` is swept as well as attested — so a
+    repo that installs either needs the lane vendored. There is no per-
+    directive opt-out to read here: the retired `tiers:` map named a model
+    capability, and the judge command now comes from the directive's rare
+    `cmd.sweep` override or the repo-level `GOVERNANCE_SWEEP_CMD` knob, both
+    resolved by the driver at run time rather than at install time. Hand-rolled
+    line read, matching this module's stdlib-only discipline: the apply engines
+    never import a YAML parser.
+    """
+    for raw in directive_yaml.read_text().splitlines():
+        if raw.strip() == "judge:" and raw == raw.strip():
+            return True
+    return False
+
+
+def selects_sweep_directive(packs: list[dict[str, Any]]) -> bool:
+    """True if any directive in `packs` participates in the sweep lane — a
+    `judge:` declaration whose sweep tier is live (issues #142, #355).
+    `packs` entries carry `pack_dir` + a `directives` id list, the shape both
+    init-plan and pack-plan emit.
     """
     for pack in packs:
         pack_dir = Path(pack["pack_dir"])
@@ -126,14 +165,13 @@ def selects_sweep_directive(packs: list[dict[str, Any]]) -> bool:
             y = pack_dir / "directives" / did / "directive.yaml"
             if not y.is_file():
                 continue
-            for raw in y.read_text().splitlines():
-                if re.match(r'^\s*surface:\s*["\']?sweep["\']?\s*(#.*)?$', raw):
-                    return True
+            if _participates_in_sweep(y):
+                return True
     return False
 
 
 def pending_sweep_assets(root: Path, packs: list[dict[str, Any]]) -> list[str]:
-    """The sweep assets a `surface: sweep` install still needs to lay down — those
+    """The sweep assets a live-sweep-tier install still needs to lay down — those
     not already vendored. Empty when no sweep directive is selected, or when every
     asset is already present (idempotent: a second sweep directive seeds nothing
     new, and re-running over an existing lane is a no-op)."""
@@ -143,7 +181,7 @@ def pending_sweep_assets(root: Path, packs: list[dict[str, Any]]) -> list[str]:
 
 
 def seed_sweep_assets(root: Path, packs: list[dict[str, Any]], kit_version: str) -> list[str]:
-    """Lay down the sweep workflow + engine for a `surface: sweep` install,
+    """Lay down the sweep workflow + at-rest driver for a live-sweep-tier install,
     stamped with `kit_version`, and return the rel paths actually seeded.
 
     Shared by init-apply and pack-apply so the lane is vendored identically no
@@ -157,7 +195,7 @@ def seed_sweep_assets(root: Path, packs: list[dict[str, Any]], kit_version: str)
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(KIT_ASSETS.joinpath(*SWEEP_ASSETS[rel]), dest)
         bash_lib('stamp_managed_marker "$1" "$2"', str(dest), kit_version)
-        if dest.name == "sweep.py":
+        if dest.name == "sweep.sh":
             dest.chmod(0o755)
     return rels
 

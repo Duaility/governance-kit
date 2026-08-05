@@ -1,0 +1,13 @@
+# stdlib-only-python — repo-local dogfood. Every tracked .py file this repo
+# SHIPS (kit/**/*.py — the lifecycle engines under kit/assets/packs/lib/ and
+# anything else inside the kit artifact — plus skill/*.py, the published
+# bootstrap shim) imports only the Python standard library, its own flat
+# siblings, or a relative module. Part of the issue #355 dependency-posture
+# trio, held by the repo that MAKES the promise: the kit's tooling needs
+# nothing but a bare python3 (no pip install, no venv, no lockfile).
+# scripts/** is out of scope — this repo's test harness never ships.
+category: Foundation
+recommended: false
+summary: Every tracked .py file this repo ships (kit/**/*.py, skill/*.py) imports only the Python standard library.
+surface: repo-state
+hook: pre-commit

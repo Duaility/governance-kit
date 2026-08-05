@@ -112,7 +112,7 @@ Run in parallel:
 Then resolve the target in one deterministic call (this is the network step):
 
 ```sh
-uv run --quiet --isolated --with PyYAML python \
+python3 \
     <lib_dir>/kitverb.py kit-resolve "<root>" \
     [--to X.Y.Z] [--allow-downgrade] [--offline]
 ```
@@ -143,7 +143,7 @@ and stop — do not collect decisions for a run that will not happen.
 Now resolve the file-level plan against the engine `kit-resolve` named:
 
 ```sh
-uv run --quiet --isolated --with PyYAML python \
+python3 \
     <engine_path> kit-plan "<root>" --diff \
     [--assets-root <assets_root> --stamp-version <target_version>]   # downgrade only
 ```
@@ -221,7 +221,7 @@ signal that surfaces the same comparison in the `Upstream:` row without
 fetching a tree:
 
 ```sh
-uv run --quiet --isolated --with PyYAML python \
+python3 \
     <lib_dir>/kitverb.py kit-upstream
 ```
 
@@ -249,6 +249,7 @@ pairs are:
 |---|---|---|
 | `assets/dot-governance/run.sh` | `<tests_dir>/run.sh` | `governance-kit:managed kit-version=<v>` in first 3 lines |
 | `assets/dot-governance/lib.sh` | `<tests_dir>/lib.sh` | `governance-kit:managed kit-version=<v>` in first 3 lines |
+| `assets/dot-governance/runtimes/<name>.sh` | `<tests_dir>/runtimes/<name>.sh` | `governance-kit:managed kit-version=<v>` in first 3 lines |
 | `assets/governance.yml` | `<ci_workflow>` | `governance-kit:managed kit-version=<v>` in first 3 lines |
 
 `enable-governance.sh` is no longer a managed kit asset (issue #267): the verb
@@ -348,7 +349,7 @@ The apply is a single deterministic call against the engine `kit-resolve`
 named (issue #172 mechanics, issue #177 delegation):
 
 ```sh
-uv run --quiet --isolated --with PyYAML python \
+python3 \
     <engine_path> kit-apply "<root>" \
     --decisions '{".github/workflows/governance.yml": "keep"}'   # only if Step 4 collected any
 ```
@@ -373,7 +374,7 @@ matter which (possibly older) target engine performed the file apply (the
 byte-identity contract):
 
 ```sh
-uv run --quiet --isolated --with PyYAML python \
+python3 \
     <lib_dir>/kitverb.py kit-pin "<root>" \
     --kit-ref "<kit_ref>" --kit-sha "<kit_sha>"     # from kit-resolve
 ```

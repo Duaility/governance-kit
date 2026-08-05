@@ -20,7 +20,7 @@ Commit-path checks must be **deterministic, fast, and offline** — same repo st
 
 ## The accounting depends on runtime cooperation
 
-- Cost rows are written by a `pre-commit` populator reading **the runtime's usage data and transcript**; steering rows are written by a fresh-context sub-agent handed the transcript (a `subagent:` attestation, no in-hook model call). Runtimes that don't expose usage data need a per-runtime adapter under the token directive's `runtimes/`; without one the populator no-ops rather than inventing numbers, and the checks validate whatever rows exist.
+- Cost rows are written by a `pre-commit` populator reading **the runtime's usage data and transcript**; steering rows are written by a fresh-context sub-agent handed the transcript (a `judge:` attestation, no in-hook model call). Runtimes that don't expose usage data need a per-runtime adapter under the token directive's `runtimes/`; without one the populator no-ops rather than inventing numbers, and the checks validate whatever rows exist.
 - Per-commit token attribution needs the commit to go through the hook. A commit made with `--no-verify` has no frozen endpoint to reconcile against, so its tokens roll into the next accounted row — session totals stay correct, but that one commit's slice is not separately recoverable.
 - Steering accounting records operator-intent text in the receipt. If that text can contain sensitive content, weigh the leakage before working in a public repo — the directive is `always_install` and should not simply be switched off.
 

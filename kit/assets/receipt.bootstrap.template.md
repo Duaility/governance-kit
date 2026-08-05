@@ -49,7 +49,9 @@ Closes [#<N>](https://github.com/<owner>/<repo>/issues/<N>).
   installed directives pass on the install commit.
 - CI on the first PR confirms the same suite runs green in the
   enforced layer.
-- Install commit carries the populator-stamped trailers
-  (`Agent:`, `Token-*`, `Cost-*`, `Steer-*`) when the runtime was
-  detected, or the `governance: allow-agent-token-accounting
+- Install commit carries its accounting row in this receipt — one v5
+  `### Costs` row (17 columns, `cost-usd` blank unless the runtime
+  reported a figure of its own) written by the pre-commit hook and
+  reconciled against the frozen staged-tree endpoint — when the runtime
+  was detected, or the `governance: allow-agent-token-accounting
   unsupported-runtime: <reason>` body waiver when it wasn't.

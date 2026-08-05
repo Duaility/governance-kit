@@ -181,6 +181,19 @@ All deletes are plain `rm` against tracked paths. The engine never runs `git cle
 
 **Leave changes unstaged.** The user reviews the diff and commits intentionally. The pre-commit hook is also gone now, so `git diff` is the only guard rail — the desired end state of an uninstall.
 
+### Step 5b — Reverse emitter wiring (if recorded)
+
+If `.governance/install.yaml` lists `emitters_wired: [<harness>, …]`
+(issue #355 — see
+[INIT_FLOW.md](INIT_FLOW.md#step-6b--wire-the-accounting-emitter-offered-optional)),
+offer to remove the emitter config line from each listed harness's own
+settings before reporting. This is agent-driven, not part of
+`uninstall-apply` — the harness config the line lives in is not one of the
+engine's artifact classes, and it commonly lives outside this repo's tracked
+tree. Remove exactly the wired line; leave the rest of the operator's harness
+settings untouched. Skip silently when the field is absent or empty. Fold the
+result into Step 6's report (`Files deleted` / `Files preserved`).
+
 ### Step 6 — Report
 
 Print a concise summary:
@@ -191,6 +204,7 @@ Print a concise summary:
 - `Files deleted:` list.
 - `Files preserved:` seeded docs, user-authored backups, unmarked hooks.
 - `Hooks restored:` `<name>.userhook` → `<name>` pairs, or `none`.
+- `Emitters unwired:` harnesses whose emitter config line Step 5b removed, or `none`.
 - `AGENTS.md:` `directive block stripped` | `stub deleted (hard mode)` | `left untouched (no marker)` | `skipped — non-block content would have changed`.
 - `Git config:` `core.hooksPath unset` | `left as-is — pointed at <path>`.
 - `Collisions:` per-file resolution, or `none`.

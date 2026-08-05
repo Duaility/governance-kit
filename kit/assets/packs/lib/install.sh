@@ -127,11 +127,12 @@ install_directive_folder() {
     }
     mkdir -p "$(dirname "$dest")"
     copy_tree_without_evals "$src" "$dest"
-    # A directive ships exactly one entry script: check.sh for repo-state /
-    # change-set, triage.sh for surface: sweep (issue #142). chmod whichever
-    # came across rather than assuming check.sh exists.
+    # A directive ships check.sh, the commit/CI-lane pass/fail test — except a
+    # sweep-only discovery directive (`judge.sink: none`, issue #355), which
+    # ships no executable at all: it is judged only by the at-rest sweep driver.
+    # chmod it if it came across; its absence is not an error here (packctl.py
+    # validates when it's required).
     [[ -f "$dest/check.sh" ]] && chmod +x "$dest/check.sh"
-    [[ -f "$dest/triage.sh" ]] && chmod +x "$dest/triage.sh"
     if [[ -d "$dest/hooks" ]]; then
         chmod +x "$dest/hooks/"*.sh 2>/dev/null || true
     fi
@@ -198,6 +199,26 @@ seed_directive_conf() {
     printf '%s\n' "$rel"
 }
 
+_directive_yaml_scalar() {
+    # Read a top-level flat scalar `<key>: value` line out of a directive.yaml
+    # (unquoted, no inline comment — the only shape `hook:`/`surface:` ever
+    # take in this corpus). kityaml.py in this same directory is the full
+    # restricted-YAML parser used everywhere else; this awk one-liner avoids
+    # spawning python for a single flat read per directive while building the
+    # hook spec (issue #355 — zero python invocations on the commit/install
+    # path).
+    local file="$1" key="$2"
+    awk -v key="$key" '
+        index($0, key ":") == 1 {
+            v = $0
+            sub("^" key ":[ \t]*", "", v)
+            sub("[ \t]*$", "", v)
+            print v
+            exit
+        }
+    ' "$file"
+}
+
 build_hook_spec_from_installed_directives() {
     local target_repo="$1" out="$2"
     local governance_dir="$target_repo/.governance"
@@ -208,18 +229,9 @@ build_hook_spec_from_installed_directives() {
     while IFS= read -r dir; do
         [[ -d "$dir" && -f "$dir/directive.yaml" ]] || continue
         id="${dir##*/}"
-        hook="$(uv run --quiet --isolated --with PyYAML python - "$dir/directive.yaml" hook <<'PY'
-import sys, yaml
-data = yaml.safe_load(open(sys.argv[1])) or {}
-print(data.get(sys.argv[2]) or "none")
-PY
-)"
-        surface="$(uv run --quiet --isolated --with PyYAML python - "$dir/directive.yaml" surface <<'PY'
-import sys, yaml
-data = yaml.safe_load(open(sys.argv[1])) or {}
-print(data.get(sys.argv[2]) or "")
-PY
-)"
+        hook="$(_directive_yaml_scalar "$dir/directive.yaml" hook)"
+        [[ -z "$hook" ]] && hook="none"
+        surface="$(_directive_yaml_scalar "$dir/directive.yaml" surface)"
         printf '%s\t%s\t%s\t%s\n' "$id" "$hook" "$surface" "$dir" >> "$out"
     done < <(
         [[ -d "$governance_dir/packs" ]] && find "$governance_dir/packs" -type d -path '*/directives/*' | sort

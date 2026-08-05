@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+# agent-token-accounting eval — identity at commit, measurement at rest (#355).
+#
+# Every fixture is about ONE of the two halves: identity (the commit path
+# records who is committing, from the environment or a fresh identity file, and
+# never from a guess) or measurement (numbers arrive off the commit path, via an
+# adapter's `resolve` verb writing the kit-owned snapshot sidecar, and fold into
+# the row on the next commit). Adapters are STUBS created inside the fixture and
+# reached through GOVERNANCE_RUNTIMES_DIR, so this eval pins the directive's
+# contract with the registry rather than any particular shipped adapter.
 set -u
 EVAL_ID="agent-token-accounting"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
@@ -7,63 +16,106 @@ source "$ROOT/kit/assets/packs/lib/eval-lib.sh"
 PACK_DIR="$ROOT/packs/audit"
 CHECK=".governance/packs/governance-kit/audit/directives/$EVAL_ID/check.sh"
 
-command -v python3 >/dev/null 2>&1 || {
-    echo "    ⊘ skipped — python3 not available"
-    exit 0
-}
-
 fixture_init
 install_directive "$PACK_DIR" "$EVAL_ID"
 
 git add -A .governance
 git commit --quiet --no-verify -m "feat(governance): install directive (#1)"
 
-# Per-fixture helpers. Cost rows live in per-issue receipts (issue #201).
-LEDGER_PY="$PWD/.governance/packs/governance-kit/audit/directives/$EVAL_ID/lib/ledger.py"
-ENDPOINT_PY="$PWD/.governance/packs/governance-kit/audit/directives/$EVAL_ID/lib/endpoint.py"
-SESSION_ID="abcdef0123456789fixture"
-MODEL="claude-sonnet-4-5"
+DIR="$PWD/.governance/packs/governance-kit/audit/directives/$EVAL_ID"
+LIB="$DIR/lib"
+HOOKS="$DIR/hooks"
+GITD="$(git rev-parse --absolute-git-dir)"
 
-receipt_for() {  # receipt_for <issue e.g. #10>
-    printf 'receipts/issue-%s.md' "${1#\#}"
+# The directive's own bash stack, sourced straight into the eval so fixtures
+# read and write through exactly the code the hook uses (no python anywhere).
+# shellcheck disable=SC1090
+source "$LIB/receipt.sh"
+# shellcheck disable=SC1090
+source "$LIB/costs.sh"
+# shellcheck disable=SC1090
+source "$LIB/validate.sh"
+# shellcheck disable=SC1090
+source "$LIB/runtime.sh"
+# shellcheck disable=SC1090
+source "$LIB/resolve.sh"
+
+pass_assert() {  # pass_assert <already-evaluated-rc> <label>
+    eval_assertions=$(( eval_assertions + 1 ))
+    if [[ "$1" -eq 0 ]]; then
+        printf '    ✓ %s — %s\n' "$EVAL_ID" "$2"
+    else
+        printf '    ✗ %s — %s\n' "$EVAL_ID" "$2" >&2
+        eval_failures=$(( eval_failures + 1 ))
+    fi
 }
 
-# claude-sonnet-4-5 RATES: input $3.00, cache-create $3.75, cache-read $0.30, output $15.00 (per M tok).
-append_priced_row() {
-    # append_priced_row <cost-key> <issue> <input> <cache-create> <cache-read> <output> \
-    #                   [cum-in cum-cc cum-cr cum-out] [session]
-    # v4 (issue #229): each row carries the four cumulative coordinates. By
-    # default a row stands alone in its own synthetic session (cum == delta → a
-    # clean first-of-session row). The reconciliation cases below pass
-    # cumulatives and a shared session explicitly.
-    local key="$1" issue="$2" inp="$3" cc="$4" cr="$5" out="$6"
-    local ci="${7:-$inp}" ccc="${8:-$cc}" ccr="${9:-$cr}" co="${10:-$out}"
-    local ses="${11:-sess-$key}"
-    mkdir -p receipts
-    python3 "$LEDGER_PY" append-row "$(receipt_for "$issue")" \
-        "$key" claude-code "$ses" "$issue" "$MODEL" \
-        "$inp" "$cc" "$cr" "$out" "$ci" "$ccc" "$ccr" "$co" ""
+# ── Stub adapter registry ─────────────────────────────────────
+# `resolve` answers from STUB_RESOLVE_OUT (or exits 2 — "cannot resolve, record
+# nothing"); the manual stub passes the environment through, exactly as the
+# shipped manual seam does.
+STUBS="$PWD/stub-runtimes"
+mkdir -p "$STUBS"
+for _h in claude-code codex pi cursor-agent opencode grok; do
+    cat > "$STUBS/$_h.sh" <<'EOF'
+#!/usr/bin/env bash
+set -u
+case "${1:-}" in
+    resolve)
+        [ -n "${STUB_RESOLVE_OUT:-}" ] || exit 2
+        printf '%s\n' "$STUB_RESOLVE_OUT"
+        ;;
+    *) exit 2 ;;
+esac
+EOF
+done
+cat > "$STUBS/manual.sh" <<'EOF'
+#!/usr/bin/env bash
+set -u
+case "${1:-}" in
+    resolve)
+        [ -n "${AGENT_CUM_INPUT:-}" ] || exit 2
+        printf '%s %s %s %s %s %s manual\n' \
+            "$AGENT_CUM_INPUT" "${AGENT_CUM_CACHE_CREATE:-0}" \
+            "${AGENT_CUM_CACHE_READ:-0}" "${AGENT_CUM_OUTPUT:-0}" \
+            "${AGENT_MODEL:--}" "${AGENT_COST_USD:--}"
+        ;;
+    *) exit 2 ;;
+esac
+EOF
+chmod +x "$STUBS"/*.sh
+export GOVERNANCE_RUNTIMES_DIR="$STUBS"
+
+clear_env() {
+    unset AGENT_NAME AGENT_SESSION_ID AGENT_MODEL AGENT_COST_USD AGENT_ISSUE \
+          AGENT_CUM_INPUT AGENT_CUM_CACHE_CREATE AGENT_CUM_CACHE_READ \
+          AGENT_CUM_OUTPUT STUB_RESOLVE_OUT \
+          CLAUDECODE CLAUDE_CODE_SESSION_ID CLAUDE_TRANSCRIPT_PATH \
+          CODEX_THREAD_ID CODEX_TRANSCRIPT_PATH \
+          PI_CODING_AGENT PI_SESSION_ID PI_SESSION_FILE \
+          CURSOR_AGENT OPENCODE OPENCODE_SERVER OPENCODE_SESSION_ID \
+          2>/dev/null || true
+}
+clear_identity() { rm -f "$GITD/governance/session-identity"; }
+clear_sidecars() { rm -rf "$GITD/governance/costs"; }
+clear_runtime() { clear_env; clear_identity; clear_sidecars; }
+
+write_identity() {  # <harness> <session> <declared> <epoch>
+    mkdir -p "$GITD/governance"
+    {
+        printf 'harness=%s\n' "$1"
+        printf 'session=%s\n' "$2"
+        printf 'declared=%s\n' "$3"
+        printf 'epoch=%s\n' "$4"
+    } > "$GITD/governance/session-identity"
 }
 
-# append_cum_row <cost-key> <issue> <session> <input> <cc> <cr> <out> <cum-in> <cum-cc> <cum-cr> <cum-out>
-# Direct v4 append with an explicit shared session + cumulative coordinates,
-# for the reconciliation and endpoint fixtures (issues #229, #293).
-append_cum_row() {
-    local key="$1" issue="$2" ses="$3" inp="$4" cc="$5" cr="$6" out="$7"
-    local ci="$8" ccc="$9" ccr="${10}" co="${11}"
-    mkdir -p receipts
-    python3 "$LEDGER_PY" append-row "$(receipt_for "$issue")" \
-        "$key" claude-code "$ses" "$issue" "$MODEL" \
-        "$inp" "$cc" "$cr" "$out" "$ci" "$ccc" "$ccr" "$co" ""
-}
-
-write_endpoint_for_tree() {
-    # write_endpoint_for_tree <session> <cum-in> <cum-cc> <cum-cr> <cum-out> <receipt> <cost-key>
-    git add -A receipts
-    local tree endpoint
-    tree="$(git write-tree)"
-    endpoint="$(git rev-parse --git-path "governance-token-endpoints/${tree}.json")"
-    python3 "$ENDPOINT_PY" write "$endpoint" "$@"
+write_snapshot() {  # <harness> <session> <in> <cc> <cr> <out> <model> <cost> <source> [epoch]
+    local f
+    f="$(sidecar_file "$1" "$2")"
+    mkdir -p "$(dirname "$f")"
+    printf 'v1 %s %s %s %s %s %s %s %s\n' \
+        "${10:-$(date +%s)}" "$3" "$4" "$5" "$6" "$7" "$8" "$9" >> "$f"
 }
 
 reset_receipts() {
@@ -72,267 +124,375 @@ reset_receipts() {
     git commit --quiet --no-verify -m "chore: reset receipts" >/dev/null 2>&1 || true
 }
 
-# Simulate an agent runtime via the `manual` adapter (lib/runtime.sh): the env
-# carries the session's cumulative coordinate the transcript reader would
-# otherwise produce. This is the real commit-time path check.sh takes.
-clear_runtime() {
-    # Also clears CLAUDECODE / CODEX_THREAD_ID so the eval is deterministic when
-    # run inside a live agent session (where CLAUDECODE=1 is ambient).
-    unset AGENT_NAME AGENT_SESSION_ID AGENT_CUM_INPUT \
-          AGENT_CUM_CACHE_CREATE AGENT_CUM_CACHE_READ AGENT_CUM_OUTPUT \
-          CLAUDECODE CODEX_THREAD_ID 2>/dev/null || true
+run_hook() {  # run_hook <issue> — the pre-commit stamp & fold
+    AGENT_ISSUE="$1" bash "$HOOKS/pre-commit.sh" >/dev/null 2>&1
 }
 
-# ══════════════════════════════════════════════════════════════
-# Endpoint reconciliation (issues #293, #305) — the trailer-free completeness
-# check. At commit time, with a runtime detected, the staged receipt row must
-# match the frozen endpoint that pre-commit wrote for this exact staged tree.
-# ══════════════════════════════════════════════════════════════
-ESES="endpoint-sess-293"
+row_of() {  # row_of <receipt> <harness> <session>
+    costs_row "$1" "$2" "$3" | head -n 1
+}
 
-# ── Case 1 — pass: no runtime detected (human / manual-git commit) → no-op ──
-reset_receipts
-clear_runtime
-printf 'feat: human commit (#30)\n' > /tmp/msg-token-no-runtime
-EVAL_LABEL="$EVAL_ID no-runtime-no-op" expect_pass "$CHECK" /tmp/msg-token-no-runtime
-
-# ── Case 2 — pass: receipt matches frozen endpoint even if live runtime moved ──
-reset_receipts
-append_cum_row ck-ep-1 "#30" "$ESES" 1000 0 0 500  1000 0 0 500
-write_endpoint_for_tree "$ESES" 1000 0 0 500 receipts/issue-30.md ck-ep-1
-printf 'feat: priced agent commit (#30)\n' > /tmp/msg-token-match
-export AGENT_NAME=eval-manual AGENT_SESSION_ID="$ESES" \
-       AGENT_CUM_INPUT=1200 AGENT_CUM_CACHE_CREATE=0 AGENT_CUM_CACHE_READ=300 AGENT_CUM_OUTPUT=550
-EVAL_LABEL="$EVAL_ID frozen-endpoint-survives-live-movement" expect_pass "$CHECK" /tmp/msg-token-match
-clear_runtime
-
-# ── Case 3 — fail: endpoint exists but staged receipt row does not match it ──
-reset_receipts
-append_cum_row ck-ep-2 "#31" "$ESES" 500 0 0 250  500 0 0 250
-write_endpoint_for_tree "$ESES" 1000 0 0 500 receipts/issue-31.md ck-ep-2
-printf 'feat: ledger lags (#31)\n' > /tmp/msg-token-lag
-export AGENT_NAME=eval-manual AGENT_SESSION_ID="$ESES" \
-       AGENT_CUM_INPUT=1000 AGENT_CUM_CACHE_CREATE=0 AGENT_CUM_CACHE_READ=0 AGENT_CUM_OUTPUT=500
-EVAL_LABEL="$EVAL_ID frozen-endpoint-mismatch-fails" expect_fail "$CHECK" /tmp/msg-token-lag
-clear_runtime
-
-# ── Case 4 — fail: runtime detected but no frozen endpoint for staged tree ──
-reset_receipts
-printf 'feat: no row written (#32)\n' > /tmp/msg-token-norow
-export AGENT_NAME=eval-manual AGENT_SESSION_ID="$ESES" \
-       AGENT_CUM_INPUT=1000 AGENT_CUM_CACHE_CREATE=0 AGENT_CUM_CACHE_READ=0 AGENT_CUM_OUTPUT=500
-EVAL_LABEL="$EVAL_ID frozen-endpoint-missing-fails" expect_fail "$CHECK" /tmp/msg-token-norow
-clear_runtime
-
-# ── Case 5 — pass: a body waiver bypasses the endpoint check ──
-reset_receipts
-append_cum_row ck-ep-5 "#33" "$ESES" 500 0 0 250  500 0 0 250
-{ printf 'feat: out-of-hook commit (#33)\n\n'; printf 'governance: allow-agent-token-accounting committed outside the runtime hook for a one-off\n'; } > /tmp/msg-token-waiver
-export AGENT_NAME=eval-manual AGENT_SESSION_ID="$ESES" \
-       AGENT_CUM_INPUT=1000 AGENT_CUM_CACHE_CREATE=0 AGENT_CUM_CACHE_READ=0 AGENT_CUM_OUTPUT=500
-EVAL_LABEL="$EVAL_ID endpoint-waiver" expect_pass "$CHECK" /tmp/msg-token-waiver
-clear_runtime
-
-# ── Case 6 — fail: runtime detected but its cumulative is unreadable (rc=2) ──
-reset_receipts
-printf 'feat: unreadable runtime (#34)\n' > /tmp/msg-token-rc2
-export AGENT_NAME=eval-manual   # AGENT_SESSION_ID / AGENT_CUM_* deliberately unset
-EVAL_LABEL="$EVAL_ID runtime-unreadable-fails" expect_fail "$CHECK" /tmp/msg-token-rc2
-clear_runtime
-
-# ── Case 7 — pass: unreadable runtime, but waived ──
-reset_receipts
-{ printf 'feat: unreadable runtime, waived (#35)\n\n'; printf 'governance: allow-agent-token-accounting runtime cumulative unavailable in this environment\n'; } > /tmp/msg-token-rc2-waiver
-export AGENT_NAME=eval-manual
-EVAL_LABEL="$EVAL_ID runtime-unreadable-waived" expect_pass "$CHECK" /tmp/msg-token-rc2-waiver
-clear_runtime
-
-# ── Case 8 — pass: revert commits are exempt ──
-reset_receipts
-printf 'Revert "feat: something (#36)"\n' > /tmp/msg-token-revert
-export AGENT_NAME=eval-manual AGENT_SESSION_ID="$ESES" \
-       AGENT_CUM_INPUT=1000 AGENT_CUM_CACHE_CREATE=0 AGENT_CUM_CACHE_READ=0 AGENT_CUM_OUTPUT=500
-EVAL_LABEL="$EVAL_ID revert-exempt" expect_pass "$CHECK" /tmp/msg-token-revert
 clear_runtime
 
 # ══════════════════════════════════════════════════════════════
-# Receipt-shape integrity (validate-dir) — runtime-independent, unchanged.
+# (a) Identity detection — the whole ladder, environment first.
 # ══════════════════════════════════════════════════════════════
+detect_as() {  # detect_as [VAR=VAL ...] → "<runtime> <session>" | "none"
+    (
+        clear_env
+        while [[ $# -gt 0 ]]; do export "${1?}"; shift; done
+        if detect_runtime_identity; then
+            printf '%s %s\n' "$RUNTIME" "$SESSION_ID"
+        else
+            printf 'none\n'
+        fi
+    )
+}
 
-# ── Case 9 — cost row lands under `## Accounting` → `### Costs`, validate-dir clean ──
+expect_identity() {  # expect_identity <expected> <label> [VAR=VAL ...]
+    local want="$1" label="$2" got
+    shift 2
+    got="$(detect_as "$@")"
+    if [[ "$got" == "$want" ]]; then pass_assert 0 "$label"; else pass_assert 1 "$label (got '$got', want '$want')"; fi
+}
+
+expect_identity "manual m-1"        "AGENT_NAME → manual runtime"        AGENT_NAME=me AGENT_SESSION_ID=m-1
+expect_identity "manual manual"     "AGENT_NAME with no session id"      AGENT_NAME=me
+expect_identity "claude-code cc-1"  "CLAUDECODE + CLAUDE_CODE_SESSION_ID" CLAUDECODE=1 CLAUDE_CODE_SESSION_ID=cc-1
+expect_identity "claude-code -"     "CLAUDECODE alone → session '-'"     CLAUDECODE=1
+expect_identity "codex cx-1"        "CODEX_THREAD_ID → codex"            CODEX_THREAD_ID=cx-1
+expect_identity "codex -"           "CODEX_TRANSCRIPT_PATH alone"        CODEX_TRANSCRIPT_PATH=/tmp/nope.jsonl
+expect_identity "pi pi-1"           "PI_CODING_AGENT + PI_SESSION_ID"    PI_CODING_AGENT=true PI_SESSION_ID=pi-1
+expect_identity "pi pi-2"           "PI_SESSION_ID alone"                PI_SESSION_ID=pi-2
+expect_identity "cursor-agent -"    "CURSOR_AGENT → cursor-agent"        CURSOR_AGENT=1
+expect_identity "opencode oc-1"     "OPENCODE + OPENCODE_SESSION_ID"     OPENCODE=1 OPENCODE_SESSION_ID=oc-1
+expect_identity "opencode -"        "OPENCODE_SERVER alone"              OPENCODE_SERVER=http://127.0.0.1:4096
+expect_identity "none"              "no signal → no runtime (human commit)"
+
+# The identity-file seam: how a harness that exports nothing (grok, wired via a
+# SessionStart hook) still gets identified — and how a stale file expires.
+write_identity grok grok-sess-1 "" "$(date +%s)"
+expect_identity "grok grok-sess-1"  "fresh identity file identifies a silent harness"
+write_identity grok grok-sess-1 "" "$(( $(date +%s) - 200000 ))"
+expect_identity "none"              "identity file older than the trust window is ignored"
+# Env identity wins, but the file may fill a session the env left blank.
+write_identity claude-code cc-file-1 "" "$(date +%s)"
+expect_identity "claude-code cc-file-1" "identity file fills a blank session for the same harness" CLAUDECODE=1
+expect_identity "claude-code cc-env-1"  "env session beats the identity file" CLAUDECODE=1 CLAUDE_CODE_SESSION_ID=cc-env-1
+write_identity codex other-sess "" "$(date +%s)"
+expect_identity "claude-code -"     "identity file for another harness never fills the session" CLAUDECODE=1
+clear_runtime
+
+# ══════════════════════════════════════════════════════════════
+# The stamp: a v6 row carrying identity, with no measurement yet.
+# ══════════════════════════════════════════════════════════════
 reset_receipts
-eval_assertions=$(( eval_assertions + 1 ))
-append_priced_row "ck-${SESSION_ID:0:12}-1900000001" "#20" 100 0 0 50
-if grep -q '^## Accounting$' receipts/issue-20.md \
-    && grep -q '^### Costs$' receipts/issue-20.md \
-    && python3 "$LEDGER_PY" validate-dir receipts >/dev/null; then
-    printf '    ✓ %s — cost row homed under ## Accounting / ### Costs\n' "$EVAL_ID"
-else
-    printf '    ✗ %s — receipt accounting section not created correctly\n' "$EVAL_ID" >&2
-    eval_failures=$(( eval_failures + 1 ))
+clear_runtime
+export CLAUDECODE=1 CLAUDE_CODE_SESSION_ID=stamp-1
+run_hook '#60'
+ROW="$(row_of receipts/issue-60.md claude-code stamp-1)"
+rc=0
+grep -q '^### Costs$' receipts/issue-60.md || rc=1
+grep -q "^$COSTS_HEADER\$" receipts/issue-60.md || rc=1
+[[ "$ROW" == *"| claude-code | stamp-1 | - | - | - | - | - | - | unresolved |" ]] || rc=1
+[[ "$(printf '%s\n' "$ROW" | awk -F'[|]' '{print NF - 2}')" == "10" ]] || rc=1
+costs_validate_dir receipts >/dev/null || rc=1
+pass_assert $rc "an unmeasured session stamps an honest identity-only row ($ROW)"
+
+# Mode A accepts it: identity truth, never number equality.
+printf 'feat: stamped agent commit (#60)\n' > /tmp/gk-msg-stamped
+EVAL_LABEL="$EVAL_ID mode-a-identity-row-present" expect_pass "$CHECK" /tmp/gk-msg-stamped
+
+# A second commit from the same session updates the row in place — one row per
+# session per issue, not one per commit.
+run_hook '#60'
+rc=0
+[[ "$(costs_row receipts/issue-60.md claude-code stamp-1 | wc -l | tr -d ' ')" == "1" ]] || rc=1
+costs_validate_dir receipts >/dev/null || rc=1
+pass_assert $rc "a second commit from the same session updates the row, never appends"
+clear_runtime
+
+# ══════════════════════════════════════════════════════════════
+# (b) Fold from the sidecar — measurement taken at rest lands in the row.
+# ══════════════════════════════════════════════════════════════
+reset_receipts
+clear_runtime
+write_snapshot claude-code fold-1 100 20 300 40 stub-sonnet 1.2345 session-file
+export CLAUDECODE=1 CLAUDE_CODE_SESSION_ID=fold-1
+run_hook '#61'
+ROW="$(row_of receipts/issue-61.md claude-code fold-1)"
+rc=0
+[[ "$ROW" == *"| claude-code | fold-1 | stub-sonnet | 100 | 20 | 300 | 40 | 1.2345 | session-file |" ]] || rc=1
+costs_validate_dir receipts >/dev/null || rc=1
+pass_assert $rc "the sidecar's snapshot folds into the row verbatim ($ROW)"
+
+# Source preference: a same-epoch `session-file` reading beats a `harness-feed`
+# push (which may carry cost only), but an OLDER one does not.
+clear_sidecars
+write_snapshot claude-code pref-1 0 0 0 0 stub-sonnet 0.90 harness-feed 1000
+write_snapshot claude-code pref-1 5 6 7 8 stub-sonnet 0.80 session-file 1000
+rc=0
+[[ "$(costs_fold_snapshot "$(sidecar_file claude-code pref-1)")" == "5 6 7 8 stub-sonnet 0.80 session-file" ]] || rc=1
+pass_assert $rc "a same-epoch session-file reading wins the fold over a harness-feed push"
+clear_sidecars
+write_snapshot claude-code pref-2 5 6 7 8 stub-sonnet 0.80 session-file 1000
+write_snapshot claude-code pref-2 0 0 0 0 stub-sonnet 0.95 harness-feed 2000
+rc=0
+[[ "$(costs_fold_snapshot "$(sidecar_file claude-code pref-2)")" == "0 0 0 0 stub-sonnet 0.95 harness-feed" ]] || rc=1
+pass_assert $rc "a strictly newer harness-feed push still wins over an older file reading"
+
+# Self-healing: a LATER session's commit repairs an EARLIER session's tail.
+clear_sidecars
+reset_receipts
+write_snapshot claude-code old-sess 10 0 0 5 stub-sonnet 0.10 session-file
+export CLAUDECODE=1 CLAUDE_CODE_SESSION_ID=old-sess
+run_hook '#61'
+clear_env
+write_snapshot claude-code old-sess 999 0 0 111 stub-sonnet 9.99 session-file
+export CLAUDECODE=1 CLAUDE_CODE_SESSION_ID=new-sess
+run_hook '#61'
+ROW="$(row_of receipts/issue-61.md claude-code old-sess)"
+rc=0
+[[ "$ROW" == *"| 999 | 0 | 0 | 111 | 9.99 | session-file |" ]] || rc=1
+[[ -n "$(row_of receipts/issue-61.md claude-code new-sess)" ]] || rc=1
+costs_validate_dir receipts >/dev/null || rc=1
+pass_assert $rc "a later session's commit folds the earlier session's newer total ($ROW)"
+clear_runtime
+
+# ══════════════════════════════════════════════════════════════
+# (f) The resolve sweep — the only thing that reads a harness surface.
+# ══════════════════════════════════════════════════════════════
+reset_receipts
+clear_runtime
+write_identity claude-code sweep-1 "" "$(date +%s)"
+export STUB_RESOLVE_OUT="11 22 33 44 stub-opus 2.50 session-file"
+bash "$HOOKS/post-commit.sh"
+post_rc=$?
+SIDE="$(sidecar_file claude-code sweep-1)"
+rc=0
+[[ $post_rc -eq 0 ]] || rc=1
+[[ -f "$SIDE" ]] || rc=1
+grep -q ' 11 22 33 44 stub-opus 2.50 session-file$' "$SIDE" 2>/dev/null || rc=1
+pass_assert $rc "post-commit resolve sweep appends the adapter's snapshot"
+
+bash "$HOOKS/post-commit.sh"
+rc=0
+[[ "$(wc -l < "$SIDE" | tr -d ' ')" == "1" ]] || rc=1
+pass_assert $rc "an unchanged snapshot is not re-appended (append-only, not append-always)"
+
+export STUB_RESOLVE_OUT="99 22 33 44 stub-opus 3.50 session-file"
+bash "$HOOKS/pre-push.sh" origin https://example.invalid/repo.git </dev/null >/dev/null 2>&1
+pre_push_rc=$?
+rc=0
+[[ $pre_push_rc -eq 0 ]] || rc=1
+[[ "$(wc -l < "$SIDE" | tr -d ' ')" == "2" ]] || rc=1
+pass_assert $rc "pre-push sweeps again and never blocks the push"
+
+# An adapter that cannot resolve records NOTHING — no guess, no partial row.
+unset STUB_RESOLVE_OUT
+clear_sidecars
+write_identity cursor-agent cur-1 "" "$(date +%s)"
+bash "$HOOKS/post-commit.sh"
+rc=0
+[[ -f "$(sidecar_file cursor-agent cur-1)" ]] && rc=1
+pass_assert $rc "an adapter that exits 2 leaves no snapshot behind"
+
+# A malformed adapter line is rejected outright rather than written.
+export STUB_RESOLVE_OUT="10 20 nonsense 40 m - session-file"
+bash "$HOOKS/post-commit.sh"
+rc=0
+[[ -f "$(sidecar_file cursor-agent cur-1)" ]] && rc=1
+pass_assert $rc "a malformed adapter reading is refused, not recorded"
+
+# The session the ENVIRONMENT announces is a candidate in its own right. Without
+# it a harness whose emitter is not wired would never get a first snapshot —
+# nothing would exist to enumerate.
+clear_runtime
+export CLAUDECODE=1 CLAUDE_CODE_SESSION_ID=env-sweep-1
+export STUB_RESOLVE_OUT="1 2 3 4 stub-haiku - session-file"
+bash "$HOOKS/post-commit.sh"
+rc=0
+[[ -f "$(sidecar_file claude-code env-sweep-1)" ]] || rc=1
+pass_assert $rc "the environment-announced session is swept with no identity file present"
+clear_runtime
+
+# ══════════════════════════════════════════════════════════════
+# (e) Manual passthrough — a human-supplied number, labelled as such.
+# ══════════════════════════════════════════════════════════════
+reset_receipts
+clear_runtime
+export AGENT_NAME=eval-human AGENT_SESSION_ID=man-1 \
+       AGENT_CUM_INPUT=1000 AGENT_CUM_CACHE_CREATE=10 AGENT_CUM_CACHE_READ=20 \
+       AGENT_CUM_OUTPUT=500 AGENT_MODEL=some-model-9 AGENT_COST_USD=0.4200
+write_identity manual man-1 "" "$(date +%s)"
+bash "$HOOKS/post-commit.sh"
+run_hook '#62'
+ROW="$(row_of receipts/issue-62.md manual man-1)"
+rc=0
+[[ "$ROW" == *"| manual | man-1 | some-model-9 | 1000 | 10 | 20 | 500 | 0.4200 | manual |" ]] || rc=1
+costs_validate_dir receipts >/dev/null || rc=1
+pass_assert $rc "the manual seam carries its own numbers through, labelled manual ($ROW)"
+clear_runtime
+
+# ══════════════════════════════════════════════════════════════
+# (g) No mtime guessing — two transcripts, no identity, no numbers.
+# ══════════════════════════════════════════════════════════════
+reset_receipts
+clear_runtime
+mkdir -p fixtures
+printf '{"sessionId":"ghost-a"}\n' > fixtures/a.jsonl
+sleep 1
+printf '{"sessionId":"ghost-b"}\n' > fixtures/b.jsonl
+export CLAUDECODE=1
+run_hook '#64'
+ROW="$(row_of receipts/issue-64.md claude-code -)"
+rc=0
+[[ "$ROW" == *"| claude-code | - | - | - | - | - | - | - | unresolved |" ]] || rc=1
+grep -q 'ghost-' receipts/issue-64.md && rc=1
+costs_validate_dir receipts >/dev/null || rc=1
+pass_assert $rc "with no session id the row stays unresolved — no newest-file guess ($ROW)"
+rm -rf fixtures
+clear_runtime
+
+rc=0
+if grep -rnE '(ls[[:space:]]+-[A-Za-z]*t|[[:space:]]-mmin[[:space:]]|[[:space:]]-newer[[:space:]])' \
+    "$DIR/check.sh" "$DIR/hooks" "$LIB"/*.sh 2>/dev/null | grep -q .; then
+    rc=1
 fi
+pass_assert $rc "no mtime / newest-file selection survives anywhere in the directive"
 
-# ── Case 10 — fail: validate-dir flags a malformed receipt cost row ──
-# No runtime → Mode A no-ops; the failure comes purely from the repo-wide
-# receipt-shape check at the top of check.sh.
+# ══════════════════════════════════════════════════════════════
+# (c) v6 validation — shape only, and it must be strict about shape.
+# ══════════════════════════════════════════════════════════════
+bad_receipt() {  # bad_receipt <issue> <row-line...> — sole receipt in the dir
+    local issue="$1"
+    shift
+    rm -rf receipts
+    mkdir -p receipts
+    {
+        printf '# Receipt\n\n## Accounting\n\n### Costs\n\n'
+        printf '%s\n' "$COSTS_HEADER" "$COSTS_SEPARATOR" "$@"
+    } > "receipts/issue-$issue.md"
+}
+
 reset_receipts
-clear_runtime
+bad_receipt 70 "| 2026-08-04 | claude-code | s70 | m | 10 | 0 | 0 | 5 | 0.10 | session-file |"
+costs_validate_dir receipts >/dev/null 2>&1
+pass_assert $? "a well-formed v6 row validates"
+
+bad_receipt 71 "| 2026-08-04 | claude-code | s71 | m | 10 | 0 | 0 | 5 | 0.10 | telepathy |"
+OUT="$(costs_validate_dir receipts 2>&1)"; VRC=$?
+rc=0; [[ $VRC -ne 0 ]] || rc=1
+printf '%s' "$OUT" | grep -q "unknown source" || rc=1
+pass_assert $rc "a source outside the closed set is rejected"
+
+bad_receipt 72 \
+    "| 2026-08-04 | claude-code | dupe | m | 10 | 0 | 0 | 5 | - | session-file |" \
+    "| 2026-08-05 | claude-code | dupe | m | 20 | 0 | 0 | 6 | - | session-file |"
+OUT="$(costs_validate_dir receipts 2>&1)"; VRC=$?
+rc=0; [[ $VRC -ne 0 ]] || rc=1
+printf '%s' "$OUT" | grep -q "more than one Costs row" || rc=1
+pass_assert $rc "two rows for one session in one receipt are rejected"
+
+bad_receipt 73 "| 2026-08-04 | claude-code | s73 | m | 10 | oops | 0 | 5 | - | session-file |"
+costs_validate_dir receipts >/dev/null 2>&1; VRC=$?
+rc=0; [[ $VRC -ne 0 ]] || rc=1
+pass_assert $rc "a token cell that is neither an integer nor - is rejected"
+
+bad_receipt 74 "| yesterday | claude-code | s74 | m | 10 | 0 | 0 | 5 | - | session-file |"
+costs_validate_dir receipts >/dev/null 2>&1; VRC=$?
+rc=0; [[ $VRC -ne 0 ]] || rc=1
+pass_assert $rc "a malformed date cell is rejected"
+
+bad_receipt 75 "| 2026-08-04 | claude-code | s75 | m | 10 | 0 | 0 | 5 | free | session-file |"
+costs_validate_dir receipts >/dev/null 2>&1; VRC=$?
+rc=0; [[ $VRC -ne 0 ]] || rc=1
+pass_assert $rc "a non-decimal cost-usd is rejected"
+
+bad_receipt 76 "| 2026-08-04 | claude-code | s76 | m | 10 | 0 | 5 | - | session-file |"
+OUT="$(costs_validate_dir receipts 2>&1)"; VRC=$?
+rc=0; [[ $VRC -ne 0 ]] || rc=1
+printf '%s' "$OUT" | grep -q "expected 10 (v6" || rc=1
+pass_assert $rc "a row with the wrong cell count is rejected"
+reset_receipts
+
+# The whole check fails loudly on a malformed row, in both modes.
+bad_receipt 77 "| 2026-08-04 | claude-code | s77 | m | 10 | 0 | 0 | 5 | 0.1 | telepathy |"
+printf 'feat: malformed cost row (#77)\n' > /tmp/gk-msg-badrow
+EVAL_LABEL="$EVAL_ID malformed-row-mode-b" expect_fail "$CHECK"
+EVAL_LABEL="$EVAL_ID malformed-row-mode-a" expect_fail "$CHECK" /tmp/gk-msg-badrow
+reset_receipts
+
+# Legacy rows are tolerated: a receipt written under v5 keeps passing.
 mkdir -p receipts
-cat > receipts/issue-21.md <<'EOF'
+cat > receipts/issue-78.md <<'EOF'
 # Receipt
 
 ## Accounting
 
 ### Costs
 
-| cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | note |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| ck-bad-1 | claude-code | s | #21 | claude-sonnet-4-5 | 100 | 0 | 0 | 50 | 999 | 0.0001 | bad |
+| cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | cum-input | cum-cache-create | cum-cache-read | cum-output | source | note |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ck-v5-1 | claude-code | v5-sess | #78 | claude-sonnet-4-5 | 1000 | 0 | 0 | 500 | 1500 | | 1000 | 0 | 0 | 500 | claude-code | legacy v5 row |
 EOF
-printf 'feat: bad receipt row (#21)\n' > /tmp/msg-token-badrow
-EVAL_LABEL="$EVAL_ID malformed-receipt-row" expect_fail "$CHECK" /tmp/msg-token-badrow
+costs_validate_dir receipts >/dev/null 2>&1
+pass_assert $? "legacy v5 / v4 / v3 rows are structurally tolerated, not re-judged"
 reset_receipts
 
-# ── Case 11 — cost-key counter closes the same-second window (issue #201) ──
+# ══════════════════════════════════════════════════════════════
+# (d) Mode B allows unresolved; Mode A demands identity, not numbers.
+# ══════════════════════════════════════════════════════════════
 reset_receipts
-eval_assertions=$(( eval_assertions + 1 ))
-PREFIX="claude-code-${SESSION_ID:0:12}-1900000000-"
-N1="$(python3 "$LEDGER_PY" next-cost-index receipts "$PREFIX")"
-append_priced_row "${PREFIX}${N1}" "#22" 100 0 0 50
-N2="$(python3 "$LEDGER_PY" next-cost-index receipts "$PREFIX")"
-append_priced_row "${PREFIX}${N2}" "#22" 100 0 0 50
-N3="$(python3 "$LEDGER_PY" next-cost-index receipts "$PREFIX")"
-if [[ "$N1" == "1" && "$N2" == "2" && "$N3" == "3" ]] \
-    && python3 "$LEDGER_PY" validate-dir receipts >/dev/null; then
-    printf '    ✓ %s — same-second cost-keys are distinct (%s, %s)\n' "$EVAL_ID" "${PREFIX}${N1}" "${PREFIX}${N2}"
-else
-    printf '    ✗ %s — cost-key counter did not increment (got %s/%s/%s)\n' "$EVAL_ID" "$N1" "$N2" "$N3" >&2
-    eval_failures=$(( eval_failures + 1 ))
+clear_runtime
+bad_receipt 80 "| 2026-08-04 | grok | g-1 | - | - | - | - | - | - | unresolved |"
+git add -A receipts
+EVAL_LABEL="$EVAL_ID mode-b-allows-unresolved" expect_pass "$CHECK"
+reset_receipts
+
+# No runtime → Mode A no-ops (a human / plain-git commit).
+clear_runtime
+printf 'feat: human commit (#81)\n' > /tmp/gk-msg-human
+EVAL_LABEL="$EVAL_ID no-runtime-no-op" expect_pass "$CHECK" /tmp/gk-msg-human
+
+# Runtime detected but no row staged → the hook did not run.
+export CLAUDECODE=1 CLAUDE_CODE_SESSION_ID=missing-1
+printf 'feat: hook was skipped (#82)\n' > /tmp/gk-msg-norow
+EVAL_LABEL="$EVAL_ID mode-a-missing-row-fails" expect_fail "$CHECK" /tmp/gk-msg-norow
+
+# A row for a DIFFERENT session does not satisfy this session's identity.
+bad_receipt 82 "| 2026-08-04 | claude-code | someone-else | - | - | - | - | - | - | unresolved |"
+git add -A receipts
+EVAL_LABEL="$EVAL_ID mode-a-other-session-row-fails" expect_fail "$CHECK" /tmp/gk-msg-norow
+
+# The body waiver bypasses the identity check.
+{ printf 'feat: out-of-hook commit (#82)\n\n'; printf 'governance: allow-agent-token-accounting committed outside the runtime hook for a one-off\n'; } > /tmp/gk-msg-waiver
+EVAL_LABEL="$EVAL_ID identity-waiver" expect_pass "$CHECK" /tmp/gk-msg-waiver
+
+# Revert commits are exempt.
+printf 'Revert "feat: something (#83)"\n' > /tmp/gk-msg-revert
+EVAL_LABEL="$EVAL_ID revert-exempt" expect_pass "$CHECK" /tmp/gk-msg-revert
+reset_receipts
+clear_runtime
+
+# ══════════════════════════════════════════════════════════════
+# Hardening: nothing on any path here is python, and the retired
+# endpoint / checkpoint machinery is gone for good.
+# ══════════════════════════════════════════════════════════════
+rc=0
+if grep -rnE '(^|[^[:alnum:]_])python3?[[:space:]]' \
+    "$DIR/check.sh" "$DIR/hooks" "$LIB"/*.sh 2>/dev/null \
+    | grep -vE ':[[:space:]]*#' | grep -q .; then
+    rc=1
 fi
-reset_receipts
+[[ -n "$(find "$DIR" -name '*.py' 2>/dev/null)" ]] && rc=1
+pass_assert $rc "no python invocation and no python file remains in the directive"
 
-# ── Case 12 — endpoint helper: session-cum reports the latest cumulative ──
-reset_receipts
-eval_assertions=$(( eval_assertions + 1 ))
-append_cum_row sc-1 "#37" "sc-session" 100 0 0 50   100 0 0 50
-append_cum_row sc-2 "#37" "sc-session" 200 0 0 100  300 0 0 150
-SC_OUT="$(python3 "$LEDGER_PY" session-cum receipts "sc-session")"
-if [[ "$SC_OUT" == "300 0 0 150" ]]; then
-    printf '    ✓ %s — session-cum returns the latest cumulative coordinate\n' "$EVAL_ID"
-else
-    printf '    ✗ %s — session-cum returned %q (expected "300 0 0 150")\n' "$EVAL_ID" "$SC_OUT" >&2
-    eval_failures=$(( eval_failures + 1 ))
+rc=0
+if grep -rniE 'governance-token-(endpoint|checkpoint)|endpoint_write|checkpoint_set' \
+    "$DIR/check.sh" "$DIR/hooks" "$LIB"/*.sh 2>/dev/null | grep -q .; then
+    rc=1
 fi
-reset_receipts
-
-# ── Case 13 — rates.py honors the user price-override conf ($EVAL_CONF) ──
-RATES_PY=".governance/packs/governance-kit/audit/directives/$EVAL_ID/lib/rates.py"
-mkdir -p .governance/conf
-rate_assert() {  # <label> <expected-cost> <model> <inp> <cc> <cr> <out>
-    local label="$1" want="$2"; shift 2
-    local got rc
-    got="$(python3 "$RATES_PY" cost "$@" 2>/dev/null)"; rc=$?
-    if [[ $rc -eq 0 && "$got" == "$want" ]]; then
-        printf '    ✓ %s\n' "$label"
-    else
-        printf '    ✗ %s — want %s got %q (rc=%s)\n' "$label" "$want" "$got" "$rc" >&2
-        eval_failures=$(( eval_failures + 1 ))
-    fi
-}
-rm -f $EVAL_CONF
-rate_assert "$EVAL_ID defaults.conf prices a built-in model" 18.0000 claude-sonnet-4-5 1000000 0 0 1000000
-rate_assert "$EVAL_ID defaults.conf family fallback resolves" 5.0000 claude-opus-4-99 1000000 0 0 0
-printf 'rate claude-sonnet-4-5 1 1 0.1 1\n' > $EVAL_CONF
-rate_assert "$EVAL_ID conf overrides a built-in price" 2.0000 claude-sonnet-4-5 1000000 0 0 1000000
-printf 'rate my-model 2 2 0.2 8\n' >> $EVAL_CONF
-rate_assert "$EVAL_ID conf adds a new model" 2.0000 my-model 1000000 0 0 0
-printf 'rate broken 1 2\n' > $EVAL_CONF
-if python3 "$RATES_PY" cost claude-sonnet-4-5 1 0 0 0 >/dev/null 2>&1; then
-    printf '    ✗ %s malformed conf should block pricing\n' "$EVAL_ID" >&2
-    eval_failures=$(( eval_failures + 1 ))
-else
-    printf '    ✓ %s malformed conf blocks pricing\n' "$EVAL_ID"
-fi
-rm -f $EVAL_CONF
-
-# ── Case 14 — reconciliation flags exactly the inflated double-count row (#229) ──
-reset_receipts
-eval_assertions=$(( eval_assertions + 1 ))
-RSES="recon-session-229"
-append_cum_row recon-c1 "#310" "$RSES" 96900  0 0 0  96900  0 0 0
-append_cum_row recon-c2 "#312" "$RSES" 55800  0 0 0  152700 0 0 0
-append_cum_row recon-c3 "#310" "$RSES" 103400 0 0 0  200300 0 0 0   # Δ INFLATED
-RECON_OUT="$(python3 "$LEDGER_PY" validate-dir receipts 2>&1)"; RECON_RC=$?
-if [[ $RECON_RC -ne 0 ]] \
-    && printf '%s' "$RECON_OUT" | grep -q "cost row 'recon-c3'" \
-    && printf '%s' "$RECON_OUT" | grep -qi "double-count" \
-    && ! printf '%s' "$RECON_OUT" | grep -qE "cost row 'recon-c1'|cost row 'recon-c2'"; then
-    printf '    ✓ %s — reconciliation flags exactly the inflated C3 row post-merge\n' "$EVAL_ID"
-else
-    printf '    ✗ %s — reconciliation did not flag exactly C3 (rc=%s)\n%s\n' "$EVAL_ID" "$RECON_RC" "$RECON_OUT" >&2
-    eval_failures=$(( eval_failures + 1 ))
-fi
-
-# ── Case 15 — reconciliation passes for the correct delta against C2 ──
-reset_receipts
-eval_assertions=$(( eval_assertions + 1 ))
-append_cum_row recon-c1 "#310" "$RSES" 96900 0 0 0  96900  0 0 0
-append_cum_row recon-c2 "#312" "$RSES" 55800 0 0 0  152700 0 0 0
-append_cum_row recon-c3 "#310" "$RSES" 47600 0 0 0  200300 0 0 0   # Δ correct
-if python3 "$LEDGER_PY" validate-dir receipts >/dev/null 2>&1; then
-    printf '    ✓ %s — reconciliation passes when the delta == cum(n) − cum(n−1)\n' "$EVAL_ID"
-else
-    printf '    ✗ %s — reconciliation false-flagged a correct delta\n' "$EVAL_ID" >&2
-    eval_failures=$(( eval_failures + 1 ))
-fi
-
-# ── Case 16 — branch-local correct delta is skipped (predecessor absent) ──
-reset_receipts
-eval_assertions=$(( eval_assertions + 1 ))
-append_cum_row recon-c1 "#310" "$RSES" 96900 0 0 0  96900  0 0 0
-append_cum_row recon-c3 "#310" "$RSES" 47600 0 0 0  200300 0 0 0   # C2 absent on this branch
-if python3 "$LEDGER_PY" validate-dir receipts >/dev/null 2>&1; then
-    printf '    ✓ %s — branch-local correct delta is skipped (predecessor absent), not flagged\n' "$EVAL_ID"
-else
-    printf '    ✗ %s — branch-local correct delta false-flagged with predecessor absent\n' "$EVAL_ID" >&2
-    eval_failures=$(( eval_failures + 1 ))
-fi
-
-# ── Case 17 — per-session monotonicity: a backwards cumulative is flagged ──
-reset_receipts
-eval_assertions=$(( eval_assertions + 1 ))
-append_cum_row mono-1 "#40" "mono-session" 100 0 0 0  100 0 0 0
-append_cum_row mono-2 "#40" "mono-session" 0   0 0 0  80  0 0 100
-MONO_OUT="$(python3 "$LEDGER_PY" validate-dir receipts 2>&1)"; MONO_RC=$?
-if [[ $MONO_RC -ne 0 ]] && printf '%s' "$MONO_OUT" | grep -qi "monotonic"; then
-    printf '    ✓ %s — backwards cumulative counter flagged (monotonicity/tamper)\n' "$EVAL_ID"
-else
-    printf '    ✗ %s — monotonicity check missed a backwards cumulative (rc=%s)\n%s\n' "$EVAL_ID" "$MONO_RC" "$MONO_OUT" >&2
-    eval_failures=$(( eval_failures + 1 ))
-fi
-
-# ── Case 18 — legacy v3 (12-column) rows parse, validate, skip reconciliation ──
-reset_receipts
-eval_assertions=$(( eval_assertions + 1 ))
-mkdir -p receipts
-cat > receipts/issue-50.md <<'EOF'
-# Receipt
-
-## Accounting
-
-### Costs
-
-| cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | note |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| ck-legacy-1 | claude-code | legacy-sess | #50 | claude-sonnet-4-5 | 1000 | 0 | 0 | 500 | 1500 | 0.0105 | legacy v3 row |
-| ck-legacy-2 | claude-code | legacy-sess | #50 | claude-sonnet-4-5 | 2000 | 0 | 0 | 100 | 2100 | 0.0075 | legacy v3 row |
-EOF
-if python3 "$LEDGER_PY" validate-dir receipts >/dev/null 2>&1; then
-    printf '    ✓ %s — legacy v3 rows parse, validate, and skip reconciliation\n' "$EVAL_ID"
-else
-    printf '    ✗ %s — legacy v3 rows broke under the v4 validator\n' "$EVAL_ID" >&2
-    eval_failures=$(( eval_failures + 1 ))
-fi
-reset_receipts
+pass_assert $rc "the endpoint / checkpoint machinery is fully removed"
 
 eval_done

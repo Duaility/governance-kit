@@ -7,11 +7,6 @@ source "$ROOT/kit/assets/packs/lib/eval-lib.sh"
 PACK_DIR="$ROOT/packs/audit"
 CHECK=".governance/packs/governance-kit/audit/directives/$EVAL_ID/check.sh"
 
-command -v python3 >/dev/null 2>&1 || {
-    echo "    ⊘ skipped — python3 not available"
-    exit 0
-}
-
 fixture_init
 install_directive "$PACK_DIR" "$EVAL_ID"
 
@@ -21,7 +16,7 @@ install_directive "$PACK_DIR" "$EVAL_ID"
 #   2. the `## Steering` attestation gate — on receipts ADDED in the change set, a
 #      fresh-context sub-agent must record a present, verdict-bearing section
 #      (cases 8–11). The hook makes no `claude -p` / network call.
-STEER_LEDGER=".governance/packs/governance-kit/audit/directives/$EVAL_ID/lib/ledger.py"
+STEER_LIB=".governance/packs/governance-kit/audit/directives/$EVAL_ID/lib/steering.sh"
 SS2="sess229abcdef"
 
 reset_ledger() {
@@ -33,7 +28,7 @@ reset_ledger() {
 add_v2() {
     # add_v2 <receipt> <steer-key> <issue> <type> <tier> <ordinal> <timestamp>
     mkdir -p receipts
-    python3 "$STEER_LEDGER" append-row "$1" "$2" "$SS2" "$3" "$4" "$5" "" "feat: v2 row" "$6" "$7"
+    bash "$STEER_LIB" append-row "$1" "$2" "$SS2" "$3" "$4" "$5" "" "feat: v2 row" "$6" "$7"
 }
 
 seed_raw() {
@@ -57,17 +52,21 @@ EOF
 }
 
 # ── Hardening: the commit path makes no `claude -p` shell-out (issue #325) ──
-# The classifier that did is gone; assert its source files are not shipped and
-# that no shipped CODE (lib/*.py — prose comments are allowed to describe the
-# retired behavior) invokes a headless CLI.
+# The classifier that did is gone; assert its source files are not shipped, that
+# no shipped CODE (lib/*.sh — prose comments are allowed to describe the retired
+# behavior) invokes a headless CLI, and — since issue #355 — that the directive
+# ships no python at all.
 eval_assertions=$(( eval_assertions + 1 ))
 DIR=".governance/packs/governance-kit/audit/directives/$EVAL_ID"
 if [[ ! -e "$DIR/lib/classifier.py" && ! -e "$DIR/lib/extract.py" \
       && ! -e "$DIR/hooks" && ! -e "$DIR/runtimes" ]] \
-    && ! grep -rqE 'claude[[:space:]]+-p|codex[[:space:]]+exec' "$DIR"/lib/*.py 2>/dev/null; then
-    printf '    ✓ %s — no in-hook classifier / `claude -p` shell-out remains\n' "$EVAL_ID"
+    && [[ -z "$(find "$DIR" -name '*.py' 2>/dev/null)" ]] \
+    && ! grep -rqE 'claude[[:space:]]+-p|codex[[:space:]]+exec' "$DIR"/lib/*.sh 2>/dev/null \
+    && ! grep -rhE '(^|[^[:alnum:]_])python3?[[:space:]]' "$DIR/check.sh" "$DIR"/lib/*.sh 2>/dev/null \
+        | grep -qvE '^[[:space:]]*#'; then
+    printf '    ✓ %s — no classifier, no `claude -p` shell-out, no python on the commit path\n' "$EVAL_ID"
 else
-    printf '    ✗ %s — a classifier / headless-CLI shell-out is still present\n' "$EVAL_ID" >&2
+    printf '    ✗ %s — a classifier / headless-CLI / python invocation is still present\n' "$EVAL_ID" >&2
     eval_failures=$(( eval_failures + 1 ))
 fi
 
@@ -111,7 +110,7 @@ reset_ledger
 eval_assertions=$(( eval_assertions + 1 ))
 add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002400-1" "#1" interrupt structural 1 "2026-06-12T03:00:01Z"
 add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002401-2" "#1" interrupt structural 3 "2026-06-12T03:00:03Z"
-ORDS="$(python3 "$STEER_LEDGER" existing-ordinals receipts "$SS2" | tr '\n' ',' )"
+ORDS="$(bash "$STEER_LIB" existing-ordinals receipts "$SS2" | tr '\n' ',' )"
 if [[ "$ORDS" == "1,3," ]]; then
     printf '    ✓ %s — existing-ordinals reports the recorded identity set (dedup boundary)\n' "$EVAL_ID"
 else
@@ -199,6 +198,46 @@ Steering attestation waived for this commit.
 EOF
 stage_all
 EVAL_LABEL="$EVAL_ID waiver-exempts" expect_pass "$CHECK"
+reset_ledger
+
+# ── Case 13 — pass: legacy v1 (7-column) rows keep parsing and validating ──
+reset_ledger
+seed_raw "issue-1.md" "| steer-x-1800000300-1 | $SS2 | #1 | interrupt | structural | legacy v1 row | feat: v1 |"
+seed_raw "issue-1.md" "| steer-x-1800000301-2 | $SS2 | #1 | correction | lexical | legacy v1 row | feat: v1 |"
+EVAL_LABEL="$EVAL_ID legacy-v1-rows" expect_pass "$CHECK"
+
+# ── Case 14 — fail: a malformed steer-key ──
+reset_ledger
+seed_raw "issue-1.md" "| not-a-steer-key | $SS2 | #1 | interrupt | structural | bad key | feat: x |"
+EVAL_LABEL="$EVAL_ID malformed-steer-key" expect_fail "$CHECK"
+
+# ── Case 15 — fail: append-only epoch order (a row minted out of order) ──
+reset_ledger
+seed_raw "issue-1.md" "| steer-x-1800000900-1 | $SS2 | #1 | interrupt | structural | later | feat: x |"
+seed_raw "issue-1.md" "| steer-x-1800000100-2 | $SS2 | #1 | interrupt | structural | earlier | feat: x |"
+EVAL_LABEL="$EVAL_ID out-of-order-epoch" expect_fail "$CHECK"
+
+# ── Case 16 — fail: a global steer-key collision across two receipts ──
+reset_ledger
+add_v2 "receipts/issue-1.md" "steer-${SS2:0:12}-1800002500-1" "#1" interrupt structural 1 "2026-06-12T04:00:01Z"
+add_v2 "receipts/issue-2.md" "steer-${SS2:0:12}-1800002500-1" "#2" interrupt structural 2 "2026-06-12T04:00:02Z"
+EVAL_LABEL="$EVAL_ID duplicate-steer-key" expect_fail "$CHECK"
+
+# ── Case 17 — the CLI refuses to mint a row the validator would reject ──
+reset_ledger
+eval_assertions=$(( eval_assertions + 1 ))
+mkdir -p receipts
+if bash "$STEER_LIB" append-row receipts/issue-1.md "steer-abc-1800003000-1" "$SS2" "#1" \
+        tool-denial structural "" "feat: x" 1 "2026-06-12T05:00:01Z" >/dev/null 2>&1; then
+    printf '    ✗ %s — append-row minted a row with a retired type\n' "$EVAL_ID" >&2
+    eval_failures=$(( eval_failures + 1 ))
+elif bash "$STEER_LIB" append-row receipts/issue-1.md "bad-key" "$SS2" "#1" \
+        interrupt structural "" "feat: x" 1 "2026-06-12T05:00:01Z" >/dev/null 2>&1; then
+    printf '    ✗ %s — append-row minted a row with a malformed steer-key\n' "$EVAL_ID" >&2
+    eval_failures=$(( eval_failures + 1 ))
+else
+    printf '    ✓ %s — append-row refuses a retired type and a malformed steer-key\n' "$EVAL_ID"
+fi
 reset_ledger
 
 eval_done

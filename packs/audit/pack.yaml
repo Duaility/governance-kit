@@ -17,7 +17,7 @@
 # (`always_install: true`): in this kit's model every commit is agent-authored,
 # so the provenance trail and its tamper-protection are part of the baseline,
 # not an extra. Steering events are recorded by a fresh-context sub-agent
-# (a `subagent:` attestation handed the session transcript — no in-hook
+# (a `judge:` attestation handed the session transcript — no in-hook
 # `claude -p`, issue #325); the receipt rows carry operator-intent text, so
 # weigh leakage before a public repo rather than skipping the directive.
 #
@@ -27,12 +27,15 @@
 id: governance-kit/audit
 name: Agent audit-chain governance directives
 version: "0.8.1"
-# Floor 0.12.0 (#343): the subagent tiers/isolation conf overlay (#333) is
-# resolved by kit-owned lib.sh/sweep.py — `subagent_attest` reads
-# `SUBAGENT_ISOLATION` and the attest/sweep tiers via `conf_get`. Those helpers
-# first SHIP to consumers in kit/v0.12.0, so a consumer on an older kit would
-# silently ignore the overlay rows. This supersedes the earlier 0.10.0 floor
-# (#272/#319: the sub-agent-attestation helpers `require_attestation`,
+# Floor 0.12.0 (#343), and this line is DUE A RAISE (#355). This pack's
+# directives declare `judge:` blocks resolved by kit-owned lib.sh/sweep.sh —
+# `judge_attest`, the `cmd`/`group`/three-valued-`gate` schema, and the
+# group-batched remediation orchestrator. Those helpers do not ship to
+# consumers until the first kit release carrying #355, so the floor must move
+# to that version in the release commit that cuts it (a feature PR cannot
+# raise it: kit-version-consistency requires floor <= the current
+# kit.yaml version). Until then 0.12.0 is the honest last-shipped floor. It
+# supersedes the earlier 0.10.0 floor (#272/#319: `require_attestation`,
 # `attestation_prompt`, `extract_md_section` first shipped in kit/v0.10.0).
 # The floor is always the first-shipped version, not the source line. See
 # kit/references/LIB_API.md.

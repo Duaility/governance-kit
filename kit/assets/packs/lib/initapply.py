@@ -30,7 +30,15 @@ from pathlib import Path
 from typing import Any
 
 import digestlib
-from applylib import bash_lib, load_decisions, refuse, regen_hooks_step, seed_sweep_assets, smoke_test
+from applylib import (
+    bash_lib,
+    kit_runtime_adapters,
+    load_decisions,
+    refuse,
+    regen_hooks_step,
+    seed_sweep_assets,
+    smoke_test,
+)
 from initplan import assemble_constitution, collisions
 from packctl import KIT_VERSION
 from packverb import load_lockfile, write_lockfile, _utc_now
@@ -204,14 +212,26 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
         for fn in ("run.sh", "lib.sh"):
             _copy_stamp(KIT_ASSETS / "dot-governance" / fn, root / ".governance" / fn)
             (root / ".governance" / fn).chmod(0o755)
+        # The runtime adapter registry (issue #355) — same treatment as run.sh /
+        # lib.sh: copied, stamped, executable, and digested by
+        # `managed-tree-integrity`. It is unconditional (not gated on which
+        # directives were selected) because "which harness is running" is a
+        # property of the repo, and the accounting and executor lanes both look
+        # it up by name at the same fixed path.
+        for fn in kit_runtime_adapters():
+            dest = root / ".governance" / "runtimes" / fn
+            _copy_stamp(KIT_ASSETS / "dot-governance" / "runtimes" / fn, dest)
+            dest.chmod(0o755)
         _copy_stamp(KIT_ASSETS / "governance.yml", root / ".github" / "workflows" / "governance.yml")
 
-        # Sweep lane (issue #142): when a `surface: sweep` directive is selected,
-        # lay down the scheduled workflow + the vendored engine so the lane runs
-        # in plain CI with no skill and no secret. Both are recorded as seeded
-        # assets so `governance uninstall` removes them with everything else.
-        # Shared with pack-apply via applylib.seed_sweep_assets so the two install
-        # paths vendor the lane identically (no path bifurcation).
+        # Sweep lane (issue #142, harness-pegged per #355): when a directive
+        # carrying a live sweep tier is selected, lay down the scheduled
+        # workflow + the at-rest driver so the lane runs in plain CI — the
+        # consumer brings the runtime adapter CLI + credentials, no skill and
+        # no kit-owned secret. Both are recorded as seeded assets so
+        # `governance uninstall` removes them with everything else. Shared with
+        # pack-apply via applylib.seed_sweep_assets so the two install paths
+        # vendor the lane identically (no path bifurcation).
         sweep_rels = seed_sweep_assets(root, packs, KIT_VERSION)
         if sweep_rels:
             seeded = sorted(set(seeded) | set(sweep_rels))

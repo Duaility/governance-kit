@@ -11,8 +11,8 @@ First-time setup, from zero to a firing governance gate — about 60 seconds. Th
 
 - A git repository.
 - An agent runtime that supports Agent Skills (Claude Code, Codex, Cursor, …).
-- `bash` and `git` — the checks are plain bash, no other runtime dependencies.
-- `uv` (used by the pack tooling during `init`).
+- `bash` and `git` — the checks are plain bash, no other runtime dependencies for a consumer repo to commit.
+- A bare `python3` — the kit's own lifecycle tooling (`init`, pack management) uses it directly, with no package manager or third-party package.
 
 ## 1. Install the skill
 

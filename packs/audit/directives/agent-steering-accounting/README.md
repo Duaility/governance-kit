@@ -62,9 +62,9 @@ tier by the merge-time sweep lane.
 2. **The `## Steering` attestation (change-set scoped).** For each receipt added
    in the change set, a present, verdict-bearing `## Steering` section — the
    fresh-context sub-agent's `PASS`/`REFUTED` verdict. Gated through the shared
-   `subagent_attest` helper in `lib.sh`; pre-existing receipts are grandfathered.
+   `judge_attest` helper in `lib.sh`; pre-existing receipts are grandfathered.
 
-The judgment task is declared once in `directive.yaml`'s `subagent:` block
+The judgment task is declared once in `directive.yaml`'s `judge:` block
 (`inputs: [transcript, receipt]`, `isolation: shared`, `section: Steering`, plus
 the rubric `checks`). At commit time the run-level orchestrator
 (`attestation_remediation`, invoked once by `run.sh` / the pre-commit dispatcher)
@@ -123,7 +123,7 @@ the receipt. The sub-agent:
    existing ordinals, and writes the table:
 
    ```sh
-   python3 .governance/packs/governance-kit/audit/directives/agent-steering-accounting/lib/ledger.py \
+   bash .governance/packs/governance-kit/audit/directives/agent-steering-accounting/lib/steering.sh \
      append-row <receipt> <steer-key> <session> <issue> <type> <tier> <user-reason> <commit> <ordinal> <timestamp>
    ```
 
@@ -148,11 +148,14 @@ is the lowest-leak path.
 ## Installing
 
 The directive ships as a self-contained folder under the `governance-kit/audit`
-pack. It carries `lib/ledger.py` (row I/O + validation) and `lib/receipt_io.py`
-(Markdown table plumbing) — and, since issue #325, **no** classifier, extractor,
-populator hook, or runtime transcript-reader. Stdlib-only Python 3; the only
-runtime dependency is `python3` on `$PATH`. There is no ledger file to seed —
-rows live in per-issue receipts.
+pack. It carries `lib/steering.sh` (row schema, the `append-row` CLI, and the
+validator) and `lib/receipt.sh` (Markdown table plumbing) — and, since issue
+#325, **no** classifier, extractor, populator hook, or runtime
+transcript-reader. Since issue #355 it ships **no python at all**: both files
+are bash + POSIX awk, so the only runtime dependency is `bash` and `git`.
+`lib/steering.sh` is dual-purpose — `check.sh` sources it as a library, and the
+recording sub-agent executes it as the small CLI shown above. There is no ledger
+file to seed — rows live in per-issue receipts.
 
 Add an `agent-steering-accounting` Directives subsection to `CONSTITUTION.md` via
 the `governance directive add` verb.
@@ -166,7 +169,7 @@ git commit -m "feat: x (#13)"
 pre-commit ──► each pre-commit directive's check.sh runs (no claude -p anywhere):
       │          • agent-steering-accounting/check.sh:
       │              1. validate-dir over receipts/*.md (ledger shape).
-      │              2. For each receipt added in the change set: subagent_attest
+      │              2. For each receipt added in the change set: judge_attest
       │                 gates the `## Steering` section (present + PASS/REFUTED)
       │                 and registers it (isolation: shared) if pending.
       │          • (receipt-per-issue registers `## Audit`, etc.)
@@ -196,5 +199,5 @@ the `## Steering` attestation gate over the branch's added receipts.
 ## Out of scope (deferred follow-ups)
 
 - Wiring the **sweep** consumer to re-derive the `## Steering` verdict at the
-  high tier from the same `subagent:` declaration (the schema is designed for it).
+  high tier from the same `judge:` declaration (the schema is designed for it).
 - Cross-session aggregation / dashboards.
