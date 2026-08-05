@@ -2,9 +2,9 @@ version: "3"
 generated_at: 2026-04-30T00:00:00Z
 owner: duaility
 repo: governance-kit
-kit_version: "0.11.0"
-kit_ref: gh:duaility/governance-kit/kit@kit/v0.11.0
-kit_sha: b87c4e7f12500dc936baad7d1d405f13aafa7d8a
+kit_version: "0.13.0"
+kit_ref: gh:duaility/governance-kit/kit@kit/v0.13.0
+kit_sha: 89894c2d47b11f701df749a756cd29678b063670
 hook_strategy: githooks
 constitution: true
 ci_workflow: .github/workflows/governance.yml
@@ -16,15 +16,23 @@ install_assets_seeded:
   - .github/ISSUE_TEMPLATE/bug.yml
   - .github/ISSUE_TEMPLATE/config.yml
   - .github/ISSUE_TEMPLATE/proposal.yml
+  - .github/workflows/governance-sweep.yml
+  - .governance/sweep.py
   - COSTS.md
   - QUALITY.md
   - STEERING.md
-  - .github/workflows/governance-sweep.yml
-  - .governance/sweep.py
+  - .governance/sweep.sh
 collisions: []
 managed_digests:
   .github/workflows/governance-sweep.yml: df91e11359545ab98f8f7155bf60dd2f24222e1e851b478a13f2d0d56839f372
-  .github/workflows/governance.yml: b255d3da52fc0c6fa1ba113bc3b3bca554a6295faf98cc0b54adb02d70eff366
-  .governance/lib.sh: f659c7264673e79a3248ac3fcccf6eb3bbe173b078ad9384c625861b2cd70d13
-  .governance/run.sh: 04c00fbcf16e6d9a03fe423ddd57f3fe51dadef99201cc6c0f4cb05cf1a1b792
-  .governance/sweep.py: 98e24bf69c97323cd582b585738f66b4e7465fd7713f0c37d0536f404ac01001
+  .github/workflows/governance.yml: e16e884194884079f131c58c797960ebe18d8dcc1846eedc8dff63096d324290
+  .governance/lib.sh: 37451bc52a6896d8f86872b0fc1df424bbb7cb4b68e1b20b2e285de90d6b0477
+  .governance/run.sh: 947f53dd7452d7caa45cda634504684a7cc0475e7925e06fcca27c9ea370e236
+  .governance/runtimes/claude-code.sh: 1861563b8b3d9b272780093062bdacd2bfcded65a49875eeb7de2dfe7cab569e
+  .governance/runtimes/codex.sh: 180a7d6b5410832cb2bfebb1ef31f9baa466c7d85a9c1920927dd05ad1fbfedc
+  .governance/runtimes/cursor-agent.sh: 5545b7b40de1e9760af2e62e0ea2caad978dc457eaa500922749383305565ec3
+  .governance/runtimes/grok.sh: 1edb8d8e20b2f005831ce28d5ee7ccb6365171f45cca4c908e414b3cf0fe01f5
+  .governance/runtimes/manual.sh: 0b463b02429e7ccabb6813773653f661ad08ed27571bed7572939d7bec805ba2
+  .governance/runtimes/opencode.sh: 58d72fb36072297c5b06ee8642b16cf7595cfcbff122f3e14c0a624e05dfae46
+  .governance/runtimes/pi.sh: d076ba3deed5abaea08183c9a342eef491f53a2d6dfb0a2c0be6e964e0d77c53
+  .governance/sweep.sh: e8dc92dcc8f7d5dbe4e4ce2443515de2bbf0a1846b6dbdc124493bd2739ab6c6

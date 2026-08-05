@@ -1,173 +1,195 @@
 # Agent Token Accounting
 
 Opt-in governance directive that gives the repo a durable, auditable ledger of
-token consumption for **agent-authored commits** — across any runtime (Codex,
-Claude Code, Cursor, or something homegrown).
+what its agent sessions cost — across any harness (Claude Code, Codex, pi,
+Cursor, opencode, grok, or something homegrown).
 
-## Why it's layered this way
+## The principle: identity at commit, measurement at rest
 
-Naive anchors all break:
+A pre-commit hook is the worst possible measurement point. It is synchronous,
+blocking, unretryable, and racing a session that is still running — and a
+session's cost is not final at commit time anyway, because the session keeps
+going after the commit lands. Any number captured there is a snapshot of a
+moving quantity dressed up as a fact, and any failure to capture it turns a
+*measurement* problem into a *commit* problem, which is exactly backwards.
 
-- **PR-level accounting is too late** — the first commit exists before the PR.
-- **Commit-SHA keyed accounting breaks under squash merge** — branch SHAs disappear on merge.
-- **Session transcripts are ephemeral** — they live on one contributor's laptop.
-- **A ledger row keyed by the commit's own SHA is self-referential** — adding the row changes the SHA.
+So the two halves split, because they have different natures:
 
-The model that works:
+- **Identity** is cheap, local, and knowable *only* at commit time: the harness
+  announces itself in the environment. The commit path records identity and
+  validates structure. It never reads a harness file, never parses a
+  transcript, never does arithmetic on tokens. Pure bash and git, kit-owned
+  files only.
+- **Measurement** is expensive, remote, retryable, and better late than wrong.
+  It happens off the commit path: adapters refresh a kit-owned snapshot
+  sidecar from each harness's *declared* surfaces — a pushed payload, a
+  harness-named file, a queryable local server. A failed read means "try again
+  later", never "commit blocked", and never a guessed number.
 
-1. **The per-issue receipt** `receipts/issue-<N>.md` is the single durable record. Cost rows land under its `## Accounting` → `### Costs` sub-table, resolved from the commit's `(#N)` anchor. Homing rows in the receipt — instead of one central `COSTS.md` — keeps the record conflict-free (only the PR branch that owns the issue writes its receipt) and bounded (the file grows with one issue, not the whole repo's history), and it is naturally sealed once the receipt merges (frozen on the trunk by `doc-integrity`).
-2. **Absolute cumulative coordinates** (`cum-*`) make a row claim a *position* on a monotonic counter, not a quantity.
-3. **A frozen staged-tree endpoint** under `.git/governance-token-endpoints/<tree>.json` records the exact cumulative coordinate the pre-commit writer sampled after it stages the receipt row.
-4. **The governance directive** reconciles the staged receipt row against that frozen endpoint at commit time and fails loudly when the endpoint is missing or the row does not match it.
+Two provenance rules follow, and they are load-bearing:
 
-The previously-central `COSTS.md` is now sealed legacy history (a `doc-integrity` frozen-file) — it stops receiving writes; existing rows stay put, no migration. New rows go to receipts.
+1. **The kit never prices.** `cost-usd` is the harness's own figure verbatim,
+   or `-`. See "No rate card" below.
+2. **The kit never guesses identity.** Every "newest file wins" / mtime
+   heuristic is deleted. No identity means no session, which means no numbers:
+   the row says `-` and `unresolved` until something real resolves it. A
+   guessed session id silently bills one agent's spend to another, which is
+   strictly worse than a blank.
 
-> **No commit trailers (issue #293).** Earlier versions stamped the cost onto
-> the commit message as trailers (`Agent`/`Issue`/`Session`/`Token-*`/`Cost-Key`/
-> `Cost-USD`) and cross-checked the stamped copy against the receipt row. The
-> trailer was a denormalised projection of the row, kept honest by a
-> bidirectional cross-check whose only consumer was the cross-check itself —
-> plus a Mode-B HEAD-fallback to re-validate it after a server-side squash
-> discarded the source commits. The receipt is already the ledger; completeness
-> is now proven by freezing the pre-commit writer's sampled endpoint and
-> verifying the staged row against it (endpoint reconciliation, below), rather
-> than by stamping and re-verifying a copy. The cost is real but
-> narrow: per-commit attribution for a `--no-verify` commit (no transcript in CI
-> to reconcile against) is no longer recoverable — but the absolute coordinates
-> preserve session-*total* fidelity, so a missing intermediate commit's tokens
-> roll into the next accounted row and double-counting stays detectable.
+## Why the row is per session, not per commit
 
-## Endpoint reconciliation
+A session that touches an issue across twenty commits is **one unit of spend**,
+not twenty. Per-commit attribution forces deltas; deltas force a checkpoint;
+and a checkpoint double-counts the moment a session spans branches. So v6 keeps
+**one row per session per issue**, updated in place while the PR is open —
+receipts freeze only once they reach the trunk, so the update window is exactly
+the pull request's life.
 
-The trailer-free completeness check. At commit time, with an agent runtime
-detected, `check.sh` recomputes the staged tree id with `git write-tree`, reads
-the frozen endpoint at `.git/governance-token-endpoints/<tree>.json`, and
-asserts that the staged receipt row named by the endpoint's `cost_key` carries
-the same session and cumulative coordinate:
+That single change is what makes the ledger self-healing. When a session's
+spend keeps growing after its last commit, the *next* commit — from any session
+— folds the newer total into the older session's row. No per-commit row could
+ever do that; it was frozen the moment it was written, permanently short by the
+tail of the session.
 
-```
-staged receipt row == frozen endpoint   →  pass
-missing endpoint                         →  fail (pre-commit accounting did not run)
-row mismatch                             →  fail (the staged row is not the sampled coordinate)
-```
+## Where things live
 
-Because the pre-commit hook writes this commit's row (and advances the
-per-session checkpoint) before the commit-msg check runs, a clean commit
-reconciles by construction. If the live transcript advances between pre-commit
-and commit-msg, the already-written row still passes because the endpoint is the
-frozen coordinate for this commit attempt; the later movement belongs to a later
-row. A commit that skipped the hook (`--no-verify`, `SKIP_GOVERNANCE=1`) has no
-matching endpoint and fails here. The check is **commit-time only** — running it
-off the commit path (e.g. a mid-session `run.sh`) would false-fail because no
-staged-tree endpoint is expected there; in Mode B (CI) only the repo-wide
-receipt-shape check runs.
+The per-issue receipt `receipts/issue-<N>.md` is the single durable record.
+Rows land under its `## Accounting` → `### Costs` sub-table, resolved from the
+commit's `(#N)` anchor. Homing rows in the receipt — instead of one central
+`COSTS.md` — keeps the record conflict-free (only the PR branch that owns the
+issue writes its receipt) and bounded (the file grows with one issue, not the
+whole repo's history), and it is naturally sealed once the receipt merges
+(frozen on the trunk by `doc-integrity`).
 
-## Row schema
-
-Cost rows live in the commit's per-issue receipt — `receipts/issue-<N>.md`,
-under the `## Accounting` → `### Costs` sub-table. v4 is 16 columns — the v3
-schema plus four absolute-cumulative columns (issue #229).
-The record is lossless by design — cache traffic is tracked in its own columns
-and the model-priced dollar cost lives next to the token counts so billing and
-cache-hit-rate analyses are recoverable without re-deriving rates after the
-fact:
+Two kit-owned artifacts back it, both under the **per-worktree git dir** (a
+worktree is the natural session-disambiguation boundary — two worktrees never
+collide) and neither ever reaching a commit:
 
 ```
-| cost-key | agent | session | issue | model | input | cache-create | cache-read | output | new-work | cost-usd | cum-input | cum-cache-create | cum-cache-read | cum-output | note |
+<git-dir>/governance/session-identity        flat key=value, last writer wins
+    harness=<adapter-name>
+    session=<session-id>
+    declared=<absolute path the harness handed us, or empty>
+    epoch=<unix seconds>
+
+<git-dir>/governance/costs/<harness>-<session>     append-only, one per session
+    v1 <epoch> <input> <cache_create> <cache_read> <output> <model> <cost|-> <source>
 ```
 
-- `model` — runtime-reported model id (e.g. `claude-sonnet-4-5`); empty for
-  runtimes that don't surface it and for legacy rows.
-- `input` — truly new input tokens.
-- `cache-create` — tokens written to the prompt cache (billed at ~1.25× base).
-- `cache-read` — tokens read from the prompt cache (billed at ~0.10× base) —
-  **tracked but excluded from `new-work`**.
-- `output` — model output tokens.
-- `new-work = input + cache-create + output` (self-checking directive).
-- `cum-input` / `cum-cache-create` / `cum-cache-read` / `cum-output` (v4, issue
-  #229) — the session's **cumulative** counter for each column at this commit,
-  written blind from the transcript. These are the row's absolute transcript
-  coordinates and the accounting source of truth: a row claims a *position* on a
-  monotonic counter, not a *quantity*, so the delta columns above are derived
-  claims that the validator can prove (`delta == cum(n) − cum(n−1)`) once a
-  session's consecutive rows are co-visible. Each `cum-*` is ≥ its own delta.
-  The latest row's `cum-*` is also the coordinate the pre-commit hook freezes
-  into the staged-tree endpoint for commit-time reconciliation.
-- `cost-usd` — the true dollar cost for this row, computed from `model` via
-  the directive's `lib/rates.py` and **all four** token columns
-  (`cache-read` included — that's the only place cache rent appears).
-  Required on every new v3+ row; the column is the only single-number
-  headline that's comparable across commits with different cache mixes.
-  Legacy v1/v2 rows and v3 rows predating the cost-mandate (empty
-  `model` cell) are grandfathered to empty `cost-usd`.
+The identity file is written by a wired harness hook (SessionStart and friends)
+or by an adapter's `emit` verb. It is optional — environment detection works
+without it — and it is how a harness that exports *nothing* to its child
+processes still gets identified. It is trusted only while it is younger than
+`COSTS_IDENTITY_MAX_AGE_HOURS` (default 24), because a file, unlike an
+environment, can outlive the session that wrote it.
 
-  The default rate card `defaults.conf` keeps **family-prefix fallbacks**
-  (`claude-opus`, `claude-sonnet`, `claude-haiku`, `gpt-5`) seeded from the
-  current rate card alongside version-specific rows. When a new minor release
-  lands between directive updates (e.g. `gpt-5.5`), longest-prefix lookup
-  picks the family row so `cost-usd` stays populated. When even the
-  family key misses, the pre-commit hook prints a red `✗ model 'X'
-  is not priced` error to stderr and blocks the commit — either add a
-  `rate <model> <base_input> <cache_create> <cache_read> <output>` row to
-  `.governance/conf/governance-kit/audit/agent-token-accounting.conf` (overrides
-  merge over the pack-owned defaults; a malformed row also blocks the commit) or
-  use `SKIP_GOVERNANCE=1` to get past a one-off.
+The sidecar is append-only; each line is a snapshot of the harness's own
+**session-cumulative** counters, never a delta. Writers are the adapter's
+`emit` (live push) and `resolve` (off-path pull) verbs. The commit path only
+ever reads it.
 
-`new-work` is the reviewer-facing token number — stable and denominator-free,
-the figure a reviewer skims to ask "how much effort did this commit take".
-`cost-usd` is what an accountant reads: raw token sums across columns with a 50×
-price ratio (output vs cache-read) aren't meaningful on their own. `cache-read`
-is deliberately excluded from `new-work` — those are the same bytes re-read each
-turn, not new work; including it would make `new-work` dominated by cache
-hit-rate rather than the size of the change.
+## Row schema (v6, 10 columns)
 
-Runtimes that don't report cache traffic (Codex today) emit `0` in the
-cache columns — the row directive still holds.
-
-Legacy rows are accepted by the parser:
-
-- **v3** (12 cols, pre-#229): the v4 row without the four `cum-*` columns.
-  Validated to the v3 rules and **excluded from cumulative reconciliation /
-  monotonicity** (those apply to v4 rows only), so no historical receipt needs
-  backfilling.
-- **v2** (10 cols, pre-2026-04-23): `cost-key agent session issue input
-  cache-create cache-read output total note`.
-- **v1** (8 cols, pre-cache-split): `cost-key agent session issue input
-  output total note`. Cache fields default to `0`; `model`/`cost-usd` empty.
-
-All legacy shapes are validated under the same `new-work` directive; only new
-rows carry the v4 cumulative columns.
-
-## Installing
-
-The directive ships as a self-contained folder under the `governance-kit/audit` pack.
-The `governance-bootstrap` skill copies it wholesale and the hook generator
-wires its `hooks/pre-commit.sh` (the row writer) into `.githooks/pre-commit` and
-`check.sh` into `.githooks/commit-msg` automatically. Manual install is:
-
-```sh
-cp -r <governance-kit>/packs/audit/directives/agent-token-accounting \
-      .governance/packs/governance-kit/audit/directives/
-chmod +x .governance/packs/governance-kit/audit/directives/agent-token-accounting/check.sh \
-         .governance/packs/governance-kit/audit/directives/agent-token-accounting/hooks/*.sh \
-         .governance/packs/governance-kit/audit/directives/agent-token-accounting/runtimes/*.sh
+```
+| date | harness | session | model | input | cache-create | cache-read | output | cost-usd | source |
 ```
 
-There is no ledger file to seed at install — rows live in per-issue receipts,
-and the pre-commit hook creates the receipt (an accounting-only stub with just
-a `## Accounting` section) on demand the first time a commit for that issue
-needs one. The directive ships no `COSTS.md` install-asset.
+- `date` — the day this session first touched this issue. Never rewritten.
+- `harness` / `session` — the identity the environment (or the identity file)
+  announced. `session` is the literal `-` when the harness does not name one.
+- `model` — the harness-reported model id, or `-`.
+- `input` / `cache-create` / `cache-read` / `output` — the harness's own
+  session-cumulative token counters from the sidecar's authoritative snapshot,
+  or `-` when nothing has resolved yet. Kept separate so the record stays
+  lossless: cache-hit-rate analyses are recoverable after the fact.
+- `cost-usd` — the dollar figure the harness itself reported, copied verbatim,
+  or `-`.
+- `source` — provenance of the numbers: `harness-feed`, `session-file`,
+  `server`, `manual`, or `unresolved`.
 
-Everything the directive needs — the `lib/` Python (ledger, validate, reconcile,
-rates, plus the shared `receipt_io.py` markdown plumbing and the `report.py`
-aggregator), the `lib/runtime.sh` detection helper, the `hooks/pre-commit.sh`
-writer, and the per-runtime transcript readers under `runtimes/` — lives inside
-the directive folder. Stdlib-only Python 3, no `pip install` required. The only
-runtime dependency is `python3` on `$PATH`.
+### The fold rule
 
-Then add an `agent-token-accounting` Directives subsection to `CONSTITUTION.md`
-via the `governance` skill's `directive` verbs (the directive and the
-constitutional entry must land in one commit — that's the cardinal directive).
+A session can have snapshots from more than one source. The authoritative one
+is the latest snapshot overall, **except** that a `session-file` / `server`
+reading wins any tie or later position — those carry full token detail, while a
+`harness-feed` push may legitimately carry only cost and identity. Put the
+other way round: prefer the latest file/server reading over a harness-feed one
+whenever it is not older. Adapters and the directive both depend on this rule,
+so it is specified here rather than implied.
+
+### Legacy rows
+
+Rows in the retired schemas are recognised by cell count — 17 = v5, 16 = v4,
+12 = v3 — and **structurally tolerated, never re-judged**. They were written
+under rules that no longer describe them, so re-validating them would only
+manufacture violations nobody can act on; receipts on the trunk are frozen
+anyway.
+
+## No rate card
+
+Up to v4 this directive shipped one: a `rate <model> <base> <cache_create>
+<cache_read> <output>` row per model, in USD per million tokens, which the
+commit hook multiplied against the transcript to fill `cost-usd`. Every number
+in it was a guess about someone else's billing — hand-maintained, silently
+stale the day a vendor moved a price, wrong for negotiated rates — and a model
+with no row *blocked the commit*. Rendered to four decimal places, that guess
+read like a measurement.
+
+Now the harness reports the dollars or the cell stays `-`. A blank cost next to
+`source = codex` is the honest record of "that harness does not report
+dollars", not a bug. If you want dollars from a harness that doesn't surface
+them, teach its **adapter** to read the harness's own figure — do not
+reintroduce a rate table. If you want a spend estimate across a mixed fleet,
+compute it in your reporting layer over the token columns, where it is visibly
+an estimate.
+
+## How a commit flows
+
+`git commit` is the only entry point. There is no wrapper script to remember.
+
+```
+git commit -m "feat: x (#13)"
+      │
+      ▼
+pre-commit ──► hooks/pre-commit.sh — "stamp & fold"
+      │          1. detect_runtime_identity: harness + session + declared path
+      │             from the environment, falling back to a FRESH identity file.
+      │             No tokens. No cost. No guessing.
+      │          2. Read the parent git argv (/proc/$PPID/cmdline on Linux,
+      │             `ps -ww -o args=` on macOS/BSD) for the (#N) issue anchor,
+      │             or take AGENT_ISSUE.
+      │          3. Upsert this session's row in receipts/issue-<N>.md,
+      │             refreshed from the sidecar's authoritative snapshot — or
+      │             `-` everywhere with source `unresolved` when there isn't one.
+      │          4. Fold every OTHER session row in that receipt whose sidecar
+      │             has moved (self-healing convergence).
+      │          5. `git add` the receipt.
+      │
+      ▼
+git snapshots the tree (the row is already staged)
+      │
+      ▼
+commit-msg ──► check.sh: identity truth. A staged receipt must carry a v6 row
+      │        for exactly the detected harness + session. Numbers are NEVER
+      │        compared. Plus the repo-wide Costs-table shape check.
+      │
+      ▼
+commit lands
+      │
+      ▼
+post-commit ─► hooks/post-commit.sh: resolve sweep, silent, always exit 0.
+               Each known session's adapter is asked what the harness now says.
+      │
+      ▼
+pre-push ────► hooks/pre-push.sh: the same sweep, one last time before the work
+               leaves the machine (nothing in CI can measure a session that ran
+               on a laptop). Never blocks a push; prints one line when a row is
+               behind its sidecar.
+```
+
+The ordering is load-bearing. `git add` during **pre-commit** lands in the tree
+git is about to snapshot; from any post-snapshot hook it would land in the
+*next* commit's index.
 
 ### Worktrees
 
@@ -180,181 +202,127 @@ own hook directory:
 git config --worktree core.hooksPath .githooks
 ```
 
-The `required-docs` directive's `hooks` sub-check accepts both forms; the
-worktree-local override just ensures the hooks you are editing in the
-worktree are the ones that actually run.
+## Identity detection ladder
 
-## How a commit flows
+`lib/runtime.sh` resolves the identity from the environment, in order:
 
-`git commit` is the only entry point. There is no wrapper script to remember
-or teach — if the commit is agent-authored, the pre-commit hook detects the
-runtime, reads the transcript, resolves the issue from the `(#N)` anchor, and
-appends the cost row to that issue's receipt (creating an accounting-only stub
-if the receipt doesn't exist yet). The commit-msg check then reconciles the
-receipt against the transcript. Human commits flow through untouched.
+| Signal | Harness | Session |
+|---|---|---|
+| `AGENT_NAME` set (any value) | `manual` | `AGENT_SESSION_ID`, else `manual` |
+| `CLAUDECODE=1` | `claude-code` | `CLAUDE_CODE_SESSION_ID`, else identity file, else `-` |
+| `CODEX_THREAD_ID` or `CODEX_TRANSCRIPT_PATH` | `codex` | `CODEX_THREAD_ID`, else `-` |
+| `PI_CODING_AGENT=true` or `PI_SESSION_ID` | `pi` | `PI_SESSION_ID`, else `-` |
+| `CURSOR_AGENT=1` | `cursor-agent` | identity file, else `-` |
+| `OPENCODE=1` or `OPENCODE_SERVER` | `opencode` | `OPENCODE_SESSION_ID`, else identity file, else `-` |
+| none of the above, fresh identity file | its `harness=` | its `session=` |
+| nothing at all | — | no agent runtime; writer and check both no-op |
+
+`CLAUDE_TRANSCRIPT_PATH`, `CODEX_TRANSCRIPT_PATH` and `PI_SESSION_FILE` are
+carried through as the *declared path* and handed to the adapter's `resolve`
+verb later. Environment identity always beats the identity file; the file may
+only fill in a session id (or declared path) the environment left blank, and
+only when it names the same harness.
+
+## The adapter contract
+
+Adapters are **kit-level**, not pack-level: "which harness am I talking to" is
+one fact about the repo, not a per-directive one. One registry at
+`.governance/runtimes/<harness>.sh`, shared with the sub-agent lane's `judge`
+verb. Each file is self-contained bash, invoked as `bash <adapter> <verb>`
+(never executed directly — the registry is a copied tree and a lost exec bit
+must not silently disable accounting).
 
 ```
-git commit -m "feat: x (#13)"
-      │
-      ▼
-pre-commit ──► .governance/packs/<owner>/<repo>/directives/agent-token-accounting/hooks/pre-commit.sh
-      │          1. Detect runtime + resolve the session's cumulative
-      │             counters via lib/runtime.sh (CLAUDECODE / CODEX_THREAD_ID /
-      │             AGENT_NAME → runtimes/<runtime>.sh, which returns
-      │             `<session_id> <cum_input> <cum_cache_create>
-      │             <cum_cache_read> <cum_output> <model>`)
-      │          2. Read the parent git argv (/proc/$PPID/cmdline on Linux,
-      │             sysctl(KERN_PROCARGS2) via lib/argv.py on macOS) to recover
-      │             the -m subject and parse the (#N) issue anchor
-      │          3. Read the session's prior cumulative from the git-dir
-      │             checkpoint (lib/ledger.py `checkpoint-get`, file
-      │             `governance-token-checkpoints.json`) and subtract from the
-      │             transcript total → per-commit delta. NOT scanned from the
-      │             receipts (issue #229): the delta never depends on which
-      │             sibling receipts are visible.
-      │          4. Compute Cost-Key, append the row (delta columns + the four
-      │             absolute `cum-*` coordinates) to `receipts/issue-<N>.md`
-      │             under `## Accounting` → `### Costs` (lib/ledger.py
-      │             `append-row`, creating the stub receipt if absent),
-      │             `git add` the receipt, compute the staged tree id with
-      │             `git write-tree`, write
-      │             `.git/governance-token-endpoints/<tree>.json` with the
-      │             sampled coordinate and cost-key, then advance the checkpoint
-      │             (`checkpoint-set`) to this commit's cumulative
-      │
-      ▼
-git snapshots the tree (the receipt row is already staged)
-      │
-      ▼
-commit-msg ──► check.sh: endpoint reconciliation. Detects the active runtime,
-               recomputes the staged tree id, reads the frozen endpoint, and
-               asserts the staged receipt row named by the endpoint's cost-key
-               has the same session + cum-* coordinate. Missing endpoint or
-               mismatch → fail. Also runs validate-dir for repo-wide
-               receipt-shape integrity.
-      │
-      ▼
-commit lands
+resolve <session-id> [<declared-path>]
+    → one line: `<input> <cache_create> <cache_read> <output> <model> <cost|-> <source>`
+    → exit 2 when it cannot resolve; the caller then records NOTHING.
+
+emit
+    ← the harness's own push payload on stdin (statusline / hook JSON).
+      Appends a `harness-feed` snapshot and refreshes the identity file.
+      Must be safe to call at high frequency.
 ```
 
-The ordering is load-bearing. `git add` during **pre-commit** lands in the
-tree git is about to snapshot; from any post-snapshot hook it would land in the
-*next* commit's index. A CI failure of the form `token ledger ... records
-cumulative ... but the transcript is at ...` means the pre-commit row write was
-skipped or failed.
+**Identity-pinned reads only.** The only things an adapter may open are: an
+explicitly passed declared path, a file whose *name contains the exact session
+id* under the harness's documented state dir, or a harness-declared local
+server. `ls -t`, `-mmin`, "the newest file" — forbidden, and deleted from every
+adapter that had them.
 
-The checkpoint and endpoint paths are resolved via `git rev-parse --git-path`
-(`governance-token-checkpoints.json` and
-`governance-token-endpoints/<tree>.json`) — that's deliberate. In a worktree
-`.git` is a pointer file, not a directory; hardcoding `$ROOT/.git/…` breaks
-silently.
-
-### Runtime detection
-
-`lib/runtime.sh` picks the runtime from environment, in order:
-
-| Signal | Runtime |
-|---|---|
-| `AGENT_NAME` set (any value) | `manual` — caller supplies `AGENT_SESSION_ID`, `AGENT_CUM_INPUT`, `AGENT_CUM_OUTPUT` |
-| `CLAUDECODE=1` | `claude-code` — reads `~/.claude/projects/<encoded-cwd>/*.jsonl` |
-| `CODEX_THREAD_ID` set | `codex` — reads `~/.codex/sessions/*.jsonl` |
-| none of the above | no agent runtime — the writer no-ops and the check passes |
-
-The issue anchor is parsed from the parent git's `-m` / `--message` argv, or
-can be supplied explicitly via `AGENT_ISSUE='#13'` (useful for editor-mode
-commits where argv has no `-m`).
-
-### Claude Code
-
-No setup beyond installing the hooks. `CLAUDECODE=1` is already exported to
-every Bash tool invocation, so `git commit -m "feat: x (#13)"` from an
-agent session Just Works.
-
-The reader at `runtimes/claude-code.sh` inside the directive folder:
-
-1. Finds the session JSONL under `~/.claude/projects/<encoded-cwd>/`, where
-   the encoding replaces every `/` and `.` in the absolute path with `-`.
-   Override with `CLAUDE_TRANSCRIPT_PATH` if needed.
-2. Reads `sessionId` from the first entry that has one.
-3. Sums every `assistant` entry's `.message.usage` fields into four
-   separate cumulative counters — `input_tokens`,
-   `cache_creation_input_tokens`, `cache_read_input_tokens`, and
-   `output_tokens`. Keeping them separate lets the ledger stay lossless.
-4. Tracks `.message.model` on every assistant entry; the latest non-empty,
-   non-`<synthetic>` value wins so mid-session `/model` switches propagate
-   forward. If nothing is seen, emits `unknown`, which `rates.py` can't price —
-   the pre-commit hook will block with a clear error. Export `AGENT_MODEL`.
-5. Prints `<session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output> <model>`.
-
-### Codex
-
-Same story — `CODEX_THREAD_ID` is already set in Codex sessions, so no
-wrapper is needed. The reader at `runtimes/codex.sh` inside the directive folder:
-
-1. Locates the transcript by searching recursively under
-   `~/.codex/sessions/` and `~/.codex/archived_sessions/` for a filename
-   containing `CODEX_THREAD_ID`, falling back to the most recently modified
-   `*.jsonl`. Override with `CODEX_TRANSCRIPT_PATH`.
-2. Derives the session id from `CODEX_THREAD_ID`, `session_meta.payload.id`,
-   or finally the transcript filename.
-3. Reads Codex Desktop's cumulative
-   `event_msg.payload.info.total_token_usage` records when present. For
-   OpenAI cached input, `cached_input_tokens` is a subset of `input_tokens`,
-   so the reader emits `input = input_tokens - cached_input_tokens`,
-   `cache_read = cached_input_tokens`, and `cache_create = 0`.
-4. Falls back to summing common API shapes — top-level `usage`,
-   `message.usage`, `response.usage`.
-5. Tracks `model` from `payload.model`, `collaboration_mode.settings.model`,
-   and the older fields. Defaults to `unknown` if none carry it.
-6. Prints `<session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output> <model>`.
-
-### Other runtimes
-
-Drop a reader at `runtimes/<name>.sh` inside the directive folder — its only
-job is to print
-`<session_id> <cum_input> <cum_cache_create> <cum_cache_read> <cum_output> <model>`
-on stdout (non-zero exit if it can't find a transcript), and add a branch
-to the detection block in `lib/runtime.sh`. Emit `0` for the two cache fields if
-the runtime doesn't expose them; emit `unknown` for `model` if the transcript
-doesn't surface one. `runtimes/codex.sh` is a ~60-line template.
-
-Until you do that:
-
-- A commit from an **unrecognised runtime no-ops** the endpoint check (no
-  transcript to reconcile against, so nothing to fail) — no waiver needed.
-- The **manual env path** still writes a real cost row from values you supply:
-  `AGENT_NAME=<name> AGENT_SESSION_ID=... AGENT_CUM_INPUT=... AGENT_CUM_OUTPUT=...
-  git commit`. `AGENT_CUM_CACHE_CREATE`, `AGENT_CUM_CACHE_READ`, and
-  `AGENT_MODEL` are optional. Use when you know the numbers.
-- For the rare legitimate out-of-hook commit (or an unrecoverable reconciliation
-  mismatch), a `governance: allow-agent-token-accounting <reason>` body waiver
-  (reason required) bypasses the endpoint check for that commit. Audit trail:
-  `git log --grep='allow-agent-token-accounting'`.
+An adapter may **sum** harness-reported numbers; it must never **price** them.
+Emit `0` for cache fields a harness doesn't expose, `-` for an unknown model,
+and `-` for `cost-usd` unless the harness reports a dollar figure of its own.
+A harness with no documented per-session usage surface (Cursor today) simply
+exits 2, and the row stays honestly `-` / `unresolved` — which is a true
+statement, not a gap.
 
 ## What gets enforced where
 
 All paths below are rooted at the installed directive folder
-`.governance/packs/<owner>/<repo>/directives/agent-token-accounting/`.
+`.governance/packs/<owner>/<pack>/directives/agent-token-accounting/`.
 
-| Layer | What it checks |
+| Layer | What it does |
 |---|---|
-| `lib/runtime.sh` | Runtime detection + the session's cumulative token coordinate. Sourced by both `hooks/pre-commit.sh` (the writer) and `check.sh` (the checker), so both read the same transcript-side value. Dispatches to `runtimes/<runtime>.sh`. |
-| `runtimes/<runtime>.sh` | Transcript discovery + 4-field token sum + model extraction for one specific runtime. Prints 6 space-separated values. |
-| `defaults.conf` | Pack-owned default rate card — one `rate <model> <base> <cache_create> <cache_read> <output>` row per model (per-MTok USD), same format as the user overlay. `governance pack update` refreshes it. Loaded by `lib/rates.py`. |
-| `lib/rates.py` | Per-MTok USD rate lookup + `compute_cost_usd(model, i, cc, cr, o)`. Loads the rate card from `defaults.conf` and merges the per-repo overlay over it (overrides win). Tolerant model lookup: lowercase, strip date suffix, longest-prefix match with family fallbacks. Unknown model → `None` → `rates cost` exits 3 → pre-commit blocks. |
-| `lib/ledger.py` | Stdlib-only library that owns the row schema: `LedgerRow`, `parse`, `append_row` (recomputes `new_work`, looks up `cost_usd`, writes the delta + `cum-*` columns, creating the stub if absent), `session_cum` (query helper), `find_by_cost_key`, and the CLI dispatch. Handles v4 (16) + legacy v3/v2/v1 shapes. |
-| `lib/endpoint.py` | Stdlib-only frozen-endpoint helper. The writer stores the sampled `session`, `cum-*`, `receipt`, and `cost_key` under `governance-token-endpoints/<tree>.json`; the checker verifies that the staged receipt row still matches it. |
-| `lib/validate.py` | Receipt validation (issue #229): per-row shape (v3 + v4), global cost-key uniqueness, and `validate_dir` (which also runs the cumulative checks from `reconcile.py`). `ledger.py` lazy-imports it. |
-| `lib/reconcile.py` | The cumulative concerns: the per-session **checkpoint** (`checkpoint_get`/`checkpoint_set`, a git-dir JSON the write path reads to derive the delta) and **reconciliation** (`reconcile_sessions` — per-session monotonicity over `cum-*`, plus `delta == cum(n) − cum(n−1)` against the true co-visible predecessor; pairs whose predecessor isn't in the tree are skipped). |
-| `lib/receipt_io.py` | Shared markdown section/table plumbing used by both `lib/ledger.py` and `lib/report.py`. |
-| `lib/report.py` | Aggregates the Accounting sections across `receipts/*.md` for per-issue and grand totals. Run: `python3 <dir>/report.py <receipts_dir> [--json]`. |
-| `hooks/pre-commit.sh` | Bash glue: sources `lib/runtime.sh` for detection + cumulative, parses the issue from parent argv, generates the cost-key. Shells out to `lib/ledger.py` for `checkpoint-get` (per-commit delta), `append-row` (delta + `cum-*` write + `git add`), `lib/endpoint.py` for the staged-tree frozen endpoint, and `checkpoint-set` (advance the checkpoint) — **all before** git snapshots the tree. Wired into `.githooks/pre-commit`. |
-| `check.sh` (commit-msg + CI) | Always runs `lib/ledger.py validate-dir` (repo-wide shape, global cost-key uniqueness, cumulative reconciliation / monotonicity). In Mode A (commit-msg), when a runtime is detected, additionally requires a frozen endpoint for the staged tree and verifies the staged receipt row matches it. Recognises one body waiver: `governance: allow-agent-token-accounting <reason>`. Mode B (CI) runs the receipt-shape check only — per-commit completeness is a write-time property; on the trunk the receipt is the record. |
+| `lib/runtime.sh` | The identity ladder (`detect_runtime_identity`), the adapter-registry resolver (`adapter_for`, `adapter_names`), and the kit-owned artifact paths (`identity_file`, `sidecar_dir`, `sidecar_file`, `sidecar_last`). Sourced by the check and all three hooks, so every path resolves identity identically. |
+| `lib/costs.sh` | The v6 row schema and the sidecar schema: header/separator constants, `costs_upsert_row` (one row per session, in place, keeping its original date), `costs_row` / `costs_row_snapshot` / `costs_session_keys` for lookups, `costs_snapshot_append` (append-only, deduplicated), and `costs_fold_snapshot` (the fold rule above). |
+| `lib/receipt.sh` | Markdown section/table plumbing: find the `## Accounting` → `### Costs` region, emit its data rows, splice a new row into the tail (creating file/section/sub-table as needed), sanitise a free-text cell, resolve `issue-N*.md`. |
+| `lib/validate.sh` | `costs_validate_dir` — the whole table validator in one POSIX-awk program: cell count, date shape, non-empty identity and model, integer-or-`-` token cells, decimal-or-`-` dollars, a `source` from the closed set, and one row per session per receipt. It never compares a number to anything. |
+| `lib/resolve.sh` | The sweep driver: enumerate every session this worktree knows about (identity file plus every sidecar), invoke each adapter's `resolve`, validate the shape of what comes back, and append the snapshot. Refuses malformed adapter output rather than recording it. |
+| `hooks/pre-commit.sh` | Stamp & fold, then `git add` the receipt — all before git snapshots the tree. Blocks only on structural impossibility (an agent runtime with no inferable issue anchor). Nothing about measurement can block anything. |
+| `hooks/post-commit.sh` | The resolve heartbeat. Silent, always exit 0. |
+| `hooks/pre-push.sh` | The resolver's last local chance. Never blocks a push; prints one line when a receipt row is behind its sidecar. |
+| `check.sh` (commit-msg + CI) | Mode A: identity truth for the staged tree, plus the repo-wide shape check. Mode B (CI): shape only — unresolved rows are explicitly allowed, because CI has no session state and demanding numbers there would only teach agents to invent them. Recognises one body waiver: `governance: allow-agent-token-accounting <reason>`. |
+| `defaults.conf` | Pack-owned. One knob — `COSTS_IDENTITY_MAX_AGE_HOURS` — plus the record of what this file deliberately does *not* contain (a rate card, a detection heuristic). |
+
+## Installing
+
+The directive ships as a self-contained folder under the `governance-kit/audit`
+pack. The `governance` skill copies it wholesale and the hook generator wires
+`hooks/pre-commit.sh`, `hooks/post-commit.sh` and `hooks/pre-push.sh` into the
+matching dispatchers and `check.sh` into `.githooks/commit-msg` automatically.
+Manual install is:
+
+```sh
+cp -r <governance-kit>/packs/audit/directives/agent-token-accounting \
+      .governance/packs/governance-kit/audit/directives/
+chmod +x .governance/packs/governance-kit/audit/directives/agent-token-accounting/check.sh \
+         .governance/packs/governance-kit/audit/directives/agent-token-accounting/hooks/*.sh
+```
+
+There is no ledger file to seed — rows live in per-issue receipts, and the
+pre-commit hook creates the receipt (an accounting-only stub with just an
+`## Accounting` section) on demand. **The whole directive is bash and POSIX
+awk** — commit path and resolver alike — so a consumer needs nothing but `bash`
+and `git`.
+
+Then add an `agent-token-accounting` Directives subsection to `CONSTITUTION.md`
+via the `governance` skill's `directive` verbs (the directive and the
+constitutional entry must land in one commit — that's the cardinal directive).
+
+### Wiring a harness emitter
+
+Nothing below is required: without it, a harness that exports environment
+variables is still identified, and its adapter's `resolve` still measures it.
+Wiring the harness's own hook or statusline to `bash
+.governance/runtimes/<harness>.sh emit` buys two things — identification for a
+harness that exports nothing, and live cost pushes between resolves. Because it
+edits *your* harness configuration rather than the repo, `governance install`
+offers it, records it in the install ledger, and reverses it on uninstall.
 
 ## What it doesn't try to do
 
-- **No authentication** of token counts. A wrapper that fabricates numbers will pass. That's a trust boundary — the directive makes tampering *visible* (git blame on the per-issue receipt), not impossible.
-- **No commit-message metadata.** The durable anchor is the per-issue receipt row, not the commit message; keeping the directive to files-in-the-repo avoids a hard coupling to GitHub / GitLab PR tooling and survives squash natively.
-- **No per-commit completeness for `--no-verify` commits.** With no transcript in CI to reconcile against, a hook-skipped commit's missing row can't be detected there; the absolute `cum-*` coordinates keep the session *total* honest regardless (the tokens roll into the next accounted commit's row).
-- **No invoice reconciliation.** `cost-usd` uses the rate card in `defaults.conf` — a commit-time estimate for prioritization; reconcile against the real invoice monthly.
-- **No 1-hour cache pricing.** The rate table assumes the 5-minute TTL.
+- **No authentication of the numbers.** A harness or wrapper that reports
+  fabricated figures will pass. That is a trust boundary: the directive makes
+  tampering *visible* (git blame on the per-issue receipt), not impossible.
+- **No commit-message metadata.** The durable anchor is the receipt row, not
+  the commit message; keeping the directive to files-in-the-repo avoids a hard
+  coupling to GitHub / GitLab PR tooling and survives squash natively.
+- **No per-commit attribution.** By design — see "Why the row is per session".
+  If you need to know which commit in a session was expensive, that question is
+  answered by the transcript, not by the ledger.
+- **No pricing, at all.** The kit ships no rate card, so it can't be stale,
+  can't be wrong about your negotiated rate, and can't block a commit over a
+  model it has never heard of.
+- **No invoice reconciliation.** Even a harness-reported figure is the
+  harness's view, not your bill. Reconcile against the real invoice on your own
+  cadence.
