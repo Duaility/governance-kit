@@ -41,13 +41,12 @@ from pathlib import Path
 from typing import Any
 
 from applylib import (
+    append_install_assets_seeded,
     bash_lib,
     dirty_gate,
     load_decisions,
-    pending_sweep_assets,
     refuse,
     regen_hooks_step,
-    seed_sweep_assets,
     smoke_test,
 )
 import digestlib
@@ -64,38 +63,6 @@ def _install_asset_rels(pack_dir: Path, did: str) -> list[str]:
     if not assets.is_dir():
         return []
     return ["/".join(p.relative_to(assets).parts) for p in sorted(assets.rglob("*")) if p.is_file()]
-
-
-def _append_install_assets_seeded(manifest_path: Path, rels: list[str]) -> None:
-    """Append newly-seeded asset paths to install.yaml's `install_assets_seeded`,
-    in place — the uninstall hard-mode ledger. Idempotent: existing entries are
-    not duplicated. Handles both the empty (`[]`) and block-list YAML forms."""
-    if not rels or not manifest_path.is_file():
-        return
-    lines = manifest_path.read_text().splitlines(keepends=True)
-    key_i = next((i for i, ln in enumerate(lines) if ln.startswith("install_assets_seeded:")), None)
-    existing: set[str] = set()
-    if key_i is not None:
-        for j in range(key_i + 1, len(lines)):
-            stripped = lines[j].lstrip()
-            if lines[j].startswith("  - ") or lines[j].startswith("- "):
-                existing.add(stripped[2:].strip())
-            elif stripped and not lines[j][0].isspace():
-                break
-    new = [r for r in rels if r not in existing]
-    if not new:
-        return
-    block = "".join(f"  - {r}\n" for r in (*sorted(existing), *new))
-    header = "install_assets_seeded:\n"
-    if key_i is None:
-        manifest_path.write_text("".join(lines) + header + block)
-        return
-    # Replace the key line + any existing list lines with the merged block.
-    end = key_i + 1
-    while end < len(lines) and (lines[end].startswith("  - ") or lines[end].startswith("- ")):
-        end += 1
-    lines[key_i:end] = [header + block]
-    manifest_path.write_text("".join(lines))
 
 
 def _lock_upsert(lockpath: Path, entry: dict[str, Any]) -> None:
@@ -127,10 +94,6 @@ def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str
     from docsurgery import upsert_directive_subsection
 
     manifest_path = root / ".governance" / "install.yaml"
-    # Directives actually installed this run (post-decisions), in plan shape, so
-    # the sweep-lane seeding below sees only what really landed — a held-back
-    # sweep directive must not pull in the workflow + engine.
-    applied_for_sweep: list[dict[str, Any]] = []
     # (directive-id, constitution.md text) for every directive installed this run,
     # upserted into CONSTITUTION.md after the loop so the live rulebook keeps an
     # entry for every directive that gained a test — the GDD invariant.
@@ -189,9 +152,8 @@ def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str
                 return 1
         if not installed_dids:
             continue
-        applied_for_sweep.append({"pack_dir": str(pack_dir), "directives": installed_dids})
         if not dry_run:
-            _append_install_assets_seeded(manifest_path, sorted(set(seeded)))
+            append_install_assets_seeded(manifest_path, sorted(set(seeded)))
         report["seeded_assets"].extend(sorted(set(seeded)))
         lock_entry = {
             "id": pack["id"], "version": pack["version"], "source": "gh",
@@ -208,19 +170,11 @@ def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str
             _lock_upsert(root / ".governance" / "packs.lock", lock_entry)
         report["lock"].append({"id": pack["id"], "sha": pack["sha"], "directives": sorted(installed_dids)})
 
-    # Sweep lane (issue #142, harness-pegged per #355): the workflow + at-rest
-    # driver are kit-level assets, seeded the moment a directive with a live
-    # sweep tier is installed — by init or, now, by pack add (the parity gap
-    # this fixes). Done once after the directive loop
-    # (the assets are kit-level, not per-pack) via the shared helper init uses,
-    # and recorded in the seeded ledger so `governance uninstall` reverses them.
-    if dry_run:
-        report["seeded_assets"].extend(pending_sweep_assets(root, applied_for_sweep))
-    else:
-        sweep_rels = seed_sweep_assets(root, applied_for_sweep, KIT_VERSION)
-        if sweep_rels:
-            _append_install_assets_seeded(manifest_path, sweep_rels)
-            report["seeded_assets"].extend(sweep_rels)
+    # No scheduled-lane workflow is seeded here (unlike the retired sweep
+    # lane, which vendored its workflow the moment a live-sweep directive was
+    # installed). A schedule lane is a consumer-defined artifact — created
+    # explicitly via `governance schedule` (packverb.py schedule-apply), never
+    # implied by which directives this pack add/update happened to install.
 
     # CONSTITUTION.md: upsert each installed directive's subsection so the live
     # rulebook gains (add) or refreshes (update) an entry for every directive that

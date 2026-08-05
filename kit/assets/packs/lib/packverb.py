@@ -468,6 +468,12 @@ def main(argv: list[str]) -> int:
     p.add_argument("query", nargs="?", default="")
     p.set_defaults(func=cmd_catalog_search)
 
+    # schedule-plan / schedule-apply / schedule-remove — `governance schedule
+    # {create,remove}` (scheduled triggers, replaces the retired sweep lane).
+    # Registered from schedulelib, same pattern as register_lifecycle below.
+    from schedulelib import register_schedule
+    register_schedule(sub)
+
     # The deterministic lifecycle plan/apply commands (pack / reset / uninstall;
     # init in a later phase) are registered from lifecycle_cli to keep this
     # module focused on the fetch/lockfile/capability plumbing they compose.

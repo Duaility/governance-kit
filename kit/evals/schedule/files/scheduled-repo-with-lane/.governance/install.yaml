@@ -1,0 +1,17 @@
+version: "3"
+generated_at: 2026-01-20T09:00:00Z
+owner: acme
+repo: scheduled-repo
+hook_strategy: githooks
+constitution: true
+ci_workflow: .github/workflows/governance.yml
+tests_dir: .governance
+agents_md_snippet: false
+agents_md_created: false
+install_assets_seeded:
+  - .github/workflows/governance-schedule-nightly.yml
+collisions: []
+managed_digests:
+  .github/workflows/governance-schedule-nightly.yml: b1aa1862b8eaa470493030ef534e9adbd79fbd026109f0c790dc560500609f30
+  .governance/lib.sh: 68d16dd51371238ef5f5367ef977de6382620582e6ee70cef19e32864346d2a9
+  .governance/run.sh: fb99eae951f1adc14d1a4a9a186c21930db2786b3208c94c7d9af382bd1048e5

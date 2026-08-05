@@ -46,7 +46,7 @@
 #      The `## Audit` section closes that gap by recording the verdict of a
 #      fresh-context sub-agent that DID read the two ground truths. check.sh
 #      enforces only that the section exists and carries a PASS/REFUTED verdict
-#      (it cannot verify the verdict is true — that is the merge-time sweep
+#      (it cannot verify the verdict is true — that is the scheduled
 #      lane, deliberately out of scope here). The violation message is the
 #      authoring instruction: the harness agent spawns the sub-agent, which
 #      writes the block; the hook never spawns anything itself. A bare commit
@@ -93,7 +93,7 @@
 # independent fresh-context sub-agent's adversarial verdict against the diff
 # and the issue — the author≠auditor split happening at author-time. The hook
 # guarantees the audit was *recorded*, not that its verdicts are *true*; a
-# merge-time re-audit (the sweep lane) is the deferred other half.
+# at-rest re-audit (the scheduled lane) is the deferred other half.
 set -u
 source "$(dirname "$0")/../../../../../lib.sh"
 directive_start "receipt-per-issue"

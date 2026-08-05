@@ -48,7 +48,7 @@ entirely: **the commit hook now makes no `claude -p` / network call.** The
 sub-agent is handed the session transcript, records every steering event as a
 row, and renders the verdict — the same fresh-context, author≠auditor split
 every attestation gives. Its verdict is independently re-derived at the high
-tier by the merge-time sweep lane.
+tier by the scheduled lane.
 
 ## What the directive enforces
 
@@ -198,6 +198,6 @@ the `## Steering` attestation gate over the branch's added receipts.
 
 ## Out of scope (deferred follow-ups)
 
-- Wiring the **sweep** consumer to re-derive the `## Steering` verdict at the
+- Wiring the **scheduled-lane** consumer to re-derive the `## Steering` verdict at the
   high tier from the same `judge:` declaration (the schema is designed for it).
 - Cross-session aggregation / dashboards.

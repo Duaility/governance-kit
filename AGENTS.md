@@ -76,7 +76,7 @@ governance-kit/
 │               ├── defaults.conf     # optional: pack-owned live defaults + their docs
 │               └── evals/test.sh     # pass/fail fixtures
 │   ├── references/              # INIT_FLOW.md, UNINSTALL_FLOW.md, RESET_FLOW.md,
-│   │                            #   DIRECTIVE_AMEND_FLOW.md, SWEEP_FLOW.md,
+│   │                            #   DIRECTIVE_AMEND_FLOW.md, SCHEDULE_FLOW.md,
 │   │                            #   VERBS.md, DIRECTIVE_VERBS.md, PACK_VERBS.md,
 │   │                            #   DIRECTIVES_CATALOG.md, PACK_AUTHORING.md, NATIVE_TESTS.md,
 │   │                            #   DIRECTIVE_AUTHORING.md, LIB_API.md,
@@ -111,14 +111,17 @@ Do not edit [CONSTITUTION.md](CONSTITUTION.md) by hand. Invoke the `governance` 
 Directives live inside **packs**, each at its own pack root. The kit ships four
 bundled concern packs — `governance-kit/{foundation,docs,commits,audit}`,
 each at `packs/<concern>/`. The kit also ships the off-commit-path,
-harness-pegged sweep lane (the `.governance/sweep.sh` driver + scheduled
-workflow, re-adjudicating a directive's `judge:` block at rest through a
-resolved judge command — that directive's own `cmd.sweep` override if it has
-one, otherwise the repo-level `GOVERNANCE_SWEEP_CMD` env — see
-[kit/references/SWEEP_FLOW.md](kit/references/SWEEP_FLOW.md)), but no longer
-bundles any sweep-only directives; those are authored in repo-local or
-community packs (this repo dogfoods them in its repo-local `duaility/governance-kit`
-pack). Community packs are authored in their own
+harness-pegged scheduled lane (the `.governance/schedule.sh` driver — a
+kit-managed runtime file present on every install, next to `run.sh`/`lib.sh`
+— plus the `governance schedule create` verb, which a repo uses to generate
+one named lane workflow per cadence, re-adjudicating a directive's `judge:`
+block at rest through a resolved judge command: that directive's own
+`cmd.schedule` override if it has one, otherwise the ephemeral
+`GOVERNANCE_JUDGE_CMD` env the lane's generated workflow exports — see
+[kit/references/SCHEDULE_FLOW.md](kit/references/SCHEDULE_FLOW.md)), but no
+longer bundles any schedule-only directives; those are authored in repo-local
+or community packs (this repo dogfoods them in its repo-local
+`duaility/governance-kit` pack). Community packs are authored in their own
 repos and consumed by target repos via `governance pack add gh:<owner>/<repo>`;
 they are not bundled here. Each directive is a self-contained folder — test,
 snippet, metadata, and eval all live together under `directives/<directive-id>/`.
@@ -200,7 +203,7 @@ Edits to source files flow to both runtimes live.
 - [kit/references/PACK_AUTHORING.md](kit/references/PACK_AUTHORING.md) — writing a third-party pack.
 - [kit/references/DIRECTIVE_AUTHORING.md](kit/references/DIRECTIVE_AUTHORING.md) — the craft guide for writing a good directive check.
 - [kit/references/LIB_API.md](kit/references/LIB_API.md) — the canonical `lib.sh` helper API every `check.sh` can call, and the version-floor obligation.
-- [kit/references/SWEEP_FLOW.md](kit/references/SWEEP_FLOW.md) — the off-commit-path, harness-pegged judge lane (a `judge:` block with no `section:` key, issues #142, #355).
+- [kit/references/SCHEDULE_FLOW.md](kit/references/SCHEDULE_FLOW.md) — the off-commit-path, harness-pegged judge lane (a `judge:` block with no `section:` key, issues #142, #355), consumer-defined into named lanes via `governance schedule`.
 - [kit/references/JUDGE.md](kit/references/JUDGE.md) — the shared judge declaration: a directive gates a section a fresh-context sub-agent must populate, via the remediation loop (issue #272).
 - [kit/references/NATIVE_TESTS.md](kit/references/NATIVE_TESTS.md) — porting bash directives to pytest / jest / go test, husky / pre-commit.com snippets.
 - [kit/references/VERSIONING.md](kit/references/VERSIONING.md) — the two version axes (kit vs pack), the semver policy, the tag scheme, and the release procedure.

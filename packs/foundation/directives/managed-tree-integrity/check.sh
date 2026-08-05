@@ -29,11 +29,28 @@ ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT" || exit 1
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
-# Seed-once sweep-lane assets (issue #259): exempt from the marker-vs-manifest
-# check below (issue #263) — see the header note in lib/digest.sh's sibling
-# comment and constitution.md for the rationale. The digest check still guards
+# Legacy seed-once sweep-lane assets (issue #259): exempt from the
+# marker-vs-manifest check below (issue #263) — see the header note in
+# lib/digest.sh's sibling comment and constitution.md for the rationale.
+# Consumers who haven't run `governance update` past the sweep→schedule
+# retirement still carry these exact paths. The digest check still guards
 # their content fully.
 SWEEP_ASSET_RELPATHS=".github/workflows/governance-sweep.yml .governance/sweep.sh"
+
+# Generated schedule-lane workflows (sweep-lane successor): each
+# `.github/workflows/governance-schedule-<lane>.yml` is stamped at
+# verb-run time (`governance schedule create`), not at kit-release time, so
+# its marker legitimately tracks the kit version current when the lane was
+# created/last regenerated rather than the manifest's pin — the same
+# seed-time rationale as the legacy sweep pair above (issue #263), applied
+# per-lane via a glob since the lane name is consumer-chosen. The digest
+# check still guards their content fully.
+_mti_is_schedule_workflow() {
+    case "$1" in
+        .github/workflows/governance-schedule-*.yml) return 0 ;;
+        *) return 1 ;;
+    esac
+}
 
 # Waived units (pack/directive ids or runtime relpaths) from the conf overlay,
 # layered on the (empty) pack default. The `${waived[@]+...}` expansion keeps
@@ -236,10 +253,12 @@ if [[ -f "$MANIFEST" ]]; then
             # kit-version-sync): a hand-edited manifest kit_version leaves the
             # files matching their recorded digests, so the digest alone can't
             # catch it — compare the file's stamped marker to the manifest's
-            # kit_version. Seed-once sweep assets are exempt (issue #263).
+            # kit_version. Legacy seed-once sweep assets and generated
+            # schedule-lane workflows are exempt (issue #263).
             case " $SWEEP_ASSET_RELPATHS " in
                 *" $rel "*) continue ;;
             esac
+            _mti_is_schedule_workflow "$rel" && continue
             mv="$(_mti_marker_version "$f")"
             if [[ -n "$kit_version" && -n "$mv" && "$mv" != "$kit_version" ]]; then
                 _mti_report "$rel" "$rel: stamped kit-version=$mv but install.yaml pins kit_version=$kit_version — half-applied update or an out-of-band version edit; re-run 'governance update'"

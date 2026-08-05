@@ -16,28 +16,40 @@ import kityaml
 
 
 HOOKS = {"pre-commit", "commit-msg", "prepare-commit-msg", "post-commit", "none"}
-# Sweep (issue #142, harness-pegged per #355) is no longer a `surface` value.
+# The scheduled lane (issue #142, harness-pegged per #355; renamed from
+# "sweep" by the scheduled-triggers redesign) is no longer a `surface` value.
 # There is exactly one semantic-judgment primitive — a rubric-framed model
 # judgment declared once in a directive's `judge:` block (see
 # JUDGE.md) and executed through a runtime adapter's `judge`
-# verb. "Sweep" is just that same declaration re-adjudicated off the commit
-# path by `.governance/sweep.sh`: no second engine, no vendor transport, no
-# `triage.sh` contract, no `engine:`/`model_tier:` scalar fields. A directive
-# opts into the sweep lane purely by carrying a `judge:` block whose
-# resolved sweep tier isn't `none`/`off` — validated below via `check.sh`
-# presence, not via a surface value.
+# verb. A scheduled run is just that same declaration re-adjudicated off the
+# commit path by `.governance/schedule.sh`: no second engine, no vendor
+# transport, no `triage.sh` contract, no `engine:`/`model_tier:` scalar
+# fields. A directive opts into the scheduled lane by carrying `schedule` in
+# its effective `triggers:` (see TRIGGER_VALUES below) — validated below via
+# `validate_triggers`, not via a surface value.
 SURFACES = {"repo-state", "change-set"}
 HOOK_STRATEGIES = {"githooks", "husky", "pre-commit"}
 PACK_FIELDS = ("id", "name", "version", "min_governance_kit", "description", "author")
 DIRECTIVE_FIELDS = ("category", "recommended", "summary", "surface", "hook")
 CAPABILITY_FIELDS = ("reads", "writes")
 
+# The optional `triggers:` field (scheduled-lane redesign, replaces the sweep
+# lane): a flow or block list naming every lane a directive's `check.sh`/
+# `judge:` runs under. Allowed values are the five git-hook kinds, `none`
+# (matches `hook: none`), and `schedule` (eligibility for the at-rest
+# scheduled lane, `.governance/schedule.sh`; see SCHEDULE_FLOW.md).
+# `TRIGGER_HOOK_VALUES` is the git-hook subset, used by the hook-consistency
+# rule in packvalidate.validate_triggers.
+TRIGGER_HOOK_VALUES = {"pre-commit", "commit-msg", "prepare-commit-msg", "post-commit", "pre-push"}
+TRIGGER_VALUES = TRIGGER_HOOK_VALUES | {"none", "schedule"}
+
 # Issue #355 (cmd collapse): a directive's `judge:` block names the judge
 # COMMAND directly instead of resolving it through a tier vocabulary. `cmd` is
 # an optional map with exactly these two lanes; anything else under `cmd` is
 # an error. There is no `tiers:` vocabulary anymore — it is a forbidden key
-# (v0, no deprecation lane), not merely unrecognized.
-JUDGE_CMD_LANES = {"attest", "sweep"}
+# (v0, no deprecation lane), not merely unrecognized. The `sweep` lane is
+# renamed `schedule` (the sweep lane's retirement, no compat alias — V0).
+JUDGE_CMD_LANES = {"attest", "schedule"}
 
 # Issue #355 amendment 3: `gate` is a three-valued scalar that now also
 # carries what used to be the separate `contest` boolean. `record` (default)

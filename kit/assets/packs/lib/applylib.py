@@ -18,26 +18,12 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
 
 LIB_DIR = Path(__file__).resolve().parent
 KIT_ASSETS = LIB_DIR.parents[1]  # kit/assets
-
-# The sweep lane's vendored assets (issue #142, harness-pegged per #355): kit-level
-# files laid down into a target repo whenever a directive declares a live sweep
-# tier. There is one judgment primitive — a `judge:` block re-adjudicated at
-# rest by a bash driver through the same runtime-adapter `judge` verb the commit
-# lane uses; no separate engine, no vendor transport, no keyword stub. Each value
-# is the path parts under KIT_ASSETS. This is the single source of truth, shared
-# by init-apply and pack-apply so the two install paths can never diverge — the
-# no-path-bifurcation invariant the sweep lane itself enforces.
-SWEEP_ASSETS = {
-    ".github/workflows/governance-sweep.yml": ("governance-sweep.yml",),
-    ".governance/sweep.sh": ("dot-governance", "sweep.sh"),
-}
 
 # The kit-level runtime adapter registry (issue #355). One file per harness at
 # `<tests_dir>/runtimes/<name>.sh`, answering the accounting lane's two verbs —
@@ -133,71 +119,73 @@ def bash_lib(script: str, *argv: str, lib_dir: Path | None = None) -> subprocess
     )
 
 
-def _participates_in_sweep(directive_yaml: Path) -> bool:
-    """True when this directive.yaml puts the directive in the sweep lane.
+def append_install_assets_seeded(manifest_path: Path, rels: list[str]) -> None:
+    """Append newly-seeded asset paths to install.yaml's `install_assets_seeded`,
+    in place — the uninstall hard-mode ledger. Idempotent: existing entries are
+    not duplicated. Handles both the empty (`[]`) and block-list YAML forms.
 
-    One way in (issue #355): the directive declares a `judge:` block at all.
-    Every judgment is re-adjudicated at rest — a sectionless declaration is
-    sweep-ONLY, and one with a `section:` is swept as well as attested — so a
-    repo that installs either needs the lane vendored. There is no per-
-    directive opt-out to read here: the retired `tiers:` map named a model
-    capability, and the judge command now comes from the directive's rare
-    `cmd.sweep` override or the repo-level `GOVERNANCE_SWEEP_CMD` knob, both
-    resolved by the driver at run time rather than at install time. Hand-rolled
-    line read, matching this module's stdlib-only discipline: the apply engines
-    never import a YAML parser.
+    Shared by every apply engine that lays down a kit-level managed asset
+    (pack-apply's install-assets, schedule-apply's generated workflow) so the
+    ledger format never drifts between callers (issue #172, and the scheduled-
+    lane redesign that replaced the sweep lane's seeding).
     """
-    for raw in directive_yaml.read_text().splitlines():
-        if raw.strip() == "judge:" and raw == raw.strip():
-            return True
-    return False
+    if not rels or not manifest_path.is_file():
+        return
+    lines = manifest_path.read_text().splitlines(keepends=True)
+    key_i = next((i for i, ln in enumerate(lines) if ln.startswith("install_assets_seeded:")), None)
+    existing: set[str] = set()
+    if key_i is not None:
+        for j in range(key_i + 1, len(lines)):
+            stripped = lines[j].lstrip()
+            if lines[j].startswith("  - ") or lines[j].startswith("- "):
+                existing.add(stripped[2:].strip())
+            elif stripped and not lines[j][0].isspace():
+                break
+    new = [r for r in rels if r not in existing]
+    if not new:
+        return
+    block = "".join(f"  - {r}\n" for r in (*sorted(existing), *new))
+    header = "install_assets_seeded:\n"
+    if key_i is None:
+        manifest_path.write_text("".join(lines) + header + block)
+        return
+    # Replace the key line + any existing list lines with the merged block.
+    end = key_i + 1
+    while end < len(lines) and (lines[end].startswith("  - ") or lines[end].startswith("- ")):
+        end += 1
+    lines[key_i:end] = [header + block]
+    manifest_path.write_text("".join(lines))
 
 
-def selects_sweep_directive(packs: list[dict[str, Any]]) -> bool:
-    """True if any directive in `packs` participates in the sweep lane — a
-    `judge:` declaration whose sweep tier is live (issues #142, #355).
-    `packs` entries carry `pack_dir` + a `directives` id list, the shape both
-    init-plan and pack-plan emit.
+def remove_install_assets_seeded(manifest_path: Path, rels: list[str]) -> None:
+    """Drop `rels` from install.yaml's `install_assets_seeded` list, in place.
+
+    The removal counterpart to `append_install_assets_seeded` — used by
+    `schedule-remove` to keep the ledger honest when a generated schedule
+    workflow is deleted. A no-op when the manifest or the key is absent, or
+    when none of `rels` are present.
     """
-    for pack in packs:
-        pack_dir = Path(pack["pack_dir"])
-        for did in pack.get("directives") or []:
-            y = pack_dir / "directives" / did / "directive.yaml"
-            if not y.is_file():
-                continue
-            if _participates_in_sweep(y):
-                return True
-    return False
-
-
-def pending_sweep_assets(root: Path, packs: list[dict[str, Any]]) -> list[str]:
-    """The sweep assets a live-sweep-tier install still needs to lay down — those
-    not already vendored. Empty when no sweep directive is selected, or when every
-    asset is already present (idempotent: a second sweep directive seeds nothing
-    new, and re-running over an existing lane is a no-op)."""
-    if not selects_sweep_directive(packs):
-        return []
-    return [rel for rel in SWEEP_ASSETS if not (root / rel).exists()]
-
-
-def seed_sweep_assets(root: Path, packs: list[dict[str, Any]], kit_version: str) -> list[str]:
-    """Lay down the sweep workflow + at-rest driver for a live-sweep-tier install,
-    stamped with `kit_version`, and return the rel paths actually seeded.
-
-    Shared by init-apply and pack-apply so the lane is vendored identically no
-    matter which verb installs the first sweep directive (issue #142). The caller
-    records the returned rels in install.yaml's `install_assets_seeded` ledger so
-    `governance uninstall` reverses them.
-    """
-    rels = pending_sweep_assets(root, packs)
-    for rel in rels:
-        dest = root / rel
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(KIT_ASSETS.joinpath(*SWEEP_ASSETS[rel]), dest)
-        bash_lib('stamp_managed_marker "$1" "$2"', str(dest), kit_version)
-        if dest.name == "sweep.sh":
-            dest.chmod(0o755)
-    return rels
+    if not rels or not manifest_path.is_file():
+        return
+    lines = manifest_path.read_text().splitlines(keepends=True)
+    key_i = next((i for i, ln in enumerate(lines) if ln.startswith("install_assets_seeded:")), None)
+    if key_i is None:
+        return
+    existing: list[str] = []
+    end = key_i + 1
+    while end < len(lines) and (lines[end].startswith("  - ") or lines[end].startswith("- ")):
+        stripped = lines[end].lstrip()
+        existing.append(stripped[2:].strip())
+        end += 1
+    remaining = [r for r in existing if r not in set(rels)]
+    if remaining == existing:
+        return
+    if remaining:
+        block = "install_assets_seeded:\n" + "".join(f"  - {r}\n" for r in remaining)
+        lines[key_i:end] = [block]
+    else:
+        lines[key_i:end] = ["install_assets_seeded: []\n"]
+    manifest_path.write_text("".join(lines))
 
 
 def hook_digests(root: Path, strategy: str) -> dict[str, str]:

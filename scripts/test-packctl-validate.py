@@ -328,9 +328,9 @@ def test_validate_pack_dir_requires_constitution_to_reference_check_path() -> No
 
 
 def test_validate_pack_dir_allows_missing_check_sh_for_section_absent_judge() -> None:
-    """issue #355 amendment 3: a sweep-only discovery directive declares a
+    """issue #355 amendment 3: a schedule-only discovery directive declares a
     `judge:` block with no `section:` — no commit-lane gate, judged only by
-    the at-rest sweep driver — and so ships no check.sh and no `surface:`
+    the at-rest scheduled driver — and so ships no check.sh and no `surface:`
     field at all (a surface describes commit-lane check semantics it doesn't
     have). Validation must allow both omissions, not flag them as missing."""
     pkt = load_packctl()
@@ -357,9 +357,9 @@ def test_validate_pack_dir_allows_missing_check_sh_for_section_absent_judge() ->
                           inputs: [range-diff]
                           checks:
                             - no shims anywhere in tracked source
-                          cmd: { sweep: "claude -p --output-format text --model opus" }
+                          cmd: { schedule: "claude -p --output-format text --model opus" }
                     """),
-                    "constitution_md": "judged only by the at-rest sweep driver, no check.sh",
+                    "constitution_md": "judged only by the at-rest scheduled driver, no check.sh",
                 },
             },
         )
@@ -400,6 +400,9 @@ def test_validate_pack_dir_flags_missing_check_sh_without_section_absent() -> No
         )
         errors = pkt.validate_pack_dir(pack)
         assert any("check.sh missing" in e for e in errors), "\n".join(errors)
+
+
+# ---- triggers (scheduled-lane redesign, issue #355) ------------------------
 
 
 def test_validate_pack_dir_flags_non_executable_check_sh() -> None:

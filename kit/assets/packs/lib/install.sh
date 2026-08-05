@@ -128,8 +128,9 @@ install_directive_folder() {
     mkdir -p "$(dirname "$dest")"
     copy_tree_without_evals "$src" "$dest"
     # A directive ships check.sh, the commit/CI-lane pass/fail test — except a
-    # sweep-only discovery directive (`judge.sink: none`, issue #355), which
-    # ships no executable at all: it is judged only by the at-rest sweep driver.
+    # schedule-only discovery directive (a `judge:` block with no `section:`,
+    # issue #355), which ships no executable at all: it is judged only by the
+    # at-rest scheduled driver (`.governance/schedule.sh`).
     # chmod it if it came across; its absence is not an error here (packctl.py
     # validates when it's required).
     [[ -f "$dest/check.sh" ]] && chmod +x "$dest/check.sh"

@@ -19,8 +19,7 @@
 set -u
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SKILL_DIR="$ROOT/governance"
-EVALS_ROOT="$SKILL_DIR/evals"
+EVALS_ROOT="$ROOT/kit/evals"
 
 OUT=""
 FORMAT="md"

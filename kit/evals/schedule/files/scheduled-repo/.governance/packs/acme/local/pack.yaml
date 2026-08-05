@@ -1,0 +1,5 @@
+id: acme/local
+version: "0.1"
+min_governance_kit: "0.2"
+description: Repo-local directives for scheduled-repo.
+author: acme
