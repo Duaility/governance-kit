@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# governance-kit:managed kit-version=0.12.0
+# governance-kit:managed kit-version=0.13.0
 # Shared helpers for governance directive tests.
 # Source this from every directive's check.sh. Packs always live two levels
 # deep, so directives at `.governance/packs/<owner>/<name>/directives/<id>/check.sh`
@@ -1481,12 +1481,12 @@ attestation_remediation() {
     done
 
     local rule=""
-    for ((i = 0; i < 40; i++)); do rule="$rule─"; done
+    for ((i = 0; i < 40; i++)); do rule="${rule}─"; done
 
     local out="" idx union seen ip label labels members fb fbs
     local -a parts=()
     out="$out$NL$rule$NL"
-    out="$out⚖ Sub-agent attestation(s) pending — populate each section below, then re-stage and re-commit.$NL"
+    out="${out}⚖ Sub-agent attestation(s) pending — populate each section below, then re-stage and re-commit.$NL"
 
     # One spawn per `group:` label, in first-seen order. The label is the whole
     # batching rule (issue #355): a group is one invocation, so every section
@@ -1582,7 +1582,7 @@ attestation_remediation() {
 
     for idx in $stalled_idx; do
         out="$out$NL"
-        out="$out⛔ STALLED — \`${R_RECEIPT[$idx]}\` '## ${R_SECTION[$idx]}': ${R_ROUNDS[$idx]} REFUTED round(s) against a ceiling of ${R_MAX[$idx]}. Do NOT spawn another adjudicator. Append one terminal round line — - [round N] ESCALATED lane=attest stamp=<12-hex> — <what remains disputed> — and surface the dispute to a human. The commit stays blocked until the underlying work changes.$NL"
+        out="${out}⛔ STALLED — \`${R_RECEIPT[$idx]}\` '## ${R_SECTION[$idx]}': ${R_ROUNDS[$idx]} REFUTED round(s) against a ceiling of ${R_MAX[$idx]}. Do NOT spawn another adjudicator. Append one terminal round line — - [round N] ESCALATED lane=attest stamp=<12-hex> — <what remains disputed> — and surface the dispute to a human. The commit stays blocked until the underlying work changes.$NL"
     done
 
     out="$out$NL"

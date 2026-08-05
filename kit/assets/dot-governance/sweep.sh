@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# governance-kit:managed kit-version=0.12.0
+# governance-kit:managed kit-version=0.13.0
 # .governance/sweep.sh — the at-rest half of the kit's ONE judgment primitive.
 #
 # The kit has exactly one semantic-judgment primitive: a rubric-framed model

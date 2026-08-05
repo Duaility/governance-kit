@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# governance-kit:managed kit-version=0.12.0
+# governance-kit:managed kit-version=0.13.0
 # Codex runtime adapter — one file per harness, two verbs
 # (issue #355 v2: identity at commit, measurement at rest).
 #

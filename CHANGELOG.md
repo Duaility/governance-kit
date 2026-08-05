@@ -22,6 +22,19 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [kit/v0.13.0] - 2026-08-05
+
+### Added
+- agent-adjudicated gates + native-cost accounting (#355) (#356)
+
+### Fixed
+- drop inert type-checker suppressions from lib (#346) (#347)
+- raise min_governance_kit floor to 0.12.0 for the subagent conf overlay (#343)
+
+### Changed
+- audit v0.8.0 → v0.8.1
+- audit v0.7.0 → v0.8.0
+
 ## [audit/v0.8.1] - 2026-07-02
 
 ### Fixed

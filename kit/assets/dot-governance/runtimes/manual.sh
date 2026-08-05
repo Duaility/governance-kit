@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# governance-kit:managed kit-version=0.12.0
+# governance-kit:managed kit-version=0.13.0
 # Manual runtime adapter — the environment seam, as a first-class adapter
 # (issue #355 v2: identity at commit, measurement at rest). Same two verbs
 # as every other adapter; the difference is that the "harness" it reads is a
