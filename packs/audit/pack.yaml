@@ -26,20 +26,19 @@
 
 id: governance-kit/audit
 name: Agent audit-chain governance directives
-version: "0.8.1"
-# Floor 0.12.0 (#343), and this line is DUE A RAISE (#355). This pack's
+version: "0.9.0"
+# Floor 0.13.0 (#355), raised from 0.12.0 (#343). This pack's
 # directives declare `judge:` blocks resolved by kit-owned lib.sh/sweep.sh —
 # `judge_attest`, the `cmd`/`group`/three-valued-`gate` schema, and the
-# group-batched remediation orchestrator. Those helpers do not ship to
-# consumers until the first kit release carrying #355, so the floor must move
-# to that version in the release commit that cuts it (a feature PR cannot
-# raise it: kit-version-consistency requires floor <= the current
-# kit.yaml version). Until then 0.12.0 is the honest last-shipped floor. It
-# supersedes the earlier 0.10.0 floor (#272/#319: `require_attestation`,
+# group-batched remediation orchestrator. Those helpers first shipped to
+# consumers in kit/v0.13.0, so this floor moved with the release commit; a
+# feature PR cannot raise it because kit-version-consistency requires floor
+# <= the current kit.yaml version. It supersedes the earlier 0.10.0 floor
+# (#272/#319: `require_attestation`,
 # `attestation_prompt`, `extract_md_section` first shipped in kit/v0.10.0).
 # The floor is always the first-shipped version, not the source line. See
 # kit/references/LIB_API.md.
-min_governance_kit: "0.12.0"
+min_governance_kit: "0.13.0"
 description: A trustworthy record of agent work — issue → receipt → commit → cost → steering, kept tamper-proof.
 author: governance-kit
 
