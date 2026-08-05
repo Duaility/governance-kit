@@ -10,4 +10,3 @@ judge:
     - "The issue or ticket referenced by a TODO/FIXME plausibly exists and concerns the deferred work described, not an arbitrary or fabricated-looking number."
     - "A TODO that describes work already completed in this change set is removed rather than left with a satisfied tracker reference."
     - "A waiver's reason genuinely explains why the TODO is a rare, intentional, permanent exception rather than routine cover for deferring real work."
-  group: bundled-intent

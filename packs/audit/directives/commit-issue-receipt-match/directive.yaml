@@ -11,4 +11,3 @@ judge:
     - "The receipt named by the commit is genuinely the issue the change belongs to, not an arbitrary unrelated receipt touched to pass the gate."
     - "When a commit's diff spans work for more than one issue, only one receipt's issue is the one this commit's substance actually belongs to."
     - "A commit that legitimately touches no receipt (a release, an unusual cross-cutting refactor) carries a waiver whose reason genuinely explains the exception, not a boilerplate string."
-  group: bundled-intent

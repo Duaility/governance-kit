@@ -12,4 +12,3 @@ judge:
     - "An entry added to the exemption conf genuinely reflects a unit mid-migration, not a permanent way to keep a hand-edit that should instead go through the install/update verb."
     - "No change under the managed tree looks like a hand-authored edit to a vendored directive's logic dressed up as a legitimate update-verb sync."
     - "A change to the pack lock or install manifest's recorded digests corresponds to an actual pack-update / kit-update run, not a manually recomputed digest pasted in to match a hand-edited file."
-  group: bundled-intent

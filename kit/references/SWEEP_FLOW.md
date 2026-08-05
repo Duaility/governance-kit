@@ -99,10 +99,11 @@ alongside its mechanical `check.sh` — the two are not alternatives.
 rubric names the *intent* behind the rule that a grep structurally cannot see
 (whether a waiver's reason is genuine, whether a suppression's scope is
 proportionate, whether a commit subject honestly names what it did) and hands
-it to the sweep lane. A single sweep run batches every participating bundled
-directive that shares a `group` label into one judge call, so auditing the
-full bundled set (when it shares a group) costs one judge call per swept
-range, not one per directive. Repo-local and community packs still author
+it to the sweep lane. Bundled directives declare no `group` label (see
+[JUDGE.md](JUDGE.md)), so a sweep run costs one judge call per participating
+bundled directive — each reading the range with only its own rubric in
+context. A repo that would rather pay one call for the set labels them itself,
+in a pack it owns. Repo-local and community packs still author
 standalone discovery directives the same way — a `judge:` block with no
 `section:` and no `check.sh` at all — for invariants that have no mechanical
 half whatsoever.
@@ -208,8 +209,8 @@ For `sweep.sh run`, the swept range resolves in order:
    every member of a group must **resolve** to the identical sweep command —
    a group whose declared `cmd` rows disagree is a `packctl` validation error
    at author time, and if members resolve to different commands anyway (only
-   reachable through a mix of per-directive overrides, since the bundled set
-   shares one `GOVERNANCE_SWEEP_CMD` resolution by construction), the driver
+   reachable through a mix of per-directive overrides — a group is never
+   bundled-only, since bundled packs declare no label), the driver
    refuses to split it: the whole group is reported un-adjudicated with one
    honest line rather than silently invoking a subset. Findings route to the
    digest, tagged by directive.

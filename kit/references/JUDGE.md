@@ -58,7 +58,7 @@ judge:
     - "'## What changed' faithfully describes the diff"
     - "each '- [x]' item is realized in the diff"
     - "the '## Checklist' mirrors the issue's checklist"
-  group:   bundled-intent            # optional repo-global label; absent = solo invocation
+  # group: <label>                   # optional batching label; bundled packs ship none (below)
   section: Audit                     # the receipt section the verdict lands in — presence of this key is what puts the directive on the attest lane
   gate:    record                    # record (default) | verdict | verdict-contestable
 ```
@@ -104,9 +104,20 @@ instead.
   group whose declared `cmd` rows disagree at validation time, and the sweep
   driver refuses to split a group whose members resolve to different commands
   at runtime, reporting the whole group un-adjudicated with one honest line
-  rather than silently invoking a subset. Bundled directives carry no `cmd`,
-  so a bundled group only becomes reachable-mismatched through an operator
-  override.
+  rather than silently invoking a subset.
+
+  **Bundled packs declare no `group`** — for the same reason they declare no
+  `cmd`. Batching is not part of what a directive means; it is a trade of
+  fidelity for tokens, and which side of that trade a repo wants is the
+  repo's call, not a pack author's. A shipped label is worse than a shipped
+  command, in fact: a consumer can override `cmd` through the directive
+  override flow, but the vendored tree is digest-guarded, so a shipped
+  `group` cannot be unshipped. So every kit-bundled judgment is adjudicated
+  solo, and the field is for packs whose author *is* the repo owner —
+  repo-local packs, and community packs a repo adopts eyes-open. (A repo-level
+  knob to batch bundled directives would be the right shape if one is ever
+  wanted; it does not exist, and inventing it before anyone asks would just be
+  the presumption re-introduced one layer down.)
 - **`section`** — the `## <Section>` the verdict is written into. Its
   presence is what puts a declaration on the **attest** lane at all — there is
   no separate field for this. A declaration that carries `section:` attests
@@ -367,14 +378,16 @@ from the instruction:
   asked for each verdict, demuxed by `DIRECTIVE:`-tagged blocks), plus one solo
   sub-agent per section that declares no `group`.
 
-Worst case (no directive declares a `group`) = one spawn per section, as
-before. Best case (every attested section sharing one `group`) = **one spawn
-per commit** — a newly added receipt that owes `## Audit`, `## Layer
-boundaries`, and `## Steering` is filled by one sub-agent.
-The critical author≠auditor independence (the auditor is always a fresh context,
-never the harness) is preserved in every case; only *inter-attestation*
-independence is traded by batching, which a directive opts out of by declaring
-no `group`.
+With no `group` anywhere — the bundled default — that is one spawn per
+section: a newly added receipt owing `## Audit`, `## Layer boundaries`, and
+`## Steering` costs three sub-agents, each reading the diff with nothing else
+in its context. Labelling all three into one group costs one sub-agent and one
+diff read instead. The critical author≠auditor independence (the auditor is
+always a fresh context, never the harness) holds either way; what batching
+trades is *inter-attestation* independence — fourteen prior PASSes make the
+fifteenth cheaper to wave through, and one malformed response loses the whole
+group rather than one verdict. That is why the default is solo and the label
+is opt-in.
 
 ## Judges: who renders the verdict (issue #355, Phase 3)
 

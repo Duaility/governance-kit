@@ -216,7 +216,7 @@ require_attestation() {
 #     checks:
 #       - "every '- [x]' item is realized in the diff"
 #       - "the '## Checklist' mirrors the issue's checklist"
-#     group:   bundled-intent           # optional batching label (issue #355)
+#     # group: <label>                  # optional batching label; bundled packs ship none
 #     section: Audit                    # the receipt section the verdict lands in
 #     cmd:                              # WHO judges, per lane (issue #355)
 #       sweep: claude -p --output-format text --model opus

@@ -5,14 +5,13 @@ summary: Every tracked receipts/*.md has a unique issue-<N> filename token, incl
 surface: repo-state
 hook: pre-commit
 # Sub-agent judgment (issue #325): the `## Audit` section is a fresh-context
-# sub-agent attestation. Declared once here; check.sh gates it via judge_attest
-# and the shared orchestrator batches it with any other `group: bundled-intent`
-# attestation pending on the same commit.
+# sub-agent attestation. Declared once here; check.sh gates it via judge_attest.
+# No `group:` — a bundled pack does not presume a consumer's batching economics,
+# so this is adjudicated solo unless the repo says otherwise.
 judge:
   inputs:  [diff, receipt, issue]
   checks:
     - "'## What changed' faithfully describes the diff (no misrepresentation, no omission)"
     - "each '- [x]' item is realized in the diff"
     - "the '## Checklist' mirrors the issue's checklist"
-  group: bundled-intent
   section: Audit

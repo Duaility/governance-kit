@@ -16,4 +16,3 @@ judge:
     - "Row values (session, harness, model) are consistent with what the environment actually indicates for the accounting change, not copied from an unrelated session."
     - "No `cost-usd` or token cell reads as a suspiciously exact or invented figure the harness could not plausibly have reported."
     - "Rows for one session do not multiply into per-commit duplicates or otherwise misrepresent one session's spend as more than one."
-  group: bundled-intent

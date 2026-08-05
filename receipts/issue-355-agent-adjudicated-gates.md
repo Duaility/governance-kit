@@ -16,6 +16,7 @@ Closes [#355](https://github.com/Duaility/governance-kit/issues/355).
 - [x] Declare every bundled directive's intent as a sweep-lane rubric — 13 judge blocks beside their untouched `check.sh`
 - [x] Collapse judge selection to a directly-named command; strip it from bundled packs in favor of one repo-level knob
 - [x] Reduce the declaration vocabulary to what earns its place — delete `tiers`, `isolation`, `sink`, `contest`; rename the block to `judge:`
+- [x] Strip the `group:` label from bundled packs — batching is the consuming repo's trade, not a pack author's
 
 ## What changed
 
@@ -447,12 +448,26 @@ snippets, and the regenerated `docs/reference/*` pages.
   land while the receipt is still editable, and its exit status is ignored
   even then.
 - **Every bundled directive declares its intent; none pays for it at commit.**
-  The rubric lane composes with the mechanical gate instead of replacing it:
-  `check.sh` + `subagent: { sink: none }` means the grep still gates the
+  The rubric lane composes with the mechanical gate instead of replacing it: a
+  `check.sh` plus a sectionless `judge:` block means the grep still gates the
   commit and the model judges the spirit at rest. Sweep-only was chosen over
   attest sections deliberately — 13 new per-commit attestations would be
-  receipt noise and sub-agent cost with no gate to serve — and shared-
-  isolation batching prices the entire bundled set at one judge call per run.
+  receipt noise and sub-agent cost with no gate to serve.
+- **A bundled pack declares no `group` either.** The label first shipped on all
+  15 bundled judge blocks as `bundled-intent`, batching the set into one judge
+  call. That is the same presumption Amendment 2 removed from `cmd`, and worse:
+  `cmd` a consumer can override through the directive flow, but the vendored
+  tree is digest-guarded, so a shipped label cannot be unshipped. Batching is
+  also a real fidelity trade — one judge holding ~50 checks against one diff
+  gives each less scrutiny, prior PASSes make the next cheaper to wave through,
+  and a single malformed response loses every verdict in the group instead of
+  one. The economics that justified it are weakest where it was applied: 15 of
+  the 16 blocks are sweep-only, and the sweep is a scheduled off-commit-path
+  job, not a hook. So bundled judgments are adjudicated solo; `group` stays in
+  the schema for packs whose author is the repo owner (this repo's own
+  `kit-architecture` pair). No repo-level batching knob was invented to
+  compensate — that would be the same presumption one layer down, and nobody
+  has asked for it.
 
 ## Verification
 
@@ -476,6 +491,8 @@ Results:
 - Declare every bundled directive's intent as a sweep-lane rubric — 13 judge blocks beside their untouched `check.sh` — done; every edited directive.yaml parses under the repo's own `kityaml` with 3–5 checks, `bash scripts/test-packs.sh` stays green (3 packs, 15 directives, 15 evals), `python3 scripts/test-packctl-validate.py` 14/14, and the rubric edits themselves touch `directive.yaml` only — no `check.sh`/`constitution.md`/`defaults.conf`/eval was modified for a rubric's sake, so the mechanical gates are untouched by construction. Two of the 13 folders do show other files in a per-folder `git diff --stat` against `origin/main`, from unrelated work in this same change set: `agent-token-accounting` (Track B) and `managed-tree-integrity` (Q11).
 - Collapse judge selection to a directly-named command; strip it from bundled packs in favor of one repo-level knob — done; `bash scripts/test-sweep.sh` is green at 103 assertions covering the resolution ladder end to end (a directive with no `cmd` judged via `GOVERNANCE_SWEEP_CMD`; a per-directive `cmd.sweep` overriding a deliberately broken knob; neither set → honest skip; missing binary → un-adjudicated), `grep -rn 'cmd:' packs/*/directives/*/directive.yaml .governance/packs/duaility/governance-kit/directives/*/directive.yaml` returns nothing (no bundled pack names a harness), and `scripts/test-subagent.sh` (159 assertions) pins the commit-lane arm: a shell-string `cmd.attest` judged inline, any failure degrading to the harness sub-agent path with a `+fallback`-marked ledger row.
 - Reduce the declaration vocabulary to what earns its place — delete `tiers`, `isolation`, `sink`, `contest`; rename the block to `judge:` — done; `packvalidate.py` rejects all four retired keys with a message naming the replacement, and `python3 scripts/test-packctl-subagent.py` (20 fixtures) + `test-packctl-validate.py` (14) pin them alongside the three `gate` values, an unknown gate value, gate-without-section, and the section-absent exemptions (no `check.sh`, no `surface:` required). `grep -rn '^judge:' ` over every shipped `directive.yaml` shows 18 blocks and `grep -rn '_subagent\|subagent_attest\|SUBAGENT_'` over `kit/ packs/ scripts/` returns only past-tense mentions inside `SWEEP_FLOW.md`'s "what was deleted" section. `node scripts/docs-site/gen-reference.mjs --check` confirms the generated Reference pages match the renamed sources.
+
+- Strip the `group:` label from bundled packs — batching is the consuming repo's trade, not a pack author's — done; `grep -rn '^  group:' packs/` returns nothing across all three bundled packs, and the one repo-local directive whose batch partner was bundled (`layer-boundaries`, formerly grouped with `receipt-per-issue`'s `## Audit`) drops its label too, leaving `kit-architecture` as the only live group in the tree. The mechanism itself is untouched and still pinned: `scripts/test-sweep.sh` and `scripts/test-subagent.sh` exercise batching, mixed-command group refusal, and `DIRECTIVE:` demux against synthetic fixtures that declare their own labels, so removing the bundled labels changed no test outcome — `bash scripts/test.sh`, `bash .governance/run.sh` (19/19), and `node scripts/docs-site/gen-reference.mjs --check` are all green.
 
 `bash scripts/test.sh` → "✓ all kit-internal test layers passed" on the final
 integrated tree.
@@ -706,6 +723,7 @@ Every path touched by this change set (excluding this receipt):
 | claude-code-1419af64-024-1785856478-1 | claude-code | 1419af64-024c-4b9a-97ec-a471fe4c95b5 | #355 | claude-opus-5 | 374 | 1936919 | 31016482 | 347369 | 2284662 | 36.3001 | 650 | 2685630 | 56065985 | 725853 | feat(audit): identity at commit, measurement at rest (#355) -m Reworks this PR's |
 | claude-code-1419af64-024-1785870384-1 | claude-code | 1419af64-024c-4b9a-97ec-a471fe4c95b5 | #355 | claude-opus-5 | 2659 | 10042140 | 156774292 | 1670968 | 11715767 | 182.9380 | 3309 | 12727770 | 212840277 | 2396821 |  |
 | claude-code-1419af64-024-1785870556-1 | claude-code | 1419af64-024c-4b9a-97ec-a471fe4c95b5 | #355 | claude-opus-5 | 10 | 12448 | 1339529 | 3465 | 15923 | 0.8342 | 3319 | 12740218 | 214179806 | 2400286 |  |
+| claude-code-1419af64-024-1785899162-1 | claude-code | 1419af64-024c-4b9a-97ec-a471fe4c95b5 | #355 | claude-opus-5 | 152 | 154986 | 8491116 | 31174 | 186312 | 5.9943 | 3471 | 12895204 | 222670922 | 2431460 | refactor(kit): bundled packs declare no batching label (#355)Strip `group: bundl |
 
 ### Steering
 

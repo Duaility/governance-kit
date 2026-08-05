@@ -13,4 +13,3 @@ judge:
     - "README.md's heading and prose genuinely describe what the project is and does, not padding added only to clear the word-count floor."
     - "SECURITY.md's contact or disclosure channel is a real, usable channel, not a placeholder address."
     - "A per-sub-check waiver's reason genuinely explains why the repo doesn't need that document, not boilerplate to bypass required-docs wholesale."
-  group: bundled-intent
