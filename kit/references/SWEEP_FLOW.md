@@ -14,8 +14,9 @@ scheduled workflow, or an opt-in push-time hook) and re-adjudicates the same
 rubric a directive already declares for its commit-time attestation, through
 a resolved sweep judge command — typically a stronger, more expensive judge
 than the attest lane's default. No bundled directive fixes that command
-itself; it comes from the repo-level `GOVERNANCE_SWEEP_CMD` env unless one
-directive genuinely overrides it (see
+itself; it comes from the committed `SWEEP_CMD=` row in
+`.governance/conf/repo.conf`, or the ephemeral `GOVERNANCE_SWEEP_CMD` env,
+unless one directive genuinely overrides it (see
 [Judge resolution](#judge-resolution-per-directive-not-per-driver) below).
 Findings enter the repo through the same door as human corrections:
 **issue → agent → PR**.
@@ -38,7 +39,8 @@ sweep are two **moments** of that one judgment, not two features:
 - **sweep** (at rest) — the same declaration re-adjudicated off the commit
   path by `sweep.sh`, a driver that reuses the *same* `lib.sh` prompt builder
   and judges through a resolved sweep command — the directive's own
-  `cmd.sweep` (rare) or the repo-level `GOVERNANCE_SWEEP_CMD` env — a shell
+  `cmd.sweep` (rare), else the ephemeral `GOVERNANCE_SWEEP_CMD` env, else the
+  committed `SWEEP_CMD=` row in `.governance/conf/repo.conf` — a shell
   command string only; there is no live session at rest for a `harness`
   judge to spawn into.
 
@@ -74,7 +76,8 @@ promoting a purely-discovery directive to a gate is a separate, later decision.
 A sweep directive is not a separate contract with its own folder shape. It is
 a directive that carries a `judge:` block whose sweep judge resolves to a
 non-empty command — either its own `cmd.sweep` row (rare) or, the norm for
-every bundled directive, the repo-level `GOVERNANCE_SWEEP_CMD` env — see
+every bundled directive, the ephemeral `GOVERNANCE_SWEEP_CMD` env or the
+committed `SWEEP_CMD=` row in `.governance/conf/repo.conf` — see
 [JUDGE.md](JUDGE.md) for the full field set
 (`inputs`, `checks`, `group`, `section`, `gate`, `cmd`).
 Two shapes matter here; both are ordinary `judge:` declarations,
@@ -103,24 +106,24 @@ it to the sweep lane. Bundled directives declare no `group` default (see
 [JUDGE.md](JUDGE.md)), so a sweep run costs one judge call per participating
 bundled directive — each reading the range with only its own rubric in
 context — unless the repo has opted into batching. `group` resolves per
-directive through the same operator conf ladder as `JUDGE_ROUNDS` — env
-`GOVERNANCE_JUDGE_GROUP` (repo-global, lumps every judge-declaring directive
-into one group) > a `JUDGE_GROUP=` row in the consumer's own
-`.governance/conf/<owner>/<pack>/<id>.conf` overlay > a pack's
-`defaults.conf` row > the `directive.yaml` value > solo — with a resolved `-`
-forcing solo even over a declared label. A repo that would rather pay one
-call for the set labels them itself via that overlay, no pack ownership
-required; full resolution rules and the `-` sentinel are in
-[JUDGE.md](JUDGE.md). Repo-local and community packs still author
+directive from the committed, repo-level batching partition in
+`.governance/conf/repo.conf` — `judge-group <label> <member>...` /
+`judge-solo <member>...` lines, `judge-solo` beating `judge-group` beating a
+directive's own declared `judge.group` beating solo. A repo that would
+rather pay one call for a set of directives names them in one `judge-group`
+line, no pack ownership required; full field grammar, member-token matching,
+and the double-membership warn-and-degrade rule are in [JUDGE.md](JUDGE.md).
+Repo-local and community packs still author
 standalone discovery directives the same way — a `judge:` block with no
 `section:` and no `check.sh` at all — for invariants that have no mechanical
 half whatsoever.
 
 Declaring no `cmd.sweep` row does **not**, by itself, opt a directive out of
-the sweep lane — the repo-level `GOVERNANCE_SWEEP_CMD` env still supplies the
-judge, and this is the default posture for every bundled directive. A
-directive is swept whenever *either* rung of the resolution ladder yields a
-command; it is skipped for a given run only when both are absent (see
+the sweep lane — the `GOVERNANCE_SWEEP_CMD` env or the committed `SWEEP_CMD=`
+row in `.governance/conf/repo.conf` still supplies the judge, and this is the
+default posture for every bundled directive. A directive is swept whenever
+*any* rung of the resolution ladder yields a command; it is skipped for a
+given run only when every rung is absent (see
 [Judge resolution](#judge-resolution-per-directive-not-per-driver) below). It
 still attests at commit time regardless (if it declares a `cmd.attest` or
 defaults to `harness`). There is no separate authoring format, no parallel
@@ -144,31 +147,40 @@ one honest line and exits 0.
 
 There is no driver-level adapter to pick — the old resolution ladder (env
 override, live-harness detection, `can-judge` probing) is gone. What replaces
-it is a short, two-step ladder the driver runs **per directive** — not the
-old per-driver adapter selection, and there is nothing left to auto-detect:
+it is a short, four-rung ladder the driver runs **per directive** — not the
+old per-driver adapter selection, and there is nothing left to auto-detect.
+One sentence covers the shape: within the repo layer, the file
+(`.governance/conf/repo.conf`) is the committed truth and the env is the
+ephemeral override; the author's `cmd.sweep` floor beats both.
 
 1. **The directive's own `cmd.sweep`.** A rare per-directive override
    (`_judge_cmd_resolve <yaml> sweep`). No bundled `governance-kit/*`
    directive declares one — bundled directives carry no `cmd` row at all.
-2. **The repo-level `GOVERNANCE_SWEEP_CMD` env.** The judge for every
-   directive that resolved nothing in step 1 — this is how a bundled pack is
-   judged in practice. The scheduled sweep workflow sets it from a gated
-   repository variable before invoking `sweep.sh run`; the opt-in pre-push
+2. **The ephemeral `GOVERNANCE_SWEEP_CMD` env.** A one-shot override for the
+   run — a CI secret, a developer's own shell.
+3. **The committed `SWEEP_CMD=` row in `.governance/conf/repo.conf`.** The
+   repo's own standing choice of judge — this is how a bundled pack is judged
+   in practice once a repo has written the row. The scheduled sweep workflow
+   also sets `GOVERNANCE_SWEEP_CMD` from a gated repository variable before
+   invoking `sweep.sh run` (rung 2, above this rung); the opt-in pre-push
    hook (below) inherits whatever the developer's own shell environment has,
-   which is usually unset.
+   which is usually unset, so the `repo.conf` row is what carries the
+   command on that path.
+4. **Skip, honestly.** Nothing resolved at any rung.
 
-Neither step resolving leaves the directive with no judge:
+No rung resolving leaves the directive with no judge:
 
-- **No `cmd.sweep` and no `GOVERNANCE_SWEEP_CMD`** — the directive is skipped
-  with one log line for this run. Not an error, and not a fallback to some
-  other command.
+- **No `cmd.sweep`, no `GOVERNANCE_SWEEP_CMD`, and no `SWEEP_CMD=` row** —
+  the directive is skipped with one log line for this run, naming both the
+  env and the `repo.conf` row as the ways to supply a judge. Not an error,
+  and not a fallback to some other command.
 - **The first word of the resolved command missing from `PATH`**, or the
   judge process failing or answering something unparseable, leaves that
   directive un-adjudicated for this run (honest stderr line, retried on the
   next run) — never a downgraded or guessed verdict.
 - A batched `group` (see below) runs its members' shared *resolved* command
   exactly once for the whole batch — every member must resolve to the same
-  command, whether that resolution came from step 1 or step 2.
+  command, whether that resolution came from rung 1, 2, or 3.
 
 ### Range resolution
 
@@ -190,11 +202,11 @@ For `sweep.sh run`, the swept range resolves in order:
 1. **Discover participating directives** — every `directive.yaml` under the
    installed pack tree (or the source tree, for this repo's own dogfood
    loop) carrying a `judge:` block whose sweep judge resolves to a
-   non-empty shell string through the two-step ladder above (that
-   directive's own `cmd.sweep`, else `GOVERNANCE_SWEEP_CMD`). With the
-   bundled packs' directives declaring no `cmd`, this step resolves them all
-   to `GOVERNANCE_SWEEP_CMD` in practice, or drops them for the run when that
-   env is unset.
+   non-empty shell string through the four-rung ladder above (that
+   directive's own `cmd.sweep`, else `GOVERNANCE_SWEEP_CMD`, else the
+   `repo.conf` `SWEEP_CMD=` row). With the bundled packs' directives
+   declaring no `cmd`, this step resolves them all to whichever of the env or
+   the `repo.conf` row answers, or drops them for the run when neither does.
 2. **Attestation-backed directives** (`section:` present): for every
    `receipts/*.md` touched in the range, skip a receipt that already exists on
    trunk (`GOVERNANCE_SWEEP_TRUNK`, or the first resolvable of `origin/HEAD`,
@@ -208,23 +220,25 @@ For `sweep.sh run`, the swept range resolves in order:
    helpers the commit path uses — without staging or committing anything; the
    next real commit picks the round up.
 3. **Discovery directives** (`section:` absent): the `group` label a directive
-   resolves (declared in `directive.yaml`, or overridden through the operator
-   conf ladder — see [JUDGE.md](JUDGE.md)) batches
-   every directive resolving to that same label into **one** judge call against the
-   whole range diff (the `range-diff` input, fenced and size-capped) — a
-   one-member group degrades to a plain single-directive call, so the
-   unbatched prompt and answer grammar are unchanged. A directive resolving no
-   `group` gets its own solo call. Batching keys on the resolved `group`
-   label, and every member of a group must **resolve** to the identical sweep
-   command — a group whose declared `cmd` rows disagree is a `packctl`
-   validation error at author time, but that check only sees `directive.yaml`,
-   not conf overlays: a group assembled by a `JUDGE_GROUP` overlay row or a
-   repo-wide `GOVERNANCE_JUDGE_GROUP` lump (which can now pull bundled
-   directives into a group they shipped with no label at all) is invisible to
-   `packctl` and can only be caught at runtime. If its members resolve to
+   resolves (from `.governance/conf/repo.conf`'s `judge-group` / `judge-solo`
+   partition, falling back to `directive.yaml`'s own declared default — see
+   [JUDGE.md](JUDGE.md)) batches every directive resolving to that same label
+   into **one** judge call against the whole range diff (the `range-diff`
+   input, fenced and size-capped) — a one-member group degrades to a plain
+   single-directive call, so the unbatched prompt and answer grammar are
+   unchanged. A directive resolving no `group` gets its own solo call.
+   Batching keys on the resolved `group` label, and every member of a group
+   must **resolve** to the identical sweep command — a group whose declared
+   `cmd` rows disagree is a `packctl` validation error at author time, but
+   that check only sees `directive.yaml`, not `repo.conf`: a group assembled
+   by a `judge-group` line (which can pull bundled directives into a group
+   they shipped with no label at all) is invisible to `packctl` and can only
+   be caught at runtime. If its members resolve to
    different sweep commands anyway, the driver refuses to split it: the whole
    group is reported un-adjudicated with one honest line rather than silently
-   invoking a subset. Findings route to the digest, tagged by directive.
+   invoking a subset. A directive named by `judge-group` lines carrying
+   different labels is reported ambiguous and swept solo, the same degrade the attest lane
+   applies. Findings route to the digest, tagged by directive.
 4. **Digest** — one GitHub issue per run when there are findings, labelled
    `governance-sweep` (created idempotently; a label-creation failure files
    the digest unlabeled with a warning rather than dropping findings). One
@@ -271,13 +285,16 @@ the push range from the pre-push stdin refs and run
 exported. Its exit status is always ignored — the push itself is never
 gated — and it prints what it did. `GOVERNANCE_SWEEP_CMD` on this path is
 whatever the developer's own shell has — typically unset, in which case
-push-mode sweeping resolves no judge and every un-overridden directive is
-skipped with an honest line rather than silently no-oping the whole run. The
-scheduled workflow remains the standing lane where `GOVERNANCE_SWEEP_CMD` is
-reliably set; push mode is a tightening an operator can layer on top when
-they also export it locally, so a `REFUTED` round has a chance to land while
-the receipt is still editable, rather than waiting for the next scheduled
-run.
+push-mode sweeping falls through to the committed `SWEEP_CMD=` row in
+`.governance/conf/repo.conf` when the repo has written one, or resolves no
+judge otherwise, and every un-overridden directive is skipped with an honest
+line rather than silently no-oping the whole run. The scheduled workflow
+remains the standing lane where a sweep judge is reliably set (it exports
+`GOVERNANCE_SWEEP_CMD`); push mode is a tightening an operator can layer on
+top — via a committed `repo.conf` row, which travels with every checkout, or
+by exporting the env locally — so a `REFUTED` round has a chance to land
+while the receipt is still editable, rather than waiting for the next
+scheduled run.
 
 ## The workflow: consumer brings the judge
 
@@ -295,9 +312,10 @@ absent the install step prints one honest line and the run exits 0 without
 judging anything — the workflow never fakes a judge. When both are present it
 installs the CLI the configured command names, exports `GOVERNANCE_SWEEP_CMD`
 from the gated variable, and runs `sweep.sh run`, which then resolves each
-participating directive's judge through the two-step ladder above — the
+participating directive's judge through the four-rung ladder above — the
 workflow itself never needs to know which directive uses which command, only
-that the repo-level fallback is in place for the ones that declare none. The
+that a repo-level fallback (its own `GOVERNANCE_SWEEP_CMD` export, or a
+committed `repo.conf` row) is in place for the ones that declare none. The
 permission surface is `contents: read` + `issues: write` only — no
 model-inference permission grant, because the workflow itself never calls an
 inference API; the CLI it installs does, using the consumer's own credential.

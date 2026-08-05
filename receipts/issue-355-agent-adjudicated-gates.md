@@ -18,6 +18,7 @@ Closes [#355](https://github.com/Duaility/governance-kit/issues/355).
 - [x] Reduce the declaration vocabulary to what earns its place — delete `tiers`, `isolation`, `sink`, `contest`; rename the block to `judge:`
 - [x] Strip the `group:` label from bundled packs — batching is the consuming repo's trade, not a pack author's
 - [x] Make the batching partition operator-configurable — `JUDGE_GROUP` joins the conf ladder beside `JUDGE_ROUNDS`
+- [x] Reshape repo-level policy into `repo.conf` — the partition becomes one readable object (`judge-group`/`judge-solo` lines) and `SWEEP_CMD=` becomes committable
 
 ## What changed
 
@@ -485,7 +486,29 @@ snippets, and the regenerated `docs/reference/*` pages.
   integrity` fight. One safety property is runtime-only by construction:
   `packctl` cannot see conf overlays at author time, so a conf-assembled
   group whose members resolve to different judge commands is caught by the
-  sweep driver's existing whole-group refusal, never by validation.
+  sweep driver's existing whole-group refusal, never by validation. Superseded
+  the same day by the next entry, before any release carried it.
+- **Repo-level policy is a file, not a smear.** The per-directive `JUDGE_GROUP`
+  knob answered *who may set the partition* but kept the wrong shape: a
+  repo-level object scattered across N one-row overlay files, invisible as a
+  whole, plus an env lump that could only say "batch everything" — the
+  `isolation:` boolean reborn — plus a `-` sentinel and a `conf_get`
+  fallthrough wrinkle we documented instead of designing away. `repo.conf`
+  (`.governance/conf/repo.conf` — optional, committed, user-owned, untouched
+  by the verbs) is the missing third home matching the ownership model: packs
+  own defaults (`defaults.conf`), authors own semantics (`directive.yaml`),
+  the repo owns execution policy — in one CODEOWNERS-style file whose diffs
+  read as policy changes. `judge-group <label> <members…>` /
+  `judge-solo <members…>` lines are the partition (solo beats group; member
+  tokens match full or bare ids; two-group ambiguity warns once and degrades
+  to solo, honest over coin-flip); resolution is repo.conf > the directive's
+  declared `judge.group` > solo. `SWEEP_CMD=` moves in as the committed sweep
+  judge beneath the env: the file is the committed truth, env is the
+  ephemeral override, and an author's `cmd.sweep` floor beats both.
+  `GOVERNANCE_JUDGE_GROUP` is deleted with the sentinel and the wrinkle;
+  `JUDGE_ROUNDS` stays per-directive on `conf_get`, because a round ceiling
+  genuinely is per-directive — only the concept that never fit that mold
+  moved out.
 
 ## Verification
 
@@ -511,6 +534,7 @@ Results:
 - Reduce the declaration vocabulary to what earns its place — delete `tiers`, `isolation`, `sink`, `contest`; rename the block to `judge:` — done; `packvalidate.py` rejects all four retired keys with a message naming the replacement, and `python3 scripts/test-packctl-subagent.py` (20 fixtures) + `test-packctl-validate.py` (14) pin them alongside the three `gate` values, an unknown gate value, gate-without-section, and the section-absent exemptions (no `check.sh`, no `surface:` required). `grep -rn '^judge:' ` over every shipped `directive.yaml` shows 18 blocks and `grep -rn '_subagent\|subagent_attest\|SUBAGENT_'` over `kit/ packs/ scripts/` returns only past-tense mentions inside `SWEEP_FLOW.md`'s "what was deleted" section. `node scripts/docs-site/gen-reference.mjs --check` confirms the generated Reference pages match the renamed sources.
 
 - Make the batching partition operator-configurable — `JUDGE_GROUP` joins the conf ladder beside `JUDGE_ROUNDS` — done; `_judge_group_resolve` mirrors `_judge_rounds_resolve` (same `conf_get` swallow, same empty-is-not-an-answer fallthrough, including the inherited wrinkle that a bare overlay row skips the defaults tier — asserted, not accidental), both lanes call it (`judge_attest` directly, `sweep.sh` through `_sweep_lib_call` so the overlay path matches the commit lane's), and the tests pin the ladder end to end: `scripts/test-subagent.sh` 177 assertions (9 resolver units + 9 end-to-end: overlay pairs two bare directives into one spawn, `JUDGE_GROUP=-` forces solo over a declared label, env lumps everything) and `scripts/test-sweep.sh` 109 (overlay batches two bare discovery directives into one demuxed call; `-` pulls one back out; env collapses again). The mixed-cmd refusal needed no new fixture — it reads the resolved cmd off the row and is blind to the label's provenance.
+- Reshape repo-level policy into `repo.conf` — the partition becomes one readable object (`judge-group`/`judge-solo` lines) and `SWEEP_CMD=` becomes committable — done; `_judge_group_resolve` now reads `.governance/conf/repo.conf` in one `LC_ALL=C` awk pass (no `conf_get`, no `-` user syntax — the ledger keeps `-` as wire encoding only), both lanes resolve through the same call (`judge_attest` directly, `sweep.sh` via `_sweep_lib_call`, now WITHOUT stderr suppression so the ambiguity warning surfaces in sweep output), and the sweep cmd ladder gains the `SWEEP_CMD=` row beneath the env with both honest-skip messages naming all three surfaces. `scripts/test-subagent.sh` 191 assertions and `scripts/test-sweep.sh` 118 pin every spec case: partition pair → one spawn on both lanes; `judge-solo` strips a declared label; the declared label holds when repo.conf is silent or absent; full-id tokens don't hit homonyms while bare tokens do; conflicting-label membership warns once and runs solo (same-label repeats resolve harmlessly — a deliberate refinement over the spec's "more than one line", since identical labels leave nothing ambiguous); row alone judges, env beats row, `cmd.sweep` beats both, neither → skip. `GOVERNANCE_JUDGE_GROUP` and the `JUDGE_GROUP=` rows are gone from the runtime; `conf-knob-doc-sync` still green with `JUDGE_ROUNDS` untouched.
 - Strip the `group:` label from bundled packs — batching is the consuming repo's trade, not a pack author's — done; `grep -rn '^  group:' packs/` returns nothing across all three bundled packs, and the one repo-local directive whose batch partner was bundled (`layer-boundaries`, formerly grouped with `receipt-per-issue`'s `## Audit`) drops its label too, leaving `kit-architecture` as the only live group in the tree. The mechanism itself is untouched and still pinned: `scripts/test-sweep.sh` and `scripts/test-subagent.sh` exercise batching, mixed-command group refusal, and `DIRECTIVE:` demux against synthetic fixtures that declare their own labels, so removing the bundled labels changed no test outcome — `bash scripts/test.sh`, `bash .governance/run.sh` (19/19), and `node scripts/docs-site/gen-reference.mjs --check` are all green.
 
 `bash scripts/test.sh` → "✓ all kit-internal test layers passed" on the final
@@ -745,6 +769,7 @@ Every path touched by this change set (excluding this receipt):
 | claude-code-1419af64-024-1785899162-1 | claude-code | 1419af64-024c-4b9a-97ec-a471fe4c95b5 | #355 | claude-opus-5 | 152 | 154986 | 8491116 | 31174 | 186312 | 5.9943 | 3471 | 12895204 | 222670922 | 2431460 | refactor(kit): bundled packs declare no batching label (#355)Strip `group: bundl |
 | claude-code-1419af64-024-1785905694-1 | claude-code | 1419af64-024c-4b9a-97ec-a471fe4c95b5 | #355 | claude-fable-5 | 118 | 478068 | 7969676 | 60332 | 538518 | 16.9633 | 3589 | 13373272 | 230640598 | 2491792 | feat(kit): the batching partition is an operator conf knob (#355)JUDGE_GROUP joi |
 | claude-code-1419af64-024-1785905827-1 | claude-code | 1419af64-024c-4b9a-97ec-a471fe4c95b5 | #355 | claude-fable-5 | 8 | 1593 | 682414 | 2778 | 4379 | 0.8413 | 3597 | 13374865 | 231323012 | 2494570 | feat(kit): the batching partition is an operator conf knob (#355)JUDGE_GROUP joi |
+| claude-code-1419af64-024-1785910395-1 | claude-code | 1419af64-024c-4b9a-97ec-a471fe4c95b5 | #355 | claude-fable-5 | 136 | 1010987 | 12919977 | 81505 | 1092628 | 29.6339 | 3733 | 14385852 | 244242989 | 2576075 | feat(kit): repo-level policy is a file, not a smear — repo.conf (#355)Supersedes |
 
 ### Steering
 

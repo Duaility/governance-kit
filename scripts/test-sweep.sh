@@ -19,13 +19,14 @@
 #
 # Covers:
 #   cmd resolution ladder  a directive's own `cmd.sweep` wins when declared
-#                          (third-party/override); otherwise the repo-level
-#                          `GOVERNANCE_SWEEP_CMD` knob is the judge — the
-#                          bundled norm, since bundled directives carry NO
-#                          cmd row; neither resolves → skipped with one log
-#                          line, not an error; a cmd whose binary is not on
-#                          PATH → un-adjudicated with honest stderr, never a
-#                          guess
+#                          (the author's floor); otherwise the ephemeral
+#                          `GOVERNANCE_SWEEP_CMD` env, otherwise the committed
+#                          `SWEEP_CMD=` row in `.governance/conf/repo.conf` —
+#                          the bundled norm, since bundled directives carry NO
+#                          cmd row; nothing resolves → skipped with one log
+#                          line naming both repo-level surfaces, not an error;
+#                          a cmd whose binary is not on PATH → un-adjudicated
+#                          with honest stderr, never a guess
 #   range resolution       --range, --push-mode + GOVERNANCE_PUSH_RANGE, the
 #                           `governance-sweep:end=` resume marker from a prior
 #                           digest, and the --since window fallback
@@ -45,10 +46,11 @@
 #                              partition into two calls; a group whose members
 #                              resolve DIFFERENT cmds → runtime refusal, the
 #                              whole group un-adjudicated, never silently split
-#   conf-ladder batching       the label is operator-settable: overlay rows
-#                               assemble a group out of directives that declare
-#                               none, `JUDGE_GROUP=-` pulls one back out solo,
-#                               and env `GOVERNANCE_JUDGE_GROUP` lumps them all
+#   repo.conf partition        the label is operator-settable: a `judge-group`
+#                               line assembles a group out of directives that
+#                               declare none (by bare or full id), `judge-solo`
+#                               pulls one back out, and a doubly-claimed
+#                               directive degrades to solo with a warning
 #   homonym demotion           a repeated directive id inside one group is
 #                               forced solo — one `DIRECTIVE:` delimiter cannot
 #                               address two same-named blocks unambiguously
@@ -307,7 +309,7 @@ export STUB_CALLS=""
 export STUB_RAW=""
 
 # ── cmd resolution (the sweep judge resolution ladder) ─────────────────────
-printf '── cmd resolution ladder (cmd.sweep → GOVERNANCE_SWEEP_CMD) ──\n'
+printf '── cmd ladder (cmd.sweep → env → repo.conf SWEEP_CMD) ──\n'
 
 # The bundled norm: the directive declares NO `cmd.sweep` at all, so its judge
 # comes entirely from the repo-level `GOVERNANCE_SWEEP_CMD` knob (exported
@@ -358,10 +360,59 @@ HEAD1B="$(git -C "$r1b" rev-parse HEAD)"
 GOVERNANCE_SWEEP_CMD= sweep "$r1b" --range "$BASE1B..$HEAD1B" --no-gh --dry-run
 assert_eq "a directive with no cmd anywhere on the ladder is not a failure" "0" "$RC"
 assert_contains "and is skipped with one honest line" \
-    "not-swept has no sweep judge (no \`cmd.sweep\` and no \`GOVERNANCE_SWEEP_CMD\`) — skipped" "$out"
+    "not-swept has no sweep judge" "$out"
+assert_contains "which names the env surface a judge can come from" \
+    "no \`GOVERNANCE_SWEEP_CMD\`" "$out"
+assert_contains "and the committed surface too, so the fix is discoverable" \
+    "no \`SWEEP_CMD=\` row in \`.governance/conf/repo.conf\`" "$out"
 assert_contains "with nothing left to judge, the run says so plainly" \
     "no directive resolved a sweep judge" "$out"
 assert_lacks "and nothing is adjudicated" "VERDICT" "$out"
+
+# The committed bottom rung: a `SWEEP_CMD=` row in repo.conf is the repo's own
+# judge, and it is enough on its own with no env set anywhere.
+mkdir -p "$r1/.governance/conf"
+printf '# the repo commits to its judge\nSWEEP_CMD=stubjudge\n' \
+    > "$r1/.governance/conf/repo.conf"
+STUB_CALLS="$WORK/calls-row.txt"; : > "$STUB_CALLS"; export STUB_CALLS
+STUB_VERDICT=PASS GOVERNANCE_SWEEP_CMD= \
+    sweep "$r1" --range "$BASE1..$HEAD1" --no-gh --dry-run
+assert_eq "a repo.conf SWEEP_CMD row judges with no env at all" "1" \
+    "$(grep -c '^judge$' "$STUB_CALLS" | tr -d ' ')"
+STUB_CALLS=""; export STUB_CALLS
+assert_lacks "and nothing is left un-adjudicated" \
+    "- un-adjudicated (NOT a clean bill): 1" "$out"
+assert_lacks "the honest-skip line never fires when the row supplies a judge" \
+    "has no sweep judge" "$out"
+
+# Within the repo layer the env is the EPHEMERAL override and the file is the
+# committed truth: a broken row loses to a working env.
+printf 'SWEEP_CMD=definitely-not-a-real-judge-binary\n' \
+    > "$r1/.governance/conf/repo.conf"
+STUB_VERDICT=PASS GOVERNANCE_SWEEP_CMD=stubjudge \
+    sweep "$r1" --range "$BASE1..$HEAD1" --no-gh --dry-run
+assert_lacks "the env beats the committed row" \
+    "- un-adjudicated (NOT a clean bill): 1" "$out"
+
+# And the author's floor beats both: a directive that NEEDS a specific judge
+# says so in `cmd.sweep`, and neither repo-level surface can talk it down.
+r1r="$WORK/row-ladder"
+mkfixture "$r1r"
+install_discovery "$r1r" no-fallbacks "" "stubjudge"
+mkdir -p "$r1r/.governance/conf"
+printf 'SWEEP_CMD=definitely-not-a-real-judge-binary\n' \
+    > "$r1r/.governance/conf/repo.conf"
+printf 'one\n' > "$r1r/src.txt"
+git -C "$r1r" add -A; git -C "$r1r" commit -qm init
+BASE1R="$(git -C "$r1r" rev-parse HEAD)"
+printf 'two\n' >> "$r1r/src.txt"
+git -C "$r1r" add -A; git -C "$r1r" commit -qm second
+HEAD1R="$(git -C "$r1r" rev-parse HEAD)"
+STUB_VERDICT=PASS GOVERNANCE_SWEEP_CMD=also-not-a-real-judge-binary \
+    sweep "$r1r" --range "$BASE1R..$HEAD1R" --no-gh --dry-run
+assert_lacks "cmd.sweep outranks both the env and the row" \
+    "- un-adjudicated (NOT a clean bill): 1" "$out"
+rm -f "$r1/.governance/conf/repo.conf"
 
 # A cmd whose first word is not on PATH is un-adjudicated, honestly — never a
 # guessed verdict. Exercised through the repo knob, since that is now the
@@ -889,19 +940,19 @@ assert_lacks "and files no findings from it" "**src.txt" "$out"
 STUB_RAW=""; export STUB_RAW
 
 # ── Batching assembled by the operator, not the pack ────────────────────────
-printf '── batching off the conf ladder (JUDGE_GROUP) ──────────\n'
+printf '── batching off the repo.conf partition ────────────────\n'
 
 # Bundled packs ship NO `group:` — batching is a fidelity-vs-tokens trade the
-# consuming repo prices, so the label comes off the same conf ladder the commit
-# lane reads. Two directives that declare nothing, given one label by two
-# overlay rows, become one call here exactly as if the pack had said so.
+# consuming repo prices, so the label comes off the same repo.conf partition
+# the commit lane reads. Two directives that declare nothing, named on one
+# `judge-group` line, become one call here exactly as if the pack had said so.
 r7c="$WORK/batch-conf"
 mkfixture "$r7c"
 install_discovery "$r7c" no-fallbacks
 install_discovery "$r7c" no-bifurcation
-mkdir -p "$r7c/.governance/conf/acme/quality"
-printf 'JUDGE_GROUP=operator-lump\n' > "$r7c/.governance/conf/acme/quality/no-fallbacks.conf"
-printf 'JUDGE_GROUP=operator-lump\n' > "$r7c/.governance/conf/acme/quality/no-bifurcation.conf"
+mkdir -p "$r7c/.governance/conf"
+printf 'judge-group operator-lump  no-fallbacks  no-bifurcation\n' \
+    > "$r7c/.governance/conf/repo.conf"
 printf 'one\n' > "$r7c/src.txt"
 git -C "$r7c" add -A; git -C "$r7c" commit -qm init
 BASE7C="$(git -C "$r7c" rev-parse HEAD)"
@@ -919,39 +970,48 @@ REASON: a second path landed
 FINDING: src.txt:2 — two — a second code path for the same job"
 export STUB_CALLS STUB_RAW
 sweep "$r7c" --range "$BASE7C..$HEAD7C" --no-gh --dry-run
-assert_eq "two overlay-labeled directives that declare nothing share ONE call" "1" \
+assert_eq "two partitioned directives that declare nothing share ONE call" "1" \
     "$(grep -c '^judge$' "$STUB_CALLS" | tr -d ' ')"
 assert_contains "the run announces the operator-assembled batch" \
     "batching 2 shared directive(s) into one judgment" "$out"
 assert_contains "and the batched answer is still DIRECTIVE-demuxed per member" \
     '## `no-bifurcation`' "$out"
-assert_lacks "the passing member of a conf-assembled group files nothing" \
+assert_lacks "the passing member of a partitioned group files nothing" \
     '## `no-fallbacks`' "$out"
 
-# The force-solo sentinel, at rest: an overlay `JUDGE_GROUP=-` on one member
-# pulls it back out of the group the other rows assembled.
-printf 'JUDGE_GROUP=-\n' > "$r7c/.governance/conf/acme/quality/no-bifurcation.conf"
+# The same partition addressed by FULL id — the form that disambiguates a
+# homonym shipped by two packs — batches identically at rest.
+printf 'judge-group operator-lump  acme/quality/no-fallbacks  acme/quality/no-bifurcation\n' \
+    > "$r7c/.governance/conf/repo.conf"
+STUB_CALLS="$WORK/calls7cf.txt"; : > "$STUB_CALLS"
+export STUB_CALLS
+sweep "$r7c" --range "$BASE7C..$HEAD7C" --no-gh --dry-run
+assert_eq "full-id members batch exactly as bare ones do" "1" \
+    "$(grep -c '^judge$' "$STUB_CALLS" | tr -d ' ')"
+
+# `judge-solo`, at rest: it pulls one member back out of the group the
+# `judge-group` line assembled, and it wins over that line.
+printf 'judge-group operator-lump  no-fallbacks  no-bifurcation\njudge-solo no-bifurcation\n' \
+    > "$r7c/.governance/conf/repo.conf"
 STUB_CALLS="$WORK/calls7d.txt"; : > "$STUB_CALLS"
 STUB_RAW=""; STUB_VERDICT=PASS; STUB_REASON="fine"
 export STUB_CALLS STUB_RAW STUB_VERDICT STUB_REASON
 sweep "$r7c" --range "$BASE7C..$HEAD7C" --no-gh --dry-run
-assert_eq "JUDGE_GROUP=- pulls a member back out into a solo call" "2" \
+assert_eq "judge-solo pulls a member back out into a solo call" "2" \
     "$(grep -c '^judge$' "$STUB_CALLS" | tr -d ' ')"
 
-# The env knob is the crude repo-global lump: every swept directive lands in
-# the one group, whatever the overlays say.
+# An ambiguous claim degrades to solo at rest too, and says why — the sweep
+# lane and the commit lane share one resolver, so they cannot disagree.
+printf 'judge-group intent    no-fallbacks  no-bifurcation\njudge-group security  no-bifurcation\n' \
+    > "$r7c/.governance/conf/repo.conf"
 STUB_CALLS="$WORK/calls7e.txt"; : > "$STUB_CALLS"
-STUB_RAW="DIRECTIVE: no-fallbacks
-VERDICT: PASS
-REASON: nothing swallowed
-DIRECTIVE: no-bifurcation
-VERDICT: PASS
-REASON: nothing swallowed"
-export STUB_CALLS STUB_RAW
-GOVERNANCE_JUDGE_GROUP=everything sweep "$r7c" --range "$BASE7C..$HEAD7C" --no-gh --dry-run
-assert_eq "the env lump overrides every overlay row, at rest too" "1" \
+export STUB_CALLS
+sweep "$r7c" --range "$BASE7C..$HEAD7C" --no-gh --dry-run
+assert_eq "a doubly-claimed member is judged solo, leaving its group of one" "2" \
     "$(grep -c '^judge$' "$STUB_CALLS" | tr -d ' ')"
-STUB_RAW=""; export STUB_RAW
+assert_contains "and the driver passes the ambiguity warning through" \
+    "claimed by two judge-group lines" "$out"
+rm -f "$r7c/.governance/conf/repo.conf"
 
 # A group the operator assembled is refused for mixed cmds on exactly the same
 # terms a declared one is — the refusal above reads the resolved `cmd` off the

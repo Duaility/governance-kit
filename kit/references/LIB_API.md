@@ -70,14 +70,20 @@ shows when to reach for it.
 | `attestation_remediation` | `attestation_remediation [<ledger>]` | The run-level orchestrator. Reads the pending-attestation ledger and emits **one** grouped remediation instruction per `group` label present (a single sub-agent handed the union of that group's sections' inputs, demuxed by `DIRECTIVE:`-tagged blocks), plus one solo sub-agent per section declaring no `group`. For `gate: verdict` sections it renders the escalation ladder — spawn via `cmd.attest`, then an explicit escalation round via the same `cmd.attest`, then a terminal STALLED instruction — plus the exact round-line format and the `_adjudication_stamp` invocation. Invoked once by `run.sh` and the pre-commit dispatcher; silent no-op when nothing is pending. | 0.11.0 |
 | `resolve_judge_input` | `resolve_judge_input <token> <receipt>` | Map a typed input token (`diff`, `receipt`, `issue`, `transcript`, `layer-map`) to the concrete handle phrase the sub-agent is handed; unknown tokens pass through verbatim. | 0.11.0 |
 
-Operator knobs these read, all through the standard `conf_get` ladder (env
-`GOVERNANCE_<KEY>` > user overlay > pack `defaults.conf`): `JUDGE_ROUNDS`, and
-`JUDGE_GROUP` (the batching partition — falls through to the directive's own
-`judge.group` when no conf tier answers; a resolved literal `-` forces solo).
-`cmd` is **not** conf-tunable — it stays a semantic field fixed in
-`directive.yaml`. `GOVERNANCE_SWEEP_CMD` (consulted by `sweep.sh`, not a
-`lib.sh` helper) is a third, separate kind of knob again: a plain repo-level
-env outside the `conf_get` ladder, naming the sweep judge for any directive
+Operator knobs these read: `JUDGE_ROUNDS`, through the standard `conf_get`
+ladder (env `GOVERNANCE_<KEY>` > user overlay > pack `defaults.conf`) — this
+is genuinely per-directive, so it stays on that ladder. The `group` batching
+label is **not** a `conf_get` knob: it resolves from the repo-level, committed
+`.governance/conf/repo.conf` partition (`judge-group <label> <member>...` /
+`judge-solo <member>...` lines), falling through to the directive's own
+`judge.group` in `directive.yaml` when `repo.conf` names no match for it, and
+to solo when neither does — see [JUDGE.md](JUDGE.md#the-judge-declaration)
+for the full member-matching and ambiguity rules. `cmd` is **not**
+conf-tunable either — it stays a semantic field fixed in `directive.yaml`.
+`GOVERNANCE_SWEEP_CMD` (consulted by `sweep.sh`, not a `lib.sh` helper) is a
+third, separate kind of knob again: a plain, ephemeral env outside the
+`conf_get` ladder, overriding the committed `SWEEP_CMD=` row in
+`.governance/conf/repo.conf`, and naming the sweep judge for any directive
 that leaves `cmd.sweep` unset — the default for every bundled directive. See
 [JUDGE.md](JUDGE.md) for what each field
 changes and the author-fixed vs operator-tunable split.
@@ -92,7 +98,7 @@ but these are worth knowing:
 | `_adjudication_stamp` | `_adjudication_stamp <receipt>` | Print the 12-hex freshness stamp binding a verdict to the tree it judged: `sha256("<git write-tree over the index minus the receipt> <sha256 of the receipt with its round lines stripped>")`, truncated. Appending round lines never moves it; changing any other byte of the receipt or any other file in the commit does. Callable standalone (`bash -c 'source .governance/lib.sh; _adjudication_stamp <path>'`) so an adjudicator can record it. | the release carrying #355 |
 | `_change_set_base` | `_change_set_base` | Print the commit the change set is measured against — the merge-base with the first resolvable default branch (`origin/main`, `origin/master`, `main`, `master`), falling back to `HEAD`. The `doc-integrity` candidate ladder, factored out. `GOVERNANCE_CHANGE_SET_BASE` overrides. | the release carrying #355 |
 | `_judge_rounds_resolve` | `_judge_rounds_resolve <id> <defaults-file> <directive.yaml>` | Resolve the adjudication round ceiling *K* through the usual `conf_get` ladder (`JUDGE_ROUNDS`), default `3`, clamped up to a floor of `2`. | the release carrying #355 |
-| `_judge_cmd_resolve` | `_judge_cmd_resolve <yaml> <lane>` | Print the `cmd` string declared for `lane` (`attest` or `sweep`) out of the directive's flattened `judge:` yaml, joining the existing restricted-yaml reader; reads `cmd:` map rows only, never a bare scalar. Returns `1` (nothing printed) when the row is absent — the normal case for `sweep` on every bundled directive. `sweep.sh` layers the repo-level `GOVERNANCE_SWEEP_CMD` env on top of this as the next rung when it returns `1` for `sweep`; this helper itself knows nothing about that env — see [SWEEP_FLOW.md](SWEEP_FLOW.md#judge-resolution-per-directive-not-per-driver). | the release carrying #355 |
+| `_judge_cmd_resolve` | `_judge_cmd_resolve <yaml> <lane>` | Print the `cmd` string declared for `lane` (`attest` or `sweep`) out of the directive's flattened `judge:` yaml, joining the existing restricted-yaml reader; reads `cmd:` map rows only, never a bare scalar. Returns `1` (nothing printed) when the row is absent — the normal case for `sweep` on every bundled directive. `sweep.sh` layers the ephemeral `GOVERNANCE_SWEEP_CMD` env, then the committed `SWEEP_CMD=` row in `.governance/conf/repo.conf`, on top of this as the next rungs when it returns `1` for `sweep`; this helper itself knows nothing about either — see [SWEEP_FLOW.md](SWEEP_FLOW.md#judge-resolution-per-directive-not-per-driver). | the release carrying #355 |
 | `_judge_cmd_run` | `_judge_cmd_run <cmd>` | Run **one** judge round against a detached CLI: prompt on stdin, normalized verdict on stdout. `command -v` on `<cmd>`'s first word first — missing → return `2`, no output, one stderr line, never a guess. Strips harness session identity from the environment before exec'ing (`CLAUDECODE`, `CLAUDE_CODE_*`, `CODEX_*`, `CURSOR_*`, `PI_*`, `OPENCODE*`) so the spawned CLI is a fresh context, not a nested harness session. Wraps the call in `timeout`/`gtimeout ${AGENT_JUDGE_TIMEOUT:-120}` when available. Runs `bash -c "$cmd"` with the prompt on stdin; a nonzero exit returns `2`. Pipes stdout through `_judge_emit_verdict`; no well-formed `VERDICT:` line returns `2`. | the release carrying #355 |
 | `_judge_emit_verdict` | `_judge_emit_verdict` | The awk grammar filter every judge's raw output is piped through, once, instead of duplicated per adapter: CR-strip, printable-ASCII only, length cap, passes only `VERDICT:`/`REASON:`/`FINDING:`/`DIRECTIVE:` lines. A `DIRECTIVE:` line re-arms the verdict matcher (the `blk` flag) so a batched `group` invocation's answer demuxes back into one verdict per member directive. | the release carrying #355 |
 | `_judge_cli_prompt` | `_judge_cli_prompt <receipt> <section> <checks-US> <directive.yaml> [<range>] [<mode>]` | Build the whole prompt piped into `_judge_cmd_run` (or handed to the harness sub-agent instruction), from the declaration and git ground truth — never from the agent under audit's own context. `<mode>` selects the **moment**, not the judgment: `verdict` (default) is the commit lane, where a gate is waiting; `sweep` is the at-rest lane, where the answer is recorded as a round or filed as findings. `<range>` is the swept commit range the `range-diff` input token renders (falls back to `$GOVERNANCE_SWEEP_RANGE`). The batch-spec 7th arg (record-separator `\x1e`-joined members) is unchanged. One builder, one prompt shape, two moments — `sweep.sh` never builds its own prompt. | the release carrying #355 |

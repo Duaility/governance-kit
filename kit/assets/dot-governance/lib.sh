@@ -236,11 +236,13 @@ require_attestation() {
 # The author≠auditor independence (the auditor is always a fresh context, never
 # the harness) is preserved in every case; only inter-attestation independence is
 # traded by batching. WHERE on that dial a repo sits is the repo's call, not the
-# pack's: the label comes off the operator conf ladder in `_judge_group_resolve`
-# (env `GOVERNANCE_JUDGE_GROUP` > overlay row > pack defaults row > the
-# directive's own `judge.group`), so a consumer opts in to one lump, labels
-# directives pairwise, or forces a directive solo with `JUDGE_GROUP=-` —
-# all without forking the pack that ships it.
+# pack's — and because that call is a PARTITION of the repo's directives rather
+# than a per-directive dial, it is expressed as one committed object: the
+# `judge-group` / `judge-solo` lines of `.governance/conf/repo.conf`, read by
+# `_judge_group_resolve`. A consumer pairs two directives, splits a third back
+# out, or strips a label a pack declared about itself — all without forking the
+# pack that ships it, and all visible in one file review rather than scattered
+# across per-directive overlays.
 
 # _judge_yaml <directive.yaml> <key>
 #   Print the value(s) of `judge.<key>`. List keys (inputs, checks) print one
@@ -345,32 +347,105 @@ _judge_rounds_resolve() {
     printf '%s\n' "$k"
 }
 
-# _judge_group_resolve <id> <defaults-file> <directive.yaml>
+# _judge_full_id <directive-dir>
+#   The pack-qualified identity `<owner>/<pack>/<id>` of an installed directive,
+#   derived from its own directory. Prints nothing when the path does not carry
+#   an owner — a pack's own source tree (`packs/<concern>/directives/<id>`) has
+#   no owner segment until it is installed, so there is simply no full id to
+#   speak of and only the bare id can be matched. One derivation, called by both
+#   lanes, so the commit path and the sweep path never disagree about who a
+#   directive is.
+_judge_full_id() {
+    local dir="${1:-}" id head pack rest owner
+    case "$dir" in */directives/*) ;; *) return 0 ;; esac
+    id="${dir##*/}"
+    head="${dir%/directives/*}"     # …/packs/<owner>/<pack>
+    pack="${head##*/}"
+    rest="${head%/*}"               # …/packs/<owner>
+    owner="${rest##*/}"
+    # The grandparent must literally be `packs/`, which is what tells an
+    # installed `<owner>/<pack>/directives/<id>` apart from a source-tree
+    # `<concern>/directives/<id>` sitting directly under `packs/`.
+    case "${rest%/*}" in
+        packs | */packs) ;;
+        *) return 0 ;;
+    esac
+    [[ -n "$owner" && -n "$pack" && -n "$id" ]] || return 0
+    printf '%s/%s/%s\n' "$owner" "$pack" "$id"
+}
+
+# _judge_group_resolve <full-id> <bare-id> <directive.yaml>
 #   The batching label for a judgment (issue #355). Batching is a fidelity-vs-
-#   tokens trade, and the repo consuming a pack is the only party that can make
-#   it — so the label rides the same operator conf ladder the round ceiling
-#   does, and a consumer never has to fork a pack to change it:
-#     1. env `GOVERNANCE_JUDGE_GROUP` — the repo-global lump. Every directive
-#        lands in that one group; deliberately crude, deliberately one knob.
-#     2. the user overlay row `JUDGE_GROUP=` in
-#        `.governance/conf/<owner>/<pack>/<id>.conf` — per directive.
-#     3. a pack `defaults.conf` row `JUDGE_GROUP=` — the tier exists for free;
-#        the bundled packs ship no batching opinion, so it finds nothing.
-#     4. the `judge.group` scalar in directive.yaml — what a repo-local or
-#        community pack declares about itself.
-#     5. nothing → solo.
-#   The literal `-` is the force-solo sentinel: an operator who sets it at any
-#   tier overrides a label the directive.yaml declares, because "judge this one
-#   on its own" has to be expressible from the conf side too. Since solo already
-#   travels through the tab-separated ledger as `-`, that is also what this
-#   prints when no tier answers — callers use the value as the field directly.
-#   An EMPTY answer is not an answer: `conf_get` prints an empty value for a
-#   bare `JUDGE_GROUP=` row and still returns 0, so empty falls through to the
-#   next tier exactly as it does for the round ceiling.
+#   tokens trade only the consuming repo can price, and what it is pricing is a
+#   PARTITION of its own directives — so the operator surface is one committed
+#   object, `.governance/conf/repo.conf`, not a knob repeated per directive:
+#     1. a `judge-solo` line naming this directive → solo, overriding whatever
+#        the directive.yaml declares. This is how a consumer strips a label a
+#        community or repo-local pack asserted about itself.
+#     2. a `judge-group <label> <member>…` line naming this directive → that
+#        label.
+#     3. the `judge.group` scalar in directive.yaml — what a repo-local or
+#        community pack declares about itself, honoured when repo.conf is silent
+#        (or absent entirely, which is the stock install).
+#     4. nothing → solo.
+#   A member token matches on the FULL id `<owner>/<pack>/<id>` or on the bare
+#   `<id>`; a bare token therefore hits homonyms in every installed pack, the
+#   same breadth `run.sh <bare-id>` already has.
+#   Two `judge-group` lines claiming the same directive for DIFFERENT labels is
+#   ambiguous, and the only honest answer to an ambiguous partition is to stop
+#   partitioning: one warning to stderr naming the directive and both labels,
+#   then solo. Never a coin flip. Repeating a member inside one line, or across
+#   two lines carrying the same label, decides nothing and so warns about
+#   nothing.
+#   Solo prints the literal `-` because that is the ledger's wire encoding for
+#   an unlabeled row — callers use the value as the tab-separated field
+#   directly. It is not user syntax; nothing in repo.conf spells solo that way.
 _judge_group_resolve() {
-    local id="$1" defaults="$2" yaml="$3" g
-    g="$(conf_get "$id" JUDGE_GROUP "$defaults" 2>/dev/null)" || g=""
-    [[ -n "$g" ]] || g="$(_judge_yaml "$yaml" group)"
+    local full="${1:-}" id="${2:-}" yaml="${3:-}" f answer kind a b g
+    local tab=$'\t'
+    if f="$(repo_conf_file)"; then
+        # One awk pass over the partition, printing a tab-separated verdict for
+        # the shell to act on. Reporting the ambiguity back rather than writing
+        # it out from inside awk keeps every message this library emits in one
+        # place, and keeps the awk program to plain field matching.
+        answer="$(LC_ALL=C awk -v full="$full" -v bare="$id" '
+            function claims(from,   i) {
+                for (i = from; i <= NF; i++)
+                    if ((full != "" && $i == full) || (bare != "" && $i == bare)) return 1
+                return 0
+            }
+            { sub(/#.*/, "") }
+            NF == 0 { next }
+            $1 == "judge-solo" { if (claims(2)) solo = 1; next }
+            $1 == "judge-group" && NF >= 3 {
+                if (claims(3)) {
+                    if (label == "") label = $2
+                    else if (label != $2 && other == "") other = $2
+                }
+                next
+            }
+            # Every other row kind belongs to some other reader (or to a kit
+            # newer than this one): ignoring them is what lets repo.conf grow.
+            { next }
+            END {
+                if (solo) print "solo"
+                else if (other != "") printf "ambiguous\t%s\t%s\n", label, other
+                else if (label != "") printf "group\t%s\n", label
+                else print "none"
+            }
+        ' "$f")"
+        IFS="$tab" read -r kind a b <<< "$answer"
+        case "$kind" in
+            solo) printf -- '-\n'; return 0 ;;
+            ambiguous)
+                printf 'governance: %s is claimed by two judge-group lines in %s (`%s` and `%s`) — judged solo\n' \
+                    "${full:-$id}" "$f" "$a" "$b" >&2
+                printf -- '-\n'; return 0
+                ;;
+            group) printf '%s\n' "$a"; return 0 ;;
+        esac
+    fi
+    g="$(_judge_yaml "$yaml" group)"
     [[ -n "$g" ]] || g="-"
     printf '%s\n' "$g"
 }
@@ -1233,14 +1308,15 @@ judge_attest() {
     [[ -n "$section" ]] || return 0
     # Author-owned gate shape: record (default) | verdict | verdict-contestable.
     local gate; gate="$(_judge_yaml "$yaml" gate)"; [[ -n "$gate" ]] || gate="record"
-    # Batching identity (issue #355): a free-form label off the operator conf
-    # ladder — env `GOVERNANCE_JUDGE_GROUP`, then the user overlay row, then the
-    # pack defaults row, then the directive's own `judge.group`. Same label =
-    # same invocation; no label (or the force-solo sentinel `-`) = a spawn of
-    # its own. The resolver already prints `-` for solo, which is exactly what
-    # the tab-separated ledger needs — never an empty field.
-    local id defaults; id="$(basename "$dir")"; defaults="$dir/defaults.conf"
-    local group; group="$(_judge_group_resolve "$id" "$defaults" "$yaml")"
+    # Batching identity (issue #355): a free-form label resolved from the repo's
+    # own partition — the `judge-solo` / `judge-group` lines of
+    # `.governance/conf/repo.conf` — falling back to the directive's own
+    # `judge.group`. Same label = same invocation; no label = a spawn of its
+    # own. The resolver prints `-` for solo, which is exactly what the
+    # tab-separated ledger needs — never an empty field.
+    local id defaults full; id="$(basename "$dir")"; defaults="$dir/defaults.conf"
+    full="$(_judge_full_id "$dir")"
+    local group; group="$(_judge_group_resolve "$full" "$id" "$yaml")"
 
     # Resolve the declared inputs to handle phrases and join with US separators.
     local inputs_joined="" tok phrase
@@ -1571,6 +1647,36 @@ conf_file() {
     fi
     [[ -f "$f" ]] || return 1
     printf '%s\n' "$f"
+}
+
+# repo_conf_file
+# Print the path to the repo-level policy file
+# (`.governance/conf/repo.conf`) and return 0 if it exists; return 1 (printing
+# nothing) otherwise. It is user-owned, committed and entirely OPTIONAL — no
+# install, update or reset verb ever writes it — so "absent" is the stock state
+# and every reader treats it as "all defaults", never as a broken install. It
+# carries the policy that is about the REPO rather than about any one directive:
+# the batching partition (`judge-group` / `judge-solo`) and the repo's sweep
+# judge (`SWEEP_CMD=`). Per-directive knobs stay in the per-directive overlays.
+repo_conf_file() {
+    local root f
+    root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+    f="$root/.governance/conf/repo.conf"
+    [[ -f "$f" ]] || return 1
+    printf '%s\n' "$f"
+}
+
+# repo_conf_get <KEY>
+# Print the value of the first `KEY=` scalar row in repo.conf, or return 1
+# printing nothing when the file or the row is absent. Deliberately NOT a tier
+# of `conf_get`: these settings have no per-directive meaning and no pack-owned
+# default to fall back to.
+repo_conf_get() {
+    local key="$1" f line
+    f="$(repo_conf_file)" || return 1
+    line="$(LC_ALL=C grep -E "^[[:space:]]*${key}=" "$f" 2>/dev/null | head -n 1)"
+    [[ -n "$line" ]] || return 1
+    printf '%s\n' "$(_conf_trim "${line#*=}")"
 }
 
 # conf_get <directive-id> <KEY> <defaults-file>

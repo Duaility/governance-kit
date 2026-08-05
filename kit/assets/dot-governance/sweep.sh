@@ -14,9 +14,10 @@
 #                                   through the same lib.sh prompt builder and
 #                                   the sweep judge resolution ladder below —
 #                                   the directive's own `cmd.sweep` when it
-#                                   declares one, else the repo-level
-#                                   `GOVERNANCE_SWEEP_CMD` knob every bundled
-#                                   directive rides on.
+#                                   declares one, else the repo-level judge
+#                                   every bundled directive rides on (the
+#                                   `GOVERNANCE_SWEEP_CMD` env, else the
+#                                   `SWEEP_CMD=` row in repo.conf).
 #
 # Judges never block where they run; gates block where they read. This driver
 # never fails a hook and never fails a push. It writes one of two things:
@@ -28,11 +29,11 @@
 #     human → issue → agent → PR door — when the receipt is already frozen on
 #     the trunk, or the directive names no `section:` at all (discovery).
 #
-# Honesty rule: no cmd resolves off the ladder (neither `cmd.sweep` nor
-# `GOVERNANCE_SWEEP_CMD`) → the judgment is reported un-adjudicated and
-# retried later. Never a downgraded judge, never a guessed verdict, never a
-# keyword stub standing in for a model. A digest must never read as a clean
-# bill for work that was not actually judged.
+# Honesty rule: no cmd resolves off the ladder (no `cmd.sweep`, no
+# `GOVERNANCE_SWEEP_CMD`, no `SWEEP_CMD=` row) → the judgment is reported
+# un-adjudicated and retried later. Never a downgraded judge, never a guessed
+# verdict, never a keyword stub standing in for a model. A digest must never
+# read as a clean bill for work that was not actually judged.
 #
 # Usage:
 #   bash .governance/sweep.sh run [--range A..B] [--push-mode] [--dry-run]
@@ -47,10 +48,10 @@
 #   GOVERNANCE_SWEEP_TRUNK     the ref that decides which receipts are frozen
 #                              (default: the first resolvable of origin/HEAD,
 #                              origin/main, origin/master, main, master).
-#   GOVERNANCE_SWEEP_CMD       the repo-level sweep judge command. Bundled
-#                              directives carry NO `cmd.sweep` row — this is
-#                              their judge. See the sweep judge resolution
-#                              ladder below.
+#   GOVERNANCE_SWEEP_CMD       the ephemeral repo-level sweep judge command —
+#                              a CI secret, a one-shot local run. Overrides the
+#                              committed `SWEEP_CMD=` row in repo.conf. See the
+#                              sweep judge resolution ladder below.
 #   GH_TOKEN / `gh auth`       resume point, dedupe and digest filing. All
 #                              optional: with no gh the digest goes to stderr.
 #
@@ -58,11 +59,14 @@
 #   1. the directive's own `judge.cmd.sweep` — still valid schema, for a
 #      third-party pack or a repo operator override; no bundled directive
 #      declares it any more.
-#   2. the repo-level knob `GOVERNANCE_SWEEP_CMD` — the judge command every
-#      bundled directive rides on. The scheduled sweep workflow sets it from
-#      a gated repo var/secret; a developer's `--push-mode` run inherits it
-#      from their own environment.
-#   3. neither resolves → the directive is skipped with one honest log line,
+#   2. the env `GOVERNANCE_SWEEP_CMD` — the ephemeral repo-level override. The
+#      scheduled sweep workflow sets it from a gated repo var/secret; a
+#      developer's `--push-mode` run inherits it from their own environment.
+#   3. the `SWEEP_CMD=` row in `.governance/conf/repo.conf` — the committed
+#      repo-level judge every bundled directive rides on. Within the repo
+#      layer the file is the truth and the env is the override; the author's
+#      own `cmd.sweep` floor beats both.
+#   4. nothing resolves → the directive is skipped with one honest log line,
 #      never guessed.
 #
 # Bash 3.2 + POSIX awk + git, plus `gh` when it is there. No python.
@@ -160,7 +164,7 @@ _sweep_ensure_label() {
 # ── Directive discovery ─────────────────────────────────────────────────────
 # Participation is one thing only: a `judge:` block whose sweep judge
 # resolves to a real command — off its own `cmd.sweep` or, absent that, the
-# repo-level `GOVERNANCE_SWEEP_CMD` knob. There is no `surface:` value that
+# repo-level judge (env, else the repo.conf row). There is no `surface:` value that
 # opts a directive into this lane any more — one declaration, two moments.
 _sweep_directive_yamls() {
     local base
@@ -373,13 +377,13 @@ _sweep_receipts_in_range() {
 # one call, `DIRECTIVE:`-demuxed the same way a shared batch always was; a
 # directive with no group label is always a solo invocation — there is no
 # implicit sharing any more. The label is not the pack's last word: it is
-# resolved through `_judge_group_resolve`, the operator conf ladder (env
-# `GOVERNANCE_JUDGE_GROUP` > the user overlay row > the pack defaults row >
-# the declared `judge.group`), because how much fidelity to trade for tokens
-# is the consuming repo's call. A group is one invocation, one command: if its
-# members resolved DIFFERENT sweep cmds, the driver refuses to silently split
-# it — the whole group is reported un-adjudicated with one honest line, never
-# partially judged.
+# resolved through `_judge_group_resolve` against the repo's own partition (the
+# `judge-solo` / `judge-group` lines of `.governance/conf/repo.conf`, falling
+# back to the declared `judge.group`), because how much fidelity to trade for
+# tokens is the consuming repo's call. A group is one invocation, one command:
+# if its members resolved DIFFERENT sweep cmds, the driver refuses to silently
+# split it — the whole group is reported un-adjudicated with one honest line,
+# never partially judged.
 #
 # A batch row is RS-separated:
 #   <row-index> ␞ <id> ␞ <section-or-empty> ␞ <yaml> ␞ <checks-US> ␞ <cmd>
@@ -631,8 +635,8 @@ _sweep_lane_attest() {
 _sweep_render_digest() {
     printf 'Automated semantic sweep. Nothing here blocked a commit, a push or a PR:\n'
     printf 'these are candidates for the issue → agent → PR loop, judged at rest by\n'
-    printf 'each directive'"'"'s sweep judge (its own `cmd.sweep` or the repo'"'"'s\n'
-    printf '`GOVERNANCE_SWEEP_CMD`).\n\n'
+    printf 'each directive'"'"'s sweep judge (its own `cmd.sweep`, else the repo'"'"'s\n'
+    printf '`GOVERNANCE_SWEEP_CMD` or its `SWEEP_CMD=` row).\n\n'
     if [[ -s "$WORK/sections" ]]; then
         cat "$WORK/sections"
     else
@@ -641,7 +645,7 @@ _sweep_render_digest() {
     printf '\n---\n\n'
     printf '### Footer\n'
     printf -- '- commit range: `%s`\n' "$RANGE"
-    printf -- '- judge: per-directive `cmd.sweep`, else `GOVERNANCE_SWEEP_CMD`\n'
+    printf -- '- judge: per-directive `cmd.sweep`, else `GOVERNANCE_SWEEP_CMD`, else the `SWEEP_CMD=` row\n'
     printf -- '- directives swept: %s\n' "$DIRS"
     printf -- '- judge calls made: %s\n' "$JUDGED"
     printf -- '- un-adjudicated (NOT a clean bill): %s\n' "$UNADJ"
@@ -727,21 +731,21 @@ cmd_run() {
     # absent = discovery. A directive with no cmd anywhere on the ladder never
     # gets a row — it is skipped with one honest log line, not an error.
     : > "$WORK/rows"
-    local yaml dir id defaults cmd section group checks c summary
+    local yaml dir id full_id cmd section group checks c summary
     while IFS= read -r yaml; do
         [[ -n "$yaml" ]] || continue
         grep -qE '^judge:' "$yaml" || continue
         dir="$(dirname "$yaml")"
         id="$(basename "$dir")"
-        defaults="$dir/defaults.conf"
         # The sweep judge resolution ladder (see the header comment): the
-        # directive's own `cmd.sweep` first (a third-party/override), else
-        # the repo-level `GOVERNANCE_SWEEP_CMD` knob every bundled directive
-        # rides on, else skipped — honestly, never guessed.
+        # directive's own `cmd.sweep` first (the author's floor), else the
+        # ephemeral env override, else the committed `SWEEP_CMD=` row every
+        # bundled directive rides on, else skipped — honestly, never guessed.
         cmd="$(_sweep_lib_call "$dir" _judge_cmd_resolve "$yaml" sweep 2>/dev/null)"
         [[ -n "$cmd" ]] || cmd="${GOVERNANCE_SWEEP_CMD:-}"
+        [[ -n "$cmd" ]] || cmd="$(repo_conf_get SWEEP_CMD 2>/dev/null)"
         if [[ -z "$cmd" ]]; then
-            printf 'governance sweep: %s has no sweep judge (no `cmd.sweep` and no `GOVERNANCE_SWEEP_CMD`) — skipped\n' "$id" >&2
+            printf 'governance sweep: %s has no sweep judge (no `cmd.sweep`, no `GOVERNANCE_SWEEP_CMD` and no `SWEEP_CMD=` row in `.governance/conf/repo.conf`) — skipped\n' "$id" >&2
             continue
         fi
         # The lane, straight off the declaration: a `section:` is the place a
@@ -749,18 +753,17 @@ cmd_run() {
         # directive is re-adjudicated (attest) or only discovered (findings).
         section="$(_judge_yaml "$yaml" section)"
         DIRS=$((DIRS + 1))
-        # The batching knob: a free-form, repo-global label off the SAME
-        # operator conf ladder the commit lane resolves (env
-        # `GOVERNANCE_JUDGE_GROUP` > user overlay row > pack defaults row >
-        # the directive's own `judge.group`), so a repo that batches on the
-        # attest lane batches identically here. It goes through the lib shim
-        # for the same reason the cmd does: the overlay path is derived from
-        # `$0`, and resolving it any other way would read a different conf
-        # file than the commit lane reads for this directive. The resolver
-        # speaks the ledger's dialect — `-` for solo — while the batching code
-        # below tests for an EMPTY label, so normalize the sentinel back here
-        # rather than teaching every downstream test a second spelling.
-        group="$(_sweep_lib_call "$dir" _judge_group_resolve "$id" "$defaults" "$yaml" 2>/dev/null)"
+        # The batching label, resolved from the SAME repo.conf partition the
+        # commit lane reads (`judge-solo` / `judge-group`, falling back to the
+        # directive's own `judge.group`), so a repo that batches on the attest
+        # lane batches identically here. It goes through the lib shim for the
+        # same reason the cmd does: one resolver, invoked the one way, is what
+        # guarantees the two lanes cannot drift apart. The resolver speaks the
+        # ledger's dialect — `-` for solo — while the batching code below tests
+        # for an EMPTY label, so normalize the wire encoding back here rather
+        # than teaching every downstream test a second spelling.
+        full_id="$(_judge_full_id "$dir")"
+        group="$(_sweep_lib_call "$dir" _judge_group_resolve "$full_id" "$id" "$yaml")"
         [[ "$group" == "-" ]] && group=""
         checks=""
         while IFS= read -r c; do
