@@ -46,14 +46,14 @@ Adding more prompt is the obvious fix, but it does not scale. Instruction files 
 
 Governance Kit turns repeated corrections into **repo-native invariants**. It calls that set of invariants a **constitution**: `CONSTITUTION.md` is the readable policy, while each directive carries the rationale and executable check beside it. Hooks and CI run those checks on every commit.
 
-It also keeps an audit trail. **Receipts** record what changed, what was tested, what it cost, and how often a human had to steer the agent. Reviewers and future agents can read that record without needing the old chat transcript.
+It also keeps an audit trail. **Receipts** record what changed, what was tested, what the harness reports about usage and cost, and how often a human had to steer the agent. Reviewers and future agents can read that record without needing the old chat transcript.
 
 Once agents do real work, the repo can carry rules like:
 
 - catch boundary drift before anyone debates code quality
 - stop a small fix from becoming a rewrite
 - require receipts to name changed behavior, verification, and risk
-- record token cost and human steering in git
+- record agent-session identity, harness-reported usage, and human steering in git
 
 ### How does the loop work?
 
@@ -99,8 +99,8 @@ npx skills add Duaility/governance-kit
 claude
 > governance init      # writes CONSTITUTION.md, .governance/, a pre-commit hook, the bundled packs
 
-# 3 — watch the gate fire
-git commit -m "stuff"
+# 3 — make a valid issue-linked commit
+git commit -m "docs: record the first governance run (#1)"
 ```
 
 ```
@@ -108,7 +108,7 @@ git commit -m "stuff"
        Conventional Commits with an issue suffix (<type>(scope)?: <subject> (#123))
 ```
 
-The agent reads the directive id + rationale and self-corrects on the next attempt. The rule is no longer a reminder you have to paste into every new session.
+An invalid subject such as `stuff` produces the failure above; the valid example passes the format gate. The agent reads the directive id + rationale and self-corrects on the next attempt. The rule is no longer a reminder you have to paste into every new session.
 
 What you installed is a thin shim — two files. The kit itself (rules, packs, templates, every other verb) is fetched from the released `kit/vX.Y.Z` tag and pinned per repo. See [Commands you will use](#which-commands-will-you-use).
 
@@ -161,7 +161,7 @@ Once agents do real work against your repo, Governance Kit gives you:
 
 - **Executable constitution** - `CONSTITUTION.md` is readable policy, and every directive has enforcement beside it.
 - **Agent-readable failures** - violations name the rule, the gap, and the rationale, so the next agent turn has useful context.
-- **Cost transparency** - token spend and human steering can be recorded in issue receipts, making expensive turns and repeated corrections visible review data.
+- **Cost transparency** - receipts record the authoring harness and session at commit time, then fold in harness-reported usage off the commit path; human steering is recorded alongside it.
 - **Judgment where needed** - semantic rules can require fresh-context sub-agent attestations instead of pretending grep is enough.
 - **Versioned governance packs** - teams can publish and pin reusable packs such as `acme/backend`, `acme/soc2`, or `duaility/governance-kit`.
 
@@ -228,8 +228,8 @@ Full catalog: [DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md). The
 | `audit` | `issues-tracked` | `QUALITY.md` exists at repo root with `## Open` and `## Resolved` sections. | standard |
 | `audit` | `receipt-per-issue` | Every `receipts/*.md` has a unique `issue-<N>` filename token, required narrative/audit sections, and checked items that crosswalk into the receipt's evidence. | standard |
 | `audit` | `commit-issue-receipt-match` | Every non-merge commit adds or updates a `receipts/issue-<N>.md` — the touched receipt path is the commit's issue anchor (file-first). | standard |
-| `audit` | `agent-token-accounting` | Every agent commit's token cost lands as a row in the issue's receipt; a commit-time check reconciles the receipt's recorded cumulative against the runtime endpoint. | standard |
-| `audit` | `agent-steering-accounting` | Human-steering events (interrupts, corrections) are recorded by a fresh-context sub-agent handed the session transcript (a `subagent:` attestation — no in-hook `claude -p` call); `check.sh` gates the `## Steering` verdict's presence and validates the ledger shape. **`always_install: true`** — records operator-intent text in the receipt; weigh leakage before a public repo. | standard |
+| `audit` | `agent-token-accounting` | Each agent session is identified at commit time in the issue's receipt; harness-reported usage is measured off the commit path and kept with its provenance. | standard |
+| `audit` | `agent-steering-accounting` | Human-steering events (interrupts, corrections) are recorded by a fresh-context sub-agent handed the session transcript (a `judge:` attestation — no in-hook `claude -p` call); `check.sh` gates the `## Steering` verdict's presence and validates the ledger shape. **`always_install: true`** — records operator-intent text in the receipt; weigh leakage before a public repo. | standard |
 | `audit` | `doc-integrity` | **`always_install: true`** — system-of-record documents are tamper-proof: receipts freeze once on the trunk, frozen sections (`QUALITY.md` Resolved, the Evolution Log) keep their baseline lines verbatim. Branch-authored content stays editable until it merges. | standard |
 | `audit` | `toolchain-config-protection` | A commit changing lint / format / type-check / CI / hook config carries a `governance: allow-toolchain-config <reason>` body line. | standard |
 
@@ -239,7 +239,7 @@ Full catalog: [DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md). The
 
 ### Does this repo use it?
 
-- **17 synchronous directive checks gate this repo** — the same packs `governance init` installs, plus a repo-local pack
+- **19 executable directive checks run in this repo's commit/CI lanes, plus 2 repo-local judge-only declarations in the off-commit sweep lane** — the same packs `governance init` installs, plus a repo-local pack
 - **It dogfoods semantic invariants** — `ARCHITECTURE.md` is itself gated by an architecture-map directive, and every PR receipt now carries fresh-context attestations such as `## Audit` and `## Layer boundaries`
 - **The committed `.governance/` tree is an honest customer of the last release** — pinned at real published tags, moved only by the real `pack update` / `update` verb, so every release exercises the update path
 - **Its integrity is self-enforced** — the `managed-tree-integrity` directive recomputes the content digests recorded at install time on every commit, so a hand-edit to any vendored check or runtime file fails the gate, offline
