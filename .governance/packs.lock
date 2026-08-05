@@ -13,13 +13,13 @@ packs:
   - no-path-bifurcation
   - stdlib-only-python
 - id: governance-kit/audit
-  version: 0.7.0
+  version: 0.9.0
   source: gh
-  ref: gh:duaility/governance-kit/packs/audit@audit/v0.7.0
-  sha: 437e6c5f8e684ddcd77891eca01235135a9c016b
+  ref: gh:duaility/governance-kit/packs/audit@audit/v0.9.0
+  sha: 44e20a2cb8b3bafa0271d9a657f7d4d4da2faa10
   subpath: packs/audit
-  min_governance_kit: 0.10.0
-  installed_at: '2026-06-17T18:56:01Z'
+  min_governance_kit: 0.13.0
+  installed_at: '2026-08-05T07:25:39Z'
   directives:
   - agent-steering-accounting
   - agent-token-accounting
@@ -30,41 +30,41 @@ packs:
   - receipt-per-issue
   - toolchain-config-protection
   digest:
-    agent-steering-accounting: b03c08f97229463c71137409dfb7e2245b0273eb097869eab66f1c2559f3954c
-    agent-token-accounting: d9e5c61e9a64276e101999d61b2f3cdd1bc11b9e2da47f131a1b840992a53d48
-    commit-issue-receipt-match: e7206c5289e7b970b043e1d93c97c7b503a1aac286a40780b7219ac4f4e52f69
-    doc-integrity: 692497a5555f1c6ce07172cda164c24f1157ff1c386cd45d748a42939108fad1
-    issue-templates: ba3e7c6de380ff2f12a922be349dda4d04014f0da6f349e4d26037a2fc576abe
-    issues-tracked: 70d7fb36352cfe69bd5a932862cd4c98ec3697a01981e18c96bb9236b476e72c
-    receipt-per-issue: 1bb2024c03439a92dedebddaff6a344cf9354b4e083b7f6b00fd6a8cc0ba62e6
-    toolchain-config-protection: b0ed3d7f5d4bd2358de40f124c428e343df34a98864d8a15a9c56489943a862c
+    agent-steering-accounting: 31436e360bb42d00fc8614747499ce569c0b445aac737c2f0d9a49c7a518497d
+    agent-token-accounting: e829cf2d9c480047498b23cd3e3b0ee5de5b9a306de8caafe05f5c4a9f39b8a5
+    commit-issue-receipt-match: ac69c6b36f9ef80a931c364c9722934351fbfcc0e1bee7d28918fc26f8b6f9bf
+    doc-integrity: 59364093df7c69bcc6778aa298bd662cf686db5fe2378186d4cf7ad467988b69
+    issue-templates: d18ce31f1e8dc1f23a32417afbb859b041afd78e399c62b26f3a4816607ad1ee
+    issues-tracked: b5d07cafb33ead4ee01b5286c7eaf71f3f7182f327527c63160adb387e4dba58
+    receipt-per-issue: 266a5af88ce453c0c2812fd74fab24c706e1e7fad7fcc6b822808a0ffba0972a
+    toolchain-config-protection: f001dd4f2cefc32e8336f97e1aeed182e9150d48fa65a44d30a9ca29715fa709
 - id: governance-kit/commits
-  version: 0.2.2
+  version: 0.3.0
   source: gh
-  ref: gh:duaility/governance-kit/packs/commits@commits/v0.2.2
-  sha: 6b9212de78389e2448c48308093e4ba2cf13bc0b
+  ref: gh:duaility/governance-kit/packs/commits@commits/v0.3.0
+  sha: 856a39af1ac4abeae1ba58d421c4116db97a1423
   subpath: packs/commits
   min_governance_kit: 0.6.0
-  installed_at: '2026-06-17T18:56:38Z'
+  installed_at: '2026-08-05T07:32:13Z'
   directives:
   - commit-message-format
   digest:
-    commit-message-format: 0a65219182af1886ce5cada20b74d144e7a7adb8deb482a4c456a7370b765cd7
+    commit-message-format: f1022868cbd2f75f560fb0e7318cbb0fe03a4eb312f9dc955bcad70609938036
 - id: governance-kit/foundation
-  version: 0.5.1
+  version: 0.6.0
   source: gh
-  ref: gh:duaility/governance-kit/packs/foundation@foundation/v0.5.1
-  sha: 7ac06ef861e6ac5ddf580fca35e1c32f9780a2fb
+  ref: gh:duaility/governance-kit/packs/foundation@foundation/v0.6.0
+  sha: bc5008251f2e138f44a4d65846255adaf553a3e3
   subpath: packs/foundation
   min_governance_kit: 0.6.0
-  installed_at: '2026-06-17T18:56:20Z'
+  installed_at: '2026-08-05T07:27:16Z'
   directives:
   - internal-doc-links
   - managed-tree-integrity
   - repo-hygiene
   - required-docs
   digest:
-    internal-doc-links: 1c8cc0ba358eea3190664ceb05c96c4f608c4171029a4ed374480541750be1f5
-    managed-tree-integrity: 9f516add12805fea75f4b1f8ee83b42eb38f66f65522d6b7d5fd663bef1b9dd5
-    repo-hygiene: bcc6d10bef0a216d1698d6406ef87559268639132632cbd68ca544a0bd843a44
-    required-docs: 97d5963e146c39cae9243e4c63cf9cee092497800b81abd3e2c071fc74052833
+    internal-doc-links: a799210f1b8bb64855b853769c8d1c7d2fc7bc96ee66c7d8e28c5c07088b8f59
+    managed-tree-integrity: 1d43a3ea99869df81bd8ca2cc7c22962f4f2ae9fc06a0f554cc3dba44eddac66
+    repo-hygiene: dc51746bede2546a5a281ec792a4f8e058f47db33200df3251a4c7dfc9a55ba4
+    required-docs: 26e0f505072dfce8ea2f548ca36e79a88c5eb9463ba9fae3d118654aa20ff6e7

@@ -56,7 +56,7 @@
 #
 #      The sub-agent prompt (what the harness agent runs on a small, low-cost
 #      model — the shared attestation_prompt envelope requests the low capability
-#      tier; see kit/references/SUBAGENT_ATTESTATION.md "Model tier" — with the
+#      tier; see kit/references/JUDGE.md "Model tier" — with the
 #      diff, this receipt, and `gh issue view <N>` as the only inputs):
 #        You are auditing a receipt against ground truth. For each check report
 #        PASS or REFUTED plus evidence: (1) `## What changed` faithfully
@@ -323,15 +323,15 @@ for f in "${receipt_files[@]}"; do
         # `## Audit` (issues #272, #325): a newly added receipt must carry a
         # fresh-context sub-agent's adversarial verdict against the diff and the
         # issue — the substance the closed-loop crosswalk never touches. The
-        # judgment task is declared once in directive.yaml's `subagent:` block;
-        # `subagent_attest` reads it, gates the section's presence + verdict, and
+        # judgment task is declared once in directive.yaml's `judge:` block;
+        # `judge_attest` reads it, gates the section's presence + verdict, and
         # registers it (isolation: shared) so the run-level orchestrator batches
         # it with any other pending shared attestation into one sub-agent. The
         # hook never spawns anything itself; a bare/CI run with no agent simply
         # hard-fails on the missing section. On an older lib.sh (no
-        # subagent_attest) fall back to the per-section require_attestation gate.
-        if declare -F subagent_attest >/dev/null 2>&1; then
-            subagent_attest "$f"
+        # judge_attest) fall back to the per-section require_attestation gate.
+        if declare -F judge_attest >/dev/null 2>&1; then
+            judge_attest "$f"
         else
             require_attestation "$f" "Audit" \
                 "The mechanical checks prove this receipt is internally consistent, never that it matches reality (they read neither the diff nor the issue)." \

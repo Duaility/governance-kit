@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# governance-kit:managed kit-version=0.11.0
+# governance-kit:managed kit-version=0.13.0
 # Governance test runner. Discovers every directive under ./packs/<owner>/<name>/.
 # Directives are folder-shaped — each directive is `directives/<id>/check.sh`.
 # Anything the directive needs (lib/, hooks/, runtimes/) lives in the same folder.
@@ -23,7 +23,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 PACKS_DIR="$HERE/packs"
 
 # Sub-agent attestation orchestration (issue #325). A directive that declares a
-# `subagent:` block registers any pending attestation into a shared ledger when
+# `judge:` block registers any pending attestation into a shared ledger when
 # its check.sh runs; after the whole run we emit ONE grouped remediation
 # instruction (shared-batched + isolated). Sourcing lib.sh provides
 # attestation_remediation; exporting the ledger path makes it visible to each

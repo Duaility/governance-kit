@@ -4,3 +4,10 @@ recommended: true
 summary: "Commit messages match Conventional Commits with a trailing GitHub issue reference."
 surface: change-set
 hook: commit-msg
+judge:
+  inputs: [range-diff]
+  checks:
+    - "The subject honestly names what the change does; it is not a generic label attached to a substantive change."
+    - "The declared type (`feat`, `fix`, `chore`, etc.) matches the actual nature of the change, not a milder type chosen to slip past scrutiny."
+    - "The optional scope, when present, matches the area of the repo the diff actually touches."
+    - "The referenced issue `(#123)` is the issue this commit's content actually belongs to, not an arbitrary number copied to satisfy the format."
