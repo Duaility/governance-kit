@@ -52,11 +52,6 @@ config:
     doc: Maximum adjudication rounds before the verdict gate stops retrying.
     default: 3
     tunable: true
-  - name: JUDGE_GROUP
-    type: scalar
-    doc: Optional consumer-selected batching label; empty means adjudicate alone.
-    default: ""
-    tunable: true
   - name: SCHEDULE_EVIDENCE
     type: scalar
     doc: Evidence grain for scheduled re-adjudication; receipts require per-commit intent.
@@ -67,10 +62,13 @@ config:
     doc: Fixed CLI command used for scheduled adjudication.
     default: claude -p --output-format text --model opus
     tunable: false
+  - name: SCHEDULE_CRON
+    type: scalar
+    doc: Consumer-selected cron cadence; empty disables scheduled enrollment.
+    default: ""
+    tunable: true
 # Sub-agent judgment (issue #325): the `## Audit` section is a fresh-context
 # sub-agent attestation. Declared once here; check.sh gates it via judge_attest.
-# No `group:` — a bundled pack does not presume a consumer's batching economics,
-# so this is adjudicated solo unless the repo says otherwise.
 judge:
   inputs:  [diff, receipt, issue]
   checks:

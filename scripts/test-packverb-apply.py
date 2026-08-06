@@ -297,7 +297,7 @@ def test_add_judge_directive_seeds_no_schedule_lane() -> None:
     # behavior. `schedule.sh` is copied unconditionally at init time only
     # (like run.sh/lib.sh); pack add/update never touches kit runtime files,
     # and a schedule-lane workflow is only ever created explicitly via
-    # `governance schedule create` (packverb.py schedule-apply).
+    # `governance workflow generate` (packverb.py workflow-apply).
     with tempfile.TemporaryDirectory() as tmp:
         src = _write_judge_source_pack(Path(tmp) / "src")
         root = _make_repo(Path(tmp) / "repo")
@@ -307,7 +307,7 @@ def test_add_judge_directive_seeds_no_schedule_lane() -> None:
         assert rc == 0 and report["result"] == "applied", report
         assert not (root / ".governance/schedule.sh").exists()
         assert not (root / ".github/workflows/governance-sweep.yml").exists()
-        assert not list((root / ".github/workflows").glob("governance-schedule-*.yml"))
+        assert not list((root / ".github/workflows").glob("governance-schedule*.yml"))
         assert ".governance/schedule.sh" not in report["seeded_assets"]
         ledger = (root / ".governance/install.yaml").read_text()
         assert ".governance/schedule.sh" not in ledger

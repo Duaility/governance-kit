@@ -7,7 +7,7 @@ full rearchitecture context.
 
 **Two kinds of verb (issue #194).** `install` / `update` / `uninstall` are
 **lifecycle** verbs the installed skill bootstraps (it fetches a kit tree and
-follows that tree's flow doc). `pack *` / `directive *` / `reset` / `schedule *`
+follows that tree's flow doc). `pack *` / `directive *` / `reset` / `workflow generate`
 are **routed** verbs: the skill resolves the kit the repo pins (`bootstrap.py
 current`, see the installed skill's `SKILL.md`, "Delegate everything else to
 the pinned kit") and runs them from *that* kit's `<lib_dir>` +
@@ -94,24 +94,25 @@ Full flows live in [DIRECTIVE_VERBS.md](DIRECTIVE_VERBS.md). Summary:
 
 All three follow [DIRECTIVE_AMEND_FLOW.md](DIRECTIVE_AMEND_FLOW.md) Steps 1–7. Directives installed via `governance pack add` are off-limits for `directive *` — touch them through the matching `pack *` verb.
 
-## `schedule`
+## `workflow generate`
 
-Full flow lives in [SCHEDULE_FLOW.md](SCHEDULE_FLOW.md). A **routed** verb,
-same as `pack *` / `directive *` / `reset` — the skill resolves the pinned
-kit and runs the engine from that kit's tree.
+Full flow lives in [SCHEDULE_FLOW.md](SCHEDULE_FLOW.md). This is a **routed**
+verb, same as `pack *` / `directive *` / `reset` — the skill resolves the
+pinned kit and runs the engine from that kit's tree.
 
-| Verb | Intent |
-|---|---|
-| `schedule create <lane> --cron <expr> --members <id>...` | Define or overwrite a named scheduled lane: resolve + validate members (each needs an explicit author-owned `schedule` trigger), render the generated workflow, and write it. Evidence is resolved per directive. |
-| `schedule remove <lane>` | Delete the lane's generated workflow and drop its ledger rows. |
-| `schedule list` | Enumerate the lanes currently on disk. |
+`governance workflow generate` scans every installed directive. A directive is
+eligible when its author-owned `triggers:` list contains `schedule` and is
+enrolled when its effective `SCHEDULE_CRON` config value is non-empty. The
+command groups directives by exact cron expression and compiles all groups into
+one managed `.github/workflows/governance-schedule.yml` workflow. An empty
+set removes the generated workflow and its install ledger entry.
 
-- **Aliases a user might type:** `governance schedule`, `schedule a nightly run`, `add a scheduled lane`, `set up a judge cadence`, `remove the nightly lane`, `list scheduled lanes`.
-- **Deterministic plan/apply.** `create` resolves via `packverb schedule-plan <lane> --cron <expr> --members <id>... [--budget N]` (member resolution + eligibility validation + per-member evidence/staleness + rendered preview) and executes via `packverb schedule-apply`. `schedule remove <lane>` routes to `packverb schedule-remove <lane>`.
+- **Aliases a user might type:** `governance workflow generate`, `generate the governance workflow`, `refresh scheduled governance`, `compile scheduled checks`.
+- **Deterministic plan/apply.** The engine resolves with `packverb workflow-plan <root>` and applies with `packverb workflow-apply <root>`; the one-shot routed surface is `packverb workflow-generate <root>`.
 - **Assets used:** `../assets/governance-schedule.template.yml`.
-- **Install-state keys touched:** `install_assets_seeded` (the generated workflow path, on first `create` for a lane) and `managed_digests` (rewritten by `schedule-apply`/`schedule-remove` via `digestlib`, keyed by the workflow's repo-relative path).
-- **Single writer.** The verb is the only writer of any `governance-schedule-<lane>.yml` file; a hand-edit changes its digest and trips `managed-tree-integrity` offline, the same as any other kit-managed file.
-- **Idempotent.** Re-running `create` with identical inputs against an existing lane produces a byte-identical file.
+- **Install-state keys touched:** `install_assets_seeded` and `managed_digests` for `.github/workflows/governance-schedule.yml`.
+- **Single writer.** The verb is the only writer of the generated workflow; a hand-edit changes its digest and trips `managed-tree-integrity` offline.
+- **Idempotent.** Re-running generation with unchanged directive config produces a byte-identical file.
 
 ## Trigger words this skill should NOT claim
 

@@ -173,7 +173,7 @@ def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str
     # No scheduled-lane workflow is seeded here (unlike the retired sweep
     # lane, which vendored its workflow the moment a live-sweep directive was
     # installed). A schedule lane is a consumer-defined artifact — created
-    # explicitly via `governance schedule` (packverb.py schedule-apply), never
+    # explicitly via `governance workflow generate` (packverb.py workflow-apply), never
     # implied by which directives this pack add/update happened to install.
 
     # CONSTITUTION.md: upsert each installed directive's subsection so the live

@@ -334,8 +334,8 @@ for f in "${receipt_files[@]}"; do
         # issue — the substance the closed-loop crosswalk never touches. The
         # judgment task is declared once in directive.yaml's `judge:` block;
         # `judge_attest` reads it, gates the section's presence + verdict, and
-        # registers it (isolation: shared) so the run-level orchestrator batches
-        # it with any other pending shared attestation into one sub-agent. The
+        # registers it so the run-level orchestrator can request one fresh
+        # context for this pending attestation. The
         # hook never spawns anything itself; a bare/CI run with no agent simply
         # hard-fails on the missing section. On an older lib.sh (no
         # judge_attest) fall back to the per-section require_attestation gate.

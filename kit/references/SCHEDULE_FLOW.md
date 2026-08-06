@@ -1,90 +1,87 @@
-# Schedule flow — consumer-defined at-rest judge lanes
+# Scheduled workflow generation
 
-Scheduled lanes re-run directive checks and judgments away from the commit
-path. Each lane is one generated
-`.github/workflows/governance-schedule-<lane>.yml` with its own cron, explicit
-members, and budget. Findings enter through the issue → agent → PR loop.
+Scheduled governance is directive-owned and compiled into one managed GitHub
+workflow. The source of truth is each installed directive's `directive.yaml`
+and its consumer overlay; the generated workflow is an artifact, never a
+second policy surface.
 
-## Eligibility and membership
+## Eligibility and enrollment
 
-Schedule eligibility is author-owned and explicit:
-
-```yaml
-hook: pre-commit
-triggers: [pre-commit, schedule]
-```
-
-A schedule-only directive uses `hook: none` and `triggers: [schedule]`.
-Overlays cannot add or remove triggers. A named member without an explicit
-`schedule` trigger is rejected by both planning and execution. Eligibility
-does not enroll a directive; the generated workflow's member list does.
-
-## Create a lane
-
-```text
-governance schedule create nightly \
-  --cron "0 3 * * *" \
-  --member receipt-per-issue \
-  --member no-orphan-todos \
-  --budget 20
-```
-
-There is no lane-wide evidence flag. The generated workflow invokes:
-
-```text
-bash .governance/run.sh --scheduled --lane nightly \
-  --budget 20 receipt-per-issue no-orphan-todos
-```
-
-`schedule create` validates every member, writes or updates the workflow, and
-records its managed digest. `schedule remove <lane>` removes that workflow and
-its ledger rows.
-
-## Per-directive evidence
-
-Each member chooses its own evidence grain through fixed config:
+A directive opts into the scheduled lane explicitly:
 
 ```yaml
+hook: pre-push
+triggers: [pre-push, schedule]
+
 config:
-  - name: SCHEDULE_EVIDENCE
+  - name: SCHEDULE_CRON
     type: scalar
-    doc: Evidence grain used by scheduled re-adjudication.
-    default: commits
-    tunable: false
+    doc: Consumer-selected cadence; empty disables scheduled enrollment.
+    default: ""
+    tunable: true
 ```
 
-Allowed values are `range` and `commits`. When omitted, `repo-state` surfaces
-derive `range` and `change-set` surfaces derive `commits`. A mixed lane can
-therefore evaluate one member once over the accumulated range and another
-once per commit without duplicating the whole lane.
+Schedule-only directives use `hook: none` and `triggers: [schedule]`. A
+non-empty effective `SCHEDULE_CRON` enrolls the directive; an empty or missing
+value leaves it eligible but unscheduled. Overlays cannot add or remove the
+author-owned `schedule` trigger, but they may set `SCHEDULE_CRON` when the
+manifest marks it tunable.
 
-The runtime resolves the range from explicit `--range`, the lane's last digest
-marker, or `--since` (default 24 hours), always ending at `HEAD`.
+## Generate the workflow
 
-## Staleness advisory
+The only user-facing scheduling command is:
 
-A directive may declare `SCHEDULE_STALENESS_DAYS` as a positive scalar. Lane
-planning compares it with the cron's conservative interval and emits a warning
-when the cadence can exceed the directive's stated maximum. This is advisory;
-it does not silently rewrite the consumer's schedule.
+```text
+governance workflow generate
+```
 
-## Judge resolution and outcomes
+The pinned kit scans every installed directive, validates its cron shape,
+groups directives that share the exact same cron expression, and writes:
 
-For judge members, command resolution is:
+```text
+.github/workflows/governance-schedule.yml
+```
 
-1. the directive's author-fixed `SCHEDULE_CMD` config;
-2. un-adjudicated, reported honestly and retried later.
+The workflow contains one GitHub `schedule` entry for each distinct cron and a
+dispatcher that runs the matching member directives. A manual
+`workflow_dispatch` can select one cron or run every generated cadence. If no
+directive has a non-empty cadence, generation removes the managed workflow and
+its install-ledger entry.
 
-Environment variables neither override nor supply directive config.
+`workflow generate` is idempotent. It is the single writer of the generated
+file, records the path in `.governance/install.yaml`, and refreshes the
+`managed_digests` block. It also reconciles legacy generated
+`governance-schedule-<lane>.yml` files from the former lane-based interface.
 
-Mechanical `check.sh` failures fail the job because they are facts. Judge
-answers do not directly fail the scheduled job: editable attestation artifacts
-receive a round, while discovery findings and frozen-artifact findings go to
-the lane's digest issue. An unavailable judge is never treated as PASS.
+There is no schedule-wide budget. Every scheduled judge invocation runs unless
+its own command is unavailable; the runtime reports unavailable judgments as
+un-adjudicated and never guesses a verdict. The CLI's own per-call timeout and
+the workflow's normal job controls remain in force.
 
-## State and deduplication
+## Per-directive evidence and independent judges
 
-Digest labels, resume markers, and issue titles are lane-scoped, so multiple
-cadences can share members without colliding. Finding markers suppress
-duplicates already present in an open lane digest. With no GitHub CLI access,
-the runtime still performs the work and prints the digest to stderr.
+Each directive keeps its own `SCHEDULE_EVIDENCE` and optional
+`SCHEDULE_STALENESS_DAYS` config. When omitted, `repo-state` derives `range`
+and `change-set` derives `commits`. Staleness is advisory and does not rewrite
+the cron.
+
+Every directive is judged independently. Directives that share a cron expression
+share the GitHub workflow trigger, but each gets its own prompt, command
+invocation, response, receipt round, and finding. There is no batching or
+cross-directive judge configuration.
+
+## Runtime behavior
+
+The generated workflow checks out full history and invokes the installed
+runtime for the selected cadence:
+
+```text
+bash .governance/run.sh --scheduled --lane <stable-cron-id> <member>...
+```
+
+The internal stable cadence id scopes resume markers, digest labels, and issue
+titles. Mechanical `check.sh` failures fail the GitHub job. Judge answers do
+not directly fail the scheduled job: editable receipts receive adjudication
+rounds, while frozen-artifact and discovery findings enter the
+`governance-schedule-<stable-cron-id>` digest issue. Findings follow the issue
+→ agent → PR loop.

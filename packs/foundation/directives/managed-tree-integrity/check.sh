@@ -37,17 +37,15 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # their content fully.
 SWEEP_ASSET_RELPATHS=".github/workflows/governance-sweep.yml .governance/sweep.sh"
 
-# Generated schedule-lane workflows (sweep-lane successor): each
-# `.github/workflows/governance-schedule-<lane>.yml` is stamped at
-# verb-run time (`governance schedule create`), not at kit-release time, so
-# its marker legitimately tracks the kit version current when the lane was
-# created/last regenerated rather than the manifest's pin — the same
-# seed-time rationale as the legacy sweep pair above (issue #263), applied
-# per-lane via a glob since the lane name is consumer-chosen. The digest
-# check still guards their content fully.
+# Generated schedule workflow (sweep-lane successor) is stamped at
+# verb-run time (`governance workflow generate`), not at kit-release time, so
+# its marker legitimately tracks the kit version current when it was
+# generated rather than the manifest's pin — the same seed-time rationale as
+# the legacy sweep pair above (issue #263). The prefixed lane glob is retained
+# for migration installs. The digest check still guards their content fully.
 _mti_is_schedule_workflow() {
     case "$1" in
-        .github/workflows/governance-schedule-*.yml) return 0 ;;
+        .github/workflows/governance-schedule*.yml) return 0 ;;
         *) return 1 ;;
     esac
 }

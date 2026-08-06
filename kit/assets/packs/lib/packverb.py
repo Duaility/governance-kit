@@ -468,11 +468,11 @@ def main(argv: list[str]) -> int:
     p.add_argument("query", nargs="?", default="")
     p.set_defaults(func=cmd_catalog_search)
 
-    # schedule-plan / schedule-apply / schedule-remove — `governance schedule
-    # {create,remove}` (scheduled triggers, replaces the retired sweep lane).
-    # Registered from schedulelib, same pattern as register_lifecycle below.
-    from schedulelib import register_schedule
-    register_schedule(sub)
+    # workflow-plan / workflow-apply / workflow-generate — the single
+    # `governance workflow generate` surface compiles directive-owned cron
+    # config into one managed GitHub workflow.
+    from workflowlib import register_workflow
+    register_workflow(sub)
 
     # The deterministic lifecycle plan/apply commands (pack / reset / uninstall;
     # init in a later phase) are registered from lifecycle_cli to keep this

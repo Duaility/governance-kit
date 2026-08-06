@@ -99,22 +99,21 @@ def _schedule_managed_files(root: Path) -> list[str]:
     """Scheduled-lane generated workflow relpaths (issue #259, and the
     scheduled-triggers redesign that retired the sweep lane).
 
-    Unlike the retired sweep lane's fixed asset pair (one workflow + one
-    driver, both seeded the moment a live-sweep directive was installed),
-    every scheduled lane is a consumer-authored artifact created explicitly
-    via `governance schedule` (`schedulelib.apply`) — there is no fixed set
-    to source from a static map. Each lane emits its own
-    `.github/workflows/governance-schedule-<lane>.yml`, so this simply globs
-    what's actually on disk. `schedule.sh` itself (the at-rest engine,
-    replacing `.governance/sweep.sh`) needs no special case any more — it now
-    lives in `<tests_dir>/schedule.sh`, next to run.sh/lib.sh, and is added to
-    the static candidates list in `managed_runtime_files` below instead."""
+    Unlike the retired sweep lane's fixed asset pair, the generated schedule
+    workflow is a consumer-owned artifact created explicitly via
+    `governance workflow generate` (`workflowlib.apply`). The current output is
+    `.github/workflows/governance-schedule.yml`; the prefixed lane files are
+    still included so a migration can detect and reconcile them. `schedule.sh`
+    itself (the at-rest engine, replacing `.governance/sweep.sh`) needs no
+    special case any more — it now lives in `<tests_dir>/schedule.sh`, next to
+    run.sh/lib.sh, and is added to the static candidates list in
+    `managed_runtime_files` below instead."""
     workflows_dir = Path(root) / ".github" / "workflows"
     if not workflows_dir.is_dir():
         return []
     return sorted(
         f".github/workflows/{p.name}"
-        for p in workflows_dir.glob("governance-schedule-*.yml")
+        for p in workflows_dir.glob("governance-schedule*.yml")
         if p.is_file()
     )
 
@@ -150,9 +149,9 @@ def managed_runtime_files(root: str | Path) -> list[str]:
     ci = _manifest_scalar(text, "ci_workflow")
     if ci:
         candidates.append(ci)
-    # Scheduled-lane generated workflows (issue #259) — one per lane created via
-    # `governance schedule`; enumerated straight from disk (see
-    # `_schedule_managed_files`), so absent when no lane has been created.
+    # The single generated schedule workflow (and any legacy prefixed files)
+    # is enumerated straight from disk (see `_schedule_managed_files`), so it
+    # is absent when no cadence has been configured.
     candidates.extend(_schedule_managed_files(root))
     # Only digest what actually exists; dedupe; sort for stability.
     present = sorted({c for c in candidates if (root / c).is_file()})

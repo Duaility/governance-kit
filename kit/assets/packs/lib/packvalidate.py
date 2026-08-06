@@ -2,7 +2,7 @@
 """Pack/directive manifest validation for packctl.py.
 
 Split from packctl.py to keep both files under the repo-hygiene 500-line
-limit (issue #355 cmd collapse landed the judge.cmd/group validation that
+limit (issue #355 cmd collapse landed the judge.cmd validation that
 pushed packctl.py over). This module owns `validate_judge_cmd`,
 `validate_pack_dir`, and `validate_pack_dir_with_warnings`; packctl.py keeps
 the argparse dispatch and small manifest accessors, and re-exports the two
@@ -53,6 +53,7 @@ from packctl import (
 
 
 _CONFIG_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
+_REMOVED_CONFIG_NAMES = {"JUDGE_GROUP"}
 
 
 def config_entries(config: Any) -> list[dict[str, Any]]:
@@ -95,6 +96,8 @@ def validate_config(pack_dir: Path, directive_id: str, config: Any) -> list[str]
             errors.append(f"{prefix}: duplicate config name {name!r}")
         else:
             seen.add(name)
+        if isinstance(name, str) and name in _REMOVED_CONFIG_NAMES:
+            errors.append(f"{ep} config name {name!r} was removed; judge directives run independently")
         kind = entry.get("type")
         if kind not in CONFIG_TYPES:
             errors.append(f"{ep} type must be one of {sorted(CONFIG_TYPES)!r}")
@@ -305,6 +308,15 @@ def validate_pack_dir_with_warnings(pack_dir: Path) -> tuple[list[str], list[str
         evidence = config_entry(config, "SCHEDULE_EVIDENCE")
         if evidence and scalar(evidence.get("default")) not in {"range", "commits"}:
             errors.append(f"{pack_dir}/{directive_id}: SCHEDULE_EVIDENCE default must be 'range' or 'commits'")
+        cron = config_entry(config, "SCHEDULE_CRON")
+        if cron:
+            if cron.get("type") != "scalar":
+                errors.append(f"{pack_dir}/{directive_id}: SCHEDULE_CRON must be a scalar config entry")
+            default_cron = scalar(cron.get("default"))
+            if default_cron and len(default_cron.split()) != 5:
+                errors.append(
+                    f"{pack_dir}/{directive_id}: SCHEDULE_CRON default must contain five space-separated cron fields"
+                )
         stale = config_entry(config, "SCHEDULE_STALENESS_DAYS")
         if stale and (not isinstance(stale.get("default"), int) or stale.get("default") <= 0):
             errors.append(f"{pack_dir}/{directive_id}: SCHEDULE_STALENESS_DAYS default must be a positive integer")

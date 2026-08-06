@@ -219,9 +219,9 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
         # No scheduled-lane workflow is seeded here (unlike the retired sweep
         # lane, which vendored its workflow the moment a live-sweep directive
         # was selected). A schedule lane is a consumer-defined artifact — the
-        # workflow IS the config, one lane per file, named members only —
-        # created explicitly via `governance schedule` (packverb.py
-        # schedule-apply), never implied by which directives happen to be
+        # workflow is a compiled artifact with one cadence entry per distinct
+        # directive-owned cron — created explicitly via `governance workflow
+        # generate` (packverb.py workflow-apply), never implied by which directives happen to be
         # installed. `schedule.sh` itself (copied above alongside run.sh/
         # lib.sh) needs no directive to opt in; it is idle until a lane
         # workflow invokes it.

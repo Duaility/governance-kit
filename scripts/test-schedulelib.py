@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Contract tests for per-directive scheduled-lane planning and generation."""
+"""Contract tests for directive-owned schedule workflow generation."""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PACK_LIB = ROOT / "kit" / "assets" / "packs" / "lib"
 sys.path.insert(0, str(PACK_LIB))
-spec = importlib.util.spec_from_file_location("schedulelib", PACK_LIB / "schedulelib.py")
+spec = importlib.util.spec_from_file_location("workflowlib", PACK_LIB / "workflowlib.py")
 assert spec and spec.loader
-schedulelib = importlib.util.module_from_spec(spec)
-sys.modules["schedulelib"] = schedulelib
-spec.loader.exec_module(schedulelib)
+workflowlib = importlib.util.module_from_spec(spec)
+sys.modules["workflowlib"] = workflowlib
+spec.loader.exec_module(workflowlib)
 
 INSTALL = 'version: "3"\nowner: acme\nrepo: demo\ntests_dir: .governance\ninstall_assets_seeded: []\ncollisions: []\n'
 
@@ -26,27 +26,36 @@ def root_at(tmp: Path) -> Path:
     return tmp
 
 
-def install(root: Path, directive_id: str, *, surface: str = "repo-state", evidence: str | None = None,
-            triggers: str = "[schedule]", staleness: int | None = None) -> None:
+def install(
+    root: Path,
+    directive_id: str,
+    *,
+    cron: str = "",
+    surface: str = "repo-state",
+    evidence: str | None = None,
+    triggers: str = "[schedule]",
+    staleness: int | None = None,
+) -> None:
     path = root / ".governance" / "packs" / "acme" / "demo" / "directives" / directive_id
     path.mkdir(parents=True)
-    config = ""
+    config = "config:\n"
+    config += "  - name: SCHEDULE_CRON\n"
+    config += "    type: scalar\n"
+    config += "    doc: Consumer-selected cadence.\n"
+    config += f'    default: "{cron}"\n'
+    config += "    tunable: true\n"
     if evidence:
-        config += f"""config:
-  - name: SCHEDULE_EVIDENCE
-    type: scalar
-    doc: Evidence mode for this directive.
-    default: {evidence}
-    tunable: false
-"""
+        config += "  - name: SCHEDULE_EVIDENCE\n"
+        config += "    type: scalar\n"
+        config += "    doc: Evidence mode for this directive.\n"
+        config += f"    default: {evidence}\n"
+        config += "    tunable: false\n"
     if staleness is not None:
-        prefix = "config:\n" if not config else ""
-        config += prefix + f"""  - name: SCHEDULE_STALENESS_DAYS
-    type: scalar
-    doc: Maximum scheduled-run interval.
-    default: {staleness}
-    tunable: true
-"""
+        config += "  - name: SCHEDULE_STALENESS_DAYS\n"
+        config += "    type: scalar\n"
+        config += "    doc: Maximum scheduled-run interval.\n"
+        config += f"    default: {staleness}\n"
+        config += "    tunable: true\n"
     (path / "directive.yaml").write_text(
         f"surface: {surface}\nhook: none\ntriggers: {triggers}\n" + config
     )
@@ -55,62 +64,83 @@ def install(root: Path, directive_id: str, *, surface: str = "repo-state", evide
 def test_plan_requires_explicit_schedule_trigger() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = root_at(Path(tmp))
-        install(root, "audit", triggers="[]")
-        result = schedulelib.plan(root, "nightly", "0 3 * * *", ["audit"])
-        assert result["errors"] and "not schedule-eligible" in result["errors"][0]
+        install(root, "audit", cron="0 3 * * *", triggers="[]")
+        result = workflowlib.plan(root)
+        assert not result["groups"]
+        assert result["warnings"] == []
 
 
-def test_plan_derives_evidence_per_member() -> None:
+def test_plan_groups_directives_by_cron() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = root_at(Path(tmp))
-        install(root, "state-audit", surface="repo-state")
-        install(root, "change-audit", surface="change-set")
-        install(root, "forced-commits", surface="repo-state", evidence="commits")
-        result = schedulelib.plan(root, "nightly", "0 3 * * *", ["state-audit", "change-audit", "forced-commits"])
+        install(root, "audit-a", cron="0 3 * * *")
+        install(root, "audit-b", cron="0 3 * * *")
+        install(root, "audit-c", cron="0 4 * * *")
+        result = workflowlib.plan(root)
         assert result["errors"] == [], result
-        evidence = {member["id"]: member["evidence"] for member in result["resolved_members"]}
-        assert evidence["acme/demo/state-audit"] == "range"
-        assert evidence["acme/demo/change-audit"] == "commits"
-        assert evidence["acme/demo/forced-commits"] == "commits"
+        assert [g["cron"] for g in result["groups"]] == ["0 3 * * *", "0 4 * * *"]
+        assert result["groups"][0]["members"] == ["acme/demo/audit-a", "acme/demo/audit-b"]
 
 
 def test_plan_reports_staleness_advisory() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = root_at(Path(tmp))
-        install(root, "audit", staleness=1)
-        result = schedulelib.plan(root, "weekly", "0 3 * * 1", ["audit"])
+        install(root, "audit", cron="0 3 * * 1", staleness=1)
+        result = workflowlib.plan(root)
         assert result["errors"] == []
-        assert result["warnings"] and "staleness" in result["warnings"][0]
+        # Staleness is evaluated by the runtime against the actual cadence;
+        # generation only compiles the source-of-truth cron entries.
+        assert result["warnings"] == []
 
 
-def test_apply_generates_idempotent_workflow_without_evidence_flag() -> None:
+def test_apply_generates_one_idempotent_workflow_without_budget() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = root_at(Path(tmp))
-        install(root, "audit")
-        first = schedulelib.apply(root, "nightly", "0 3 * * *", ["audit"], budget=7)
+        install(root, "audit", cron="0 3 * * *")
+        first = workflowlib.apply(root)
         assert first["result"] == "applied" and first["changed"] is True
-        target = root / ".github" / "workflows" / "governance-schedule-nightly.yml"
+        target = root / ".github" / "workflows" / "governance-schedule.yml"
         text = target.read_text()
-        assert "--evidence" not in text
-        assert 'GOVERNANCE_SCHEDULE_BUDGET: "7"' in text
-        second = schedulelib.apply(root, "nightly", "0 3 * * *", ["audit"], budget=7)
+        assert 'cron: "0 3 * * *"' in text
+        assert "acme/demo/audit" in text
+        assert "BUDGET" not in text
+        second = workflowlib.apply(root)
         assert second["changed"] is False
 
 
-def test_remove_cleans_workflow_and_ledger() -> None:
+def test_apply_reconciles_legacy_lane_workflows() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = root_at(Path(tmp))
-        install(root, "audit")
-        schedulelib.apply(root, "nightly", "0 3 * * *", ["audit"])
-        result = schedulelib.remove(root, "nightly")
-        assert result["result"] == "removed"
-        assert "governance-schedule-nightly" not in (root / ".governance" / "install.yaml").read_text()
+        install(root, "audit", cron="0 3 * * *")
+        legacy = root / ".github" / "workflows" / "governance-schedule-nightly.yml"
+        legacy.parent.mkdir(parents=True)
+        legacy.write_text("legacy\n")
+        result = workflowlib.apply(root)
+        assert result["result"] == "applied"
+        assert not legacy.exists()
+        assert (root / ".github" / "workflows" / "governance-schedule.yml").exists()
 
 
-def test_unknown_member_is_an_error() -> None:
+def test_apply_removes_workflow_when_all_crons_are_empty() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        result = schedulelib.plan(root_at(Path(tmp)), "nightly", "0 3 * * *", ["missing"])
-        assert result["errors"]
+        root = root_at(Path(tmp))
+        install(root, "audit", cron="0 3 * * *")
+        workflowlib.apply(root)
+        (root / ".governance" / "packs" / "acme" / "demo" / "directives" / "audit" / "directive.yaml").write_text(
+            "surface: repo-state\nhook: none\ntriggers: [schedule]\nconfig:\n"
+            "  - name: SCHEDULE_CRON\n    type: scalar\n    doc: Cadence.\n    default: \"\"\n    tunable: true\n"
+        )
+        result = workflowlib.apply(root)
+        assert result["result"] == "applied"
+        assert not (root / ".github" / "workflows" / "governance-schedule.yml").exists()
+
+
+def test_invalid_cron_is_an_error() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = root_at(Path(tmp))
+        install(root, "audit", cron="nightly")
+        result = workflowlib.plan(root)
+        assert result["errors"] and "five space-separated cron fields" in result["errors"][0]
 
 
 if __name__ == "__main__":

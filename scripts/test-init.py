@@ -310,7 +310,7 @@ def test_init_apply_lays_down_schedule_runtime() -> None:
     # digested on every install exactly like run.sh/lib.sh — regardless of
     # whether any installed directive has a `judge:` block. No workflow file
     # is auto-created; a schedule-lane workflow is only created explicitly via
-    # `governance schedule create`.
+    # `governance workflow generate`.
     with tempfile.TemporaryDirectory() as tmp:
         src = _write_judge_pack(Path(tmp) / "src")
         root = _fresh_repo(Path(tmp) / "repo")
@@ -327,7 +327,7 @@ def test_init_apply_lays_down_schedule_runtime() -> None:
         # file (managed_digests), not a one-time seeded asset.
         assert ".governance/schedule.sh" not in report.get("seeded_assets", [])
         assert not (root / ".github/workflows/governance-sweep.yml").exists()
-        assert not list((root / ".github/workflows").glob("governance-schedule-*.yml"))
+        assert not list((root / ".github/workflows").glob("governance-schedule*.yml"))
         ledger = (root / ".governance/install.yaml").read_text()
         assert "\n  .governance/schedule.sh: " in ledger, ledger
 
@@ -340,7 +340,7 @@ def test_init_apply_lays_down_schedule_runtime() -> None:
         assert rc == 0, report
         assert (root / ".governance/schedule.sh").is_file()
         assert not (root / ".github/workflows/governance-sweep.yml").exists()
-        assert not list((root / ".github/workflows").glob("governance-schedule-*.yml"))
+        assert not list((root / ".github/workflows").glob("governance-schedule*.yml"))
 
 
 def test_init_apply_dry_run_writes_nothing() -> None:

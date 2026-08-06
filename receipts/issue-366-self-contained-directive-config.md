@@ -10,12 +10,17 @@
 - [x] Retrofit bundled directive tunables and migrate lifecycle engines.
 - [x] Update normative references, generated docs, evals, and runtime tests.
 - [x] Preserve the release-managed `.governance/` tree unchanged.
+- [x] Remove judge grouping and compile all scheduled crons into one generated workflow without a schedule budget.
 
 ## What changed
 
 Directive manifests now carry each setting's type, documentation, default, and tunability. Runtime helpers enforce that contract without an environment fallback, lifecycle verbs seed generic overlays from manifest presence, pack planning reports registry drift, and validation rejects legacy defaults files or lane-specific judge keys.
 
 The scheduled lane now derives evidence for every member independently, supports mixed range/commit members in one run, treats triggers as author-owned policy, and reports stale cadence declarations without rewriting the lane.
+
+The follow-up simplification removes cross-directive judge grouping entirely. Each pending section receives its own fresh-context judgment, while identical directive-owned cron expressions share only a workflow trigger. `governance workflow generate` now reconciles one `.github/workflows/governance-schedule.yml`; schedule-wide budgets and legacy lane files are gone.
+
+Remove judge grouping and compile all scheduled crons into one generated workflow without a schedule budget.
 
 - Replace `defaults.conf` with a strict typed `directive.yaml config:` registry. The manifests now own values and docs, and the legacy files are deleted.
 - Make the per-directive overlay the sole persistent consumer override and remove the environment tier. `conf_get` and `conf_list` enforce manifest tunability.
@@ -37,6 +42,7 @@ docs/guide/configuration.mdx
 docs/reference/authoring-directives.mdx
 docs/reference/authoring-packs.mdx
 docs/reference/directive-catalog.mdx
+docs/reference/schemas.mdx
 docs/reference/verbs.mdx
 kit/assets/amend/directive.template.sh
 kit/assets/conf-overlay.stub.conf
@@ -46,18 +52,27 @@ kit/assets/dot-governance/schedule.sh
 kit/assets/governance-schedule.template.yml
 kit/assets/packs/lib/initapply.py
 kit/assets/packs/lib/install.sh
+kit/assets/packs/lib/applylib.py
+kit/assets/packs/lib/digestlib.py
+kit/assets/packs/lib/hooks.sh
 kit/assets/packs/lib/packapply.py
 kit/assets/packs/lib/packctl.py
 kit/assets/packs/lib/packplan.py
 kit/assets/packs/lib/packvalidate.py
+kit/assets/packs/lib/packverb.py
 kit/assets/packs/lib/resetapply.py
 kit/assets/packs/lib/schedulelib.py
+kit/assets/packs/lib/workflowlib.py
 kit/evals/schedule/evals.json
+kit/evals/schedule/files/scheduled-repo-with-lane/.github/workflows/governance-schedule.yml
+kit/evals/schedule/files/scheduled-repo-with-lane/.governance/install.yaml
 kit/evals/schedule/files/scheduled-repo-with-lane/README.md
+kit/evals/schedule/files/scheduled-repo/README.md
 kit/references/DIRECTIVES_CATALOG.md
 kit/references/DIRECTIVE_AUTHORING.md
 kit/references/DIRECTIVE_VERBS.md
 kit/references/INIT_FLOW.md
+kit/references/INSTALL_SCHEMA.md
 kit/references/JUDGE.md
 kit/references/LIB_API.md
 kit/references/PACK_AUTHORING.md
@@ -83,6 +98,7 @@ packs/audit/directives/issues-tracked/directive.yaml
 packs/audit/directives/receipt-per-issue/check.sh
 packs/audit/directives/receipt-per-issue/defaults.conf
 packs/audit/directives/receipt-per-issue/directive.yaml
+packs/audit/pack.yaml
 packs/audit/directives/toolchain-config-protection/check.sh
 packs/audit/directives/toolchain-config-protection/constitution.md
 packs/audit/directives/toolchain-config-protection/defaults.conf
@@ -101,6 +117,7 @@ packs/foundation/directives/internal-doc-links/directive.yaml
 packs/foundation/directives/managed-tree-integrity/check.sh
 packs/foundation/directives/managed-tree-integrity/defaults.conf
 packs/foundation/directives/managed-tree-integrity/directive.yaml
+packs/foundation/directives/managed-tree-integrity/evals/test.sh
 packs/foundation/directives/repo-hygiene/check.sh
 packs/foundation/directives/repo-hygiene/constitution.md
 packs/foundation/directives/repo-hygiene/defaults.conf
@@ -139,6 +156,7 @@ Release version bumps and the post-release refresh of the pinned `.governance/` 
 - Attest and schedule commands are fixed author contracts. A missing command is reported honestly; no environment fallback supplies it.
 - Schedule evidence defaults from `surface` when `SCHEDULE_EVIDENCE` is absent: `repo-state` → `range`, `change-set` → `commits`.
 - Old `defaults.conf`, `TRIGGERS=` overrides, lane-wide `--evidence`, and lane-specific `judge:` keys fail rather than silently degrading.
+- Scheduled cadence is a tunable `SCHEDULE_CRON` value owned by each directive; an empty value opts out. The generated workflow groups only identical cron triggers and never combines judge prompts or verdicts.
 
 ## Verification
 
@@ -169,7 +187,7 @@ PASS — The transcript contains one human-steering event: the ordinal 168 corre
 
 | date | harness | session | model | input | cache-create | cache-read | output | cost-usd | source |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-08-06 | codex | 019fd69e-ee48-7c02-b0a9-9f83691f3f90 | - | - | - | - | - | - | unresolved |
+| 2026-08-06 | codex | 019fd69e-ee48-7c02-b0a9-9f83691f3f90 | gpt-5.6-sol | 862446 | 0 | 52451072 | 138468 | - | session-file |
 
 ### Steering
 

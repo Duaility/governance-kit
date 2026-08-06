@@ -112,10 +112,10 @@ bundled concern packs — `governance-kit/{foundation,docs,commits,audit}`,
 each at `packs/<concern>/`. The kit also ships the off-commit-path,
 harness-pegged scheduled lane (the `.governance/schedule.sh` driver — a
 kit-managed runtime file present on every install, next to `run.sh`/`lib.sh`
-— plus the `governance schedule create` verb, which a repo uses to generate
-one named lane workflow per cadence, re-adjudicating a directive's `judge:`
-block at rest through a resolved judge command: that directive's own
-author-fixed `SCHEDULE_CMD` config — see
+— plus the `governance workflow generate` verb, which compiles every
+non-empty directive-owned `SCHEDULE_CRON` into one workflow and re-adjudicates
+each directive's `judge:` block independently through its author-fixed
+`SCHEDULE_CMD` config — see
 [kit/references/SCHEDULE_FLOW.md](kit/references/SCHEDULE_FLOW.md)), but no
 longer bundles any schedule-only directives; those are authored in repo-local
 or community packs (this repo dogfoods them in its repo-local

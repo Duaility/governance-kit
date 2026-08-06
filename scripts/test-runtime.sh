@@ -560,11 +560,6 @@ config:
     doc: Receipt section populated by the attestation lane.
     default: Audit
     tunable: false
-  - name: JUDGE_GROUP
-    type: scalar
-    doc: Optional batching label.
-    default: bundled
-    tunable: true
   - name: SCHEDULE_CMD
     type: scalar
     doc: Command used by the scheduled lane.
@@ -582,8 +577,6 @@ EOF
 # _judge_yaml parses the declared block (scalars + lists, no PyYAML).
 output=$(set +u; source "$LIB_SH"; conf_get sa ATTEST_SECTION "$sa_dir/directive.yaml")
 assert_eq "conf_get reads the fixed section" "Audit" "$output"
-output=$(set +u; source "$LIB_SH"; conf_get sa JUDGE_GROUP "$sa_dir/directive.yaml")
-assert_eq "conf_get reads the group default" "bundled" "$output"
 output=$(set +u; source "$LIB_SH"; _judge_cmd_resolve "$sa_dir/directive.yaml" schedule)
 assert_eq "_judge_cmd_resolve reads the schedule command" \
     "claude -p --output-format text --model opus" "$output"
@@ -602,24 +595,24 @@ exit_code=$?
 set -e
 assert_eq "judge_attest fails on a missing section" 1 "$exit_code"
 assert_contains "judge_attest names the missing section" "missing a '## Audit' section" "$output"
-assert_contains "judge_attest registers the group label" "bundled" "$(cat "$sa_ledger")"
+assert_eq "judge_attest records the attest lane" "attest" "$(cut -f1 "$sa_ledger")"
 
-# attestation_remediation emits ONE grouped envelope with the numbered checks.
+# attestation_remediation emits an independent envelope with the numbered checks.
 output=$(set +u; source "$LIB_SH"; attestation_remediation "$sa_ledger" 2>&1)
-assert_contains "remediation emits the grouped envelope" "Spawn ONE fresh-context sub-agent for group \`bundled\`" "$output"
+assert_contains "remediation emits an independent envelope" "Spawn a fresh-context sub-agent" "$output"
 assert_contains "remediation names the target section" "write the '## Audit' section" "$output"
 assert_contains "remediation numbers the first check" "(1) What changed matches the diff" "$output"
 assert_contains "remediation numbers the second check" "(2) checklist mirrors the issue" "$output"
 assert_contains "remediation unions the resolved inputs" "the diff (\`git diff\`)" "$output"
 assert_contains "remediation rejects self-authored sections" "do not self-author these sections" "$output"
 
-# An unlabeled record gets its own sub-agent instruction (US-joined inner fields).
-printf -- '-\tattest\t%s\tSteering\t%s\t%s\n' \
+# A second record gets its own independent instruction (US-joined inner fields).
+printf -- 'attest\t%s\tSteering\t%s\t%s\n' \
     "$WORK/issue-9-x.md" \
     "the issue"$'\x1f'"this receipt" \
     "every event recorded" >> "$sa_ledger"
 output=$(set +u; source "$LIB_SH"; attestation_remediation "$sa_ledger" 2>&1)
-assert_contains "remediation adds a solo sub-agent" "Spawn a separate fresh-context sub-agent (solo" "$output"
+assert_contains "remediation adds a second independent sub-agent" "Spawn a fresh-context sub-agent" "$output"
 
 # Present + verdict → gate passes and nothing is registered.
 printf '# r\n\n## Audit\n\n- PASS — ok\n' > "$sa_receipt"
@@ -634,108 +627,6 @@ assert_eq "no registration when the section is well-formed" "" "$(cat "$sa_ledge
 : > "$sa_ledger"
 output=$(set +u; source "$LIB_SH"; attestation_remediation "$sa_ledger" 2>&1)
 assert_eq "remediation is silent with no pending attestations" "" "$output"
-
-# ---- lib.sh: the group label + the declared judge command (issue #355) -----
-
-printf '── lib.sh: judge group / cmd (#355) ─────────────────\n'
-
-# judge_attest in an installed (.governance/packs/...) layout: the ledger row
-# carries the declared batching label and the lane it was raised on.
-k_dir="$WORK/knob-repo"
-k_chk="$k_dir/.governance/packs/acme/audit/directives/rec"
-mkdir -p "$k_chk"
-git -C "$k_dir" init -q
-cat > "$k_chk/directive.yaml" <<'EOF'
-surface: change-set
-hook: pre-commit
-judge:
-  inputs:  [diff]
-  checks:
-    - "What changed matches the diff"
-config:
-  - name: ATTEST_SECTION
-    type: scalar
-    doc: Receipt section populated by the attestation lane.
-    default: Audit
-    tunable: false
-  - name: JUDGE_GROUP
-    type: scalar
-    doc: Optional batching label.
-    default: bundled-intent
-    tunable: true
-  - name: SCHEDULE_CMD
-    type: scalar
-    doc: Command used by the scheduled lane.
-    default: claude -p --output-format text --model opus
-    tunable: false
-  - name: JUDGE_ROUNDS
-    type: scalar
-    doc: Maximum adjudication rounds.
-    default: 3
-    tunable: true
-EOF
-cat > "$k_chk/check.sh" <<EOF
-set -u
-source "$LIB_SH"
-directive_start rec
-judge_attest "\$1"
-directive_end
-EOF
-k_receipt="$k_dir/receipts/issue-7-x.md"
-mkdir -p "$k_dir/receipts"
-printf '# r\n\n## What changed\n\nx\n' > "$k_receipt"
-k_ledger="$WORK/knob-ledger.tsv"
-
-# The check exits 1 on the (expected) missing section, so guard against set -e.
-: > "$k_ledger"
-(set +u; export GOVERNANCE_ATTEST_LEDGER="$k_ledger"; cd "$k_dir"; bash "$k_chk/check.sh" "$k_receipt" >/dev/null 2>&1) || true
-assert_eq "the group column carries the declared label" "bundled-intent" "$(cut -f1 "$k_ledger")"
-assert_eq "the lane column is attest on the commit path" "attest" "$(cut -f2 "$k_ledger")"
-
-# A directive that declares no group is a spawn of its own; the ledger says so
-# with `-`, never with an empty field (tab is IFS whitespace — an empty field
-# would shift every column after it).
-k_solo="$k_dir/.governance/packs/acme/audit/directives/solo"
-mkdir -p "$k_solo"
-sed '/^  group:/d' "$k_chk/directive.yaml" > "$k_solo/directive.yaml"
-sed 's/directive_start rec/directive_start solo/' "$k_chk/check.sh" > "$k_solo/check.sh"
-mkdir -p "$k_dir/.governance/conf/acme/audit"
-printf 'JUDGE_GROUP=\n' > "$k_dir/.governance/conf/acme/audit/solo.conf"
-: > "$k_ledger"
-(set +u; export GOVERNANCE_ATTEST_LEDGER="$k_ledger"; cd "$k_dir"; bash "$k_solo/check.sh" "$k_receipt" >/dev/null 2>&1) || true
-assert_eq "an undeclared group travels as a literal dash" "-" "$(cut -f1 "$k_ledger")"
-assert_eq "and the row still has all ten fields" "harness" "$(cut -f10 "$k_ledger")"
-output=$(set +u; source "$LIB_SH"; attestation_remediation "$k_ledger" 2>&1)
-assert_contains "remediation routes an unlabeled row to its own sub-agent" \
-    "Spawn a separate fresh-context sub-agent (solo" "$output"
-
-# A declaration with NO `ATTEST_SECTION` config is schedule-only discovery: it names no
-# place in the receipt for a verdict to land, so the commit lane no-ops on it
-# instead of gating anything — the lane is read off `section:` and nothing
-# else.
-k_disc="$k_dir/.governance/packs/acme/audit/directives/disc"
-mkdir -p "$k_disc"
-awk '
-  /^  - name: ATTEST_SECTION$/ { skip=1; next }
-  skip && /^  - name:/ { skip=0 }
-  !skip { print }
-' "$k_chk/directive.yaml" > "$k_disc/directive.yaml"
-sed 's/directive_start rec/directive_start disc/' "$k_chk/check.sh" > "$k_disc/check.sh"
-: > "$k_ledger"
-set +e
-(set +u; export GOVERNANCE_ATTEST_LEDGER="$k_ledger"; cd "$k_dir"; bash "$k_disc/check.sh" "$k_receipt" >/dev/null 2>&1)
-exit_code=$?
-set -e
-assert_eq "a sectionless declaration no-ops on the commit path" 0 "$exit_code"
-assert_eq "and registers nothing for the orchestrator" "" "$(cat "$k_ledger")"
-
-# The judge command is read from the directive, per lane — no conf ladder, no
-# env override, no tier vocabulary (issue #355).
-output=$(set +u; source "$LIB_SH"; _judge_cmd_resolve "$k_chk/directive.yaml" schedule)
-assert_eq "the schedule command is the directive's own" \
-    "claude -p --output-format text --model opus" "$output"
-output=$(set +u; source "$LIB_SH"; _judge_cmd_resolve "$k_chk/directive.yaml" attest || printf '(none)')
-assert_eq "no attest row means the harness path, and prints nothing" "(none)" "$output"
 
 # ---- lib.sh: conf_file / conf_get / conf_rule_lines -----------------------
 

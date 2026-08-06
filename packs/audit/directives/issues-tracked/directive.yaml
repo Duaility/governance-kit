@@ -26,6 +26,11 @@ config:
     doc: Fixed CLI command used for scheduled adjudication.
     default: claude -p --output-format text --model opus
     tunable: false
+  - name: SCHEDULE_CRON
+    type: scalar
+    doc: Consumer-selected cron cadence; empty disables scheduled enrollment.
+    default: ""
+    tunable: true
 judge:
   inputs: [range-diff]
   checks:

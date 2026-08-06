@@ -116,6 +116,11 @@ reads:                          # optional capability declaration
   - .governance/**
 writes: []                      # optional; most directives are read-only
 config:                         # optional typed registry; strict list of mappings
+  - name: SCHEDULE_CRON
+    type: scalar
+    doc: Consumer-selected cron; empty disables scheduled enrollment.
+    default: ""
+    tunable: true
   - name: LIMIT
     type: scalar                # scalar | list
     doc: Maximum accepted count.
@@ -136,12 +141,12 @@ judge:                          # optional; semantics only
 | `surface` | `repo-state` for directives that inspect the tree at rest; `change-set` for directives that inspect a specific commit or diff. Whether a directive also runs off the commit path is a property of its `judge:` block (below) and its `triggers:` eligibility, not a separate surface value — see [SCHEDULE_FLOW.md](https://github.com/Duaility/governance-kit/blob/main/kit/references/SCHEDULE_FLOW.md). |
 | `hook` | Hook kind the directive wants to run in. Drives dispatcher generation. Use `none` if the directive runs exclusively in CI, or is an explicit `triggers: [schedule]` judge that never runs on the commit path. |
 | `triggers` | Optional for mechanical hook-only directives; required for judges and schedule participation. Values come from `pre-commit, commit-msg, prepare-commit-msg, post-commit, pre-push, schedule`. When present, the hook value must appear and `schedule` is the only additional lane. Triggers are author-owned and cannot be overridden. |
-| `config` | Optional non-empty list of strict mappings: `name`, `type`, `doc`, `default`, `tunable`. Unknown or missing fields fail validation. Names match `[A-Z][A-Z0-9_]*`; list defaults contain non-empty one-line strings. |
+| `config` | Optional non-empty list of strict mappings: `name`, `type`, `doc`, `default`, `tunable`. Unknown or missing fields fail validation. Names match `[A-Z][A-Z0-9_]*`; list defaults contain non-empty one-line strings. Schedule-eligible directives should declare tunable `SCHEDULE_CRON`; empty means not enrolled. |
 | `standards` | Optional advisory list of external standards the directive implements (e.g. `"OpenSSF Scorecard: Token-Permissions"`, `"CWE-798"`). Rendered as a Standards column in DIRECTIVES_CATALOG.md so coverage and gaps are visible. Not validated and never affects pass/fail. |
 | `always_install` | Reserved to the `governance-kit/*` bundled packs. Skips the menu. If you need an unconditionally installed directive in a third-party pack, file an issue first — the guarantee only holds for the bundled packs. |
 | `requires_hook_strategy` | Optional environment filter. Use this for directives whose check is only meaningful under one hook strategy — e.g. a directive asserting `.githooks/` scaffolding would declare `requires_hook_strategy: githooks` so it is skipped for husky/pre-commit.com repos. |
 | `reads` / `writes` | Optional capability declaration. List of path globs the directive's `check.sh` inspects (`reads`) or mutates (`writes`) relative to the target repo root. Most directives declare a short `reads:` list and an empty `writes:` — governance directives are overwhelmingly read-only. The schema is validated at install time (each entry must be a non-empty string); semantic enforcement (refusing install when a directive reaches outside its declared bounds) is scheduled for the `governance pack add` verb. Declare capabilities now so community packs are forward-compatible. |
-| `judge` | Optional semantics-only mapping with non-empty `inputs`, non-empty `checks`, and optional `gate` (`record`, `verdict`, `verdict-contestable`). Placement, commands, grouping, retry ceilings, evidence, and staleness belong in `config:`. Unknown judge keys fail validation. |
+| `judge` | Optional semantics-only mapping with non-empty `inputs`, non-empty `checks`, and optional `gate` (`record`, `verdict`, `verdict-contestable`). Placement, commands, retry ceilings, evidence, cadence, and staleness belong in `config:`. Unknown judge keys fail validation. |
 
 A directive with **no `check.sh`** is valid only for the explicit schedule-only
 shape: `hook: none`, `triggers: [schedule]`, and a `judge:` declaration.

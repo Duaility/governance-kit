@@ -59,11 +59,6 @@ config:
     doc: Maximum verdict remediation rounds.
     default: 5
     tunable: true
-  - name: JUDGE_GROUP
-    type: scalar
-    doc: Optional batching label.
-    default: bundled
-    tunable: true
 judge:
   inputs: [diff, receipt, issue]
   checks:
@@ -100,14 +95,11 @@ assert_eq "schedule command comes from config" "claude -p --model opus" \
     "$(cd "$repo" && lib "_judge_cmd_resolve '$dir/directive.yaml' schedule")"
 assert_eq "round ceiling comes from config" "5" \
     "$(cd "$repo" && lib "_judge_rounds_resolve gated '$dir/directive.yaml'")"
-assert_eq "group default comes from config" "bundled" \
-    "$(cd "$repo" && lib "_judge_group_resolve acme/audit/gated gated '$dir/directive.yaml'")"
 
 mkdir -p "$repo/.governance/conf/acme/audit"
 cat > "$repo/.governance/conf/acme/audit/gated.conf" <<'EOF'
 SCHEDULE_CMD=codex exec
 JUDGE_ROUNDS=2
-JUDGE_GROUP=consumer-batch
 ATTEST_SECTION=Steering
 EOF
 cp "$repo/.governance/conf/acme/audit/gated.conf" "$repo/.governance/conf/gated.conf"
@@ -115,8 +107,6 @@ assert_eq "fixed schedule command ignores overlay" "claude -p --model opus" \
     "$(cd "$repo" && lib "_judge_cmd_resolve '$dir/directive.yaml' schedule")"
 assert_eq "tunable rounds accept overlay" "2" \
     "$(cd "$repo" && lib "_judge_rounds_resolve gated '$dir/directive.yaml'")"
-assert_eq "tunable group accepts overlay" "consumer-batch" \
-    "$(cd "$repo" && lib "_judge_group_resolve acme/audit/gated gated '$dir/directive.yaml'")"
 assert_eq "fixed section ignores overlay" "Audit" \
     "$(cd "$repo" && lib "conf_get gated ATTEST_SECTION '$dir/directive.yaml'")"
 assert_eq "environment is not a config tier" "2" \
@@ -133,7 +123,7 @@ rc=$?
 set -e
 assert_eq "missing configured section blocks" "1" "$rc"
 assert_contains "failure names configured section" "## Audit" "$output"
-assert_eq "ledger uses configured group" "consumer-batch" "$(cut -f1 "$ledger")"
+assert_eq "ledger records the attest lane" "attest" "$(cut -f1 "$ledger")"
 remediation="$(lib "attestation_remediation '$ledger'" 2>&1)"
 assert_contains "remediation requests a fresh-context sub-agent" "fresh-context sub-agent" "$remediation"
 

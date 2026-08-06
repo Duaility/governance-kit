@@ -15,10 +15,10 @@
 #                                    the schedule judge resolution ladder below —
 #                                    the directive's author-fixed `SCHEDULE_CMD`.
 #
-# A LANE is one consumer-defined cadence: one generated workflow file naming
-# its own members, its own evidence mode and its own budget. Every piece of
-# state this driver keeps is lane-scoped — the digest label, the resume marker,
-# the issue title — so a `nightly` lane and a `weekly` lane over the same
+# A cadence is a directive-owned cron group: the generated workflow names its
+# members and the runtime keeps state partitioned by a stable cadence id. Every
+# piece of state this driver keeps is cadence-scoped — the digest label, the
+# resume marker, and the issue title — so different crons over the same
 # directive never collide.
 #
 # Judges never block where they run; gates block where they read. A judgment
@@ -45,14 +45,12 @@
 #
 # Usage (the documented entry point is `run.sh --scheduled`):
 #   bash .governance/schedule.sh run --lane <name>
-#                                    [--range A..B] [--budget N] [--dry-run]
+#                                    [--range A..B] [--dry-run]
 #                                    [--no-gh] [--since '<git date expression>']
 #                                    <member>...
 #   bash .governance/schedule.sh usage
 #
 # Environment:
-#   GOVERNANCE_SCHEDULE_BUDGET  max judge calls this run (default 20).
-#                               Over-budget work is REPORTED, never dropped.
 #   GOVERNANCE_SCHEDULE_TRUNK   the ref that decides which receipts are frozen
 #                               (default: the first resolvable of origin/HEAD,
 #                               origin/main, origin/master, main, master).
@@ -68,14 +66,12 @@
 
 set -u
 
-DEFAULT_BUDGET=20
-
 usage() {
     cat >&2 <<'EOF'
 governance schedule — at-rest adjudication of a named lane's members.
 
   bash .governance/run.sh --scheduled --lane <name> \
-      [--range A..B] [--budget N] [--dry-run] [--no-gh] \
+      [--range A..B] [--dry-run] [--no-gh] \
       [--since '<git date expression>'] <member>...
 
 Members are positional and at least one is required: a bare `<id>` (every
@@ -113,8 +109,7 @@ fi
 # shellcheck disable=SC1090
 source "$LIB_SH"
 
-# The field separator for this driver's multi-field records (the directive
-# table, the batch rows, the prompt builder's batch spec). Shared with lib.sh so
+# The field separator for this driver's directive table. Shared with lib.sh so
 # both ends of the spec agree; a tab would not survive `read`, which collapses
 # runs of IFS whitespace and would shift every field after an empty one.
 RS="${_JUDGE_RS:-$'\x1e'}"
@@ -180,10 +175,7 @@ _schedule_directive_yamls() {
 # _schedule_lib_call <directive-dir> <function> [<args>…]
 #   Call a lib.sh helper with $0 set to the directive's check.sh, because the
 #   conf ladder derives the pack-qualified overlay path from $0 whenever it is
-#   handed no full id. Resolving a group, a trigger list or a cmd any other way
-#   would read a different conf file than the commit lane does for the same
-#   directive. Stdin/stdout/stderr of the caller pass through untouched — the
-#   judge call pipes the prompt through this shim.
+#   handed no full id. Stdin/stdout/stderr of the caller pass through untouched.
 _schedule_lib_call() {
     local dir="$1"
     shift
@@ -198,17 +190,13 @@ _schedule_cmd_label() { printf '%s' "${1%% *}"; }
 
 # ── Judging ─────────────────────────────────────────────────────────────────
 
-# _schedule_spend — consume one judge call from the run budget; 1 when spent.
-_schedule_spend() {
-    [[ "$BUDGET" -gt 0 ]] || return 1
-    BUDGET=$((BUDGET - 1))
+# _schedule_record_call — record one judge invocation for the digest footer.
+_schedule_record_call() {
     JUDGED=$((JUDGED + 1))
-    return 0
 }
 
 # _schedule_verdict <out-file> → PASS | REFUTED | (nothing)
-#   The first VERDICT line of a normalized answer — which, for a batched call,
-#   is read from that directive's demuxed block, never from the whole answer.
+#   The first VERDICT line of the normalized answer for one directive.
 _schedule_verdict() {
     awk '/^VERDICT:/ { print $2; exit }' "$1"
 }
@@ -296,8 +284,7 @@ _schedule_queue_round() {
 #   section is created, then every round lands with a placeholder stamp, then
 #   the settled file is hashed exactly ONCE and the placeholder is filled in.
 #   One judgment, one stamp, and every round it produced verifies against the
-#   tree the gate will later recompute — including the first of a batch, which
-#   a naive per-round stamp would leave stale the moment the second was written.
+#   tree the gate will later recompute.
 _schedule_flush_rounds() {
     local abs="$1" idx id receipt section verdict reason next stamp tmp
     [[ -s "$WORK/rounds" ]] || return 0
@@ -371,68 +358,16 @@ _schedule_frozen() {
 }
 
 # _schedule_receipts_in_range — receipts touched by the range under judgment,
-#   newest commit first so a budget cut drops the oldest work rather than the
-#   freshest.
+#   newest commit first so a later run always revisits the freshest work first.
 _schedule_receipts_in_range() {
     git log --pretty=format: --name-only --diff-filter=AMR "$RANGE" -- 'receipts/*.md' 2>/dev/null \
         | awk 'NF && !seen[$0]++'
 }
 
-# ── Batching: the `group:` label, at rest ───────────────────────────────────
-# Directives that carry the SAME group label are judged in one call,
-# `DIRECTIVE:`-demuxed the same way a shared batch always was; a directive with
-# no group label is always a solo invocation — there is no implicit sharing.
-# The label is not the pack's last word: it is resolved through
-# `_judge_group_resolve`, which reads the consumer's own overlay row
-# (`JUDGE_GROUP=`, empty ⇒ solo) when that config entry is tunable,
-# because how much fidelity to trade for tokens is the consuming repo's call. A
-# group is one invocation, one command: if its members resolved DIFFERENT judge
-# cmds, the driver refuses to silently split it — the whole group is reported
-# un-adjudicated with one honest line, never partially judged.
-#
-# A batch row is RS-separated:
-#   <row-index> ␞ <id> ␞ <section-or-empty> ␞ <yaml> ␞ <checks-US> ␞ <cmd>
-# Fields 2–5 are exactly the prompt builder's batch spec.
-
-_schedule_batch_rows() { awk 'NF' "$1" 2>/dev/null | wc -l | tr -d ' '; }
-
-# _schedule_batch_key <keys-file> <label> → the batch key for <label>: an
-#   existing key when this run has already seen this exact group label,
-#   otherwise a new one. Purely a filename-safe handle for the group — the
-#   label itself, byte for byte, is what decides membership.
-_schedule_batch_key() {
-    local keys="$1" label="$2" k c found="" next
-    if [[ -f "$keys" ]]; then
-        while IFS="$RS" read -r k c; do
-            [[ -n "$k" ]] || continue
-            if [[ "$c" == "$label" ]]; then
-                found="$k"
-                break
-            fi
-        done < "$keys"
-    fi
-    if [[ -n "$found" ]]; then
-        printf '%s\n' "$found"
-        return 0
-    fi
-    next=$(( $(wc -l < "$keys" 2>/dev/null | tr -d ' ') + 1 ))
-    printf "%s${RS}%s\n" "$next" "$label" >> "$keys"
-    printf '%s\n' "$next"
-}
-
-# _schedule_block <out-file> <id> <dest-file>
-#   Demux one directive's block out of a batched answer. Lines belong to the
-#   most recent `DIRECTIVE:` delimiter, so an answer that skips a directive
-#   yields nothing for it — which the caller reports as un-adjudicated, never
-#   as a PASS. Returns 1 when the block is absent.
-_schedule_block() {
-    awk -v want="$2" '
-        function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
-        /^DIRECTIVE:/ { cur = trim(substr($0, 11)); next }
-        cur == want && /^(VERDICT|REASON|FINDING):/ { print }
-    ' "$1" > "$3"
-    [[ -s "$3" ]]
-}
+# ── Independent directive judgments ─────────────────────────────────────────
+# Every scheduled directive is judged in its own command invocation. Directives
+# that share a cron only share the workflow trigger; they never share a prompt,
+# rubric, or response stream.
 
 # _schedule_subject <lane-kind> <receipt> — what a report line is about.
 _schedule_subject() {
@@ -440,17 +375,16 @@ _schedule_subject() {
 }
 
 # _schedule_consume <lane-kind> <row-index> <id> <section> <receipt> <abs>
-#                   <block> <cmd>
-#   One directive's verdict, from its own block. Identical whether the block
-#   came from a solo call or was demuxed out of a batch — the batching is a
-#   transport detail, not a different judgment.
+#                   <answer-file> <cmd>
+#   Consume one directive's normalized answer and either queue its receipt round
+#   or file its findings. Each answer belongs to exactly one directive.
 _schedule_consume() {
-    local lane="$1" idx="$2" id="$3" section="$4" receipt="$5" abs="$6" block="$7" cmd="$8"
+    local lane="$1" idx="$2" id="$3" section="$4" receipt="$5" abs="$6" answer="$7" cmd="$8"
     local verdict reason subject label
     subject="$(_schedule_subject "$lane" "$receipt")"
     label="$(_schedule_cmd_label "$cmd")"
 
-    verdict="$(_schedule_verdict "$block")"
+    verdict="$(_schedule_verdict "$answer")"
     case "$verdict" in
         PASS | REFUTED) ;;
         *)
@@ -458,20 +392,18 @@ _schedule_consume() {
             return 0
             ;;
     esac
-    reason="$(_schedule_reason "$block")"
+    reason="$(_schedule_reason "$answer")"
     [[ -n "$reason" ]] || reason="adjudicated at rest by cmd:$label"
 
     if [[ "$lane" == "discovery" ]]; then
         [[ "$verdict" == "REFUTED" ]] || return 0
-        _schedule_findings_from "$block" "$idx" "$id" "$RANGE" "$reason"
+        _schedule_findings_from "$answer" "$idx" "$id" "$RANGE" "$reason"
         return 0
     fi
 
     if _schedule_frozen "$receipt"; then
-        # Frozen on the trunk: the receipt is immutable, so the verdict travels
-        # through the digest door instead of the gate.
         [[ "$verdict" == "REFUTED" ]] || return 0
-        _schedule_findings_from "$block" "$idx" "$id" "$receipt" "$reason"
+        _schedule_findings_from "$answer" "$idx" "$id" "$receipt" "$reason"
         printf 'governance schedule: %s is frozen on %s — %s REFUTED filed to the digest\n' \
             "$receipt" "$TRUNK" "$id" >&2
         return 0
@@ -481,160 +413,63 @@ _schedule_consume() {
             "$verdict" "$id" "$receipt" "$section" >&2
         return 0
     fi
-    # Queued, not written: every round of one judgment lands together, so they
-    # can share the single stamp taken once the file has settled.
     _schedule_queue_round "$idx" "$id" "$receipt" "$section" "$verdict" "$reason"
 }
 
-# _schedule_run_batch <lane-kind> <batch-file> [<receipt>] [<receipt-abs>]
-#   ONE judge call for every directive in the batch — the whole point of a
-#   shared group label. Every row in a batch carries the SAME cmd by
-#   construction (a group is refused whole when it does not), so the call is
-#   issued with the first row's cmd and no ranking is needed. A one-row batch is
-#   issued as a plain single-directive call, so the unbatched prompt and the
-#   unbatched answer grammar are exactly what they were before batching existed.
-_schedule_run_batch() {
-    local lane="$1" batch="$2" receipt="${3:-}" abs="${4:-}"
-    local n idx id section yaml checks cmd dir0 label
-    local r_idx r_id r_section r_yaml r_checks r_cmd block subject
-    subject="$(_schedule_subject "$lane" "$receipt")"
-
-    n="$(_schedule_batch_rows "$batch")"
-    [[ "$n" -gt 0 ]] || return 0
-    IFS="$RS" read -r idx id section yaml checks cmd < "$batch"
-    [[ -n "$cmd" ]] || return 0
+# _schedule_run_one <lane-kind> <row-file> [<receipt>] [<receipt-abs>]
+#   Run exactly one directive judge. The row is RS-separated:
+#   <index> ␞ <id> ␞ <section-or-empty> ␞ <directive.yaml> ␞ <checks-US> ␞ <cmd>
+_schedule_run_one() {
+    local lane="$1" row="$2" receipt="${3:-}" abs="${4:-}"
+    local idx id section yaml checks cmd
+    IFS="$RS" read -r idx id section yaml checks cmd < "$row"
+    [[ -n "$idx" && -n "$cmd" ]] || return 0
+    local dir0
     dir0="$(dirname "$yaml")"
-    label="$(_schedule_cmd_label "$cmd")"
-
-    # A group is one invocation, one command. If its members did not all
-    # resolve the SAME judge cmd, the driver refuses to guess which one wins
-    # and refuses to silently split the group into sub-calls — the whole
-    # group is un-adjudicated, honestly, in one line.
-    if [[ "$n" -gt 1 ]] && awk -F"$RS" -v c="$cmd" 'NF && $6 != c { bad = 1 } END { exit !bad }' "$batch"; then
-        while IFS="$RS" read -r r_idx r_id r_section r_yaml r_checks r_cmd; do
-            [[ -n "$r_idx" ]] || continue
-            _schedule_unadj "$r_idx" "$subject (its group mixes different judge cmds — never silently split)"
-        done < "$batch"
-        printf 'governance schedule: a shared group mixes different resolved judge commands — the whole group is un-adjudicated (one invocation, one command)\n' >&2
-        return 0
-    fi
-
-    # Budget: one batched call is ONE unit. That is the saving batching exists
-    # for — and when the budget is gone, every member is reported, not dropped.
-    if ! _schedule_spend; then
-        while IFS="$RS" read -r r_idx r_id r_section r_yaml r_checks r_cmd; do
-            [[ -n "$r_idx" ]] || continue
-            _schedule_unadj "$r_idx" "$subject (over the run budget — not judged)"
-        done < "$batch"
-        return 0
-    fi
-
-    if [[ "$n" -eq 1 ]]; then
-        _judge_prompt "$abs" "$section" "$checks" "$yaml" "$RANGE" schedule > "$WORK/prompt"
-    else
-        cut -d "$RS" -f2-5 "$batch" > "$WORK/spec"
-        _judge_prompt "$abs" "" "" "" "$RANGE" schedule "$WORK/spec" > "$WORK/prompt"
-        printf 'governance schedule: batching %s shared directive(s) into one judgment of %s (cmd:%s)\n' \
-            "$n" "$subject" "$label" >&2
-    fi
-
+    _schedule_record_call
+    _judge_prompt "$abs" "$section" "$checks" "$yaml" "$RANGE" schedule > "$WORK/prompt"
     if ! _schedule_lib_call "$dir0" _judge_cmd_run "$cmd" < "$WORK/prompt" > "$WORK/out"; then
-        while IFS="$RS" read -r r_idx r_id r_section r_yaml r_checks r_cmd; do
-            [[ -n "$r_idx" ]] || continue
-            _schedule_unadj "$r_idx" "$subject (cmd:$label rendered no verdict)"
-        done < "$batch"
+        _schedule_unadj "$idx" "$(_schedule_subject "$lane" "$receipt") (cmd:$(_schedule_cmd_label "$cmd") rendered no verdict)"
         return 0
     fi
-
-    : > "$WORK/rounds"
-    while IFS="$RS" read -r r_idx r_id r_section r_yaml r_checks r_cmd; do
-        [[ -n "$r_idx" ]] || continue
-        if [[ "$n" -eq 1 ]]; then
-            block="$WORK/out"
-        else
-            block="$WORK/block"
-            if ! _schedule_block "$WORK/out" "$r_id" "$block"; then
-                _schedule_unadj "$r_idx" "$subject (the batched answer carried no \`DIRECTIVE: $r_id\` block)"
-                continue
-            fi
-        fi
-        _schedule_consume "$lane" "$r_idx" "$r_id" "$r_section" "$receipt" "$abs" "$block" "$r_cmd"
-    done < "$batch"
-    if [[ "$lane" == "attest" ]]; then
-        _schedule_flush_rounds "$abs"
-    fi
+    _schedule_consume "$lane" "$idx" "$id" "$section" "$receipt" "$abs" "$WORK/out" "$cmd"
+    [[ "$lane" == "attest" ]] && _schedule_flush_rounds "$abs"
 }
-
 # ── The two judge lanes ─────────────────────────────────────────────────────
 
 # _schedule_lane_discovery
-#   No `section:`: no gate, no receipt section, no check.sh. Discovery
-#   directives that share a `group:` label read the SAME evidence — the range
-#   diff — so they share one call; an unlabeled directive is always solo.
+#   No section means discovery-only. Each eligible directive gets its own
+#   command invocation, even when another directive uses the same cron.
 _schedule_lane_discovery() {
-    local idx id dir yaml section group cmd checks summary key f
-    : > "$WORK/dkeys"
-    : > "$WORK/dids"
-    rm -f "$WORK"/dbatch.*
-    while IFS="$RS" read -r idx id dir yaml section group cmd checks summary; do
+    local idx id dir yaml section cmd checks summary
+    while IFS="$RS" read -r idx id dir yaml section cmd checks summary; do
         [[ -z "$section" ]] || continue
         [[ -n "$cmd" ]] || continue
-        if [[ -z "$group" ]] || grep -qxF "$id" "$WORK/dids" 2>/dev/null; then
-            printf "%s${RS}%s${RS}${RS}%s${RS}%s${RS}%s\n" \
-                "$idx" "$id" "$yaml" "$checks" "$cmd" > "$WORK/dsolo"
-            _schedule_run_batch discovery "$WORK/dsolo"
-            continue
-        fi
-        key="$(_schedule_batch_key "$WORK/dkeys" "$group")"
         printf "%s${RS}%s${RS}${RS}%s${RS}%s${RS}%s\n" \
-            "$idx" "$id" "$yaml" "$checks" "$cmd" >> "$WORK/dbatch.$key"
-        printf '%s\n' "$id" >> "$WORK/dids"
+            "$idx" "$id" "$yaml" "$checks" "$cmd" > "$WORK/one"
+        _schedule_run_one discovery "$WORK/one"
     done < "${ROWS_FILE:-$WORK/rows}"
-    for f in "$WORK"/dbatch.*; do
-        [[ -e "$f" ]] || continue
-        _schedule_run_batch discovery "$f"
-    done
 }
 
 # _schedule_lane_attest
-#   Attestation-backed (the declaration names a `section:`): per receipt the
-#   range touched, every directive that shares a `group:` label is judged in one
-#   call and each still gets its own round line in its own section. Unlabeled →
-#   always solo.
+#   Attestation-backed directives are judged independently for each receipt.
 _schedule_lane_attest() {
-    local receipt abs idx id dir yaml section group cmd checks summary key f
+    local receipt abs idx id dir yaml section cmd checks summary
     while IFS= read -r receipt; do
         [[ -n "$receipt" ]] || continue
         abs="$ROOT/$receipt"
         [[ -f "$abs" ]] || continue
-        rm -f "$WORK"/abatch.*
-        : > "$WORK/aids"
-        : > "$WORK/akeys"
-        while IFS="$RS" read -r idx id dir yaml section group cmd checks summary; do
+        while IFS="$RS" read -r idx id dir yaml section cmd checks summary; do
             [[ -n "$section" ]] || continue
             [[ -n "$cmd" ]] || continue
             if grep -qxF "$id|$receipt" "$WORK/pairs" 2>/dev/null; then
                 DUP=$((DUP + 1))
                 continue
             fi
-            # An unlabeled directive is judged alone. So is a homonym: two
-            # packs may ship the same directive id, and one `DIRECTIVE: <id>`
-            # delimiter cannot address both unambiguously.
-            if [[ -z "$group" ]] || grep -qxF "$id" "$WORK/aids" 2>/dev/null; then
-                printf "%s${RS}%s${RS}%s${RS}%s${RS}%s${RS}%s\n" \
-                    "$idx" "$id" "$section" "$yaml" "$checks" "$cmd" > "$WORK/asolo"
-                _schedule_run_batch attest "$WORK/asolo" "$receipt" "$abs"
-                continue
-            fi
-            key="$(_schedule_batch_key "$WORK/akeys" "$group")"
             printf "%s${RS}%s${RS}%s${RS}%s${RS}%s${RS}%s\n" \
-                "$idx" "$id" "$section" "$yaml" "$checks" "$cmd" >> "$WORK/abatch.$key"
-            printf '%s\n' "$id" >> "$WORK/aids"
+                "$idx" "$id" "$section" "$yaml" "$checks" "$cmd" > "$WORK/one"
+            _schedule_run_one attest "$WORK/one" "$receipt" "$abs"
         done < "${ROWS_FILE:-$WORK/rows}"
-        for f in "$WORK"/abatch.*; do
-            [[ -e "$f" ]] || continue
-            _schedule_run_batch attest "$f" "$receipt" "$abs"
-        done
     done < <(_schedule_receipts_in_range)
 }
 
@@ -738,7 +573,7 @@ _schedule_render_digest() {
 
 # ── run ─────────────────────────────────────────────────────────────────────
 cmd_run() {
-    local explicit_range="" since="24 hours ago" budget_opt=""
+    local explicit_range="" since="24 hours ago"
     local members=()
     LANE=""
     DRY_RUN=0
@@ -751,8 +586,6 @@ cmd_run() {
             --range=*)    explicit_range="${1#--range=}"; shift ;;
             --since)      since="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
             --since=*)    since="${1#--since=}"; shift ;;
-            --budget)     budget_opt="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
-            --budget=*)   budget_opt="${1#--budget=}"; shift ;;
             --dry-run)    DRY_RUN=1; shift ;;
             --no-gh)      NO_GH=1; shift ;;
             -*)
@@ -815,9 +648,6 @@ cmd_run() {
     local range_start=""
     case "$FULL_RANGE" in *..*) range_start="${FULL_RANGE%%..*}" ;; esac
 
-    BUDGET="${budget_opt:-${GOVERNANCE_SCHEDULE_BUDGET:-}}"
-    [[ "$BUDGET" =~ ^[0-9]+$ ]] || BUDGET="$DEFAULT_BUDGET"
-
     TRUNK="$(_schedule_trunk)" || TRUNK=""
 
     WORK="$(mktemp -d "${TMPDIR:-/tmp}/gk-schedule.XXXXXX")" || return 0
@@ -842,13 +672,13 @@ cmd_run() {
 
     # ── The member table. Every directive the lane names, resolved once:
     #   judge members  → one RS row per directive in $WORK/rows
-    #     <idx> ␞ id ␞ dir ␞ yaml ␞ section ␞ group ␞ cmd ␞ checks-US ␞ summary
+    #     <idx> ␞ id ␞ dir ␞ yaml ␞ section ␞ cmd ␞ checks-US ␞ summary
     #   mechanical ones → `<id> ␞ <dir>` in $WORK/mech
     # `section` is also the judge lane selector — present = attest, absent =
     # discovery. A judge member that resolves no cmd keeps its row (with an
     # empty cmd) and is reported un-adjudicated: it was NAMED by the lane, so
     # silently dropping it would let the digest read as a clean bill.
-    local yaml dir id full_id hook triggers cmd section group checks c summary tok hit evidence surface staleness
+    local yaml dir id full_id hook triggers cmd section checks c summary tok hit evidence surface staleness
     while IFS= read -r yaml; do
         [[ -n "$yaml" ]] || continue
         dir="$(dirname "$yaml")"
@@ -911,25 +741,14 @@ cmd_run() {
         [[ -n "$evidence" ]] || { [[ "$surface" == "change-set" ]] && evidence=commits || evidence=range; }
         staleness="$( _schedule_lib_call "$dir" conf_get "$id" SCHEDULE_STALENESS_DAYS "$yaml" 2>/dev/null )" || staleness=""
         DIRS=$((DIRS + 1))
-        # The batching label, resolved through the SAME helper the commit lane
-        # reads (the consumer's `JUDGE_GROUP=` overlay row, falling back to the
-        # directive's own JUDGE_GROUP config), so a repo that batches on the attest
-        # lane batches identically here. It goes through the lib shim for the
-        # same reason the cmd does: one resolver, invoked the one way, is what
-        # guarantees the two lanes cannot drift apart. The resolver speaks the
-        # ledger's dialect — `-` for solo — while the batching code below tests
-        # for an EMPTY label, so normalize the wire encoding back here rather
-        # than teaching every downstream test a second spelling.
-        group="$(_schedule_lib_call "$dir" _judge_group_resolve "$full_id" "$id" "$yaml")"
-        [[ "$group" == "-" ]] && group=""
         checks=""
         while IFS= read -r c; do
             [[ -n "$c" ]] || continue
             if [[ -z "$checks" ]]; then checks="$c"; else checks="$checks$_JUDGE_US$c"; fi
         done < <(_judge_yaml "$yaml" checks)
         summary="$(awk '/^summary:/ { sub(/^summary:[ \t]*/, ""); gsub(/^["'"'"']|["'"'"']$/, ""); print; exit }' "$yaml")"
-        printf "%s${RS}%s${RS}%s${RS}%s${RS}%s${RS}%s${RS}%s${RS}%s${RS}%s\n" \
-            "$DIRS" "$id" "$dir" "$yaml" "$section" "$group" \
+        printf "%s${RS}%s${RS}%s${RS}%s${RS}%s${RS}%s${RS}%s${RS}%s\n" \
+            "$DIRS" "$id" "$dir" "$yaml" "$section" \
             "$cmd" "$checks" "$summary" \
             | LC_ALL=C tr -d '\r' >> "$WORK/rows"
         tail -n 1 "$WORK/rows" >> "$WORK/rows.$evidence"
@@ -997,8 +816,8 @@ cmd_run() {
     ROWS_FILE="$WORK/rows"; MECH_FILE="$WORK/mech"
 
     # ── One digest section per judge directive that has something to say.
-    local r_idx r_id r_dir r_yaml r_section r_group r_cmd r_checks r_summary
-    while IFS="$RS" read -r r_idx r_id r_dir r_yaml r_section r_group r_cmd r_checks r_summary; do
+    local r_idx r_id r_dir r_yaml r_section r_cmd r_checks r_summary
+    while IFS="$RS" read -r r_idx r_id r_dir r_yaml r_section r_cmd r_checks r_summary; do
         [[ -n "$r_idx" ]] || continue
         [[ -s "$WORK/f.$r_idx" || -s "$WORK/u.$r_idx" ]] || continue
         {

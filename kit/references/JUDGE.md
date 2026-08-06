@@ -23,7 +23,7 @@ judge:
 - `checks` is a non-empty, numbered rubric.
 - `gate` is `record` (default), `verdict`, or `verdict-contestable`.
 
-No lane behavior belongs in this block. `section`, `cmd`, `group`, evidence,
+No lane behavior belongs in this block. `section`, `cmd`, evidence,
 cadence, and retry limits are configuration, so `packctl` rejects them under
 `judge:`.
 
@@ -48,9 +48,9 @@ config:
     doc: Fixed judge command used by the scheduled lane.
     default: claude -p --output-format text --model opus
     tunable: false
-  - name: JUDGE_GROUP
+  - name: SCHEDULE_CRON
     type: scalar
-    doc: Optional batching label; empty means adjudicate alone.
+    doc: Consumer-selected cadence; empty disables scheduled enrollment.
     default: ""
     tunable: true
   - name: JUDGE_ROUNDS
@@ -62,14 +62,16 @@ config:
 
 `ATTEST_SECTION`, `ATTEST_CMD`, and `SCHEDULE_CMD` are fixed because they name
 artifact and execution contracts. A directive without `ATTEST_SECTION` has no
-live attestation placement. `JUDGE_GROUP` and `JUDGE_ROUNDS` may be tunable
-according to the pack's contract. Only `tunable: true` entries accept rows from
+live attestation placement. `JUDGE_ROUNDS` may be tunable according to the
+pack's contract. Only `tunable: true` entries accept rows from
 `.governance/conf/<owner>/<pack>/<id>.conf`; environment variables are not a
 configuration tier.
 
-A judge with a `schedule` trigger must declare a non-empty fixed command. At
-runtime a missing command in an invalid or legacy install is reported
-un-adjudicated; the environment is not a parallel configuration tier.
+A judge with a `schedule` trigger must declare a non-empty fixed command. A
+non-empty `SCHEDULE_CRON` enrolls it in `workflow generate`; an empty value is
+eligible but disabled. At runtime a missing command in an invalid or legacy
+install is reported un-adjudicated; the environment is not a parallel
+configuration tier.
 
 ## Live attestation
 
@@ -83,8 +85,8 @@ gate:
 
 When the harness path is pending, the helper writes a ledger row and
 `attestation_remediation` tells the calling agent to spawn a fresh-context
-sub-agent. Hooks never spawn agents themselves. `JUDGE_GROUP` can batch rows;
-an empty value keeps a directive solo.
+sub-agent. Hooks never spawn agents themselves. Each pending section is handed
+to its own fresh-context sub-agent.
 
 ## Scheduled re-adjudication
 

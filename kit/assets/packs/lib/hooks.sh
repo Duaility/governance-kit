@@ -204,8 +204,8 @@ done < <(directive_dirs_for_hook pre-commit helper)
 
 # Sub-agent attestation orchestration (issue #325). Directives declaring a
 # `judge:` block register any pending attestation into a shared ledger as
-# their check.sh runs; after the loop we emit ONE grouped remediation
-# instruction (shared-batched + isolated). Guarded so an older lib.sh is a no-op.
+# their check.sh runs; after the loop we emit one independent remediation
+# instruction per pending section. Guarded so an older lib.sh is a no-op.
 ATTEST_LEDGER=""
 if [[ -f "$GOVERNANCE_DIR/lib.sh" ]]; then
     # shellcheck disable=SC1091

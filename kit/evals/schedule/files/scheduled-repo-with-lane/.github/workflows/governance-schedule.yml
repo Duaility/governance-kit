@@ -1,0 +1,60 @@
+# governance-kit:managed kit-version=0.13.0
+name: Governance schedule
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      cron:
+        description: "Run one generated cadence (blank runs all)"
+        required: false
+        type: string
+      range:
+        description: "Explicit A..B commit range"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: governance-schedule
+  cancel-in-progress: false
+
+jobs:
+  schedule:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install harness CLI
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Run governance schedule
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SCHEDULE_EVENT: ${{ github.event.schedule }}
+          SCHEDULE_INPUT: ${{ github.event.inputs.cron }}
+          SCHEDULE_RANGE_INPUT: ${{ github.event.inputs.range }}
+        run: |
+          run_group() {
+            local lane="$1"; shift
+            if [ -n "${SCHEDULE_RANGE_INPUT:-}" ]; then
+              bash .governance/run.sh --scheduled --lane "$lane" --range "$SCHEDULE_RANGE_INPUT" "$@"
+            else
+              bash .governance/run.sh --scheduled --lane "$lane" "$@"
+            fi
+          }
+          selector="${SCHEDULE_INPUT:-${SCHEDULE_EVENT:-}}"
+          case "$selector" in
+            "0 3 * * *"|"")
+              run_group cron-51c662a2b4ac governance-kit/core/secrets-hygiene governance-kit/core/license-headers
+              ;;
+            *)
+              echo "governance schedule: no generated cadence matches selector '$selector'" >&2
+              exit 2
+              ;;
+          esac
