@@ -113,12 +113,12 @@ kit and runs the engine from that kit's tree.
 
 | Verb | Intent |
 |---|---|
-| `schedule create <lane> --cron <expr> --members <id>...` | Define or overwrite a named scheduled lane: resolve + validate the member directives (each must be eligible for `schedule`, per its own `triggers:` or an overlay `TRIGGERS=` override), render the generated workflow, and write it. |
+| `schedule create <lane> --cron <expr> --members <id>...` | Define or overwrite a named scheduled lane: resolve + validate members (each needs an explicit author-owned `schedule` trigger), render the generated workflow, and write it. Evidence is resolved per directive. |
 | `schedule remove <lane>` | Delete the lane's generated workflow and drop its ledger rows. |
 | `schedule list` | Enumerate the lanes currently on disk. |
 
 - **Aliases a user might type:** `governance schedule`, `schedule a nightly run`, `add a scheduled lane`, `set up a judge cadence`, `remove the nightly lane`, `list scheduled lanes`.
-- **Deterministic plan/apply.** `create` resolves via `packverb schedule-plan <lane> --cron <expr> --members <id>... [--evidence range|commits] [--budget N]` (member resolution + eligibility validation + rendered preview + exists/overwrite flag) and executes via `packverb schedule-apply` (renders `governance-schedule.template.yml`, stamps the `governance-kit:managed kit-version=<v>` marker, writes `.github/workflows/governance-schedule-<lane>.yml`, updates the ledger). `schedule remove <lane>` routes to `packverb schedule-remove <lane>`. The skill never hand-executes the render or the write.
+- **Deterministic plan/apply.** `create` resolves via `packverb schedule-plan <lane> --cron <expr> --members <id>... [--budget N]` (member resolution + eligibility validation + per-member evidence/staleness + rendered preview) and executes via `packverb schedule-apply`. `schedule remove <lane>` routes to `packverb schedule-remove <lane>`.
 - **Assets used:** `../assets/governance-schedule.template.yml`.
 - **Install-state keys touched:** `install_assets_seeded` (the generated workflow path, on first `create` for a lane) and `managed_digests` (rewritten by `schedule-apply`/`schedule-remove` via `digestlib`, keyed by the workflow's repo-relative path).
 - **Single writer.** The verb is the only writer of any `governance-schedule-<lane>.yml` file; a hand-edit changes its digest and trips `managed-tree-integrity` offline, the same as any other kit-managed file.

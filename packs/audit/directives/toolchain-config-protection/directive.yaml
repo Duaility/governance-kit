@@ -4,6 +4,47 @@ recommended: true
 summary: "Commits that change toolchain config (lint, format, type-check, CI, git hooks) must carry a `governance: allow-toolchain-config <reason>` body line."
 surface: change-set
 hook: commit-msg
+triggers: [commit-msg, schedule]
+config:
+  - name: PATTERNS
+    type: list
+    doc: Toolchain and CI paths that require an auditable commit-body waiver when changed.
+    default:
+      - .github/workflows/
+      - .githooks/
+      - .eslintrc
+      - .eslintrc.*
+      - eslint.config.*
+      - biome.json
+      - biome.jsonc
+      - .prettierrc
+      - .prettierrc.*
+      - prettier.config.*
+      - tsconfig.json
+      - tsconfig.*.json
+      - ruff.toml
+      - .ruff.toml
+      - pyproject.toml
+      - setup.cfg
+      - .flake8
+      - tox.ini
+      - .golangci.yml
+      - .golangci.yaml
+      - clippy.toml
+      - .clippy.toml
+      - rustfmt.toml
+      - .rustfmt.toml
+      - .pre-commit-config.yaml
+      - lefthook.yml
+      - lefthook.yaml
+      - .editorconfig
+      - Makefile
+    tunable: true
+  - name: SCHEDULE_CMD
+    type: scalar
+    doc: Fixed CLI command used for scheduled adjudication.
+    default: claude -p --output-format text --model opus
+    tunable: false
 judge:
   inputs: [range-diff]
   checks:

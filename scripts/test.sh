@@ -11,7 +11,7 @@
 #   1. test-packctl.py        — packctl.py library + CLI (preset, validation)
 #   1a. test-packctl-validate.py — validate_pack_dir structural matrix (pack/
 #                               directive shape, presets, check.sh/evals)
-#   1b. test-packctl-subagent.py — validate_pack_dir judge.cmd/judge.group
+#   1b. test-packctl-subagent.py — judge/config separation
 #                               matrix (issue #355 cmd collapse + batching)
 #   1c. test-packctl-triggers.py — validate_pack_dir triggers:/judge-cmd-lane
 #                               matrix (scheduled-trigger redesign)
@@ -97,7 +97,7 @@ run_layer "packctl: validate_pack_dir triggers/judge-cmd-lane matrix (Python)" \
     python3 "$ROOT/scripts/test-packctl-triggers.py" \
     || failed_layers+=("test-packctl-triggers.py")
 
-run_layer "packctl: validate_pack_dir judge.cmd/group matrix (Python)" \
+run_layer "packctl: judge semantics/config separation (Python)" \
     python3 "$ROOT/scripts/test-packctl-subagent.py" \
     || failed_layers+=("test-packctl-subagent.py")
 
@@ -177,7 +177,7 @@ run_layer "pre-commit-test-gate: hook wiring (bash)" \
     bash "$ROOT/scripts/test-precommit-gate.sh" \
     || failed_layers+=("test-precommit-gate.sh")
 
-run_layer "conf-knob-doc-sync: knob <-> defaults.conf (bash)" \
+run_layer "conf-registry-sync: helper reads <-> directive.yaml (bash)" \
     bash "$ROOT/scripts/test-conf-knob-doc-sync.sh" \
     || failed_layers+=("test-conf-knob-doc-sync.sh")
 

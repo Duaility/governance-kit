@@ -5,8 +5,7 @@
 #
 # The kit has exactly one semantic-judgment primitive: a rubric-framed model
 # judgment declared once in a directive's `judge:` block, whose judge
-# command lives right there — `judge.cmd.schedule`, a shell string that
-# already encodes model + effort. The two lanes are two MOMENTS of the same
+# execution lives in typed config. The two lanes are two MOMENTS of the same
 # judgment:
 #
 #   attest   (commit, live session)  the live session's gate — `judge_attest`,
@@ -14,9 +13,7 @@
 #   schedule (at rest, no session)   this driver: the same declaration, replayed
 #                                    through the same lib.sh prompt builder and
 #                                    the schedule judge resolution ladder below —
-#                                    the directive's own `cmd.schedule` when it
-#                                    declares one, else the `GOVERNANCE_JUDGE_CMD`
-#                                    env the lane's generated workflow exports.
+#                                    the directive's author-fixed `SCHEDULE_CMD`.
 #
 # A LANE is one consumer-defined cadence: one generated workflow file naming
 # its own members, its own evidence mode and its own budget. Every piece of
@@ -40,14 +37,14 @@
 # judgment, and facts fail jobs. Any mechanical member failing makes this run
 # exit non-zero, so the lane's workflow goes red like any other CI failure.
 #
-# Honesty rule: no cmd resolves off the ladder (no `cmd.schedule`, no
-# `GOVERNANCE_JUDGE_CMD`) → the judgment is reported un-adjudicated and retried
+# Honesty rule: no `SCHEDULE_CMD` resolves → the judgment is reported
+# un-adjudicated and retried
 # later. Never a downgraded judge, never a guessed verdict, never a keyword stub
 # standing in for a model. A digest must never read as a clean bill for work
 # that was not actually judged.
 #
 # Usage (the documented entry point is `run.sh --scheduled`):
-#   bash .governance/schedule.sh run --lane <name> [--evidence range|commits]
+#   bash .governance/schedule.sh run --lane <name>
 #                                    [--range A..B] [--budget N] [--dry-run]
 #                                    [--no-gh] [--since '<git date expression>']
 #                                    <member>...
@@ -59,20 +56,12 @@
 #   GOVERNANCE_SCHEDULE_TRUNK   the ref that decides which receipts are frozen
 #                               (default: the first resolvable of origin/HEAD,
 #                               origin/main, origin/master, main, master).
-#   GOVERNANCE_JUDGE_CMD        the ephemeral repo-level judge command — a
-#                               gated CI variable, a one-shot local run. See
-#                               the ladder below.
 #   GH_TOKEN / `gh auth`        resume point, dedupe and digest filing. All
 #                               optional: with no gh the digest goes to stderr.
 #
 # Schedule judge resolution ladder (per directive, checked in this order):
-#   1. the directive's own `judge.cmd.schedule` — a rare per-directive
-#      override, for a third-party pack or a repo operator; no bundled
-#      directive declares it.
-#   2. the env `GOVERNANCE_JUDGE_CMD` — the ephemeral repo-level judge the
-#      lane's generated workflow exports from a gated repo variable. This is
-#      how a bundled directive is judged in practice.
-#   3. nothing resolves → the directive is skipped with one honest log line and
+#   1. the directive's fixed `SCHEDULE_CMD` config.
+#   2. nothing resolves → the directive is skipped with one honest log line and
 #      reported un-adjudicated in the digest, never guessed.
 #
 # Bash 3.2 + POSIX awk + git, plus `gh` when it is there. No python.
@@ -85,7 +74,7 @@ usage() {
     cat >&2 <<'EOF'
 governance schedule — at-rest adjudication of a named lane's members.
 
-  bash .governance/run.sh --scheduled --lane <name> [--evidence range|commits] \
+  bash .governance/run.sh --scheduled --lane <name> \
       [--range A..B] [--budget N] [--dry-run] [--no-gh] \
       [--since '<git date expression>'] <member>...
 
@@ -249,7 +238,7 @@ _schedule_unadj() {
 #   One digest row plus its dedupe marker, filed under the directive that owns
 #   it. <loc> is `<path>:<line>` as the judge reported it; the marker keys on
 #   the path alone so a moved line does not file the same finding twice. In
-#   `--evidence commits` the row text carries the commit's short sha prefix, so
+#   With per-directive `commits` evidence the row carries the short sha prefix, so
 #   a per-commit lane's digest reads as a timeline.
 _schedule_record_finding() {
     local idx="$1" id="$2" fallback="$3" loc="$4" text="$5" file
@@ -395,7 +384,7 @@ _schedule_receipts_in_range() {
 # no group label is always a solo invocation — there is no implicit sharing.
 # The label is not the pack's last word: it is resolved through
 # `_judge_group_resolve`, which reads the consumer's own overlay row
-# (`JUDGE_GROUP=`, empty ⇒ solo) before the directive's declared `judge.group`,
+# (`JUDGE_GROUP=`, empty ⇒ solo) when that config entry is tunable,
 # because how much fidelity to trade for tokens is the consuming repo's call. A
 # group is one invocation, one command: if its members resolved DIFFERENT judge
 # cmds, the driver refuses to silently split it — the whole group is reported
@@ -600,7 +589,7 @@ _schedule_lane_discovery() {
         printf "%s${RS}%s${RS}${RS}%s${RS}%s${RS}%s\n" \
             "$idx" "$id" "$yaml" "$checks" "$cmd" >> "$WORK/dbatch.$key"
         printf '%s\n' "$id" >> "$WORK/dids"
-    done < "$WORK/rows"
+    done < "${ROWS_FILE:-$WORK/rows}"
     for f in "$WORK"/dbatch.*; do
         [[ -e "$f" ]] || continue
         _schedule_run_batch discovery "$f"
@@ -641,7 +630,7 @@ _schedule_lane_attest() {
             printf "%s${RS}%s${RS}%s${RS}%s${RS}%s${RS}%s\n" \
                 "$idx" "$id" "$section" "$yaml" "$checks" "$cmd" >> "$WORK/abatch.$key"
             printf '%s\n' "$id" >> "$WORK/aids"
-        done < "$WORK/rows"
+        done < "${ROWS_FILE:-$WORK/rows}"
         for f in "$WORK"/abatch.*; do
             [[ -e "$f" ]] || continue
             _schedule_run_batch attest "$f" "$receipt" "$abs"
@@ -650,8 +639,8 @@ _schedule_lane_attest() {
 }
 
 # _schedule_judge_pass — one full judging pass over the current $RANGE: the
-#   discovery lane, then the attestation lane. Called once for `--evidence
-#   range` and once per commit for `--evidence commits`, which is the only
+#   discovery lane, then the attestation lane. Called once for range evidence
+#   and once per commit for commits evidence, which is the only
 #   difference between the two modes on the judge side.
 _schedule_judge_pass() {
     export GOVERNANCE_SCHEDULE_RANGE="$RANGE"
@@ -685,22 +674,22 @@ _schedule_run_check() {
 #   Every mechanical member, once, against one piece of evidence.
 _schedule_mech_pass() {
     local base="$1" cwd="$2" what="$3" id dir
-    [[ -s "$WORK/mech" ]] || return 0
+    [[ -s "${MECH_FILE:-$WORK/mech}" ]] || return 0
     while IFS="$RS" read -r id dir; do
         [[ -n "$id" ]] || continue
         _schedule_run_check "$dir" "$id" "$base" "$cwd" "$what" || true
-    done < "$WORK/mech"
+    done < "${MECH_FILE:-$WORK/mech}"
 }
 
 # _schedule_mech_at_commit <commit> <parent>
-#   The `--evidence commits` shape: the mechanical members see the repo AS IT
+#   The per-directive `commits` shape: mechanical members see the repo AS IT
 #   WAS at <commit>, with the change-set base at its parent — which is the state
 #   the commit's own pre-commit hook saw. A detached `git worktree` is the only
 #   way to get that without touching the caller's checkout, and it is removed
 #   whatever happens, including on a check that kills the shell.
 _schedule_mech_at_commit() {
     local commit="$1" parent="$2" wt rc=0
-    [[ -s "$WORK/mech" ]] || return 0
+    [[ -s "${MECH_FILE:-$WORK/mech}" ]] || return 0
     wt="$(mktemp -d "${TMPDIR:-/tmp}/gk-schedule-wt.XXXXXX")" || return 0
     rm -rf "$wt"
     if ! git worktree add --detach "$wt" "$commit" >/dev/null 2>&1; then
@@ -720,8 +709,7 @@ _schedule_mech_at_commit() {
 _schedule_render_digest() {
     printf 'Automated scheduled adjudication (lane `%s`). Nothing here blocked a commit,\n' "$LANE"
     printf 'a push or a PR: these are candidates for the issue → agent → PR loop, judged\n'
-    printf 'at rest by each directive'"'"'s schedule judge (its own `cmd.schedule`, else the\n'
-    printf 'repo'"'"'s `GOVERNANCE_JUDGE_CMD`).\n\n'
+    printf 'at rest by each directive'"'"'s fixed `SCHEDULE_CMD`.\n\n'
     if [[ -s "$WORK/sections" ]]; then
         cat "$WORK/sections"
     else
@@ -731,14 +719,18 @@ _schedule_render_digest() {
     printf '### Footer\n'
     printf -- '- lane: `%s`\n' "$LANE"
     printf -- '- commit range: `%s`\n' "$FULL_RANGE"
-    printf -- '- evidence: `%s`\n' "$EVIDENCE"
-    printf -- '- judge: per-directive `cmd.schedule`, else `GOVERNANCE_JUDGE_CMD`\n'
+    printf -- '- evidence: per member (`SCHEDULE_EVIDENCE`, else derived from `surface`)\n'
+    printf -- '- judge: per-directive fixed `SCHEDULE_CMD`\n'
     printf -- '- judge directives in this lane: %s\n' "$DIRS"
     printf -- '- mechanical directives in this lane: %s (failed: %s)\n' "$MECH" "$MECH_FAIL"
     printf -- '- judge calls made: %s\n' "$JUDGED"
     printf -- '- un-adjudicated (NOT a clean bill): %s\n' "$UNADJ"
     printf -- '- rounds appended to editable receipts: %s\n' "$ROUNDS"
     printf -- '- skipped as duplicate of an open digest: %s\n' "$DUP"
+    if [[ -s "$WORK/stale" ]]; then
+        printf -- '- stale members (advisory):\n'
+        sed 's/^/  - /' "$WORK/stale"
+    fi
     printf '\n<!-- governance-schedule:%s:end=%s -->\n' "$LANE" "$HEAD_SHA"
     [[ -s "$WORK/markers" ]] && cat "$WORK/markers"
     return 0
@@ -749,15 +741,12 @@ cmd_run() {
     local explicit_range="" since="24 hours ago" budget_opt=""
     local members=()
     LANE=""
-    EVIDENCE="range"
     DRY_RUN=0
     NO_GH=0
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --lane)       LANE="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
             --lane=*)     LANE="${1#--lane=}"; shift ;;
-            --evidence)   EVIDENCE="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
-            --evidence=*) EVIDENCE="${1#--evidence=}"; shift ;;
             --range)      explicit_range="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
             --range=*)    explicit_range="${1#--range=}"; shift ;;
             --since)      since="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
@@ -787,13 +776,6 @@ cmd_run() {
             "$LANE" >&2
         return 2
     fi
-    case "$EVIDENCE" in
-        range | commits) ;;
-        *)
-            printf 'governance schedule: unknown --evidence `%s` (supported: range, commits)\n' "$EVIDENCE" >&2
-            return 2
-            ;;
-    esac
     if [[ ${#members[@]} -eq 0 ]]; then
         printf 'governance schedule: at least one member is required — a lane names its members explicitly (eligibility is not membership)\n' >&2
         usage
@@ -824,11 +806,11 @@ cmd_run() {
         fi
     fi
     # The whole lane's range, kept while $RANGE narrows to one commit's diff in
-    # `--evidence commits`. The footer and the resume marker speak about this
+    # commits evidence. The footer and the resume marker speak about this
     # one; a judgment speaks about whatever it actually read.
     FULL_RANGE="$RANGE"
     # The start of the range, which is the change-set base a mechanical member
-    # measures against in `--evidence range` — empty for a single-commit range,
+    # measures against in range evidence — empty for a single-commit range,
     # where the member falls back to lib.sh's own base resolution.
     local range_start=""
     case "$FULL_RANGE" in *..*) range_start="${FULL_RANGE%%..*}" ;; esac
@@ -845,12 +827,17 @@ cmd_run() {
     : > "$WORK/pairs"
     : > "$WORK/rows"
     : > "$WORK/mech"
+    : > "$WORK/rows.range"
+    : > "$WORK/rows.commits"
+    : > "$WORK/mech.range"
+    : > "$WORK/mech.commits"
+    : > "$WORK/stale"
     : > "$WORK/matched"
     _schedule_gh_read_ok && _schedule_open_pairs > "$WORK/pairs"
 
     DIRS=0; MECH=0; MECH_FAIL=0; JUDGED=0; UNADJ=0; DUP=0; ROUNDS=0; FINDINGS=0
-    # Prefixed onto every finding in `--evidence commits` so the digest reads as
-    # a timeline; empty in `--evidence range`, where there is one blended diff.
+    # Prefixed onto every finding for commits evidence so the digest reads as
+    # a timeline; empty for range evidence, where there is one blended diff.
     SHA_PREFIX=""
 
     # ── The member table. Every directive the lane names, resolved once:
@@ -861,7 +848,7 @@ cmd_run() {
     # discovery. A judge member that resolves no cmd keeps its row (with an
     # empty cmd) and is reported un-adjudicated: it was NAMED by the lane, so
     # silently dropping it would let the digest read as a clean bill.
-    local yaml dir id full_id hook triggers cmd section group checks c summary tok hit
+    local yaml dir id full_id hook triggers cmd section group checks c summary tok hit evidence surface staleness
     while IFS= read -r yaml; do
         [[ -n "$yaml" ]] || continue
         dir="$(dirname "$yaml")"
@@ -892,9 +879,8 @@ cmd_run() {
         case " $triggers " in
             *" schedule "*) ;;
             *)
-                printf 'governance schedule: %s is not eligible for the scheduled lane (effective triggers: %s). Add `schedule` to its `triggers:` in directive.yaml, or set `TRIGGERS=%s,schedule` in `.governance/conf/%s.conf`\n' \
-                    "${full_id:-$id}" "${triggers:-<none>}" "${triggers// /,}" \
-                    "${full_id:-$id}" >&2
+                printf 'governance schedule: %s is not eligible for the scheduled lane (effective triggers: %s). Add `schedule` to its explicit `triggers:` in directive.yaml\n' \
+                    "${full_id:-$id}" "${triggers:-<none>}" >&2
                 return 2
                 ;;
         esac
@@ -908,21 +894,26 @@ cmd_run() {
                 return 2
             fi
             MECH=$((MECH + 1))
+            surface="$(_yaml_top_list "$yaml" surface)"
+            evidence="$( _schedule_lib_call "$dir" conf_get "$id" SCHEDULE_EVIDENCE "$yaml" 2>/dev/null )" || evidence=""
+            [[ -n "$evidence" ]] || { [[ "$surface" == "change-set" ]] && evidence=commits || evidence=range; }
             printf "%s${RS}%s\n" "$id" "$dir" >> "$WORK/mech"
+            printf "%s${RS}%s\n" "$id" "$dir" >> "$WORK/mech.$evidence"
             continue
         fi
 
-        # The schedule judge resolution ladder (see the header comment): the
-        # directive's own `cmd.schedule` first (the author's floor), else the
-        # ephemeral env the lane's workflow exports, else nothing — reported,
-        # never guessed.
+        # Command choice is author-owned. The environment is not a parallel
+        # config channel.
         cmd="$(_schedule_lib_call "$dir" _judge_cmd_resolve "$yaml" schedule 2>/dev/null)"
-        [[ -n "$cmd" ]] || cmd="${GOVERNANCE_JUDGE_CMD:-}"
-        section="$(_judge_yaml "$yaml" section)"
+        section="$( _schedule_lib_call "$dir" conf_get "$id" ATTEST_SECTION "$yaml" 2>/dev/null )" || section=""
+        surface="$(_yaml_top_list "$yaml" surface)"
+        evidence="$( _schedule_lib_call "$dir" conf_get "$id" SCHEDULE_EVIDENCE "$yaml" 2>/dev/null )" || evidence=""
+        [[ -n "$evidence" ]] || { [[ "$surface" == "change-set" ]] && evidence=commits || evidence=range; }
+        staleness="$( _schedule_lib_call "$dir" conf_get "$id" SCHEDULE_STALENESS_DAYS "$yaml" 2>/dev/null )" || staleness=""
         DIRS=$((DIRS + 1))
         # The batching label, resolved through the SAME helper the commit lane
         # reads (the consumer's `JUDGE_GROUP=` overlay row, falling back to the
-        # directive's own `judge.group`), so a repo that batches on the attest
+        # directive's own JUDGE_GROUP config), so a repo that batches on the attest
         # lane batches identically here. It goes through the lib shim for the
         # same reason the cmd does: one resolver, invoked the one way, is what
         # guarantees the two lanes cannot drift apart. The resolver speaks the
@@ -941,12 +932,20 @@ cmd_run() {
             "$DIRS" "$id" "$dir" "$yaml" "$section" "$group" \
             "$cmd" "$checks" "$summary" \
             | LC_ALL=C tr -d '\r' >> "$WORK/rows"
+        tail -n 1 "$WORK/rows" >> "$WORK/rows.$evidence"
+        if [[ "$staleness" =~ ^[0-9]+$ ]]; then
+            oldest_epoch="$(git log -1 --format=%ct "${FULL_RANGE%%..*}" 2>/dev/null)" || oldest_epoch=""
+            now_epoch="$(date +%s)"
+            if [[ "$oldest_epoch" =~ ^[0-9]+$ ]] && (( (now_epoch - oldest_epoch) / 86400 > staleness )); then
+                printf '%s (declared maximum %s day(s))\n' "${full_id:-$id}" "$staleness" >> "$WORK/stale"
+            fi
+        fi
         : > "$WORK/f.$DIRS"
         : > "$WORK/u.$DIRS"
         if [[ -z "$cmd" ]]; then
-            printf 'governance schedule: %s resolved no schedule judge (no `cmd.schedule`, no `GOVERNANCE_JUDGE_CMD`) — reported un-adjudicated, never guessed\n' \
+            printf 'governance schedule: %s resolved no schedule judge (`SCHEDULE_CMD` is empty) — reported un-adjudicated, never guessed\n' \
                 "${full_id:-$id}" >&2
-            _schedule_unadj "$DIRS" "no schedule judge resolved for this lane — export GOVERNANCE_JUDGE_CMD (the lane's workflow does) or declare \`judge.cmd.schedule\`"
+            _schedule_unadj "$DIRS" "no schedule judge resolved for this lane — declare fixed \`SCHEDULE_CMD\` config"
         fi
     done < <(_schedule_directive_yamls)
 
@@ -959,10 +958,14 @@ cmd_run() {
         return 2
     done
 
-    # ── The evidence. `range` is one pass over the whole range; `commits`
-    #    replays it commit by commit, which is the same judgment applied to a
-    #    narrower change set — not a second engine.
-    if [[ "$EVIDENCE" == "commits" ]]; then
+    # ── Evidence is resolved per member. Range members run together once;
+    # commit members replay the same range one commit at a time.
+    ROWS_FILE="$WORK/rows.range"; MECH_FILE="$WORK/mech.range"
+    _schedule_mech_pass "$range_start" "$ROOT" "the range $FULL_RANGE"
+    _schedule_judge_pass
+
+    if [[ -s "$WORK/rows.commits" || -s "$WORK/mech.commits" ]]; then
+        ROWS_FILE="$WORK/rows.commits"; MECH_FILE="$WORK/mech.commits"
         local commit parent
         # A range enumerates its own commits; a bare sha (the degenerate range
         # a repo with one commit resolves to) would enumerate every ancestor,
@@ -990,10 +993,8 @@ cmd_run() {
         done < <(git rev-list --reverse ${rev_args[@]+"${rev_args[@]}"} 2>/dev/null)
         RANGE="$FULL_RANGE"
         SHA_PREFIX=""
-    else
-        _schedule_mech_pass "$range_start" "$ROOT" "the range $FULL_RANGE"
-        _schedule_judge_pass
     fi
+    ROWS_FILE="$WORK/rows"; MECH_FILE="$WORK/mech"
 
     # ── One digest section per judge directive that has something to say.
     local r_idx r_id r_dir r_yaml r_section r_group r_cmd r_checks r_summary
@@ -1014,8 +1015,8 @@ cmd_run() {
 
     _schedule_render_digest > "$WORK/body"
 
-    printf 'governance schedule[%s]: range %s (evidence %s) — %s judge directive(s), %s mechanical (%s failed), %s judge call(s), %s round(s), %s finding(s), %s un-adjudicated\n' \
-        "$LANE" "$FULL_RANGE" "$EVIDENCE" "$DIRS" "$MECH" "$MECH_FAIL" \
+    printf 'governance schedule[%s]: range %s (per-member evidence) — %s judge directive(s), %s mechanical (%s failed), %s judge call(s), %s round(s), %s finding(s), %s un-adjudicated\n' \
+        "$LANE" "$FULL_RANGE" "$DIRS" "$MECH" "$MECH_FAIL" \
         "$JUDGED" "$ROUNDS" "$FINDINGS" "$UNADJ" >&2
 
     # The exit status of this run is decided by the FACTS alone: a mechanical

@@ -60,6 +60,13 @@ EOF
 rm LICENSE
 EVAL_LABEL="$EVAL_ID missing license" expect_fail "$CHECK"
 
+# pass — a tunable list member can be removed persistently by the consumer
+# without changing the directive-owned manifest.
+mkdir -p "$(dirname "$EVAL_CONF")"
+printf '!license\n' > "$EVAL_CONF"
+EVAL_LABEL="$EVAL_ID required-checks overlay removes license" expect_pass "$CHECK"
+rm -f "$EVAL_CONF"
+
 # restore LICENSE so the next assertion isolates the AGENTS.md failure
 cat > LICENSE <<'EOF'
 MIT License

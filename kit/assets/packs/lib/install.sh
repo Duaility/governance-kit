@@ -166,23 +166,19 @@ seed_directive_conf() {
     # pack-qualified so homonym directives from different packs get independent
     # overlays — matching how `conf_file` resolves it at runtime.
     #
-    # A directive is "configurable" iff it ships a `defaults.conf` (issue #210):
-    # that one pack-owned file holds the live defaults *and* their docs, and it
-    # is refreshed by `pack update`. The overlay seeded here is NOT a copy of
-    # anything directive-specific — it is one generic kit stub
-    # (kit/assets/conf-overlay.stub.conf) with the directive id and the path to
-    # its defaults.conf interpolated in. So nothing seeded into user space can
-    # ever go stale: the docs live in the refreshed defaults.conf, and the stub
-    # only points at it.
+    # A directive is configurable iff directive.yaml carries a `config:` block.
+    # The generic overlay points back to that author-owned registry; values and
+    # documentation therefore refresh atomically on pack update (issue #366).
     #
     # Augment-only: an existing dest is left untouched — user edits are sacred,
     # and `pack update` / `reset` never call this on already-installed
     # directives. Echoes the repo-relative seeded path on stdout when it writes
     # one (for the apply-engine `conf_seeded` report); silent no-op when the
-    # directive ships no `defaults.conf` or the dest already exists.
+    # directive declares no config or the dest already exists.
     local pack_dir="$1" directive_id="$2" target_repo="$3"
-    local defaults="$pack_dir/directives/$directive_id/defaults.conf"
-    [[ -f "$defaults" ]] || return 0
+    local manifest="$pack_dir/directives/$directive_id/directive.yaml"
+    [[ -f "$manifest" ]] || return 0
+    grep -qE '^config:' "$manifest" || return 0
     local pack_id
     pack_id="$(pack_field "$pack_dir" id)"
     local rel=".governance/conf/$pack_id/$directive_id.conf"
@@ -190,11 +186,11 @@ seed_directive_conf() {
     [[ -e "$dest" ]] && return 0
     local stub="$_INSTALL_LIB_DIR/../../conf-overlay.stub.conf"
     [[ -f "$stub" ]] || return 0
-    local defaults_rel=".governance/packs/$pack_id/directives/$directive_id/defaults.conf"
+    local manifest_rel=".governance/packs/$pack_id/directives/$directive_id/directive.yaml"
     local content
     content="$(cat "$stub")"
     content="${content//__DIRECTIVE_ID__/$directive_id}"
-    content="${content//__DEFAULTS_PATH__/$defaults_rel}"
+    content="${content//__MANIFEST_PATH__/$manifest_rel}"
     mkdir -p "$(dirname "$dest")"
     printf '%s\n' "$content" > "$dest"
     printf '%s\n' "$rel"

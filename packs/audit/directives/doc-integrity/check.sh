@@ -3,7 +3,7 @@
 # the default branch it is evidence of what was true then, and a later change set
 # may only ADD to it, never rewrite or erase what is already there.
 #
-# What is protected ships as standard rules in the sibling `defaults.conf`,
+# What is protected ships as standard rules in the sibling manifest config,
 # layered with the user overlay `.governance/conf/governance-kit/audit/doc-integrity.conf` (bare lines
 # add rules, `!<rule>` drops a default). If the effective rule set is empty the
 # directive is a no-op. Each rule is `<mode> <path> [arg]`:
@@ -50,10 +50,10 @@ require_git
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT" || exit 1
 
-# Effective rule set = pack-owned defaults.conf layered with the user overlay
+# Effective rule set = manifest RULES default layered with the user overlay
 # (.governance/conf/governance-kit/audit/doc-integrity.conf): bare lines add rules, `!<rule>` drops a
 # default. Empty effective set → nothing to protect, no-op.
-RULES="$(conf_list doc-integrity "$(dirname "$0")/defaults.conf")"
+RULES="$(conf_list doc-integrity "$(dirname "$0")/directive.yaml" RULES)"
 if [[ -z "$RULES" ]]; then
     directive_end   # nothing opted in
 fi

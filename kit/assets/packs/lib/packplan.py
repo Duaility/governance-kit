@@ -126,16 +126,12 @@ def _resolve_pack(root: Path, ref: str, with_diff: bool, from_sha: str | None) -
             "status": "update" if installed.is_dir() else "add",
             "dest": dest_rel,
         }
-        # Surface per-directive config drift so the operator can be told to
-        # reconcile their user overlay by hand — `pack update` refreshes the
-        # pack-owned `defaults.conf` (the live defaults *and* their docs, issue
-        # #210) in the installed tree but never rewrites the user-owned
-        # `.governance/conf/<id>.conf`. A change to defaults.conf shifts what the
-        # directive enforces by default, so it's the signal worth surfacing.
+        # Surface changes to the author-owned config registry while preserving
+        # the consumer-owned overlay.
         if d["status"] == "update":
-            def _bytes(p: Path) -> bytes:
-                return p.read_bytes() if p.is_file() else b""
-            d["config_drift"] = _bytes(installed / "defaults.conf") != _bytes(src / "defaults.conf")
+            old_manifest = load_yaml(installed / "directive.yaml") if (installed / "directive.yaml").is_file() else {}
+            new_manifest = load_yaml(src / "directive.yaml")
+            d["config_drift"] = old_manifest.get("config") != new_manifest.get("config")
             user_conf = f".governance/conf/{pack_id}/{did}.conf"
             d["user_conf"] = user_conf
             d["user_conf_present"] = (root / user_conf).is_file()

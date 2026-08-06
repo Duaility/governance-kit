@@ -8,7 +8,7 @@
 # Usage:
 #   bash .governance/run.sh              # run all directive checks
 #   bash .governance/run.sh required-docs   # run a single directive by id
-#   bash .governance/run.sh --scheduled --lane <name> [--evidence range|commits] \
+#   bash .governance/run.sh --scheduled --lane <name> \
 #       [--range A..B] [--budget N] [--dry-run] [--no-gh] <member>...
 #                                        # one scheduled lane, at rest
 #

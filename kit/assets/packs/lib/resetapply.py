@@ -11,7 +11,7 @@ each in-scope directive to its **pinned** pristine source in one call:
   * `restore` — replace the directive folder from the pinned cache via install.sh
     `copy_tree_without_evals`, and replace/insert its CONSTITUTION.md subsection
     via docsurgery from the pinned `constitution.md`. The folder includes the
-    pack-owned `defaults.conf` (the live defaults + their docs, issue #210), so
+    pack-owned `directive.yaml config:` (typed defaults + docs, issue #366), so
     restore refreshes that; the user-owned `.governance/conf/<id>.conf` is never
     touched.
   * `drop` (only under `--all --drop-handauthored`) — delete the directive folder

@@ -3,15 +3,15 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Create a nightly schedule lane that runs secrets-hygiene and license-headers, commit-by-commit, at 3am.",
-      "expected_output": "Following the schedule engine's `schedule-apply <root> <lane> --cron <cron> --member <id> [--member <id> ...] --evidence <range|commits> [--budget N]` contract (kit/assets/packs/lib/schedulelib.py): the skill resolves the two member tokens against `.governance/packs/*/*/directives/*/directive.yaml` (bare ids `secrets-hygiene` and `license-headers` each match exactly one installed directive here), confirms both are schedule-eligible (both carry an explicit `triggers:` list that includes `schedule` — `secrets-hygiene` is `[pre-commit, schedule]`, `license-headers` is `[schedule]` with `hook: none`), and calls `packverb.py schedule-apply <root> nightly --cron \"0 3 * * *\" --member governance-kit/core/secrets-hygiene --member governance-kit/core/license-headers --evidence commits`. This writes `.github/workflows/governance-schedule-nightly.yml` from `kit/assets/governance-schedule.template.yml`, appends the workflow's relative path to `.governance/install.yaml`'s `install_assets_seeded` list, and refreshes the `managed_digests` block. The report names the lane, the cron, the two resolved member ids, and the generated workflow path.",
+      "prompt": "Create a nightly schedule lane that runs secrets-hygiene and license-headers at 3am.",
+      "expected_output": "The skill resolves both members, confirms each manifest explicitly includes the `schedule` trigger, and calls `schedule-apply <root> nightly --cron \"0 3 * * *\"` with both members and no lane-wide evidence flag. The plan reports each member's evidence grain from fixed `SCHEDULE_EVIDENCE` config or its surface-derived default. Apply writes the managed workflow and refreshes the install ledger/digests.",
       "files": ["files/scheduled-repo/"],
       "assertions": [
         "The skill resolved both `secrets-hygiene` and `license-headers` against the installed directives under `.governance/packs/governance-kit/core/directives/` before calling the engine, rather than passing the bare prompt words straight through blind",
         "The skill confirmed both members are schedule-eligible: `secrets-hygiene` via its `directive.yaml` `triggers: [pre-commit, schedule]`, `license-headers` via `triggers: [schedule]` (with `hook: none` — it has no commit-time hook at all)",
-        "The skill invoked the schedule engine (`packverb.py schedule-apply` or the equivalent `governance schedule create` verb) with `--cron \"0 3 * * *\"`, two `--member` flags naming `governance-kit/core/secrets-hygiene` and `governance-kit/core/license-headers`, and `--evidence commits`",
+        "The skill invoked the schedule engine with the cron and both member flags, without a lane-wide evidence flag",
         "`.github/workflows/governance-schedule-nightly.yml` was created",
-        "The generated workflow contains `cron: \"0 3 * * *\"` under `on: schedule:`, and its `run.sh --scheduled` invocation line includes `--evidence commits` and both member ids space-joined (`governance-kit/core/secrets-hygiene governance-kit/core/license-headers`)",
+        "The generated workflow contains the cron and both member ids; evidence is absent from the workflow command because it resolves per member",
         "`.governance/install.yaml`'s `install_assets_seeded` list gained the entry `.github/workflows/governance-schedule-nightly.yml`",
         "No other file in the repo (no `check.sh`, no `directive.yaml`, no `packs.lock` entry) was modified — creating a schedule lane is purely additive over the already-installed directives",
         "The report names the lane (`nightly`), the cron, the resolved member ids, and the generated workflow path"
@@ -19,20 +19,20 @@
     },
     {
       "id": 2,
-      "prompt": "Set up a nightly schedule lane at 3am covering secrets-hygiene and naming-convention, commit-by-commit evidence. If something's not eligible, fix it and retry rather than giving up.",
-      "expected_output": "First attempt: the skill calls `schedule-apply <root> nightly --cron \"0 3 * * *\" --member governance-kit/core/secrets-hygiene --member acme/local/naming-convention --evidence commits`, which the engine refuses (`result: \"refused\"`, nonzero exit) because `naming-convention`'s effective triggers are `[pre-commit]` only — it has no `triggers:` entry in `directive.yaml`, so it derives to just its `hook:` value, and `schedule` is not in it. The refusal message names the ineligible directive and its two remediation options (add `schedule` to its `directive.yaml` `triggers:`, or add a `.governance/conf/acme/local/naming-convention.conf` overlay with a `TRIGGERS=` row that includes `schedule`). The skill then writes the overlay `.governance/conf/acme/local/naming-convention.conf` containing `TRIGGERS=pre-commit,schedule` (preserving `naming-convention`'s existing `pre-commit` hook trigger, not just adding `schedule` alone), and retries the identical `schedule-apply` call, which now succeeds and writes the workflow file.",
+      "prompt": "Set up a nightly schedule lane at 3am covering secrets-hygiene and naming-convention. If the repo-local directive is not eligible, amend it and retry.",
+      "expected_output": "The first plan is refused because `naming-convention` lacks an explicit schedule trigger. The skill does not use a `TRIGGERS=` overlay: eligibility is author-owned policy. Because `acme/local` is repo-local, it routes the change through `governance directive modify` so the manifest carries `triggers: [pre-commit, schedule]` with the matching constitution/evolution amendment, then retries schedule apply successfully.",
       "files": ["files/scheduled-repo/"],
       "assertions": [
         "The first `schedule-apply` invocation (or `governance schedule create`) named both `governance-kit/core/secrets-hygiene` and `acme/local/naming-convention` as members",
         "That first attempt was refused (nonzero exit / `result: \"refused\"`) and produced no workflow file — `.github/workflows/governance-schedule-nightly.yml` does not exist after it",
         "The refusal explicitly names `naming-convention` (or its full id `acme/local/naming-convention`) as the ineligible member and states its effective triggers are `[pre-commit]`, not including `schedule`",
         "The skill did not silently drop the ineligible member and apply a partial lane over just `secrets-hygiene` — it treated the refusal as blocking, not as a reason to narrow scope without saying so",
-        "The skill created the overlay file `.governance/conf/acme/local/naming-convention.conf` with a `TRIGGERS=` row that includes `schedule`",
-        "The overlay's `TRIGGERS=` row preserves `naming-convention`'s original `pre-commit` hook trigger (e.g. `TRIGGERS=pre-commit,schedule`) rather than replacing it with `schedule` alone and silently disabling its pre-commit enforcement",
-        "The skill retried the same `schedule-apply` call after writing the overlay, and this second attempt succeeded",
+        "The skill did not create a trigger overlay; it amended the repo-local directive manifest through the directive verb",
+        "The amended manifest explicitly preserves `pre-commit` and adds `schedule`",
+        "The skill retried the same schedule apply call after the amendment, and this second attempt succeeded",
         "`.github/workflows/governance-schedule-nightly.yml` now exists and its `run.sh --scheduled` line names both `governance-kit/core/secrets-hygiene` and `acme/local/naming-convention`",
         "`.governance/install.yaml`'s `install_assets_seeded` list gained the workflow path only after the second, successful attempt",
-        "The report is honest about the two-step path: it names the initial refusal and the overlay fix, not just the final success"
+        "The report is honest about the initial refusal and author-owned manifest amendment"
       ]
     },
     {

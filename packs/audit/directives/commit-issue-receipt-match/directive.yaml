@@ -4,6 +4,23 @@ recommended: true
 summary: "Every non-merge, non-revert commit adds or updates a receipts/issue-<N>.md — the touched receipt path is the commit's issue anchor."
 surface: change-set
 hook: commit-msg
+triggers: [commit-msg, schedule]
+config:
+  - name: RECEIPTS_DIR
+    type: scalar
+    doc: Fixed directory holding identity-bearing per-issue receipts.
+    default: receipts
+    tunable: false
+  - name: ISSUE_RECEIPT_GLOB
+    type: scalar
+    doc: Fixed identity-bearing receipt filename glob within RECEIPTS_DIR.
+    default: issue-*.md
+    tunable: false
+  - name: SCHEDULE_CMD
+    type: scalar
+    doc: Fixed CLI command used for scheduled adjudication.
+    default: claude -p --output-format text --model opus
+    tunable: false
 judge:
   inputs: [range-diff]
   checks:

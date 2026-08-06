@@ -11,7 +11,7 @@ fixture_init
 install_directive "$PACK_DIR" "$EVAL_ID"
 
 # Opt two documents in via the overlay (one per remaining mode). receipts/*.md
-# is already frozen by the pack-owned defaults.conf — exercising that the
+# is already frozen by the pack-owned manifest default — exercising that the
 # defaults are live without being restated here.
 mkdir -p .governance/conf
 cat > $EVAL_CONF <<'EOF'

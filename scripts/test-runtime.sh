@@ -23,10 +23,10 @@
 #     - has_file_waiver matches `governance: allow-<id> <sub-check>` in
 #       the first 10 lines, scoped to both directive id and sub-check
 #     - conf_file resolves .governance/conf/<id>.conf (present/absent)
-#     - conf_get precedence: env GOVERNANCE_<KEY> > overlay > defaults.conf row;
+#     - conf_get enforces manifest defaults/tunability with no env tier;
 #       fail-loud on a missing row/file; transitional literal-default compat
 #     - conf_rule_lines strips comments/blanks/KEY= and trims the rest
-#     - conf_list layers defaults.conf with the overlay (+add / !remove),
+#     - conf_list layers manifest list defaults with the tunable overlay,
 #       normalizing whitespace for ! removal
 #   session identity is covered by the audit directive's own eval; this suite
 #   intentionally contains no harness adapters or private-session readers.
@@ -554,10 +554,22 @@ judge:
   checks:
     - "What changed matches the diff"
     - "checklist mirrors the issue"
-  group: bundled
-  section: Audit
-  cmd:
-    schedule: claude -p --output-format text --model opus
+config:
+  - name: ATTEST_SECTION
+    type: scalar
+    doc: Receipt section populated by the attestation lane.
+    default: Audit
+    tunable: false
+  - name: JUDGE_GROUP
+    type: scalar
+    doc: Optional batching label.
+    default: bundled
+    tunable: true
+  - name: SCHEDULE_CMD
+    type: scalar
+    doc: Command used by the scheduled lane.
+    default: claude -p --output-format text --model opus
+    tunable: false
 EOF
 cat > "$sa_dir/check.sh" <<EOF
 set -u
@@ -568,10 +580,10 @@ directive_end
 EOF
 
 # _judge_yaml parses the declared block (scalars + lists, no PyYAML).
-output=$(set +u; source "$LIB_SH"; _judge_yaml "$sa_dir/directive.yaml" section)
-assert_eq "_judge_yaml reads the section scalar" "Audit" "$output"
-output=$(set +u; source "$LIB_SH"; _judge_yaml "$sa_dir/directive.yaml" group)
-assert_eq "_judge_yaml reads the group scalar" "bundled" "$output"
+output=$(set +u; source "$LIB_SH"; conf_get sa ATTEST_SECTION "$sa_dir/directive.yaml")
+assert_eq "conf_get reads the fixed section" "Audit" "$output"
+output=$(set +u; source "$LIB_SH"; conf_get sa JUDGE_GROUP "$sa_dir/directive.yaml")
+assert_eq "conf_get reads the group default" "bundled" "$output"
 output=$(set +u; source "$LIB_SH"; _judge_cmd_resolve "$sa_dir/directive.yaml" schedule)
 assert_eq "_judge_cmd_resolve reads the schedule command" \
     "claude -p --output-format text --model opus" "$output"
@@ -640,13 +652,27 @@ judge:
   inputs:  [diff]
   checks:
     - "What changed matches the diff"
-  group: bundled-intent
-  section: Audit
-  cmd:
-    schedule: claude -p --output-format text --model opus
-EOF
-cat > "$k_chk/defaults.conf" <<'EOF'
-JUDGE_ROUNDS=3
+config:
+  - name: ATTEST_SECTION
+    type: scalar
+    doc: Receipt section populated by the attestation lane.
+    default: Audit
+    tunable: false
+  - name: JUDGE_GROUP
+    type: scalar
+    doc: Optional batching label.
+    default: bundled-intent
+    tunable: true
+  - name: SCHEDULE_CMD
+    type: scalar
+    doc: Command used by the scheduled lane.
+    default: claude -p --output-format text --model opus
+    tunable: false
+  - name: JUDGE_ROUNDS
+    type: scalar
+    doc: Maximum adjudication rounds.
+    default: 3
+    tunable: true
 EOF
 cat > "$k_chk/check.sh" <<EOF
 set -u
@@ -672,8 +698,9 @@ assert_eq "the lane column is attest on the commit path" "attest" "$(cut -f2 "$k
 k_solo="$k_dir/.governance/packs/acme/audit/directives/solo"
 mkdir -p "$k_solo"
 sed '/^  group:/d' "$k_chk/directive.yaml" > "$k_solo/directive.yaml"
-cp "$k_chk/defaults.conf" "$k_solo/defaults.conf"
 sed 's/directive_start rec/directive_start solo/' "$k_chk/check.sh" > "$k_solo/check.sh"
+mkdir -p "$k_dir/.governance/conf/acme/audit"
+printf 'JUDGE_GROUP=\n' > "$k_dir/.governance/conf/acme/audit/solo.conf"
 : > "$k_ledger"
 (set +u; export GOVERNANCE_ATTEST_LEDGER="$k_ledger"; cd "$k_dir"; bash "$k_solo/check.sh" "$k_receipt" >/dev/null 2>&1) || true
 assert_eq "an undeclared group travels as a literal dash" "-" "$(cut -f1 "$k_ledger")"
@@ -682,14 +709,17 @@ output=$(set +u; source "$LIB_SH"; attestation_remediation "$k_ledger" 2>&1)
 assert_contains "remediation routes an unlabeled row to its own sub-agent" \
     "Spawn a separate fresh-context sub-agent (solo" "$output"
 
-# A declaration with NO `section:` is schedule-only discovery: it names no
+# A declaration with NO `ATTEST_SECTION` config is schedule-only discovery: it names no
 # place in the receipt for a verdict to land, so the commit lane no-ops on it
 # instead of gating anything — the lane is read off `section:` and nothing
 # else.
 k_disc="$k_dir/.governance/packs/acme/audit/directives/disc"
 mkdir -p "$k_disc"
-sed '/^  section:/d' "$k_chk/directive.yaml" > "$k_disc/directive.yaml"
-cp "$k_chk/defaults.conf" "$k_disc/defaults.conf"
+awk '
+  /^  - name: ATTEST_SECTION$/ { skip=1; next }
+  skip && /^  - name:/ { skip=0 }
+  !skip { print }
+' "$k_chk/directive.yaml" > "$k_disc/directive.yaml"
 sed 's/directive_start rec/directive_start disc/' "$k_chk/check.sh" > "$k_disc/check.sh"
 : > "$k_ledger"
 set +e
@@ -736,47 +766,54 @@ set -e
 assert_eq "conf_file absent → exit 1" 1 "$exit_code"
 assert_eq "conf_file absent → no output" "" "$output"
 
-# A pack-owned defaults.conf for the new conf_get resolution (issue #210): the
-# live default + DEF_ONLY live here, FRESHNESS_DAYS is also overridden in the
-# overlay above.
-cat > "$conf_repo/defaults.conf" <<'EOF'
-# pack-owned defaults
-FRESHNESS_DAYS=90
-DEF_ONLY=55
+# The manifest registry is the sole source of defaults and config docs.
+cat > "$conf_repo/directive.yaml" <<'EOF'
+config:
+  - name: FRESHNESS_DAYS
+    type: scalar
+    doc: Maximum age accepted by the directive.
+    default: 90
+    tunable: true
+  - name: DEF_ONLY
+    type: scalar
+    doc: Fixed author-owned value.
+    default: 55 # fixed value with an inline YAML comment
+    tunable: false
 EOF
 
-# conf_get: overlay value wins over the defaults.conf row
-output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_get sample FRESHNESS_DAYS ./defaults.conf)
-assert_eq "conf_get overlay beats defaults.conf" "30" "$output"
+# conf_get: a declared tunable overlay wins over the manifest default.
+output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_get sample FRESHNESS_DAYS ./directive.yaml)
+assert_eq "conf_get tunable overlay beats manifest default" "30" "$output"
 
-# conf_get: env overrides both overlay and defaults.conf
-output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; GOVERNANCE_FRESHNESS_DAYS=7 conf_get sample FRESHNESS_DAYS ./defaults.conf)
-assert_eq "conf_get env beats overlay+defaults" "7" "$output"
+# The environment is not a configuration tier.
+output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; GOVERNANCE_FRESHNESS_DAYS=7 conf_get sample FRESHNESS_DAYS ./directive.yaml)
+assert_eq "conf_get ignores environment values" "30" "$output"
 
-# conf_get: key absent from overlay → falls through to the defaults.conf row
-output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_get sample DEF_ONLY ./defaults.conf)
-assert_eq "conf_get reads value from defaults.conf" "55" "$output"
+# Fixed entries ignore overlay rows.
+cat > "$conf_repo/.governance/conf/sample.conf" <<'EOF'
+FRESHNESS_DAYS=30
+DEF_ONLY=99
+frozen-files receipts/*.md
+append-only COSTS.md
+NOTAKEY here
+EOF
+output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_get sample DEF_ONLY ./directive.yaml)
+assert_eq "conf_get fixed value ignores overlay and inline YAML comment" "55" "$output"
 
-# conf_get fail-loud: a read knob with no defaults.conf row → non-zero, no stdout
+# conf_get fail-loud: an undeclared key → non-zero, no stdout
 set +e
-output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_get sample MISSING ./defaults.conf 2>/dev/null)
+output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_get sample MISSING ./directive.yaml 2>/dev/null)
 exit_code=$?
 set -e
 assert_eq "conf_get missing row → non-zero" 1 "$exit_code"
 assert_eq "conf_get missing row → no stdout" "" "$output"
 
-# conf_get fail-loud: a missing defaults.conf file → non-zero
+# conf_get fail-loud: a missing manifest → non-zero
 set +e
-output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_get sample DEF_ONLY ./nope/defaults.conf 2>/dev/null)
+output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_get sample DEF_ONLY ./nope/directive.yaml 2>/dev/null)
 exit_code=$?
 set -e
-assert_eq "conf_get missing defaults file → non-zero" 1 "$exit_code"
-
-# conf_get transitional compat: a bare-literal 3rd arg (pre-#210 convention) is
-# treated as an in-code default, so a directive folder vendored from an older
-# release keeps working against this lib.sh.
-output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_get nopack MISSING 90)
-assert_eq "conf_get literal default (transitional)" "90" "$output"
+assert_eq "conf_get missing manifest → non-zero" 1 "$exit_code"
 
 # conf_rule_lines: comments / blanks / KEY= lines stripped, rest trimmed
 output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_rule_lines sample)
@@ -791,46 +828,68 @@ set -e
 assert_eq "conf_rule_lines no conf → exit 0" 0 "$exit_code"
 assert_eq "conf_rule_lines no conf → empty" "" "$output"
 
-# ---- lib.sh: conf_list (defaults + overlay layering) ----------------------
+# ---- lib.sh: conf_list (manifest defaults + tunable overlay) -------------
 
 printf '── lib.sh: conf_list ───────────────────────────────────\n'
 list_repo="$WORK/list-repo"
 mkdir -p "$list_repo/.governance/conf"
 git -C "$list_repo" init -q
-cat > "$list_repo/defaults.conf" <<'EOF'
-# pack-owned defaults
-feat
-fix
-chore
-style
+cat > "$list_repo/directive.yaml" <<'EOF'
+config:
+  - name: TYPES
+    type: list
+    doc: Accepted conventional commit types.
+    default:
+      - feat
+      - fix
+      - chore
+      - style
+    tunable: true
+  - name: SCOPES
+    type: list
+    doc: Accepted conventional commit scopes.
+    default:
+      - api
+      - docs
+    tunable: true
 EOF
 
 # No overlay → effective list is the defaults verbatim.
-output=$(cd "$list_repo"; set +u; source "$LIB_SH"; conf_list cmf ./defaults.conf | tr '\n' ' ')
+output=$(cd "$list_repo"; set +u; source "$LIB_SH"; conf_list cmf ./directive.yaml TYPES | tr '\n' ' ')
 assert_eq "conf_list no overlay → defaults" "feat fix chore style " "$output"
 
 # Overlay adds and removes (gitignore-style ! negation).
 cat > "$list_repo/.governance/conf/cmf.conf" <<'EOF'
 # my overlay
-!style
-wip
+TYPES-=style
+TYPES+=wip
+SCOPES-=docs
+SCOPES+=cli
 EOF
-output=$(cd "$list_repo"; set +u; source "$LIB_SH"; conf_list cmf ./defaults.conf | tr '\n' ' ')
-assert_eq "conf_list overlay removes default + adds new" "feat fix chore wip " "$output"
+output=$(cd "$list_repo"; set +u; source "$LIB_SH"; conf_list cmf ./directive.yaml TYPES | tr '\n' ' ')
+assert_eq "conf_list named overlay changes only its key" "feat fix chore wip " "$output"
+output=$(cd "$list_repo"; set +u; source "$LIB_SH"; conf_list cmf ./directive.yaml SCOPES | tr '\n' ' ')
+assert_eq "conf_list second key is isolated" "api cli " "$output"
 
 # Whitespace-normalized removal: a single-spaced ! line matches a column-aligned
 # default, and additions append while preserving default alignment.
-cat > "$list_repo/defaults.conf" <<'EOF'
-frozen-files    receipts/*.md
-append-only      COSTS.md
-frozen-section  QUALITY.md         Resolved
+cat > "$list_repo/directive.yaml" <<'EOF'
+config:
+  - name: RULES
+    type: list
+    doc: Integrity rules evaluated by the directive.
+    default:
+      - frozen-files receipts/*.md
+      - append-only COSTS.md
+      - frozen-section QUALITY.md Resolved
+    tunable: true
 EOF
 cat > "$list_repo/.governance/conf/cmf.conf" <<'EOF'
 !frozen-section QUALITY.md Resolved
 append-only docs/DECISIONS.md
 EOF
-output=$(cd "$list_repo"; set +u; source "$LIB_SH"; conf_list cmf ./defaults.conf)
-expected=$'frozen-files    receipts/*.md\nappend-only      COSTS.md\nappend-only docs/DECISIONS.md'
+output=$(cd "$list_repo"; set +u; source "$LIB_SH"; conf_list cmf ./directive.yaml RULES)
+expected=$'frozen-files receipts/*.md\nappend-only COSTS.md\nappend-only docs/DECISIONS.md'
 assert_eq "conf_list normalizes whitespace for ! removal" "$expected" "$output"
 
 # Removing every default → empty effective list.
@@ -839,8 +898,27 @@ cat > "$list_repo/.governance/conf/cmf.conf" <<'EOF'
 !append-only COSTS.md
 !frozen-section QUALITY.md Resolved
 EOF
-output=$(cd "$list_repo"; set +u; source "$LIB_SH"; conf_list cmf ./defaults.conf)
+output=$(cd "$list_repo"; set +u; source "$LIB_SH"; conf_list cmf ./directive.yaml RULES)
 assert_eq "conf_list can empty the list" "" "$output"
+
+# A keyed item may itself begin with '#'; only a line whose first non-space
+# character is '#' is an overlay comment.
+cat > "$list_repo/directive.yaml" <<'EOF'
+config:
+  - name: MARKERS
+    type: list
+    doc: Suppression markers checked by the directive.
+    default:
+      - '# noqa'
+      - '# type: ignore'
+    tunable: true
+EOF
+cat > "$list_repo/.governance/conf/cmf.conf" <<'EOF'
+# an actual comment
+MARKERS-=# noqa
+EOF
+output=$(cd "$list_repo"; set +u; source "$LIB_SH"; conf_list cmf ./directive.yaml MARKERS | tr '\n' '|')
+assert_eq "conf_list preserves hash-prefixed keyed values" "# type: ignore|" "$output"
 
 # Session identity is owned by the audit directive and tested in its eval;
 # this runtime suite intentionally has no harness adapters or transcript/usage

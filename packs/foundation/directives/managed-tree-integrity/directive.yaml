@@ -6,6 +6,18 @@ recommended: true
 summary: Vendored pack folders and kit-runtime files match the digests recorded at apply time.
 surface: repo-state
 hook: pre-commit
+triggers: [pre-commit, schedule]
+config:
+  - name: WAIVED_UNITS
+    type: list
+    doc: Managed directive ids or runtime paths exempted during a migration.
+    default: []
+    tunable: true
+  - name: SCHEDULE_CMD
+    type: scalar
+    doc: Fixed CLI command used for scheduled adjudication.
+    default: claude -p --output-format text --model opus
+    tunable: false
 judge:
   inputs: [range-diff]
   checks:

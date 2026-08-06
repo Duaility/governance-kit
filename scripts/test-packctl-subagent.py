@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""judge.cmd / judge.group validate_pack_dir tests for packctl.py.
-
-Split from scripts/test-packctl-validate.py to keep both files under the
-repo-hygiene 500-line limit. Helpers (load_packctl, make_pack) are duplicated
-rather than extracted into a shared module — each test file in this repo
-stays standalone.
-"""
+"""Judge/config separation validation tests for directive manifests."""
 
 from __future__ import annotations
 
@@ -13,388 +7,150 @@ import importlib.util
 import os
 import sys
 import tempfile
-import textwrap
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 PACK_LIB = ROOT / "kit" / "assets" / "packs" / "lib"
-PACKCTL_PATH = PACK_LIB / "packctl.py"
 
 
 def load_packctl():
     sys.path.insert(0, str(PACK_LIB))
-    spec = importlib.util.spec_from_file_location("packctl_under_test", PACKCTL_PATH)
-    if spec is None or spec.loader is None:
-        raise AssertionError(f"cannot load {PACKCTL_PATH}")
+    spec = importlib.util.spec_from_file_location("packctl_under_test", PACK_LIB / "packctl.py")
+    assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-def make_pack(tmp: Path, *, pack_yaml: str, directives: dict[str, dict] | None = None) -> Path:
-    pack_dir = tmp / "demo"
-    pack_dir.mkdir(parents=True, exist_ok=True)
-    (pack_dir / "pack.yaml").write_text(pack_yaml)
-    directives_root = pack_dir / "directives"
-    directives_root.mkdir(exist_ok=True)
-    for directive_id, parts in (directives or {}).items():
-        ddir = directives_root / directive_id
-        ddir.mkdir(parents=True, exist_ok=True)
-        if "directive_yaml" in parts:
-            (ddir / "directive.yaml").write_text(parts["directive_yaml"])
-        if "check_sh" in parts:
-            (ddir / "check.sh").write_text(parts["check_sh"])
-            os.chmod(ddir / "check.sh", 0o755)
-        if "constitution_md" in parts:
-            (ddir / "constitution.md").write_text(parts["constitution_md"])
-        evals_dir = ddir / "evals"
-        evals_dir.mkdir(exist_ok=True)
-        (evals_dir / "test.sh").write_text(parts.get("eval_sh", "#!/usr/bin/env bash\nexit 0\n"))
-        os.chmod(evals_dir / "test.sh", 0o755)
-    return pack_dir
-
-
-# ---- judge.cmd (issue #355 cmd collapse) --------------------------------
-#
-# Amendment 3 retired `sink:` and `contest:`. The lane a directive rides on
-# is now derived purely from whether `section:` is present (attest lane) or
-# absent (schedule-only discovery) — fixtures below use `section: Audit`
-# where the old fixtures used `sink: none` to mean "no section at all", and
-# simply omit `section:` where the old fixtures used `sink: none` to mean
-# "schedule-only". `contest:` is folded into a three-valued `gate:`.
-#
-# The scheduled-lane redesign further renamed the `judge.cmd` lane key itself
-# from `sweep` to `schedule` (JUDGE_CMD_LANES = {"attest", "schedule"} in
-# packctl.py) — fixtures below use `cmd: { schedule: ... }`; the old `sweep`
-# key is now rejected as an unknown cmd key (see
-# test_validate_pack_dir_flags_sweep_as_unknown_cmd_key below).
-
-
-def _cmd_pack(tmp: Path, judge_block: str, *, hook: str = "none") -> Path:
-    return make_pack(
-        tmp,
-        pack_yaml=textwrap.dedent("""\
-            id: acme/demo
-            name: D
-            version: "0.1"
-            min_governance_kit: "0.1"
-            description: d
-            author: T
-            presets: {}
-        """),
-        directives={
-            "x": {
-                "directive_yaml": (
-                    "category: Foundation\n"
-                    "recommended: true\n"
-                    "summary: x\n"
-                    "hook: " + hook + "\n"
-                    "judge:\n"
-                    "  inputs: [range-diff]\n"
-                    "  checks:\n"
-                    "    - some rubric\n"
-                    + judge_block
-                ),
-                "constitution_md": "no path reference here",
-            },
-        },
+def make_pack(tmp: Path, manifest: str, *, defaults: bool = False) -> Path:
+    pack = tmp / "demo"
+    directive = pack / "directives" / "x"
+    (directive / "evals").mkdir(parents=True)
+    (pack / "pack.yaml").write_text(
+        'id: acme/demo\nname: Demo\nversion: "0.1"\nmin_governance_kit: "0.1"\n'
+        'description: demo\nauthor: Test\npresets: {}\n'
     )
+    (directive / "directive.yaml").write_text(manifest)
+    (directive / "check.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
+    os.chmod(directive / "check.sh", 0o755)
+    (directive / "constitution.md").write_text(
+        "Enforced by `.governance/packs/acme/demo/directives/x/check.sh`.\n"
+    )
+    (directive / "evals" / "test.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
+    os.chmod(directive / "evals" / "test.sh", 0o755)
+    if defaults:
+        (directive / "defaults.conf").write_text("LIMIT=1\n")
+    return pack
 
 
-def test_validate_pack_dir_accepts_attest_string_cmd() -> None:
-    pkt = load_packctl()
+BASE = """category: Foundation
+recommended: true
+summary: x
+surface: repo-state
+hook: none
+triggers: [schedule]
+config:
+  - name: SCHEDULE_CMD
+    type: scalar
+    doc: Fixed scheduled judge command.
+    default: judge-cli
+    tunable: false
+judge:
+  inputs: [range-diff]
+  checks: [review the change]
+  gate: record
+"""
+
+
+def errors_for(suffix: str = "", *, defaults: bool = False) -> list[str]:
     with tempfile.TemporaryDirectory() as tmp:
-        pack = _cmd_pack(
-            Path(tmp),
-            '  cmd: { attest: "claude -p --output-format text --model haiku" }\n',
-        )
-        errors = pkt.validate_pack_dir(pack)
-        assert not any("cmd" in e for e in errors), "\n".join(errors)
+        pack = make_pack(Path(tmp), BASE + suffix, defaults=defaults)
+        return load_packctl().validate_pack_dir(pack)
 
 
-def test_validate_pack_dir_accepts_attest_harness() -> None:
-    pkt = load_packctl()
+def test_judge_semantics_only_is_valid() -> None:
+    assert errors_for() == []
+
+
+def test_judge_rejects_lane_behavior() -> None:
+    for row in ("  section: Audit\n", "  cmd: {schedule: claude}\n", "  group: audit\n"):
+        errors = errors_for(row)
+        assert any("only inputs, checks, and gate" in error for error in errors), errors
+
+
+def test_lane_behavior_lives_in_config() -> None:
+    extra = """  - name: SCHEDULE_EVIDENCE
+    type: scalar
+    doc: Evidence mode used by this directive.
+    default: range
+    tunable: false
+  - name: SCHEDULE_STALENESS_DAYS
+    type: scalar
+    doc: Advisory maximum age for the last successful run.
+    default: 48
+    tunable: true
+"""
     with tempfile.TemporaryDirectory() as tmp:
-        pack = _cmd_pack(
-            Path(tmp),
-            "  cmd: { attest: harness, schedule: \"claude -p --output-format text --model opus\" }\n",
-        )
-        errors = pkt.validate_pack_dir(pack)
-        assert not any("cmd" in e for e in errors), "\n".join(errors)
+        manifest = BASE.replace("judge:\n", extra + "judge:\n")
+        errors = load_packctl().validate_pack_dir(make_pack(Path(tmp), manifest))
+    assert errors == [], errors
 
 
-def test_validate_pack_dir_accepts_schedule_string_cmd() -> None:
-    pkt = load_packctl()
+def test_schedule_command_is_author_fixed() -> None:
+    manifest = BASE.replace("tunable: false\njudge:", "tunable: true\njudge:")
     with tempfile.TemporaryDirectory() as tmp:
-        pack = _cmd_pack(
-            Path(tmp),
-            '  cmd: { schedule: "claude -p --output-format text --model opus" }\n',
-        )
-        errors = pkt.validate_pack_dir(pack)
-        assert errors == [], "\n".join(errors)
+        errors = load_packctl().validate_pack_dir(make_pack(Path(tmp), manifest))
+    assert any("fixed SCHEDULE_CMD" in error for error in errors), errors
 
 
-def test_validate_pack_dir_flags_sweep_as_unknown_cmd_key() -> None:
-    """The scheduled-lane redesign renamed the `judge.cmd` lane key from
-    `sweep` to `schedule` (JUDGE_CMD_LANES is now {attest, schedule}). The
-    old `sweep` key is not a deprecated-but-tolerated alias — it is simply an
-    unknown cmd key, same as any other typo."""
-    pkt = load_packctl()
+def test_attest_execution_contract_is_fixed() -> None:
+    extra = """  - name: ATTEST_SECTION
+    type: scalar
+    doc: Receipt section populated by attestation.
+    default: Audit
+    tunable: false
+  - name: ATTEST_CMD
+    type: scalar
+    doc: Command used by live attestation.
+    default: harness
+    tunable: false
+  - name: SCHEDULE_EVIDENCE
+    type: scalar
+    doc: Evidence mode used by this directive.
+    default: range
+    tunable: false
+"""
     with tempfile.TemporaryDirectory() as tmp:
-        pack = _cmd_pack(
-            Path(tmp),
-            '  cmd: { sweep: "claude -p --output-format text --model opus" }\n',
-        )
-        errors = pkt.validate_pack_dir(pack)
-        assert any("unknown key" in e and "sweep" in e for e in errors), "\n".join(errors)
+        manifest = BASE.replace("judge:\n", extra + "judge:\n")
+        errors = load_packctl().validate_pack_dir(make_pack(Path(tmp), manifest))
+    assert errors == [], errors
 
 
-def test_validate_pack_dir_flags_unknown_cmd_key() -> None:
-    pkt = load_packctl()
+def test_defaults_conf_is_rejected() -> None:
+    errors = errors_for(defaults=True)
+    assert any("defaults.conf" in error for error in errors), errors
+
+
+def test_verdict_gate_requires_attest_section_config() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        pack = _cmd_pack(
-            Path(tmp),
-            '  cmd: { attest: harness, triage: "some-cli" }\n',
-        )
-        errors = pkt.validate_pack_dir(pack)
-        assert any("unknown key" in e and "triage" in e for e in errors), "\n".join(errors)
+        manifest = BASE.replace("gate: record", "gate: verdict")
+        pack = make_pack(Path(tmp), manifest)
+        errors = load_packctl().validate_pack_dir(pack)
+        assert any("ATTEST_SECTION" in error for error in errors), errors
 
 
-def test_validate_pack_dir_flags_schedule_harness() -> None:
-    pkt = load_packctl()
-    with tempfile.TemporaryDirectory() as tmp:
-        pack = _cmd_pack(
-            Path(tmp),
-            "  cmd: { schedule: harness }\n",
-        )
-        errors = pkt.validate_pack_dir(pack)
-        assert any("cmd.schedule" in e and "harness" in e for e in errors), "\n".join(errors)
-
-
-def test_validate_pack_dir_flags_tiers_as_forbidden() -> None:
-    pkt = load_packctl()
-    with tempfile.TemporaryDirectory() as tmp:
-        pack = _cmd_pack(
-            Path(tmp),
-            "  tiers: { sweep: high }\n",
-        )
-        errors = pkt.validate_pack_dir(pack)
-        assert any("judge.tiers" in e for e in errors), "\n".join(errors)
-
-
-def test_validate_pack_dir_silent_on_section_absent_without_schedule_cmd() -> None:
-    # The bundled norm: a schedule-only directive names no judge of its own
-    # and the driver resolves one from GOVERNANCE_JUDGE_CMD. Not a defect, so
-    # not a warning — 15 bundled directives would otherwise each emit one.
-    pkt = load_packctl()
-    with tempfile.TemporaryDirectory() as tmp:
-        pack = _cmd_pack(Path(tmp), "")
-        errors, warnings = pkt.validate_pack_dir_with_warnings(pack)
-        assert errors == [], "\n".join(errors)
-        assert warnings == [], "\n".join(warnings)
-
-
-def test_validate_pack_dir_no_warning_when_section_absent_has_schedule_cmd() -> None:
-    pkt = load_packctl()
-    with tempfile.TemporaryDirectory() as tmp:
-        pack = _cmd_pack(
-            Path(tmp),
-            '  cmd: { schedule: "claude -p --output-format text --model opus" }\n',
-        )
-        errors, warnings = pkt.validate_pack_dir_with_warnings(pack)
-        assert errors == [], "\n".join(errors)
-        assert warnings == [], "\n".join(warnings)
-
-
-# ---- judge.sink / judge.section (issue #355 amendment 3) -------------
-
-
-def test_validate_pack_dir_flags_sink_as_forbidden() -> None:
-    pkt = load_packctl()
-    with tempfile.TemporaryDirectory() as tmp:
-        pack = _cmd_pack(
-            Path(tmp),
-            '  sink: none\n  cmd: { schedule: "claude -p --output-format text --model opus" }\n',
-        )
-        errors = pkt.validate_pack_dir(pack)
-        assert any("judge.sink" in e for e in errors), "\n".join(errors)
-
-
-def test_validate_pack_dir_no_check_sh_or_surface_required_when_section_absent() -> None:
-    """Amendment 3: the schedule-only exemption (no check.sh, no surface:
-    needed) now keys purely on `section:` being absent — no `sink:` field
-    involved."""
-    pkt = load_packctl()
-    with tempfile.TemporaryDirectory() as tmp:
-        pack = _cmd_pack(
-            Path(tmp),
-            '  cmd: { schedule: "claude -p --output-format text --model opus" }\n',
-        )
-        errors = pkt.validate_pack_dir(pack)
-        assert not any("check.sh" in e for e in errors), "\n".join(errors)
-        assert not any("surface" in e for e in errors), "\n".join(errors)
-
-
-# ---- judge.gate / judge.contest (issue #355 amendment 3) -------------
-
-
-def test_validate_pack_dir_flags_contest_as_forbidden() -> None:
-    pkt = load_packctl()
-    with tempfile.TemporaryDirectory() as tmp:
-        pack = _cmd_pack(
-            Path(tmp),
-            "  section: Audit\n  gate: verdict\n  contest: allow\n",
-        )
-        errors = pkt.validate_pack_dir(pack)
-        assert any("judge.contest" in e for e in errors), "\n".join(errors)
-
-
-def test_validate_pack_dir_accepts_gate_record_default() -> None:
-    """`gate:` omitted entirely defaults to `record`, which never requires a
-    `section:`."""
-    pkt = load_packctl()
-    with tempfile.TemporaryDirectory() as tmp:
-        pack = _cmd_pack(Path(tmp), "")
-        errors = pkt.validate_pack_dir(pack)
-        assert not any("gate" in e for e in errors), "\n".join(errors)
-
-
-def test_validate_pack_dir_accepts_gate_verdict_with_section() -> None:
-    pkt = load_packctl()
-    with tempfile.TemporaryDirectory() as tmp:
-        pack = _cmd_pack(Path(tmp), "  section: Audit\n  gate: verdict\n")
-        errors = pkt.validate_pack_dir(pack)
-        assert not any("gate" in e for e in errors), "\n".join(errors)
-
-
-def test_validate_pack_dir_accepts_gate_verdict_contestable_with_section() -> None:
-    pkt = load_packctl()
-    with tempfile.TemporaryDirectory() as tmp:
-        pack = _cmd_pack(Path(tmp), "  section: Audit\n  gate: verdict-contestable\n")
-        errors = pkt.validate_pack_dir(pack)
-        assert not any("gate" in e for e in errors), "\n".join(errors)
-
-
-def test_validate_pack_dir_flags_unknown_gate_value() -> None:
-    pkt = load_packctl()
-    with tempfile.TemporaryDirectory() as tmp:
-        pack = _cmd_pack(Path(tmp), "  section: Audit\n  gate: forbid\n")
-        errors = pkt.validate_pack_dir(pack)
-        assert any("judge.gate" in e and "unknown value" in e for e in errors), "\n".join(errors)
-
-
-def test_validate_pack_dir_flags_gate_verdict_without_section() -> None:
-    """A `gate:` other than `record` with no `section:` is a declaration
-    error — a verdict with nowhere to land."""
-    pkt = load_packctl()
-    with tempfile.TemporaryDirectory() as tmp:
-        pack = _cmd_pack(Path(tmp), "  gate: verdict\n")
-        errors = pkt.validate_pack_dir(pack)
-        assert any(
-            "judge.gate" in e and "requires judge.section" in e for e in errors
-        ), "\n".join(errors)
-
-
-def test_validate_pack_dir_flags_gate_verdict_contestable_without_section() -> None:
-    pkt = load_packctl()
-    with tempfile.TemporaryDirectory() as tmp:
-        pack = _cmd_pack(Path(tmp), "  gate: verdict-contestable\n")
-        errors = pkt.validate_pack_dir(pack)
-        assert any(
-            "judge.gate" in e and "requires judge.section" in e for e in errors
-        ), "\n".join(errors)
-
-
-# ---- judge.group / isolation (issue #355 amendment) ---------------------
-
-
-def test_validate_pack_dir_flags_isolation_as_forbidden() -> None:
-    pkt = load_packctl()
-    with tempfile.TemporaryDirectory() as tmp:
-        pack = _cmd_pack(
-            Path(tmp),
-            '  isolation: shared\n  cmd: { schedule: "claude -p --output-format text --model opus" }\n',
-        )
-        errors = pkt.validate_pack_dir(pack)
-        assert any("judge.isolation" in e for e in errors), "\n".join(errors)
-
-
-def test_validate_pack_dir_accepts_plain_group_scalar() -> None:
-    pkt = load_packctl()
-    with tempfile.TemporaryDirectory() as tmp:
-        pack = _cmd_pack(
-            Path(tmp),
-            '  group: bundled-intent\n  cmd: { schedule: "claude -p --output-format text --model opus" }\n',
-        )
-        errors = pkt.validate_pack_dir(pack)
-        assert errors == [], "\n".join(errors)
-
-
-def test_validate_pack_dir_flags_group_with_differing_schedule_cmds() -> None:
-    pkt = load_packctl()
-    with tempfile.TemporaryDirectory() as tmp:
-        pack = make_pack(
-            Path(tmp),
-            pack_yaml=textwrap.dedent("""\
-                id: acme/demo
-                name: D
-                version: "0.1"
-                min_governance_kit: "0.1"
-                description: d
-                author: T
-                presets: {}
-            """),
-            directives={
-                "x": {
-                    "directive_yaml": textwrap.dedent("""\
-                        category: Foundation
-                        recommended: true
-                        summary: x
-                        hook: none
-                        judge:
-                          inputs: [range-diff]
-                          checks:
-                            - some rubric
-                          group: bundled-intent
-                          cmd: { schedule: "claude -p --output-format text --model opus" }
-                    """),
-                    "constitution_md": "no path reference here",
-                },
-                "y": {
-                    "directive_yaml": textwrap.dedent("""\
-                        category: Foundation
-                        recommended: true
-                        summary: y
-                        hook: none
-                        judge:
-                          inputs: [range-diff]
-                          checks:
-                            - another rubric
-                          group: bundled-intent
-                          cmd: { schedule: "claude -p --output-format text --model haiku" }
-                    """),
-                    "constitution_md": "no path reference here",
-                },
-            },
-        )
-        errors = pkt.validate_pack_dir(pack)
-        assert any(
-            "group" in e and "bundled-intent" in e and "one invocation, one command" in e
-            for e in errors
-        ), "\n".join(errors)
+def main() -> int:
+    failures = 0
+    for name, fn in sorted(globals().items()):
+        if name.startswith("test_") and callable(fn):
+            try:
+                fn()
+                print(f"ok - {name}")
+            except Exception as exc:
+                failures += 1
+                print(f"not ok - {name}: {exc}")
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":
-    failures = 0
-    for name, fn in sorted(globals().items()):
-        if not name.startswith("test_"):
-            continue
-        try:
-            fn()
-        except Exception as exc:  # noqa: BLE001 - tiny stdlib-only harness.
-            failures += 1
-            print(f"not ok - {name}: {exc}", file=sys.stderr)
-        else:
-            print(f"ok - {name}")
-    raise SystemExit(1 if failures else 0)
+    raise SystemExit(main())

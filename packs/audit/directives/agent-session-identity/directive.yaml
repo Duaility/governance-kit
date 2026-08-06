@@ -5,6 +5,12 @@ always_install: true
 summary: Each agent-authored commit records its harness and session identifier in the issue receipt; no transcript, token, cost, or steering data is read.
 surface: change-set
 hook: commit-msg
+config:
+  - name: RECEIPTS_DIR
+    type: scalar
+    doc: Fixed directory holding identity-bearing per-issue receipts.
+    default: receipts
+    tunable: false
 reads:
   - receipts/*.md
 writes:

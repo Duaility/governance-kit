@@ -24,10 +24,9 @@ Directives are **atoms**. Each directive is a self-contained folder that owns it
 ├── pack.yaml                  # pack identity + presets
 └── directives/
     └── <directive-id>/
-        ├── directive.yaml          # per-directive metadata (category, summary, hook, …)
+        ├── directive.yaml     # metadata, config registry, optional judge semantics
         ├── check.sh           # the executable test
         ├── constitution.md    # Directive subsection (Directive / Rationale / Enforced by / Exceptions)
-        ├── defaults.conf      # optional: pack-owned live defaults + their docs (refreshed on update)
         └── evals/
             └── test.sh        # pass + fail fixtures using eval-lib.sh
 ```
@@ -36,12 +35,23 @@ Adding, moving, deleting, or shipping a directive to another pack is a single `g
 
 ### Per-directive configuration
 
-Configuration is exactly **two artifacts, one writer each** (issue #210):
+Configuration has one author-owned registry and one optional consumer overlay:
 
-- **`defaults.conf`** (pack writes) — one optional file in the directive folder carrying the live defaults **and** their documentation: `KEY=value` rows for scalar knobs, bare rows for list items (commit types, protected patterns, integrity rules), all explained by adjacent comments. It is refreshed by `pack update` / `reset`, so consumers keep receiving improved defaults *and* their docs — value and documentation can never drift apart because they ride the same file. A directive that reads any config ships one; an opt-in directive ships an all-comment `defaults.conf` (docs + examples, zero live rows).
-- **the user overlay** (user writes) — `.governance/conf/<owner>/<pack>/<id>.conf`, seeded once at install (`init`, `pack add`, `directive add`) from a single generic kit stub that names the directive and points at its `defaults.conf`. Augment-only — an existing file is never overwritten, and no lifecycle verb rewrites it afterward. Nothing directive-specific is copied into user space, so nothing seeded can go stale.
+- **`directive.yaml config:`** holds every key's `name`, `type` (`scalar` or
+  `list`), one-line `doc`, `default`, and `tunable` policy. Defaults and docs
+  therefore evolve with the directive as one atomic manifest change.
+- **the user overlay** is `.governance/conf/<owner>/<pack>/<id>.conf`, seeded
+  once when a directive declares config and never rewritten by lifecycle
+  verbs. Only `tunable: true` entries consume it.
 
-The effective config is `defaults.conf` layered with the overlay: a bare line **adds** an item, `!<item>` **removes** a default (gitignore-style negation), `KEY=value` **overrides** a scalar. Read scalars with `conf_get <id> <KEY> "$(dirname "$0")/defaults.conf"` (precedence env `GOVERNANCE_<KEY>` &gt; overlay &gt; `defaults.conf` row — a read knob with no `defaults.conf` row fails loud) and lists with `conf_list <id> "$(dirname "$0")/defaults.conf"`; both resolve the qualified overlay path from the directive's installed location automatically. Other helpers: `conf_file`, `conf_rule_lines`. A directive that declares capabilities must list `.governance/conf/**` under `reads:`.
+Scalar overlay rows use `KEY=value`; list overlays use `KEY+=<item>` additions
+and `KEY-=<item>` removals. Bare/`!item` shorthand is accepted only when the
+manifest declares one list key. Read scalars with
+`conf_get <id> <KEY> "$(dirname "$0")/directive.yaml"` and lists with
+`conf_list <id> "$(dirname "$0")/directive.yaml" <KEY>`. There is no
+environment tier and no undeclared fallback. A directive that declares
+capabilities must list `.governance/conf/**` under `reads:` when it exposes a
+tunable entry.
 
 Kit-bundled packs are the three concern packs `governance-kit/{foundation,commits,audit}`, each under `packs/<concern>/`; the shared loader/install lib lives at `kit/assets/packs/lib/`. Out-of-tree community packs live in their own repos and are pulled in via `governance pack add gh:<owner>/<repo>`.
 
@@ -105,29 +115,17 @@ reads:                          # optional capability declaration
   - .github/workflows/**
   - .governance/**
 writes: []                      # optional; most directives are read-only
-judge:                          # optional; declares a sub-agent judgment task (issues #325, #355)
+config:                         # optional typed registry; strict list of mappings
+  - name: LIMIT
+    type: scalar                # scalar | list
+    doc: Maximum accepted count.
+    default: 5
+    tunable: true
+judge:                          # optional; semantics only
   inputs:  [diff, receipt, issue]
   checks:
     - "'## What changed' faithfully describes the diff"
-  # group: <label>              # optional batching label; a shareable pack ships no default (operator-owned via the conf overlay's JUDGE_GROUP=, see below)
-  section: Audit                 # presence of this key puts the directive on the attest lane; absence = schedule-only, no check.sh needed
   gate:    record                # record (default) | verdict | verdict-contestable
-```
-
-No `cmd` row — this is what a shareable pack ships. Absent `cmd.attest`
-defaults to `harness`; a directive with no `cmd.schedule` is still eligible
-for scheduled runs regardless of whether it declares `section:` — a
-scheduled lane's own generated workflow supplies the judge, through the
-ephemeral `GOVERNANCE_JUDGE_CMD` env it exports (see
-[SCHEDULE_FLOW.md](https://github.com/Duaility/governance-kit/blob/main/kit/references/SCHEDULE_FLOW.md)). `cmd`
-remains a valid, optional field for the rare case one directive's judge must
-be fixed regardless of the consuming repo's choice — reach for it in a
-repo-local pack, not a pack you intend to share:
-
-```yaml
-  cmd:
-    attest:   harness               # harness (default) | shell command string
-    schedule: claude -p --output-format text --model opus   # shell command string only; overrides the ladder in SCHEDULE_FLOW.md
 ```
 
 | Field | Notes |
@@ -136,17 +134,17 @@ repo-local pack, not a pack you intend to share:
 | `recommended` | Pre-ticks the directive in the category menu. Presets override this per-preset. |
 | `summary` | Shown next to the id in the multi-select picker. Keep it to one line. |
 | `surface` | `repo-state` for directives that inspect the tree at rest; `change-set` for directives that inspect a specific commit or diff. Whether a directive also runs off the commit path is a property of its `judge:` block (below) and its `triggers:` eligibility, not a separate surface value — see [SCHEDULE_FLOW.md](https://github.com/Duaility/governance-kit/blob/main/kit/references/SCHEDULE_FLOW.md). |
-| `hook` | Hook kind the directive wants to run in. Drives dispatcher generation. Use `none` if the directive runs exclusively in CI, or is a schedule-only `judge:` declaration (no `section:` key) that never runs on the commit path at all. |
-| `triggers` | Optional. A flow or block list drawn from `pre-commit, commit-msg, prepare-commit-msg, post-commit, pre-push, none, schedule`. Absent ⇒ derived `[<hook>]` (or `[]` when `hook: none`) — nothing changes for a pack that has never declared it. **Consistency rule**, validated at install: when present and `hook:` is not `none`, the list must contain the `hook:` value, and may contain at most **one** git-hook value (which must equal `hook:`) — `schedule` is the only additional lane today, and it is the only value a directive can add on top of its hook. Declaring `schedule` makes the directive *eligible* to be named as a scheduled lane's member; it does not itself put the directive in any lane — a lane's generated workflow names its members explicitly (see [SCHEDULE_FLOW.md](https://github.com/Duaility/governance-kit/blob/main/kit/references/SCHEDULE_FLOW.md)). A consumer overrides the effective list per repo with the overlay key `TRIGGERS=` (comma-separated) in `.governance/conf/<owner>/<pack>/<id>.conf` — read through the overlay tier only, via a bespoke helper (not `conf_get`'s hard-fail `defaults.conf` tier, since there is no author-owned default row to fail against); there is no env tier, since a single global trigger override would be meaningless across directives with different hooks. |
+| `hook` | Hook kind the directive wants to run in. Drives dispatcher generation. Use `none` if the directive runs exclusively in CI, or is an explicit `triggers: [schedule]` judge that never runs on the commit path. |
+| `triggers` | Optional for mechanical hook-only directives; required for judges and schedule participation. Values come from `pre-commit, commit-msg, prepare-commit-msg, post-commit, pre-push, schedule`. When present, the hook value must appear and `schedule` is the only additional lane. Triggers are author-owned and cannot be overridden. |
+| `config` | Optional non-empty list of strict mappings: `name`, `type`, `doc`, `default`, `tunable`. Unknown or missing fields fail validation. Names match `[A-Z][A-Z0-9_]*`; list defaults contain non-empty one-line strings. |
 | `standards` | Optional advisory list of external standards the directive implements (e.g. `"OpenSSF Scorecard: Token-Permissions"`, `"CWE-798"`). Rendered as a Standards column in DIRECTIVES_CATALOG.md so coverage and gaps are visible. Not validated and never affects pass/fail. |
 | `always_install` | Reserved to the `governance-kit/*` bundled packs. Skips the menu. If you need an unconditionally installed directive in a third-party pack, file an issue first — the guarantee only holds for the bundled packs. |
 | `requires_hook_strategy` | Optional environment filter. Use this for directives whose check is only meaningful under one hook strategy — e.g. a directive asserting `.githooks/` scaffolding would declare `requires_hook_strategy: githooks` so it is skipped for husky/pre-commit.com repos. |
 | `reads` / `writes` | Optional capability declaration. List of path globs the directive's `check.sh` inspects (`reads`) or mutates (`writes`) relative to the target repo root. Most directives declare a short `reads:` list and an empty `writes:` — governance directives are overwhelmingly read-only. The schema is validated at install time (each entry must be a non-empty string); semantic enforcement (refusing install when a directive reaches outside its declared bounds) is scheduled for the `governance pack add` verb. Declare capabilities now so community packs are forward-compatible. |
-| `judge` | Optional. Declares a **judgment task** once (issues #325, #355): `inputs` (typed tokens — `diff`, `receipt`, `issue`, `layer-map`, `range-diff` — resolved to repository handles; chat transcripts and harness-private session files are not supported), `checks` (the numbered rubric — for a schedule-only directive with no `section:`, 3–6 single-sentence adjudicable items), `group` (optional; directives sharing one resolved label batch into a single judge invocation — one sub-agent on the attest lane, one judge call on the schedule lane, demuxed by `DIRECTIVE:`-tagged blocks; nothing resolved = solo invocation. A shareable pack should not declare a default here: batching trades verdict independence for tokens, and that trade belongs to the consuming repo, not the pack author. Unlike `cmd`, though, a shipped `group` is not something a fork is needed to change: the label lives in the per-directive conf overlay, a `JUDGE_GROUP=<label>` row in `.governance/conf/<owner>/<pack>/<id>.conf` — an overlay row present but **empty** forces solo even over a `directive.yaml` default, falling through to the directive's own declared `judge.group` when the overlay names no row at all, and to solo when neither does. The bundled packs ship no `group` default; a repo-local or community pack's author may declare one as its default, and any consumer can set, change, or strip it per directive via the overlay without forking — see [JUDGE.md](https://github.com/Duaility/governance-kit/blob/main/kit/references/JUDGE.md)), `section` (the `## <Section>` the verdict lands in — presence of this key is what puts the declaration on the commit-time attest lane at all; absence makes it a schedule-only discovery declaration with no commit-lane artifact and no `check.sh` at all), `gate` (`record` default — never blocks; `verdict` — blocks on a `REFUTED` or missing verdict, and a `CONTESTED` verdict does not ride through either; `verdict-contestable` — same blocking, but a `CONTESTED` round rides through with a loud stderr warning), and `cmd` — an **optional per-directive override**, not something a shareable pack declares: a map with keys `attest`/`schedule`, each value either the reserved word `harness` or a shell command string. `attest` defaults to `harness` when absent. `schedule` has no such single default — when the row is absent, the at-rest schedule driver falls back to the ephemeral `GOVERNANCE_JUDGE_CMD` env exported by the lane's generated workflow, before giving up on that directive for the run (see [SCHEDULE_FLOW.md](https://github.com/Duaility/governance-kit/blob/main/kit/references/SCHEDULE_FLOW.md)). A `check.sh` calls `judge_attest "$f"` to gate it; both the commit-time attest lane and the at-rest schedule lane (`.governance/schedule.sh`) consume the same block, judging through the resolved command. **Author-fixed vs operator-tunable (issue #331):** `inputs`/`checks`/`section`/`gate`/`cmd` are *semantic* — they must not be tweakable without a fork, so they stay read straight from `directive.yaml` (editing the vendored copy trips `managed-tree-integrity`). For a pack you own (repo-local), a fixed `cmd` is edited directly, or through `directive modify`. For a **pack you don't own** — a bundled or lockfile-pinned community pack — the `directive *` verbs do not apply (they mutate repo-local directives only; see [DIRECTIVE_VERBS.md](https://github.com/Duaility/governance-kit/blob/main/kit/references/DIRECTIVE_VERBS.md#boundaries)): `cmd.attest` simply defaults to `harness`, `cmd.schedule` resolves through the ephemeral `GOVERNANCE_JUDGE_CMD` env a lane's workflow exports, and a repo that genuinely needs a *different* per-directive judge for a pack it doesn't own has to fork that pack — there is no conf overlay for `cmd`. `group` is the field that is fully operational — a batching/shape dial a consumer tunes per-repo without forking, the same as the adjudication round ceiling, but through the conf-overlay `JUDGE_GROUP=` key rather than a repo-level file: if the directive declares a `group` default in `directive.yaml`, the overlay row overrides it when present (even an empty value, which forces solo), and the `directive.yaml` value is the fallback when the overlay carries no row at all. See [JUDGE.md](https://github.com/Duaility/governance-kit/blob/main/kit/references/JUDGE.md). (Issue #355 deleted the separate `sink` and `contest` fields this schema used to carry: `sink` duplicated what `section` presence already said and was folded away, and `contest` folded into `gate` as its third value — an unknown `sink` or `contest` key is now a `packctl` validation error.) |
+| `judge` | Optional semantics-only mapping with non-empty `inputs`, non-empty `checks`, and optional `gate` (`record`, `verdict`, `verdict-contestable`). Placement, commands, grouping, retry ceilings, evidence, and staleness belong in `config:`. Unknown judge keys fail validation. |
 
-A directive with **no `check.sh`** is valid iff its `judge:` block declares
-no `section:` — a schedule-only discovery directive has nothing for the commit
-path to gate.
+A directive with **no `check.sh`** is valid only for the explicit schedule-only
+shape: `hook: none`, `triggers: [schedule]`, and a `judge:` declaration.
 
 There is no `id`, `script`, or `constitution` field — the id is the folder name, the script is always `check.sh`, and the snippet is always `constitution.md`. Keeping the shape rigid means a new directive folder can be dropped in without editing any index.
 
@@ -247,7 +245,7 @@ At activation the bootstrap skill:
 4. Computes `always_install ∪ preset_rules ∪ user_selections` across the selected packs.
 5. Applies environment filters such as `requires_hook_strategy`.
 6. Copies each selected `directives/<id>/` folder (minus `evals/`) into the target's `.governance/packs/<pack-id>/directives/<id>/`, so `check.sh`, `lib/`, `hooks/`, and `runtimes/` all land as a unit.
-7. Copies optional directive-owned `install-assets/` files into the target repo without overwriting existing files in augment mode, and seeds `.governance/conf/<id>.conf` from the generic conf stub for any directive shipping a `defaults.conf` (augment-only — an existing overlay is preserved).
+7. Copies optional directive-owned `install-assets/` files without overwriting in augment mode, and seeds `.governance/conf/<id>.conf` from the generic stub for any directive declaring `config:` (augment-only).
 8. Splices each selected `directives/<id>/constitution.md` into the target's `CONSTITUTION.md`.
 9. Writes `.governance/install.yaml` (init choices + side-effect ledger) and `.governance/packs.lock` (one entry per installed pack, with `version` + `source` + optional ref/sha). Installed directives are still user-owned copies; neither file is an auto-upgrade contract.
 10. Generates hook dispatchers (`pre-commit`, `commit-msg`, `prepare-commit-msg`, `post-commit`, `pre-push`) that discover installed `directive.yaml` files at runtime. Each hook carries an ownership marker (`# governance-kit:managed kit-version=<v>`) — the same shape runtime templates use. Pre-existing unmarked hooks trigger a collision prompt. The `post-commit` dispatcher is advisory-only — it surfaces violations to stderr but always exits 0, since `git commit` has already succeeded by the time post-commit fires. The `pre-push` dispatcher blocks the push when any wired check fails.

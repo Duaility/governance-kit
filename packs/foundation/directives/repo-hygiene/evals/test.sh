@@ -40,7 +40,9 @@ git commit --quiet --no-verify -m "chore: drop bytecode"
 printf '%.0s.' {1..2048} > bloat.bin
 git add bloat.bin
 git commit --quiet --no-verify -m "chore: bloat"
-GOVERNANCE_MAX_FILE_SIZE_MB=0 EVAL_LABEL="$EVAL_ID large file" expect_fail "$CHECK"
+mkdir -p "$(dirname "$EVAL_CONF")"
+printf 'MAX_FILE_SIZE_MB=0\n' > "$EVAL_CONF"
+EVAL_LABEL="$EVAL_ID large file" expect_fail "$CHECK"
 git rm --quiet bloat.bin
 git commit --quiet --no-verify -m "chore: drop bloat"
 
@@ -52,7 +54,8 @@ git commit --quiet --no-verify -m "chore: drop bloat"
 } > big.ts
 git add big.ts
 git commit --quiet --no-verify -m "chore: oversized ts"
-GOVERNANCE_FILE_SIZE_LIMIT=5 EVAL_LABEL="$EVAL_ID file-size-limit" expect_fail "$CHECK"
+printf 'FILE_SIZE_LIMIT=5\n' > "$EVAL_CONF"
+EVAL_LABEL="$EVAL_ID file-size-limit" expect_fail "$CHECK"
 
 # pass — same file with a head-of-file waiver token
 {
@@ -63,13 +66,13 @@ GOVERNANCE_FILE_SIZE_LIMIT=5 EVAL_LABEL="$EVAL_ID file-size-limit" expect_fail "
 } > big.ts
 git add big.ts
 git commit --quiet --no-verify -m "chore: waiver"
-GOVERNANCE_FILE_SIZE_LIMIT=5 EVAL_LABEL="$EVAL_ID file-size-limit waiver" expect_pass "$CHECK"
+EVAL_LABEL="$EVAL_ID file-size-limit waiver" expect_pass "$CHECK"
 git rm --quiet big.ts
 git commit --quiet --no-verify -m "chore: drop big.ts"
 
 # fail — FILE_SIZE_LIMIT comes from the user conf (no env var this time)
-mkdir -p .governance/conf
-printf 'FILE_SIZE_LIMIT=5\n' > $EVAL_CONF
+mkdir -p "$(dirname "$EVAL_CONF")"
+printf 'FILE_SIZE_LIMIT=5\n' > "$EVAL_CONF"
 {
     for i in $(seq 1 12); do
         printf 'export const m%d = %d;\n' "$i" "$i"
@@ -80,6 +83,6 @@ git commit --quiet --no-verify -m "chore: oversized ts via conf"
 EVAL_LABEL="$EVAL_ID file-size-limit from conf" expect_fail "$CHECK"
 git rm --quiet big2.ts
 git commit --quiet --no-verify -m "chore: drop big2.ts"
-rm -f $EVAL_CONF
+rm -f "$EVAL_CONF"
 
 eval_done

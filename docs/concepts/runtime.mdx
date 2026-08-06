@@ -105,8 +105,8 @@ session identifier, the hook records `-`; if no runtime is present, it no-ops.
 Adding support for a new harness means exporting a generic identity signal, not
 adding a vendor-specific reader to governance-kit.
 
-Judging remains separate: a directive's `judge.cmd` can name a fresh-context
-sub-agent or shell command, and receives only declared repository artifacts.
+Judging remains separate: `judge:` declares the rubric, while typed
+`ATTEST_CMD`/`SCHEDULE_CMD` config selects execution and receives only declared repository artifacts.
 There is no adapter indirection and no usage/cost measurement lane.
 ## Mode B: validating history, not just the working tree
 

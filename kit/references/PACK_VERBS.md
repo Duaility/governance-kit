@@ -192,12 +192,12 @@ Default target: every lockfile entry. With a `<pack-id>` argument, update only t
    with a reason). The per-directive diff is the meat of this verb.
 2. **Diff-before-exec.** Show the diffs and ask for an explicit `yes`. If every
    pack's SHA is unchanged, `pack-apply` reports `up-to-date` and writes nothing.
-   When the plan flags `config_drift` on an updated directive (its `defaults.conf`
-   changed), tell the user the shipped defaults moved and that
+   When the plan flags `config_drift` on an updated directive (its manifest
+   `config:` changed), tell the user the shipped defaults or tunability moved and that
    they should reconcile their `.governance/conf/<id>.conf` overlay by hand —
-   `pack update` refreshes the pack-owned `defaults.conf` but never rewrites the overlay.
+   `pack update` refreshes `directive.yaml` but never rewrites the overlay.
 3. **Apply.** `packverb pack-apply update <root> [<pack-id>]` overwrites the
-   drifted directive folders (refreshing their `defaults.conf`
+   drifted directive folders (refreshing their config registry
    while leaving every `.governance/conf/<id>.conf` overlay untouched),
    regenerates the hook dispatcher, and upserts the new SHA into the lockfile.
 

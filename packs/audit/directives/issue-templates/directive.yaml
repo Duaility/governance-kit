@@ -4,6 +4,58 @@ recommended: true
 summary: GitHub issue forms include the required proposal and bug handoff fields.
 surface: repo-state
 hook: pre-commit
+triggers: [pre-commit, schedule]
+config:
+  - name: CONFIG_PATH
+    type: scalar
+    doc: Path to the GitHub issue-template chooser configuration.
+    default: .github/ISSUE_TEMPLATE/config.yml
+    tunable: true
+  - name: PROPOSAL_PATH
+    type: scalar
+    doc: Path to the proposal issue form.
+    default: .github/ISSUE_TEMPLATE/proposal.yml
+    tunable: true
+  - name: BUG_PATH
+    type: scalar
+    doc: Path to the bug issue form.
+    default: .github/ISSUE_TEMPLATE/bug.yml
+    tunable: true
+  - name: PROPOSAL_FIELDS
+    type: list
+    doc: Required field ids in the proposal form.
+    default:
+      - context
+      - decision
+      - scope
+      - acceptance
+      - validation
+      - open-questions
+    tunable: true
+  - name: BUG_FIELDS
+    type: list
+    doc: Required field ids in the bug form.
+    default:
+      - what-happened
+      - expected
+      - repro
+      - environment
+    tunable: true
+  - name: PROPOSAL_REQUIRED_MIN
+    type: scalar
+    doc: Minimum number of required proposal fields.
+    default: 6
+    tunable: true
+  - name: BUG_REQUIRED_MIN
+    type: scalar
+    doc: Minimum number of required bug fields.
+    default: 4
+    tunable: true
+  - name: SCHEDULE_CMD
+    type: scalar
+    doc: Fixed CLI command used for scheduled adjudication.
+    default: claude -p --output-format text --model opus
+    tunable: false
 judge:
   inputs: [range-diff]
   checks:

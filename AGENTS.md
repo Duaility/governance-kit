@@ -71,9 +71,8 @@ governance-kit/
 │       └── directives/
 │           └── <directive-id>/  # self-contained directive folder
 │               ├── directive.yaml    # per-directive metadata (judge: block if it needs a model judgment)
-│               ├── check.sh          # executable test (omitted only when judge: has no section:)
+│               ├── check.sh          # executable test (omitted only for explicit schedule-only judges)
 │               ├── constitution.md   # Directive subsection
-│               ├── defaults.conf     # optional: pack-owned live defaults + their docs
 │               └── evals/test.sh     # pass/fail fixtures
 │   ├── references/              # INIT_FLOW.md, UNINSTALL_FLOW.md, RESET_FLOW.md,
 │   │                            #   DIRECTIVE_AMEND_FLOW.md, SCHEDULE_FLOW.md,
@@ -116,8 +115,7 @@ kit-managed runtime file present on every install, next to `run.sh`/`lib.sh`
 — plus the `governance schedule create` verb, which a repo uses to generate
 one named lane workflow per cadence, re-adjudicating a directive's `judge:`
 block at rest through a resolved judge command: that directive's own
-`cmd.schedule` override if it has one, otherwise the ephemeral
-`GOVERNANCE_JUDGE_CMD` env the lane's generated workflow exports — see
+author-fixed `SCHEDULE_CMD` config — see
 [kit/references/SCHEDULE_FLOW.md](kit/references/SCHEDULE_FLOW.md)), but no
 longer bundles any schedule-only directives; those are authored in repo-local
 or community packs (this repo dogfoods them in its repo-local
@@ -130,17 +128,17 @@ snippet, metadata, and eval all live together under `directives/<directive-id>/`
    - `directive.yaml` — scalar fields `category`, `recommended`, `summary`,
      `surface` (`repo-state`|`change-set`), `hook`
      (`pre-commit`|`commit-msg`|`prepare-commit-msg`|`post-commit`|`pre-push`|`none`), optional
-     `always_install` (reserved to the bundled `governance-kit/*` packs).
+     `always_install` (reserved to the bundled `governance-kit/*` packs), and
+     optional typed `config:` entries (`name`, `type`, `doc`, `default`,
+     `tunable`). The manifest is the sole home for config defaults and docs.
    - `check.sh` — the bash test.
    - `constitution.md` — the Directive subsection (Directive / Rationale /
      Enforced by / Exceptions).
-   - `defaults.conf` (optional) — the one pack-owned config artifact: the live
-     defaults (scalar `KEY=value` rows and/or list rows) **and** their docs,
-     refreshed on `pack update`. The user overlay
-     `.governance/conf/<owner>/<pack>/<id>.conf` is seeded at install from a
-     generic kit stub (not from anything directive-specific). Read via the
-     `lib.sh` helpers (`conf_get`/`conf_list`, passing
-     `"$(dirname "$0")/defaults.conf"`).
+     The user overlay `.governance/conf/<owner>/<pack>/<id>.conf` is seeded at
+     install when `config:` exists. Only entries marked `tunable: true` accept
+     overlay values; environment variables are not a config tier. Read via
+     `conf_get <id> <KEY> "$(dirname "$0")/directive.yaml"` or
+     `conf_list <id> "$(dirname "$0")/directive.yaml" <KEY>`.
      See [kit/references/PACK_AUTHORING.md](kit/references/PACK_AUTHORING.md).
    - `evals/test.sh` — pass + fail fixtures. Run `bash scripts/test-packs.sh`
      to confirm.
@@ -203,7 +201,7 @@ Edits to source files flow to both runtimes live.
 - [kit/references/PACK_AUTHORING.md](kit/references/PACK_AUTHORING.md) — writing a third-party pack.
 - [kit/references/DIRECTIVE_AUTHORING.md](kit/references/DIRECTIVE_AUTHORING.md) — the craft guide for writing a good directive check.
 - [kit/references/LIB_API.md](kit/references/LIB_API.md) — the canonical `lib.sh` helper API every `check.sh` can call, and the version-floor obligation.
-- [kit/references/SCHEDULE_FLOW.md](kit/references/SCHEDULE_FLOW.md) — the off-commit-path, harness-pegged judge lane (a `judge:` block with no `section:` key, issues #142, #355), consumer-defined into named lanes via `governance schedule`.
+- [kit/references/SCHEDULE_FLOW.md](kit/references/SCHEDULE_FLOW.md) — the off-commit-path judge lane (explicit `schedule` trigger, issues #142, #355), consumer-defined into named lanes via `governance schedule`.
 - [kit/references/JUDGE.md](kit/references/JUDGE.md) — the shared judge declaration: a directive gates a section a fresh-context sub-agent must populate, via the remediation loop (issue #272).
 - [kit/references/NATIVE_TESTS.md](kit/references/NATIVE_TESTS.md) — porting bash directives to pytest / jest / go test, husky / pre-commit.com snippets.
 - [kit/references/VERSIONING.md](kit/references/VERSIONING.md) — the two version axes (kit vs pack), the semver policy, the tag scheme, and the release procedure.

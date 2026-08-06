@@ -19,7 +19,7 @@
 # lives in `lib/digest.sh` (byte-identical algorithm to
 # `kit/assets/packs/lib/digestlib.py`, pinned by `scripts/test-digestlib.py`);
 # packs.lock / install.yaml are hand-parsed below with POSIX awk. One violation
-# per unit; per-unit waivers come from the conf overlay (see defaults.conf).
+# per unit; per-unit waivers come from the tunable manifest config overlay.
 set -u
 source "$(dirname "$0")/../../../../../lib.sh"
 source "$(dirname "$0")/lib/digest.sh"
@@ -58,7 +58,7 @@ _mti_is_schedule_workflow() {
 waived=()
 while IFS= read -r u; do
     [[ -n "$u" ]] && waived+=("$u")
-done < <(conf_list managed-tree-integrity "$HERE/defaults.conf")
+done < <(conf_list managed-tree-integrity "$HERE/directive.yaml" WAIVED_UNITS)
 
 _mti_is_waived() {
     local u="$1" w

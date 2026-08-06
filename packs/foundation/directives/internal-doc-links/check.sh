@@ -99,8 +99,9 @@ while IFS= read -r file; do
 done < <(git ls-files -- '*.md' '*.markdown' ':!vendor/**' ':!node_modules/**' 2>/dev/null || true)
 
 # ── sub-check: reachable ──────────────────────────────────────
-# No-op unless .governance/conf/governance-kit/foundation/internal-doc-links.conf exists and names ≥1 root.
-if CONF="$(conf_file internal-doc-links)"; then
+# No-op unless the effective RULES list names at least one root.
+RULES="$(conf_list internal-doc-links "$(dirname "$0")/directive.yaml" RULES)"
+if [[ -n "$RULES" ]]; then
     roots=()
     conf_excludes=()
     while IFS= read -r line || [[ -n "$line" ]]; do
@@ -115,7 +116,7 @@ if CONF="$(conf_file internal-doc-links)"; then
             root)    [[ -n "$val" ]] && roots+=("$val") ;;
             exclude) [[ -n "$val" ]] && conf_excludes+=("$val") ;;
         esac
-    done < "$CONF"
+    done <<< "$RULES"
 
     if [[ ${#roots[@]} -gt 0 ]]; then
         # Tracked-markdown set as a newline-delimited string (bash 3.2 — no -A).

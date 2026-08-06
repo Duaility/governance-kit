@@ -15,16 +15,14 @@ and `remove()` deletes a lane and its ledger rows.
 Membership resolution mirrors run.sh's own filter (bare `<id>` hits every
 homonym across installed packs, `<owner>/<pack>/<id>` matches exactly one) so
 authoring a lane and running it never disagree about who a token names. A
-member is only accepted once it is *schedule-eligible* — its effective
-`triggers` (the consumer's `.governance/conf/<owner>/<pack>/<id>.conf`
-`TRIGGERS=` overlay row, else its `directive.yaml` `triggers:` list, else the
-derived `[<hook>]`/`[]`) contains `schedule`. Eligibility is authored once per
+member is only accepted once it is *schedule-eligible* — its author-owned
+`directive.yaml` `triggers:` list contains `schedule`. Eligibility is authored once per
 directive; a lane's *membership* is still an explicit, per-lane choice.
 
 Run via:
     python3 kit/assets/packs/lib/packverb.py schedule-plan <root> <lane> \\
         --cron '<cron>' --member <id> [--member <id> ...] \\
-        [--evidence range|commits] [--budget N]
+        [--budget N]
     python3 kit/assets/packs/lib/packverb.py schedule-apply <root> <lane> ... [--dry-run]
     python3 kit/assets/packs/lib/packverb.py schedule-remove <root> <lane>
 """
@@ -48,22 +46,9 @@ from packctl import KIT_VERSION
 TEMPLATE_PATH = KIT_ASSETS / "governance-schedule.template.yml"
 
 _LANE_RE = re.compile(r"^[a-z0-9-]+$")
-_EVIDENCE_VALUES = {"range", "commits"}
 DEFAULT_BUDGET = 20
 
-# The bespoke overlay reader for the `TRIGGERS=` row (scheduled-lane redesign,
-# issue: scheduled triggers). Mirrors lib.sh's `_directive_triggers_resolve`
-# bash helper (which this module cannot call — no bash at plan time) against
-# the same tiny conf-file grammar every overlay uses: `KEY=value` scalar
-# rows, `#` comments, blank lines ignored (see lib.sh's conf-file format
-# doc). Deliberately NOT layered on packctl/kityaml's YAML reader — the
-# overlay is not YAML.
-_TRIGGERS_ROW_RE = re.compile(r"^TRIGGERS=(.*)$")
-
-
-def _overlay_triggers_row(root: Path, owner: str, pack: str, directive_id: str) -> str | None:
-    """The raw value of the first `TRIGGERS=` row in the directive's user
-    overlay conf, or None when the overlay (or the row) is absent."""
+def _overlay_scalar(root: Path, owner: str, pack: str, directive_id: str, key: str) -> str | None:
     conf_path = root / ".governance" / "conf" / owner / pack / f"{directive_id}.conf"
     if not conf_path.is_file():
         return None
@@ -71,9 +56,8 @@ def _overlay_triggers_row(root: Path, owner: str, pack: str, directive_id: str) 
         line = raw.split("#", 1)[0].strip()
         if not line:
             continue
-        m = _TRIGGERS_ROW_RE.match(line)
-        if m:
-            return m.group(1).strip()
+        if line.startswith(f"{key}="):
+            return line.split("=", 1)[1].strip()
     return None
 
 
@@ -81,16 +65,44 @@ def effective_triggers(
     root: Path, owner: str, pack: str, directive_id: str,
     yaml_triggers: list[str] | None, hook: str,
 ) -> list[str]:
-    """A directive's effective triggers list — overlay `TRIGGERS=` row (even
-    an empty one, which yields `[]`, replaces the author's list) else the
-    `directive.yaml` `triggers:` list else the derived `[<hook>]` (or `[]`
-    when `hook: none`). Matches the precedence SCHEDULE_FLOW.md documents."""
-    overlay = _overlay_triggers_row(root, owner, pack, directive_id)
-    if overlay is not None:
-        return [t.strip() for t in overlay.split(",") if t.strip()]
+    """Author-owned explicit triggers, with the hook-only derivation retained
+    for purely mechanical directives that have no judge declaration."""
     if yaml_triggers:
         return list(yaml_triggers)
     return [] if hook == "none" else [hook]
+
+
+def _config_entry(manifest: dict[str, Any], name: str) -> dict[str, Any] | None:
+    config = manifest.get("config")
+    if not isinstance(config, list):
+        return None
+    return next((e for e in config if isinstance(e, dict) and e.get("name") == name), None)
+
+
+def _config_value(root: Path, d: dict[str, Any], name: str) -> Any:
+    entry = _config_entry(d["manifest"], name)
+    if not entry:
+        return None
+    if entry.get("tunable") is True and entry.get("type") == "scalar":
+        override = _overlay_scalar(root, d["owner"], d["pack"], d["id"], name)
+        if override is not None:
+            return override
+    return entry.get("default")
+
+
+def _cron_interval_days(cron: str) -> int | None:
+    """Conservative interval for the simple GitHub cron shapes we generate."""
+    fields = cron.split()
+    if len(fields) != 5:
+        return None
+    _minute, _hour, dom, month, dow = fields
+    if month != "*":
+        return 366
+    if dom != "*":
+        return 31
+    if dow != "*":
+        return 7
+    return 1
 
 
 def _installed_directives(root: Path) -> list[dict[str, Any]]:
@@ -114,6 +126,8 @@ def _installed_directives(root: Path) -> list[dict[str, Any]]:
             "full_id": f"{owner}/{pack}/{directive_id}",
             "hook": hook,
             "triggers_yaml": triggers if isinstance(triggers, list) else None,
+            "surface": str(manifest.get("surface") or "repo-state"),
+            "manifest": manifest,
         })
     return out
 
@@ -136,14 +150,13 @@ def _resolve_member(token: str, installed: list[dict[str, Any]]) -> tuple[list[d
     return matches, []
 
 
-def _render(template_text: str, *, lane: str, cron: str, members: list[str], evidence: str, budget: int) -> str:
+def _render(template_text: str, *, lane: str, cron: str, members: list[str], budget: int) -> str:
     members_str = " ".join(shlex.quote(m) for m in members)
     text = template_text
     for placeholder, value in (
         ("__LANE__", lane),
         ("__CRON__", cron),
         ("__MEMBERS__", members_str),
-        ("__EVIDENCE__", evidence),
         ("__BUDGET__", str(budget)),
     ):
         text = text.replace(placeholder, value)
@@ -152,7 +165,7 @@ def _render(template_text: str, *, lane: str, cron: str, members: list[str], evi
 
 def plan(
     root: Path, lane: str, cron: str, members: list[str],
-    evidence: str = "range", budget: int | None = None,
+    budget: int | None = None,
 ) -> dict[str, Any]:
     """The full `schedule-plan` resolution as a side-effect-free computation
     (network-free, unlike pack-plan's `add`/`update` — everything here reads
@@ -167,8 +180,6 @@ def plan(
         errors.append(f"schedule: lane {lane!r} must be non-empty and match [a-z0-9-]+")
     if not cron or not cron.strip():
         errors.append("schedule: --cron is required and must be non-empty")
-    if evidence not in _EVIDENCE_VALUES:
-        errors.append(f"schedule: --evidence must be one of {sorted(_EVIDENCE_VALUES)}, got {evidence!r}")
     if not members:
         errors.append("schedule: at least one --member is required")
 
@@ -179,6 +190,8 @@ def plan(
     installed = _installed_directives(root)
     deduped_members = list(dict.fromkeys(members))
     resolved_members: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    cron_days = _cron_interval_days(cron)
     for token in deduped_members:
         matches, member_errors = _resolve_member(token, installed)
         errors.extend(member_errors)
@@ -189,16 +202,30 @@ def plan(
                 errors.append(
                     f"schedule: {d['full_id']} is not schedule-eligible (effective triggers "
                     f"{triggers!r} do not include 'schedule' — add `schedule` to its "
-                    f"directive.yaml `triggers:` list, or set an overlay override at "
-                    f".governance/conf/{d['owner']}/{d['pack']}/{d['id']}.conf with a "
-                    "`TRIGGERS=` row that includes it)"
+                    "directive.yaml `triggers:` list)"
                 )
+            evidence = _config_value(root, d, "SCHEDULE_EVIDENCE")
+            if evidence is None:
+                evidence = "commits" if d["surface"] == "change-set" else "range"
+            staleness = _config_value(root, d, "SCHEDULE_STALENESS_DAYS")
+            if staleness is not None:
+                try:
+                    stale_days = int(staleness)
+                except (TypeError, ValueError):
+                    stale_days = 0
+                if cron_days is not None and stale_days > 0 and cron_days > stale_days:
+                    warnings.append(
+                        f"schedule: {d['full_id']} declares maximum staleness {stale_days} day(s), "
+                        f"but cron {cron!r} can wait about {cron_days} days"
+                    )
             resolved_members.append({
                 "input": token,
                 "id": d["full_id"],
                 "hook": d["hook"],
                 "effective_triggers": triggers,
                 "eligible": eligible,
+                "evidence": evidence,
+                "staleness_days": staleness,
             })
 
     target_rel = f".github/workflows/governance-schedule-{lane}.yml"
@@ -206,26 +233,26 @@ def plan(
     result: dict[str, Any] = {
         "lane": lane,
         "cron": cron,
-        "evidence": evidence,
         "budget": resolved_budget,
         "members": deduped_members,
         "resolved_members": resolved_members,
         "target": target_rel,
         "exists": target_path.is_file(),
         "errors": errors,
+        "warnings": warnings,
     }
     if not errors:
         stamped = stamped_text(TEMPLATE_PATH, KIT_VERSION)
         result["preview"] = _render(
             stamped, lane=lane, cron=cron, members=deduped_members,
-            evidence=evidence, budget=resolved_budget,
+            budget=resolved_budget,
         )
     return result
 
 
 def apply(
     root: Path, lane: str, cron: str, members: list[str],
-    evidence: str = "range", budget: int | None = None, dry_run: bool = False,
+    budget: int | None = None, dry_run: bool = False,
 ) -> dict[str, Any]:
     """Recompute the plan and execute it. Idempotent: identical inputs render
     a byte-identical file (the template + `stamped_text`'s deterministic
@@ -233,7 +260,7 @@ def apply(
     unchanged lane reports `changed: false`. Refuses (never writes) when the
     plan carries any error — an unknown or ineligible member, a malformed
     lane/cron/evidence/budget."""
-    result = plan(root, lane, cron, members, evidence, budget)
+    result = plan(root, lane, cron, members, budget)
     if result["errors"]:
         result["result"] = "refused"
         return result
@@ -285,14 +312,14 @@ def remove(root: Path, lane: str) -> dict[str, Any]:
 
 def cmd_schedule_plan(args: argparse.Namespace) -> int:
     root = Path(args.root).resolve()
-    result = plan(root, args.lane, args.cron, args.member, args.evidence, args.budget)
+    result = plan(root, args.lane, args.cron, args.member, args.budget)
     print(json.dumps(result, indent=2))
     return 0 if not result["errors"] else 1
 
 
 def cmd_schedule_apply(args: argparse.Namespace) -> int:
     root = Path(args.root).resolve()
-    result = apply(root, args.lane, args.cron, args.member, args.evidence, args.budget, args.dry_run)
+    result = apply(root, args.lane, args.cron, args.member, args.budget, args.dry_run)
     print(json.dumps(result, indent=2))
     return 2 if result.get("result") == "refused" else 0
 
@@ -317,7 +344,6 @@ def register_schedule(sub) -> None:
         p.add_argument("lane")
         p.add_argument("--cron", required=True)
         p.add_argument("--member", action="append", dest="member", default=[])
-        p.add_argument("--evidence", default="range", choices=sorted(_EVIDENCE_VALUES))
         p.add_argument("--budget", type=int, default=None)
 
     p = sub.add_parser("schedule-plan")

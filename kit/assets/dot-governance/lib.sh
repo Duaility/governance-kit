@@ -166,8 +166,8 @@ extract_md_section() {
 #   sub-agent must be handed, and the numbered checks it must adjudicate.
 #   WHICH model runs it is not this envelope's business (issue #355): the
 #   attestation lane's judge is the harness sub-agent by default, and a
-#   directive that wants a specific command says so in its own
-#   `judge.cmd.attest` — never in prose the instruction has to carry.
+#   directive that wants a specific command declares ATTEST_CMD config — never
+#   in prose the instruction has to carry.
 attestation_prompt() {
     local section="$1" inputs="$2"
     shift 2
@@ -257,8 +257,20 @@ _judge_yaml() {
     awk -v key="$2" -v Q="\"'" '
     function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
     function indent_of(s,   t) { t = s; sub(/^[ \t]+/, "", t); return length(s) - length(t) }
-    function scalar(s,   f, l) {
+    function scalar(s,   f, l, i, c, q, out) {
         s = trim(s)
+        # Match the kityaml inline-comment rule: a # outside quotes and preceded
+        # by whitespace starts a comment. Validation and commit-path reads
+        # must interpret the same bytes identically.
+        q = ""; out = ""
+        for (i = 1; i <= length(s); i++) {
+            c = substr(s, i, 1)
+            if (q == "" && (c == "\"" || c == "\047")) q = c
+            else if (q != "" && c == q) q = ""
+            if (q == "" && c == "#" && (i == 1 || substr(s, i - 1, 1) ~ /[ \t]/)) break
+            out = out c
+        }
+        s = trim(out)
         if (length(s) >= 2) {
             f = substr(s, 1, 1); l = substr(s, length(s), 1)
             if (index(Q, f) > 0 && l == f) s = substr(s, 2, length(s) - 2)
@@ -305,7 +317,7 @@ _judge_yaml() {
 #   GOVERNANCE_LAYER_DOC (the caller exports it from its conf). Unknown tokens
 #   pass through verbatim so a directive can name a bespoke input.
 resolve_judge_input() {
-    local token="$1" receipt="${2:-}"
+    local token="$1" receipt="${2:-}" yaml="${3:-$(dirname "$0")/directive.yaml}"
     local n=""
     case "$receipt" in
         *issue-*) n="${receipt##*issue-}"; n="${n%%[-.]*}" ;;
@@ -315,21 +327,22 @@ resolve_judge_input() {
         diff)       printf 'the diff (`git diff`)' ;;
         receipt)    printf 'this receipt (`%s`)' "$receipt" ;;
         issue)      printf 'the linked issue (`gh issue view #%s`)' "$n" ;;
-        layer-map)  printf 'the declared layer model in `%s`' "${GOVERNANCE_LAYER_DOC:-ARCHITECTURE.md}" ;;
+        layer-map)
+            local layer_doc
+            layer_doc="$(conf_get "$(basename "$(dirname "$yaml")")" LAYER_DOC "$yaml" 2>/dev/null)" || layer_doc="ARCHITECTURE.md"
+            printf 'the declared layer model in `%s`' "$layer_doc"
+            ;;
         *)          printf '%s' "$token" ;;
     esac
 }
 
-# _judge_rounds_resolve <id> <defaults-file> <directive.yaml>
+# _judge_rounds_resolve <id> <directive.yaml>
 #   The adjudication round ceiling K for a `gate: verdict` section (issue #355).
-#   The operator conf ladder: env GOVERNANCE_JUDGE_ROUNDS > user overlay row >
-#   defaults.conf row > an optional `judge.rounds` in directive.yaml > the
-#   hardcoded default 3. Clamped up to a floor of 2 — a ceiling of 1 would make
-#   the very first REFUTED terminal, which is a stall, not a loop.
+#   Resolved from typed JUDGE_ROUNDS config; an overlay applies only when the
+#   entry is tunable. Undeclared/invalid values default to 3; the floor is 2.
 _judge_rounds_resolve() {
-    local id="$1" defaults="$2" yaml="$3" k
-    k="$(conf_get "$id" JUDGE_ROUNDS "$defaults" 2>/dev/null)" || k=""
-    [[ -n "$k" ]] || k="$(_judge_yaml "$yaml" rounds)"
+    local id="$1" yaml="$2" k
+    k="$(conf_get "$id" JUDGE_ROUNDS "$yaml" 2>/dev/null)" || k=""
     [[ "$k" =~ ^[0-9]+$ ]] || k=3
     if [[ "$k" -lt 2 ]]; then k=2; fi
     printf '%s\n' "$k"
@@ -363,19 +376,9 @@ _judge_full_id() {
 }
 
 # _judge_group_resolve <full-id> <bare-id> <directive.yaml>
-#   The batching label for a judgment (issue #355). Batching is a fidelity-vs-
-#   tokens trade only the consuming repo can price, so the author declares and
-#   the consumer disposes — through the one channel every other consumer-owned
-#   knob already uses, this directive's own overlay:
-#     1. a `JUDGE_GROUP=<label>` row in
-#        `.governance/conf/<owner>/<pack>/<id>.conf` → that label. A row with an
-#        EMPTY value is the consumer saying "solo", which is how a label a
-#        community or repo-local pack asserted about itself is stripped without
-#        forking the pack.
-#     2. the `judge.group` scalar in directive.yaml — what a repo-local or
-#        community pack declares about itself, honoured when the overlay is
-#        silent (or absent entirely, which is the stock install).
-#     3. nothing → solo.
+#   Resolve the optional batching label from the directive's config registry.
+#   JUDGE_GROUP is ordinary lane configuration: its manifest default applies,
+#   and an overlay may change it only when the entry is declared tunable.
 #   Two directives are batched together by carrying the same label, byte for
 #   byte; there is no repo-level partition object to be ambiguous about any
 #   more, because a per-directive row cannot claim a directive twice.
@@ -383,19 +386,13 @@ _judge_full_id() {
 #   an unlabeled row — callers use the value as the tab-separated field
 #   directly. It is not user syntax; nothing in an overlay spells solo that way.
 _judge_group_resolve() {
-    local full="${1:-}" id="${2:-}" yaml="${3:-}" g
-    if g="$(_directive_overlay_get "$full" "$id" JUDGE_GROUP)"; then
-        # Present-but-empty is a decision, not a missing row: solo.
-        [[ -n "$g" ]] || g="-"
-        printf '%s\n' "$g"
-        return 0
-    fi
-    g="$(_judge_yaml "$yaml" group)"
+    local id="${2:-}" yaml="${3:-}" g
+    g="$(conf_get "$id" JUDGE_GROUP "$yaml" 2>/dev/null)" || g=""
     [[ -n "$g" ]] || g="-"
     printf '%s\n' "$g"
 }
 
-# ── Trigger eligibility: `triggers:` (author-owned), `TRIGGERS=` (consumer) ──
+# ── Trigger eligibility: explicit, author-owned `triggers:` ────────────────
 # `hook:` says WHEN on the commit path a directive runs. `triggers:` — an
 # OPTIONAL TOP-LEVEL list in directive.yaml, NOT a key inside the `judge:` block
 # — says which lanes it participates in at all, of which the git hook is only
@@ -456,27 +453,14 @@ _yaml_top_list() {
 }
 
 # _directive_triggers_resolve <full-id> <bare-id> <directive.yaml> <hook>
-#   The EFFECTIVE trigger list for one directive, space-separated on one line:
-#     1. a `TRIGGERS=` row in the directive's overlay (comma- or
-#        space-separated) — the consumer's list REPLACES the author's, because
-#        which lanes a repo runs a directive in is the repo's call. A row with
-#        an empty value is a decision too: no lanes at all.
-#     2. the top-level `triggers:` list in directive.yaml — what the pack
-#        declares about itself.
-#     3. the `hook:` value — the derived list every pre-`triggers:` directive
+#   The effective trigger list for one directive, space-separated:
+#     1. the author-owned top-level `triggers:` list;
+#     2. the `hook:` value — the derived list every pre-`triggers:` directive
 #        has. `none` (or an empty hook) derives nothing.
-#   There is no env tier: one global GOVERNANCE_TRIGGERS would mean the same
-#   thing for every directive, which is never what an operator means.
+#   Eligibility is policy, not a consumer override; overlays and env cannot
+#   change it.
 _directive_triggers_resolve() {
-    local full="${1:-}" id="${2:-}" yaml="${3:-}" hook="${4:-}" raw t out=""
-    if raw="$(_directive_overlay_get "$full" "$id" TRIGGERS)"; then
-        for t in ${raw//,/ }; do
-            [[ -n "$out" ]] && out="$out "
-            out="$out$t"
-        done
-        printf '%s\n' "$out"
-        return 0
-    fi
+    local full="${1:-}" id="${2:-}" yaml="${3:-}" hook="${4:-}" t out=""
     while IFS= read -r t; do
         [[ -n "$t" ]] || continue
         [[ -n "$out" ]] && out="$out "
@@ -488,17 +472,9 @@ _directive_triggers_resolve() {
     printf '%s\n' "$out"
 }
 
-# ── WHO judges: `judge.cmd` (issue #355) ─────────────────────────────────
-# A directive names its judge COMMAND directly, per lane. There is no executor
-# ladder, no capability-tier vocabulary and no per-adapter model table: a
-# harness CLI invocation already encodes the model and the effort, and the kit
-# has no business re-deriving either. The framework's whole job is to render the
-# prompt, pipe it on stdin, and parse the verdict grammar off stdout.
-#
-#   judge:
-#     cmd:
-#       attest:   harness               # or a shell string; absent = harness
-#       schedule: claude -p --output-format text --model opus
+# ── WHO judges: lane command config ──────────────────────────────────────
+# ATTEST_CMD and SCHEDULE_CMD are ordinary typed config entries. The framework
+# renders the prompt, pipes it to the resolved command, and parses stdout.
 #
 # `harness` is the reserved word for the live session's own sub-agent mechanism
 # (Claude Code's Task, a Codex spawn, …): the hook emits the rubric as the
@@ -508,87 +484,11 @@ _directive_triggers_resolve() {
 # installed. Anything else is a shell command run detached, prompt on stdin.
 
 # _judge_cmd_resolve <directive.yaml> <attest|schedule>
-#   Print `judge.cmd.<lane>`, or nothing (return 1) when the row is absent.
-#   Both map shapes the schema allows are read: the block form
-#   (`cmd:` then indented `attest: …` rows) and the flow form
-#   (`cmd: { schedule: "…" }`). _judge_yaml deliberately prints nothing for
-#   either, so this is the dedicated reader for the one map the block carries.
-#   Values may be quoted; a flow-form value may contain commas inside quotes.
-#   Pure POSIX awk — the commit path runs bash + git only.
+#   Resolve ATTEST_CMD or SCHEDULE_CMD, returning 1 when absent or empty.
 _judge_cmd_resolve() {
-    local out
-    [[ -f "$1" ]] || return 1
-    out="$(awk -v which="$2" -v Q="\"'" '
-    function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
-    function indent_of(s,   t) { t = s; sub(/^[ \t]+/, "", t); return length(s) - length(t) }
-    function scalar(s,   f, l) {
-        s = trim(s)
-        if (length(s) >= 2) {
-            f = substr(s, 1, 1); l = substr(s, length(s), 1)
-            if (index(Q, f) > 0 && l == f) s = substr(s, 2, length(s) - 2)
-        }
-        return s
-    }
-    # `{ a: x, b: "y, z" }` — split on TOP-LEVEL commas only, so a quoted value
-    # carrying a comma survives. Returns the value for `which`, or "".
-    function flow_value(s,   i, ch, q, depth, buf, k, v, p) {
-        sub(/^[ \t]*\{/, "", s)
-        p = 0
-        for (i = length(s); i >= 1; i--) if (substr(s, i, 1) == "}") { p = i; break }
-        if (p > 0) s = substr(s, 1, p - 1)
-        s = s ","
-        q = ""; buf = ""
-        for (i = 1; i <= length(s); i++) {
-            ch = substr(s, i, 1)
-            if (q != "") {
-                if (ch == q) q = ""
-                buf = buf ch
-                continue
-            }
-            if (index(Q, ch) > 0) { q = ch; buf = buf ch; continue }
-            if (ch == ",") {
-                p = index(buf, ":")
-                if (p > 0) {
-                    k = trim(substr(buf, 1, p - 1))
-                    v = substr(buf, p + 1)
-                    if (k == which) return scalar(v)
-                }
-                buf = ""
-                continue
-            }
-            buf = buf ch
-        }
-        return ""
-    }
-    BEGIN { state = 0 }
-    {
-        line = $0; t = trim(line)
-        if (state == 0) {
-            if (t == "judge:" && indent_of(line) == 0) state = 1
-            next
-        }
-        if (t == "") next
-        if (indent_of(line) == 0) exit          # dedented out of the block
-        if (state == 1) {
-            if (substr(t, 1, 1) == "#") next
-            if (substr(t, 1, 4) != "cmd:") next
-            cmd_indent = indent_of(line)
-            rest = trim(substr(t, 5))
-            if (substr(rest, 1, 1) == "{") { v = flow_value(rest); if (v != "") print v; exit }
-            if (rest != "") exit                # `cmd: <scalar>` is not a map
-            state = 2                           # block map follows
-            next
-        }
-        if (indent_of(line) <= cmd_indent) exit  # block map ended
-        if (substr(t, 1, 1) == "#") next
-        p = index(t, ":")
-        if (p == 0) next
-        if (trim(substr(t, 1, p - 1)) != which) next
-        v = scalar(substr(t, p + 1))
-        if (v != "") print v
-        exit
-    }
-    ' "$1")"
+    local out key
+    case "$2" in attest) key=ATTEST_CMD ;; schedule) key=SCHEDULE_CMD ;; *) return 1 ;; esac
+    out="$(conf_get "$(basename "$(dirname "$1")")" "$key" "$1" 2>/dev/null)" || out=""
     [[ -n "$out" ]] || return 1
     printf '%s\n' "$out"
 }
@@ -987,7 +887,7 @@ _judge_verdict_gate() {
 # `gate: verdict` says the verdict is load-bearing. It says nothing about WHO
 # renders it. The default is `harness`: the calling agent spawns a fresh-context
 # sub-agent, which is one model family judging its own family's work —
-# independent context, shared failure modes. A `cmd.attest` shell string moves
+# independent context, shared failure modes. A fixed `ATTEST_CMD` moves
 # the judgment to a command-line agent, invoked by the hook itself. Two
 # properties follow, and they are the whole point:
 #   * separation of duties — a different model, with a different training
@@ -1252,7 +1152,7 @@ _judge_append_round() {
 # _judge_cmd_adjudicate <cmd> <receipt> <section> <checks-US>
 #                          <directive.yaml> <ceiling>
 #   Run one commit-lane adjudication round with the directive's declared
-#   `cmd.attest` and append its verdict to the receipt. Returns 0 when a fresh
+#   `ATTEST_CMD` and append its verdict to the receipt. Returns 0 when a fresh
 #   round line landed (the caller re-evaluates the gate), 1 when nothing was
 #   written (the caller degrades to the harness path). Every failure mode returns
 #   1 with a one-line stderr note — the repo has to learn that its declared judge
@@ -1340,20 +1240,18 @@ judge_attest() {
         violation "$file — directive.yaml not found beside check.sh; cannot resolve the judge declaration"
         return 1
     fi
-    # The lane is read off `section:` — the declaration either names a place in
-    # the receipt for a verdict to land, or it does not. No `section:` = a
-    # discovery-only declaration, judged at rest; there is nothing for the
-    # commit path to gate, so this is a no-op rather than a violation.
-    local section; section="$(_judge_yaml "$yaml" section)"
+    # Lane-specific placement is config, not judgment semantics. A directive
+    # with no ATTEST_SECTION is simply not a commit-time attestation member.
+    local section; section="$(conf_get "$(basename "$dir")" ATTEST_SECTION "$yaml" 2>/dev/null)" || section=""
     [[ -n "$section" ]] || return 0
     # Author-owned gate shape: record (default) | verdict | verdict-contestable.
     local gate; gate="$(_judge_yaml "$yaml" gate)"; [[ -n "$gate" ]] || gate="record"
     # Batching identity (issue #355): a free-form label resolved from the
     # consumer's own overlay row (`JUDGE_GROUP=`, empty ⇒ solo), falling back to
-    # the directive's own `judge.group`. Same label = same invocation; no label
+    # the directive's own JUDGE_GROUP config. Same label = same invocation; no label
     # = a spawn of its own. The resolver prints `-` for solo, which is exactly
     # what the tab-separated ledger needs — never an empty field.
-    local id defaults full; id="$(basename "$dir")"; defaults="$dir/defaults.conf"
+    local id full; id="$(basename "$dir")"
     full="$(_judge_full_id "$dir")"
     local group; group="$(_judge_group_resolve "$full" "$id" "$yaml")"
 
@@ -1361,7 +1259,7 @@ judge_attest() {
     local inputs_joined="" tok phrase
     while IFS= read -r tok; do
         [[ -z "$tok" ]] && continue
-        phrase="$(resolve_judge_input "$tok" "$file")"
+        phrase="$(resolve_judge_input "$tok" "$file" "$yaml")"
         if [[ -z "$inputs_joined" ]]; then inputs_joined="$phrase"
         else inputs_joined="$inputs_joined$_JUDGE_US$phrase"; fi
     done < <(_judge_yaml "$yaml" inputs)
@@ -1376,7 +1274,7 @@ judge_attest() {
 
     # ── gate: verdict[-contestable] — the recorded verdict decides the commit.
     if [[ "$gate" == "verdict" || "$gate" == "verdict-contestable" ]]; then
-        local ceiling; ceiling="$(_judge_rounds_resolve "$id" "$defaults" "$yaml")"
+        local ceiling; ceiling="$(_judge_rounds_resolve "$id" "$yaml")"
         # Snapshot the violation list: a declared judge command may render a PASS
         # in this very hook run, and the violations the first gate pass recorded
         # then describe a state that no longer exists.
@@ -1386,7 +1284,7 @@ judge_attest() {
             return 0
         fi
 
-        # WHO renders the verdict — the directive's own `cmd.attest`. `harness`
+        # WHO renders the verdict — the directive's own `ATTEST_CMD`. `harness`
         # (the default, and what an absent row means) registers the pending
         # section and lets the calling agent spawn the adjudicator; a shell
         # string adjudicates right here, then re-runs the gate against the round
@@ -1566,7 +1464,7 @@ attestation_remediation() {
                     fb="${R_EXEC[$idx]%+fallback}"
                     case "$fbs" in *"$NL$fb$NL"*) continue ;; esac
                     fbs="$fbs$fb$NL"
-                    out="${out}⚠ judge ${fb} could not run (not on PATH, or it returned no verdict) — the section(s) it was declared for fell back to the sub-agent path. Fix the command in the directive's judge.cmd.attest, or drop the row to make the harness path the intent.$NL"
+                    out="${out}⚠ judge ${fb} could not run (not on PATH, or it returned no verdict) — the section(s) it was declared for fell back to the sub-agent path. Fix ATTEST_CMD in directive config, or set it to harness.$NL"
                     ;;
             esac
         done
@@ -1631,17 +1529,15 @@ attestation_remediation() {
 }
 
 # ── Per-directive configuration ────────────────────────────────────────────
-# Configuration is exactly two artifacts, one writer each (issue #210):
-#   * the pack-owned `defaults.conf` next to the directive's `check.sh` — the
-#     live defaults *and* their documentation, refreshed by `pack update`; and
+# Configuration is one registry plus one optional overlay (issue #366):
+#   * the pack-owned `directive.yaml config:` — typed defaults, docs, and
+#     tunability, refreshed by `pack update`; and
 #   * the user overlay `.governance/conf/<owner>/<pack>/<id>.conf` — seeded once
 #     at install from a single generic kit stub and never rewritten by any
 #     lifecycle verb. The path is pack-qualified so two packs shipping a
 #     same-named directive (homonyms) get independent overlays.
-# Both files share one line-based format: `KEY=value` lines (KEY is `[A-Z_]+`)
-# are scalar settings; every other non-comment, non-blank line is a
-# directive-defined rule line. Blank lines and `#` comments are ignored. The
-# overlay additionally honors `!<rule>` to drop a default (see `conf_list`).
+# The overlay uses `KEY=value` for scalars and bare/`!` rows for list deltas.
+# Only entries marked tunable consume it; environment variables are not config.
 #
 # These helpers resolve the repo root themselves, so they work identically in
 # a commit-msg hook (Mode A) and under run.sh / CI (Mode B).
@@ -1713,10 +1609,8 @@ _directive_overlay_file() {
 # and return 0 when the ROW EXISTS — including when its value is empty, because
 # an empty row is a decision ("solo", "no lanes") and not a missing one.
 # Return 1 printing nothing when the overlay or the row is absent.
-# Deliberately NOT `conf_get`: these keys have no pack-owned `defaults.conf`
-# row to fall back to, and conf_get treats a missing defaults row as a broken
-# install and fails loud — correct for a knob a pack must document, wrong for
-# a knob only a consumer ever writes.
+# Low-level overlay lookup retained for callers that already know the full id.
+# New settings use conf_get/conf_list so manifest tunability is enforced.
 _directive_overlay_get() {
     local full="${1:-}" id="${2:-}" key="$3" f line
     f="$(_directive_overlay_file "$full" "$id")" || return 1
@@ -1725,63 +1619,100 @@ _directive_overlay_get() {
     printf '%s\n' "$(_conf_trim "${line#*=}")"
 }
 
-# conf_get <directive-id> <KEY> <defaults-file>
-# Resolve a scalar setting. Precedence:
-#   1. environment `GOVERNANCE_<KEY>`            (when set and non-empty)
-#   2. first `^KEY=` line in the user overlay    (.governance/conf/.../<id>.conf)
-#   3. first `^KEY=` line in the pack-owned <defaults-file> (its `defaults.conf`)
-# The pack-owned `defaults.conf` is the single source of a knob's default *and*
-# its documentation (issue #210); there is no in-code default constant. So a
-# <defaults-file> that names a `defaults.conf` but is missing, or that carries
-# no `KEY=` row, is a broken install — conf_get writes an error to stderr and
-# returns non-zero (fails loud) rather than running the directive on a phantom
-# value. Call sites pass `"$(dirname "$0")/defaults.conf"`, the same plumbing
-# `conf_list` already uses.
-#
-# Transitional compatibility: a <defaults-file> that is a bare literal (not a
-# path ending in `defaults.conf`) is treated as an in-code default value — the
-# pre-#210 calling convention. This keeps a directive folder vendored from a
-# pre-#210 release (its check.sh still passes literal defaults) working against
-# this newer lib.sh during the one-release dogfood lag. New directives must pass
-# a `defaults.conf` path; remove this branch once no released directive passes a
-# literal.
+# _config_yaml <directive.yaml> <NAME> <field>
+# Read one strictly validated config entry. packctl guarantees this exact flat
+# shape before installation, so the commit path needs only awk, never Python:
+#   config:
+#     - name: LIMIT
+#       type: scalar
+#       doc: one line
+#       default: 5
+#       tunable: true
+# List defaults are emitted one item per line. Scalar fields emit one line.
+_config_yaml() {
+    [[ -f "$1" ]] || return 1
+    awk -v want="$2" -v field="$3" -v Q="\"'" '
+    function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+    function scalar(s,   f, l, i, c, q, out) {
+        s = trim(s)
+        # Match the kityaml inline-comment rule so validation and the
+        # commit-path reader interpret the same scalar bytes identically.
+        q = ""; out = ""
+        for (i = 1; i <= length(s); i++) {
+            c = substr(s, i, 1)
+            if (q == "" && (c == "\"" || c == "\047")) q = c
+            else if (q != "" && c == q) q = ""
+            if (q == "" && c == "#" && (i == 1 || substr(s, i - 1, 1) ~ /[ \t]/)) break
+            out = out c
+        }
+        s = trim(out)
+        if (length(s) >= 2) {
+            f = substr(s, 1, 1); l = substr(s, length(s), 1)
+            if (index(Q, f) > 0 && l == f) s = substr(s, 2, length(s) - 2)
+        }
+        if (s == "null" || s == "~") s = ""
+        return s
+    }
+    BEGIN { in_config = 0; hit = 0; in_default = 0; default_indent = -1 }
+    {
+        line = $0; t = trim(line)
+        if (!in_config) {
+            if (line == "config:") in_config = 1
+            next
+        }
+        if (line !~ /^[ \t]/ && t !~ /^-[ \t]+name:/) exit
+        if (t ~ /^-[ \t]+name:/) {
+            name = t; sub(/^-[ \t]+name:[ \t]*/, "", name); name = scalar(name)
+            if (hit) exit
+            hit = (name == want); in_default = 0
+            if (hit && field == "name") { print name; exit }
+            next
+        }
+        if (!hit || t == "" || substr(t, 1, 1) == "#") next
+        if (in_default) {
+            if (t ~ /^-[ \t]+/) { v = t; sub(/^-[ \t]+/, "", v); print scalar(v); next }
+            in_default = 0
+        }
+        p = index(t, ":")
+        if (!p) next
+        key = trim(substr(t, 1, p - 1)); value = trim(substr(t, p + 1))
+        if (key != field) next
+        if (field == "default" && value == "") { in_default = 1; next }
+        if (field == "default" && value == "[]") exit
+        print scalar(value); exit
+    }
+    ' "$1"
+}
+
+_config_has() {
+    [[ "$(_config_yaml "$1" "$2" name 2>/dev/null)" == "$2" ]]
+}
+
+# conf_get <directive-id> <KEY> <directive.yaml>
+# Resolve a declared scalar. The overlay wins only when the author marked the
+# entry tunable; otherwise the author-owned YAML default is final. There is no
+# environment tier and no in-code/defaults.conf fallback (issue #366).
 conf_get() {
-    local id="$1" key="$2" defaults="${3:-}"
-    local env_name="GOVERNANCE_${key}"
-    if [[ -n "${!env_name:-}" ]]; then
-        printf '%s\n' "${!env_name}"
-        return 0
-    fi
+    local id="$1" key="$2" yaml="${3:-}" tunable kind
+    [[ -f "$yaml" ]] || {
+        printf 'governance: conf_get %s: directive manifest %s not found (broken install)\n' "$key" "$yaml" >&2
+        return 1
+    }
+    kind="$(_config_yaml "$yaml" "$key" type)"
+    [[ "$kind" == "scalar" ]] || {
+        printf 'governance: conf_get %s: no scalar config declaration in %s (broken pack)\n' "$key" "$yaml" >&2
+        return 1
+    }
+    tunable="$(_config_yaml "$yaml" "$key" tunable)"
     local f line
-    if f="$(conf_file "$id")"; then
+    if [[ "$tunable" == "true" ]] && f="$(conf_file "$id")"; then
         line="$(grep -E "^${key}=" "$f" 2>/dev/null | head -n 1)"
         if [[ -n "$line" ]]; then
             printf '%s\n' "${line#*=}"
             return 0
         fi
     fi
-    case "$defaults" in
-        */defaults.conf | defaults.conf)
-            if [[ ! -f "$defaults" ]]; then
-                printf 'governance: conf_get %s: defaults file %s not found (broken install)\n' \
-                    "$key" "$defaults" >&2
-                return 1
-            fi
-            line="$(grep -E "^${key}=" "$defaults" 2>/dev/null | head -n 1)"
-            if [[ -z "$line" ]]; then
-                printf 'governance: conf_get %s: no %s= row in %s (broken pack)\n' \
-                    "$key" "$key" "$defaults" >&2
-                return 1
-            fi
-            printf '%s\n' "${line#*=}"
-            return 0
-            ;;
-        *)
-            # Pre-#210 literal-default convention (transitional — see header).
-            printf '%s\n' "$defaults"
-            return 0
-            ;;
-    esac
+    _config_yaml "$yaml" "$key" default
 }
 
 # conf_rule_lines <directive-id>
@@ -1801,12 +1732,12 @@ conf_rule_lines() {
     done < "$f"
 }
 
-# conf_list <directive-id> <defaults-file>
-# Emit the effective list for a directive whose default items ship in
-# <defaults-file> (a pack-owned `defaults.conf`, one item per line), with the
+# conf_list <directive-id> <directive.yaml> [KEY]
+# Emit the effective list for a declared list entry (KEY defaults to RULES), with the
 # user overlay (`.governance/conf/<id>.conf`) layered on top:
-#   bare line   → adds an item
-#   !item       → removes the matching default item (gitignore-style negation)
+#   KEY+=item   → adds an item to KEY
+#   KEY-=item   → removes the matching default item from KEY
+#   bare/!item  → shorthand when the manifest declares exactly one list
 #   KEY=value   → ignored here (read scalars with conf_get)
 # Default items keep their order; additions follow. A `!` that matches no
 # default is a harmless no-op. Comments and blank lines are stripped from both.
@@ -1823,41 +1754,61 @@ _conf_norm() {  # trim + collapse internal whitespace runs to one space
     printf '%s' "${parts[*]}"
 }
 conf_list() {
-    local id="$1" defaults="$2" overlay line item key
+    local id="$1" yaml="$2" name="${3:-RULES}" overlay line item key tunable kind list_count op
     local removed=$'\n' emitted=$'\n'
     local adds=()
 
+    kind="$(_config_yaml "$yaml" "$name" type)"
+    [[ "$kind" == "list" ]] || {
+        printf 'governance: conf_list %s: no list config declaration in %s (broken pack)\n' "$name" "$yaml" >&2
+        return 1
+    }
+    tunable="$(_config_yaml "$yaml" "$name" tunable)"
+    list_count="$(awk '
+        /^config:$/ { in_config=1; next }
+        in_config && /^[^[:space:]]/ { exit }
+        in_config && /^[[:space:]]+type:[[:space:]]*list([[:space:]]*(#.*)?)?$/ { n++ }
+        END { print n+0 }
+    ' "$yaml")"
+
     # Membership tests compare whitespace-normalized keys so a `!frozen-section
     # QUALITY.md Resolved` overlay line matches a column-aligned default.
-    if overlay="$(conf_file "$id")"; then
+    if [[ "$tunable" == "true" ]] && overlay="$(conf_file "$id")"; then
         while IFS= read -r line || [[ -n "$line" ]]; do
-            line="$(_conf_trim "${line%%#*}")"
+            line="$(_conf_trim "$line")"
             [[ -z "$line" ]] && continue
-            [[ "$line" =~ ^[A-Z_]+= ]] && continue
-            if [[ "${line:0:1}" == '!' ]]; then
-                item="$(_conf_norm "${line:1}")"
+            [[ "${line:0:1}" == '#' ]] && continue
+            if [[ "$line" == "$name"'+='* ]]; then
+                op=add; item="$(_conf_trim "${line#*+=}")"
+            elif [[ "$line" == "$name"'-='* ]]; then
+                op=remove; item="$(_conf_trim "${line#*-=}")"
+            elif [[ "$line" =~ ^[A-Z_]+[+-]?= ]]; then
+                continue
+            elif [[ "$list_count" == "1" && "${line:0:1}" == '!' ]]; then
+                op=remove; item="$(_conf_trim "${line:1}")"
+            elif [[ "$list_count" == "1" ]]; then
+                op=add; item="$line"; [[ "${item:0:1}" == '+' ]] && item="$(_conf_trim "${item:1}")"
+            else
+                continue
+            fi
+            if [[ "$op" == remove ]]; then
+                item="$(_conf_norm "$item")"
                 [[ -n "$item" ]] && removed+="$item"$'\n'
             else
-                # An explicit leading '+' is an optional "add" marker; strip it.
-                [[ "${line:0:1}" == '+' ]] && line="$(_conf_trim "${line:1}")"
-                [[ -n "$line" ]] && adds+=("$line")
+                [[ -n "$item" ]] && adds+=("$item")
             fi
         done < "$overlay"
     fi
 
     # Defaults in declared order, minus anything the overlay removed.
-    if [[ -f "$defaults" ]]; then
-        while IFS= read -r line || [[ -n "$line" ]]; do
-            line="$(_conf_trim "${line%%#*}")"
+    while IFS= read -r line || [[ -n "$line" ]]; do
             [[ -z "$line" ]] && continue
-            [[ "$line" =~ ^[A-Z_]+= ]] && continue
             key="$(_conf_norm "$line")"
             case "$removed" in *$'\n'"$key"$'\n'*) continue ;; esac
             case "$emitted" in *$'\n'"$key"$'\n'*) continue ;; esac
             emitted+="$key"$'\n'
             printf '%s\n' "$line"
-        done < "$defaults"
-    fi
+    done < <(_config_yaml "$yaml" "$name" default)
 
     # Overlay additions (skipping ones already emitted or explicitly removed).
     # `${adds[@]+...}` keeps an empty array safe under `set -u` on bash 3.2.

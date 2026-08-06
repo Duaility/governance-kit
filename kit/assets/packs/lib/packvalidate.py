@@ -33,11 +33,11 @@ from typing import Any
 
 from packctl import (
     CAPABILITY_FIELDS,
+    CONFIG_TYPES,
     DIRECTIVE_FIELDS,
     HOOK_STRATEGIES,
     HOOKS,
     PACK_FIELDS,
-    JUDGE_CMD_LANES,
     JUDGE_GATE_VALUES,
     SURFACES,
     KIT_VERSION,
@@ -52,73 +52,85 @@ from packctl import (
 )
 
 
-def judge_section_absent(judge: Any) -> bool:
-    """True when a `judge:` block carries no `section:` — the schedule-only
-    discovery lane (issue #355 amendment 3, renamed sweep->schedule per the
-    scheduled-lane redesign). `section:` presence is now the ONLY thing that
-    puts a declaration on the attest lane; the old `sink` field is deleted (a
-    forbidden key, see `validate_judge_cmd`) because it carried no information
-    `section` didn't already carry. Schedule-only declarations need no
-    `check.sh` and no `surface:` (see callers below)."""
-    return isinstance(judge, dict) and not scalar(judge.get("section"))
+_CONFIG_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 
 
-def validate_judge_cmd(
+def config_entries(config: Any) -> list[dict[str, Any]]:
+    return config if isinstance(config, list) else []
+
+
+def config_entry(config: Any, name: str) -> dict[str, Any] | None:
+    return next((e for e in config_entries(config) if e.get("name") == name), None)
+
+
+def validate_config(pack_dir: Path, directive_id: str, config: Any) -> list[str]:
+    """Validate the issue #366 self-contained config registry.
+
+    Strictness here is what keeps the commit-path reader small: entries are a
+    flat sequence and every list default is one scalar item per YAML row.
+    """
+    if config is None:
+        return []
+    prefix = f"{pack_dir}/{directive_id}"
+    if not isinstance(config, list) or not config:
+        return [f"{prefix}: directive.yaml config must be a non-empty list"]
+    errors: list[str] = []
+    seen: set[str] = set()
+    required = {"name", "type", "doc", "default", "tunable"}
+    for index, entry in enumerate(config, start=1):
+        ep = f"{prefix}: config entry {index}"
+        if not isinstance(entry, dict):
+            errors.append(f"{ep} must be a mapping")
+            continue
+        missing = sorted(required - set(entry))
+        extra = sorted(set(entry) - required)
+        if missing:
+            errors.append(f"{ep} missing required fields {missing!r}")
+        if extra:
+            errors.append(f"{ep} has unknown fields {extra!r}")
+        name = entry.get("name")
+        if not isinstance(name, str) or not _CONFIG_NAME_RE.fullmatch(name):
+            errors.append(f"{ep} name must match [A-Z][A-Z0-9_]*")
+        elif name in seen:
+            errors.append(f"{prefix}: duplicate config name {name!r}")
+        else:
+            seen.add(name)
+        kind = entry.get("type")
+        if kind not in CONFIG_TYPES:
+            errors.append(f"{ep} type must be one of {sorted(CONFIG_TYPES)!r}")
+        doc = entry.get("doc")
+        if not isinstance(doc, str) or not doc.strip() or "\n" in doc:
+            errors.append(f"{ep} doc must be a non-empty one-line string")
+        if not isinstance(entry.get("tunable"), bool):
+            errors.append(f"{ep} tunable must be true or false")
+        default = entry.get("default")
+        if kind == "scalar" and isinstance(default, (dict, list)):
+            errors.append(f"{ep} scalar default must be a scalar (null is allowed)")
+        if kind == "list":
+            if not isinstance(default, list):
+                errors.append(f"{ep} list default must be a list")
+            elif any(not isinstance(item, str) or not item.strip() or "\n" in item for item in default):
+                errors.append(f"{ep} list default items must be non-empty one-line strings")
+    return errors
+
+
+def validate_judge(
     pack_dir: Path, directive_id: str, judge: dict[str, Any]
-) -> tuple[list[str], list[str], str | None, str | None]:
-    """Validate a directive's `judge.cmd` map, `gate`, and lane-derivation
-    fields (issue #355, cmd lane renamed sweep->schedule by the scheduled-lane
-    redesign). Returns `(errors, warnings, group, schedule_cmd)`. `cmd` is
-    optional; when present it is a map whose keys are exactly a subset of
-    {attest, schedule} with non-empty scalar values. `schedule: harness` is
-    an error — there is no live session at rest to spawn an in-session
-    sub-agent. `tiers:` is a forbidden leftover of the retired tier
-    vocabulary (v0, no deprecation lane). `isolation:` is likewise forbidden
-    — batching is now expressed by the optional `group: <slug>` scalar
-    instead of `isolation: shared|isolated`.
-
-    Amendment 3: `sink:` is deleted — the lane is derived purely from whether
-    `section:` is present (present = attest lane; absent = schedule-only
-    discovery), so `sink` is now a forbidden key. `contest:` is folded into a
-    three-valued `gate:` (`record` default, `verdict`,
-    `verdict-contestable`) and is likewise forbidden. A `gate:` other than
-    `record` requires `section:` — a verdict with nowhere to land is a
-    declaration error. A schedule-only declaration carrying no `cmd.schedule`
-    is the NORM, not a defect — bundled packs name no judge at all, and the
-    scheduled workflow resolves one from its own `GOVERNANCE_JUDGE_CMD` env
-    (exported by the generated `governance-schedule-<lane>.yml`) — so that
-    case is silent. `group` and the resolved `cmd.schedule` string are
-    returned so the caller can enforce the cross-directive "one group, one
-    command" rule."""
+) -> tuple[list[str], list[str]]:
+    """Validate lane-independent judgment semantics (issue #366)."""
     errors: list[str] = []
     warnings: list[str] = []
     prefix = f"{pack_dir}/{directive_id}"
-
-    if "tiers" in judge:
+    allowed = {"inputs", "checks", "gate"}
+    extra = sorted(set(judge) - allowed)
+    if extra:
         errors.append(
-            f"{prefix}: judge.tiers is no longer supported — replace `tiers:` with `cmd:` "
-            "(the tier vocabulary was retired in favor of a directly-named judge command, issue #355)"
+            f"{prefix}: judge has lane-specific or unknown keys {extra!r}; only inputs, checks, and gate belong in judge"
         )
-    if "isolation" in judge:
-        errors.append(
-            f"{prefix}: judge.isolation is no longer supported — replace `isolation: shared|isolated` "
-            "with an optional `group: <slug>` scalar (batching is now keyed on byte-identical "
-            "judge.cmd.schedule values within a shared group, issue #355)"
-        )
-    if "sink" in judge:
-        errors.append(
-            f"{prefix}: judge.sink is no longer supported — the lane is now derived from "
-            "whether `section:` is present (present = attest lane, absent = sweep-only "
-            "discovery); delete `sink:` (issue #355 amendment 3)"
-        )
-    if "contest" in judge:
-        errors.append(
-            f"{prefix}: judge.contest is no longer supported — it has been folded into "
-            "`gate:`, which now accepts record (default), verdict, or verdict-contestable "
-            "(issue #355 amendment 3)"
-        )
-
-    section = scalar(judge.get("section"))
+    for key in ("inputs", "checks"):
+        value = judge.get(key)
+        if not isinstance(value, list) or not value or any(not isinstance(v, str) or not v.strip() for v in value):
+            errors.append(f"{prefix}: judge.{key} must be a non-empty list of strings")
     if "gate" in judge:
         gate = scalar(judge.get("gate"))
         if gate not in JUDGE_GATE_VALUES:
@@ -126,49 +138,7 @@ def validate_judge_cmd(
                 f"{prefix}: judge.gate has unknown value {gate!r} "
                 f"(allowed: {', '.join(sorted(JUDGE_GATE_VALUES))})"
             )
-        if gate != "record" and not section:
-            errors.append(
-                f"{prefix}: judge.gate: {gate} requires judge.section — a verdict with "
-                "nowhere to land is a declaration error"
-            )
-
-    group: str | None = None
-    if "group" in judge:
-        raw_group = judge.get("group")
-        if not isinstance(raw_group, str) or not raw_group.strip():
-            errors.append(f"{prefix}: judge.group must be a non-empty string")
-        else:
-            group = raw_group.strip()
-
-    cmd = judge.get("cmd")
-    has_schedule_cmd = False
-    schedule_cmd: str | None = None
-    if cmd is not None:
-        if not isinstance(cmd, dict):
-            errors.append(f"{prefix}: judge.cmd must be a mapping")
-        else:
-            for key, value in cmd.items():
-                if key not in JUDGE_CMD_LANES:
-                    errors.append(
-                        f"{prefix}: judge.cmd has unknown key {key!r} "
-                        f"(allowed: {', '.join(sorted(JUDGE_CMD_LANES))})"
-                    )
-                    continue
-                if not isinstance(value, str) or not value.strip():
-                    errors.append(f"{prefix}: judge.cmd.{key} must be a non-empty string")
-                    continue
-                if key == "schedule":
-                    if value.strip() == "harness":
-                        errors.append(
-                            f"{prefix}: judge.cmd.schedule cannot be 'harness' — the scheduled "
-                            "lane runs at rest with no live session, so there is nobody to spawn "
-                            "an in-session sub-agent"
-                        )
-                    else:
-                        has_schedule_cmd = True
-                        schedule_cmd = value.strip()
-
-    return errors, warnings, group, schedule_cmd
+    return errors, warnings
 
 
 def validate_triggers(pack_dir: Path, directive_id: str, triggers: Any, hook: str) -> list[str]:
@@ -315,42 +285,66 @@ def validate_pack_dir_with_warnings(pack_dir: Path) -> tuple[list[str], list[str
         except Exception as exc:  # noqa: BLE001 - validation reports all manifest errors.
             errors.append(f"{pack_dir}: preset {preset_name!r} cannot resolve: {exc}")
 
-    # group -> [(directive_id, schedule_cmd), ...] within THIS pack. A `group`
-    # is a batching label: at schedule time every directive sharing a group is
-    # meant to ride in the same call, so two directives in one group naming
-    # different `cmd.schedule` strings is a contradiction — "a group is one
-    # invocation, one command" (issue #355 amendment).
-    group_schedule_cmds: dict[str, list[tuple[str, str | None]]] = {}
-
     for directive_id in sorted(directive_ids):
         directive_path = directives_root / directive_id
         directive = directive_manifest(pack_dir, directive_id)
-        # A schedule-only discovery directive — a `judge:` block with no
-        # `section:` (issue #355 amendment 3) — has no commit-lane script, so
-        # the fields that describe commit-lane semantics (`surface`, and
-        # check.sh below) don't apply to it. Resolved once, up front, because
-        # both the required-field loop and the check.sh rule key off it.
         judge = directive.get("judge")
-        schedule_only = judge_section_absent(judge)
+        triggers = directive.get("triggers")
+        hook = scalar(directive.get("hook") or "none")
+        schedule_only = (
+            isinstance(judge, dict) and hook == "none"
+            and isinstance(triggers, list) and triggers == ["schedule"]
+        )
+        config = directive.get("config")
+        errors.extend(validate_config(pack_dir, directive_id, config))
+        if (directive_path / "defaults.conf").exists():
+            errors.append(
+                f"{pack_dir}/{directive_id}: defaults.conf is no longer supported; "
+                "move its values and docs into directive.yaml config"
+            )
+        evidence = config_entry(config, "SCHEDULE_EVIDENCE")
+        if evidence and scalar(evidence.get("default")) not in {"range", "commits"}:
+            errors.append(f"{pack_dir}/{directive_id}: SCHEDULE_EVIDENCE default must be 'range' or 'commits'")
+        stale = config_entry(config, "SCHEDULE_STALENESS_DAYS")
+        if stale and (not isinstance(stale.get("default"), int) or stale.get("default") <= 0):
+            errors.append(f"{pack_dir}/{directive_id}: SCHEDULE_STALENESS_DAYS default must be a positive integer")
         if isinstance(judge, dict):
-            cmd_errors, cmd_warnings, group, schedule_cmd = validate_judge_cmd(pack_dir, directive_id, judge)
+            cmd_errors, cmd_warnings = validate_judge(pack_dir, directive_id, judge)
             errors.extend(cmd_errors)
             warnings.extend(cmd_warnings)
-            if group is not None:
-                existing = group_schedule_cmds.setdefault(group, [])
-                existing.append((directive_id, schedule_cmd))
+            if not isinstance(triggers, list):
+                errors.append(f"{pack_dir}/{directive_id}: a judge declaration requires explicit triggers")
+            section = config_entry(config, "ATTEST_SECTION")
+            if section and (section.get("type") != "scalar" or section.get("tunable") is not False or not scalar(section.get("default"))):
+                errors.append(
+                    f"{pack_dir}/{directive_id}: ATTEST_SECTION must be a non-empty fixed scalar"
+                )
+            if scalar(judge.get("gate") or "record") in {"verdict", "verdict-contestable"} and not section:
+                errors.append(
+                    f"{pack_dir}/{directive_id}: judge.gate {scalar(judge.get('gate'))!r} "
+                    "requires a fixed ATTEST_SECTION config entry"
+                )
+            if section:
+                attest_cmd = config_entry(config, "ATTEST_CMD")
+                if not attest_cmd or attest_cmd.get("type") != "scalar" or attest_cmd.get("tunable") is not False or not scalar(attest_cmd.get("default")):
+                    errors.append(
+                        f"{pack_dir}/{directive_id}: an attest lane requires a non-empty fixed ATTEST_CMD scalar"
+                    )
+            if isinstance(triggers, list) and "schedule" in triggers:
+                schedule_cmd = config_entry(config, "SCHEDULE_CMD")
+                if not schedule_cmd or schedule_cmd.get("type") != "scalar" or schedule_cmd.get("tunable") is not False or not scalar(schedule_cmd.get("default")):
+                    errors.append(
+                        f"{pack_dir}/{directive_id}: a schedule trigger requires a non-empty fixed SCHEDULE_CMD scalar"
+                    )
         for field in DIRECTIVE_FIELDS:
-            if field == "surface" and schedule_only:
-                continue
             if field not in directive or directive.get(field) in (None, ""):
                 errors.append(f"{pack_dir}/{directive_id}: directive.yaml missing required field {field!r}")
-        hook = scalar(directive.get("hook") or "none")
         surface = scalar(directive.get("surface"))
         hook_strategy = scalar(directive.get("requires_hook_strategy"))
         if hook not in HOOKS:
             errors.append(f"{pack_dir}/{directive_id}: unknown hook value {hook!r}")
-        errors.extend(validate_triggers(pack_dir, directive_id, directive.get("triggers"), hook))
-        if surface not in SURFACES and not (schedule_only and not surface):
+        errors.extend(validate_triggers(pack_dir, directive_id, triggers, hook))
+        if surface not in SURFACES:
             errors.append(f"{pack_dir}/{directive_id}: unknown surface value {surface!r}")
         if hook_strategy and hook_strategy not in HOOK_STRATEGIES:
             errors.append(
@@ -394,9 +388,8 @@ def validate_pack_dir_with_warnings(pack_dir: Path) -> tuple[list[str], list[str
                     f"{pack_dir}/{directive_id}: {capability!r} must be a list of non-empty path globs"
                 )
         # A directive's `check.sh` is the commit/CI-lane pass/fail test. The one
-        # exemption (issue #355 amendment 3): a schedule-only discovery
-        # directive (the hoisted `schedule_only` above, i.e. `section:`
-        # absent) has no commit-lane gate and no section to attest, so there
+        # exemption: a schedule-only discovery directive selected explicitly
+        # by `triggers: [schedule]` has no commit-lane gate, so there
         # is nothing for a commit-path script to test; it is judged only by
         # the at-rest scheduled driver re-adjudicating its `checks` against
         # the range diff. Every other directive still requires an executable
@@ -423,14 +416,5 @@ def validate_pack_dir_with_warnings(pack_dir: Path) -> tuple[list[str], list[str
         for hook_script in sorted((directive_path / "hooks").glob("*.sh")) if (directive_path / "hooks").is_dir() else []:
             if not os.access(hook_script, os.X_OK):
                 errors.append(f"{pack_dir}/{directive_id}: hooks/{hook_script.name} is not executable")
-
-    for group, members in sorted(group_schedule_cmds.items()):
-        distinct_cmds = {cmd for _directive_id, cmd in members if cmd is not None}
-        if len(distinct_cmds) > 1:
-            member_desc = ", ".join(f"{did}={cmd!r}" for did, cmd in members)
-            errors.append(
-                f"{pack_dir}: group {group!r} mixes different judge.cmd.schedule values "
-                f"({member_desc}) — a group is one invocation, one command"
-            )
 
     return errors, warnings

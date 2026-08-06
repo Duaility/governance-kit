@@ -50,6 +50,7 @@ from applylib import (
     smoke_test,
 )
 import digestlib
+import kityaml
 from packctl import KIT_VERSION
 from packplan import compute_pack_plan
 from packverb import load_lockfile, write_lockfile, _utc_now
@@ -125,12 +126,11 @@ def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str
             # update, where an existing `.governance/conf/<id>.conf` is
             # user-owned and a deleted one must not be resurrected.
             # seed_directive_conf is augment-only as a second guard.
-            # A directive seeds an overlay iff it ships a defaults.conf
-            # (issue #210); the overlay is a generic stub, not a per-directive
-            # template copy.
-            conf_defaults = pack_dir / "directives" / did / "defaults.conf"
+            # Every self-contained config registry gets one generic overlay.
+            conf_manifest = pack_dir / "directives" / did / "directive.yaml"
             conf_dest = root / ".governance" / "conf" / pack["id"] / f"{did}.conf"
-            if d["status"] == "add" and conf_defaults.is_file() and not conf_dest.exists():
+            manifest_data = kityaml.load(conf_manifest) if conf_manifest.is_file() else {}
+            if d["status"] == "add" and manifest_data.get("config") and not conf_dest.exists():
                 report["conf_seeded"].append(f".governance/conf/{pack['id']}/{did}.conf")
             # Collect the directive's constitution subsection (read from the source
             # pack, as init does) for the CONSTITUTION.md upsert after the loop —
