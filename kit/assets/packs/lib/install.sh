@@ -11,7 +11,7 @@
 #     constitution.md
 #     hooks/*.sh        # optional hook side-effect helpers
 #     lib/              # optional directive-owned libraries
-#     runtimes/         # optional runtime adapters
+#     runtimes/         # optional directive-local helpers
 #
 # Hand-authored repo-local packs use the repo's own `<owner>/<name>` (the
 # default is the pack at `<repo-owner>/<repo-name>/`); they are distinguished

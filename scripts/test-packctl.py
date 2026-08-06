@@ -214,7 +214,7 @@ def test_directives_for_pack_returns_sorted_directive_ids() -> None:
     listed = pkt.directives_for_pack(BUNDLED_PACK)
     assert listed == sorted(listed)
     # Sanity: a known directive is in the list.
-    assert "agent-token-accounting" in listed
+    assert "agent-session-identity" in listed
 
 
 def test_directives_for_pack_skips_folders_without_directive_yaml() -> None:
@@ -250,8 +250,7 @@ def test_cli_directives_for_lists_known_directives() -> None:
     result = run_packctl("directives-for", str(BUNDLED_PACK))
     assert result.returncode == 0, result.stderr
     listed = [line for line in result.stdout.splitlines() if line]
-    assert "agent-token-accounting" in listed
-    assert "agent-steering-accounting" in listed
+    assert "agent-session-identity" in listed
 
 
 def test_cli_pack_field_prints_id_and_version() -> None:
@@ -265,7 +264,7 @@ def test_cli_pack_field_prints_id_and_version() -> None:
 
 
 def test_cli_directive_field_returns_blank_for_unknown_field() -> None:
-    result = run_packctl("directive-field", str(BUNDLED_PACK), "agent-token-accounting", "no-such-key")
+    result = run_packctl("directive-field", str(BUNDLED_PACK), "agent-session-identity", "no-such-key")
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == ""
 

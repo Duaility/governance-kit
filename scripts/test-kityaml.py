@@ -117,10 +117,8 @@ def test_comment_stripped_outside_quotes() -> None:
 
 def test_hash_not_preceded_by_whitespace_is_not_a_comment() -> None:
     # Matches real yaml.safe_load: a `#` glued onto a plain scalar (no
-    # preceding whitespace) does not start a comment. This is exercised for
-    # real by packs/audit's agent-steering-accounting directive.yaml, whose
-    # unquoted `summary:` contains backtick-fenced `` `#325` ``-adjacent
-    # text — see the load-parity test below.
+    # preceding whitespace) does not start a comment. The shipped YAML corpus
+    # is also covered by the load-parity test below.
     assert KY.loads("k: before#glued\n")["k"] == "before#glued"
     assert KY.loads("k: before #spaced\n")["k"] == "before"
 

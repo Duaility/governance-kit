@@ -72,7 +72,7 @@ directive's **mechanical** `check.sh` members are the one exception to
 "judges never block": a mechanical failure is a fact, not a judgment, and
 facts fail jobs — see *Outcome split* below.
 
-**Honesty rule (same as the accounting lane, issue #355):** the resolved
+**Honesty rule:** the resolved
 judge command's first word unreachable, or the judge process failing → the
 judgment is reported un-adjudicated and retried on the next run. Never a
 downgraded judge, never a guessed verdict, never a keyword stub standing in

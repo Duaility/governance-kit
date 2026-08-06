@@ -249,7 +249,6 @@ pairs are:
 |---|---|---|
 | `assets/dot-governance/run.sh` | `<tests_dir>/run.sh` | `governance-kit:managed kit-version=<v>` in first 3 lines |
 | `assets/dot-governance/lib.sh` | `<tests_dir>/lib.sh` | `governance-kit:managed kit-version=<v>` in first 3 lines |
-| `assets/dot-governance/runtimes/<name>.sh` | `<tests_dir>/runtimes/<name>.sh` | `governance-kit:managed kit-version=<v>` in first 3 lines |
 | `assets/governance.yml` | `<ci_workflow>` | `governance-kit:managed kit-version=<v>` in first 3 lines |
 
 `enable-governance.sh` is no longer a managed kit asset (issue #267): the verb
@@ -457,8 +456,8 @@ blocking input — same discipline as every other writer in this skill.
 
 **Export `AGENT_ISSUE='#N'` for the commit.** This subject is delivered
 via a HEREDOC (below), not a `-m "<subject>"` flag — so the subject never
-lands in `git`'s argv. The `agent-steering-accounting` and
-`agent-token-accounting` pre-commit hooks infer the issue anchor by walking
+lands in `git`'s argv. The `agent-session-identity` pre-commit hook infers the
+issue anchor by walking
 that argv for a `(#N)` token; with a HEREDOC there is nothing to walk, and
 they block the commit asking for `AGENT_ISSUE`. (This is *not* a regex
 mismatch with `commit-message-format` — that directive and the hooks accept

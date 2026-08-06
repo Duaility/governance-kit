@@ -343,30 +343,6 @@ def test_init_apply_lays_down_schedule_runtime() -> None:
         assert not list((root / ".github/workflows").glob("governance-schedule-*.yml"))
 
 
-def test_init_apply_seeds_the_runtime_adapter_registry() -> None:
-    # issue #355: `.governance/runtimes/<harness>.sh` is a kit-managed runtime
-    # file, laid down by every install regardless of which directives were
-    # selected — "which harness is running" is a property of the repo, and both
-    # the accounting lane (`cost`) and a `cli:` executor (`judge`) resolve an
-    # adapter by name at that fixed path. Stamped, executable, and digested
-    # exactly like run.sh / lib.sh, so a hand-edit is caught offline.
-    with tempfile.TemporaryDirectory() as tmp:
-        src = _write_source_pack(Path(tmp) / "src")
-        root = _fresh_repo(Path(tmp) / "repo")
-        rc, report = init_apply_cli(root, _decisions(src))
-        assert rc == 0 and report["result"] == "applied", report
-        registry = root / ".governance" / "runtimes"
-        adapters = sorted(p.name for p in registry.glob("*.sh"))
-        assert adapters, "no runtime adapters seeded"
-        assert {"claude-code.sh", "codex.sh", "manual.sh"} <= set(adapters), adapters
-        ledger = (root / ".governance/install.yaml").read_text()
-        for name in adapters:
-            adapter = registry / name
-            assert os.access(adapter, os.X_OK), name
-            assert "kit-version=" in adapter.read_text().splitlines()[1], name
-            assert f"\n  .governance/runtimes/{name}: " in ledger, (name, ledger)
-
-
 def test_init_apply_dry_run_writes_nothing() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         src = _write_source_pack(Path(tmp) / "src")

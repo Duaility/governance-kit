@@ -6,20 +6,17 @@
 #     template (`issue-templates`), logged in `QUALITY.md` (`issues-tracked`),
 #     lands exactly one receipt (`receipt-per-issue`), and is referenced by the
 #     commit that closes it (`commit-issue-receipt-match`);
-#   * accounting — every agent-authored commit records what it spent
-#     (`agent-token-accounting` → COSTS.md) and every human correction it took
-#     (`agent-steering-accounting` → STEERING.md);
+#   * provenance — every agent-authored commit records the harness/session
+#     identifier that produced it in the issue receipt (`agent-session-identity`);
 #   * integrity — those records stay honest: receipts are immutable, ledgers
 #     append-only, frozen sections verbatim (`doc-integrity`), and the toolchain
 #     config can't be quietly changed to game a check (`toolchain-config-protection`).
 #
-# `agent-steering-accounting` and `doc-integrity` are mandatory
+# `agent-session-identity` and `doc-integrity` are mandatory
 # (`always_install: true`): in this kit's model every commit is agent-authored,
 # so the provenance trail and its tamper-protection are part of the baseline,
-# not an extra. Steering events are recorded by a fresh-context sub-agent
-# (a `judge:` attestation handed the session transcript — no in-hook
-# `claude -p`, issue #325); the receipt rows carry operator-intent text, so
-# weigh leakage before a public repo rather than skipping the directive.
+# not an extra. The identity directive records only explicit harness/session
+# signals and never reads conversation history or harness-owned state.
 #
 # Directive metadata lives inside each directive's folder under
 # `directives/<id>/`. Presets are per-pack and unioned at init.
@@ -39,7 +36,7 @@ version: "0.9.0"
 # The floor is always the first-shipped version, not the source line. See
 # kit/references/LIB_API.md.
 min_governance_kit: "0.13.0"
-description: A trustworthy record of agent work — issue → receipt → commit → cost → steering, kept tamper-proof.
+description: A trustworthy record of agent work — issue → receipt → commit → session identity, kept tamper-proof.
 author: governance-kit
 
 presets:
@@ -49,8 +46,7 @@ presets:
       - issues-tracked
       - receipt-per-issue
       - commit-issue-receipt-match
-      - agent-token-accounting
-      - agent-steering-accounting
+      - agent-session-identity
       - doc-integrity
       - toolchain-config-protection
   strict:

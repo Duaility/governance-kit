@@ -1,9 +1,8 @@
 # Judge declaration (attest + schedule)
 
 Some directives ask a question a hook structurally cannot answer: *does this
-artifact correspond to reality* — does the receipt match the diff, does the
-change honor a declared architectural invariant, did the agent record every time
-the operator steered it? Answering needs a **fresh-context model judgment**
+artifact correspond to reality* — does the receipt match the diff, or does the
+change honor a declared architectural invariant? Answering needs a **fresh-context model judgment**
 against ground truth, not a string relationship a `check.sh` can re-execute.
 
 The kit expresses every such judgment as **one declaration** — a `judge:`
@@ -27,16 +26,15 @@ declaration unchanged and re-derives the verdict through `cmd.schedule`, off
 the commit path.
 
 First shipped for `receipt-per-issue`'s `## Audit` (issue #272); the consumers
-today are `## Audit`, the repo-local `layer-boundaries` `## Layer boundaries`
-(issue #277), and `agent-steering-accounting`'s `## Steering` (issue #325, which
-replaced an in-hook `claude -p` classifier with a batched attestation).
+today are `## Audit` and the repo-local `layer-boundaries` `## Layer boundaries`
+(issue #277).
 
 ## The problem it solves
 
 A form-checked directive proves an artifact is *internally consistent* — its
 `check.sh` re-executes a relationship between strings the artifact already
 carries. It cannot prove the artifact *corresponds to reality*, because the
-ground truth (the diff, the linked issue, the session transcript) is exactly
+ground truth (the diff and the linked issue) is exactly
 what a pre-commit hook does not read. `receipt-per-issue`'s checklist crosswalk
 is the canonical example: it confirms each `- [x]` item is echoed in the
 receipt's own prose, never that either matches the diff.
@@ -86,12 +84,9 @@ instead.
 
 - **`inputs`** — typed tokens resolved to concrete handles by `resolve_judge_input`:
   `diff`→`git diff`, `receipt`→the receipt path, `issue`→`gh issue view #N`
-  (derived from the receipt name), `transcript`→the active runtime's session
-  JSONL (`CODEX_THREAD_ID` under `~/.codex/sessions/` /
-  `~/.codex/archived_sessions/` for Codex, `CLAUDE_CODE_SESSION_ID` under
-  `~/.claude/projects/` for Claude Code, or the explicit `*_TRANSCRIPT_PATH`
-  override), `layer-map`→the doc named by
-  `GOVERNANCE_LAYER_DOC`. An unknown token passes through verbatim.
+  (derived from the receipt name), and `layer-map`→the doc named by
+  `GOVERNANCE_LAYER_DOC`. An unknown token passes through verbatim. There is no
+  transcript or chat-history input.
 - **`checks`** — the numbered rubric the judge adjudicates (the prose rubric is
   the directive's `constitution.md`).
 - **`group`** — an optional, free-form label. Every directive resolving the
@@ -520,32 +515,14 @@ underneath it, exactly as it does when a harness remediation loop re-stages.
 The `_adjudication_stamp` above is immune to this because it excludes the
 receipt from the tree it hashes, which is why staging mid-hook is safe.
 
-## The runtime adapters: accounting only
+## Runtime isolation
 
-`.governance/runtimes/<name>.sh` still ships one file per harness, kit-managed
-exactly like `run.sh` and `lib.sh` (stamped with `kit-version=`, digested by
-`managed-tree-integrity`, re-synced by `governance update`) — but adapters no
-longer judge anything. Judging moved entirely into `cmd` + `_judge_cmd_run`
-in `lib.sh` (issue #355); the adapter registry now answers only the
-off-commit-path accounting verbs for `agent-token-accounting`:
+The kit has no harness adapter registry and no usage or cost accounting lane.
+Judge declarations may render only repository artifacts (`diff`, `receipt`,
+`issue`, and `layer-map`). A transcript or chat-history token is not a supported
+input, and no judge path discovers or opens a harness-private session file.
 
-- **`resolve <session-id> [<declared-path>]` / `emit`** — `resolve` reads an
-  identity-pinned harness surface (a declared path, a session-id-named file
-  under the harness's documented state dir, or a documented local server) and
-  prints one usage line, or exits 2 when it cannot resolve; `emit` accepts the
-  harness's own push payload (statusline/hook JSON) and appends a snapshot to
-  the accounting sidecar. Seven adapters ship these: `claude-code`, `codex`,
-  `pi`, `grok`, `cursor-agent`, `opencode`, and `manual`. See
-  [DIRECTIVES_CATALOG.md](DIRECTIVES_CATALOG.md) for the accounting contract
-  these verbs feed.
-
-Before issue #355 the registry also carried `judge` and `can-judge` verbs; both
-are deleted, along with the per-adapter tier→model alias tables. A directive
-that wants a specific vendor's CLI as its judge now says so directly in
-`cmd.attest` / `cmd.schedule` — there is no adapter indirection between the
-declaration and the process that runs.
-
-## Use a small model where cost matters
+## Use a bounded judge command
 
 The author-time attestation is a **bounded read-and-record audit**, not the
 final word on truth — the verdict's correctness is independently re-derived
@@ -565,11 +542,9 @@ The model is whatever the resolved judge command names — there is no
 separate tier knob. A consumer who wants every schedule re-adjudication run
 on a stronger (or cheaper) model changes the `GOVERNANCE_JUDGE_CMD` value the
 lane's workflow exports, not a per-directive field. A consumer who wants one
-*specific* directive's
-author-time verdict run on a different model overrides that directive's
-`cmd.attest` string through the normal pack/directive override flow (issue
-#331, see *Author-owned vs operator-owned* above) — but this is the rare
-per-directive case, not how a bundled pack ships.
+specific directive's author-time verdict run on a different model overrides
+that directive's `cmd.attest` string through the normal pack/directive override
+flow (issue #331, see *Author-owned vs operator-owned* above).
 
 ## The helpers (in `lib.sh`)
 

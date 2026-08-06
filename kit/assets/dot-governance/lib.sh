@@ -315,19 +315,6 @@ resolve_judge_input() {
         diff)       printf 'the diff (`git diff`)' ;;
         receipt)    printf 'this receipt (`%s`)' "$receipt" ;;
         issue)      printf 'the linked issue (`gh issue view #%s`)' "$n" ;;
-        transcript)
-            if [[ -n "${CODEX_TRANSCRIPT_PATH:-}" ]]; then
-                printf 'the Codex session transcript at `%s`' "$CODEX_TRANSCRIPT_PATH"
-            elif [[ -n "${CODEX_THREAD_ID:-}" ]]; then
-                printf 'the Codex session transcript (the JSONL under `~/.codex/sessions/` or `~/.codex/archived_sessions/` whose filename ends with `$CODEX_THREAD_ID.jsonl`)'
-            elif [[ -n "${CLAUDE_TRANSCRIPT_PATH:-}" ]]; then
-                printf 'the Claude Code session transcript at `%s`' "$CLAUDE_TRANSCRIPT_PATH"
-            elif [[ -n "${CLAUDE_CODE_SESSION_ID:-}" ]]; then
-                printf 'the Claude Code session transcript (the JSONL named `$CLAUDE_CODE_SESSION_ID.jsonl` under your Claude Code projects dir)'
-            else
-                printf 'the active agent session transcript for this commit'
-            fi
-            ;;
         layer-map)  printf 'the declared layer model in `%s`' "${GOVERNANCE_LAYER_DOC:-ARCHITECTURE.md}" ;;
         *)          printf '%s' "$token" ;;
     esac
@@ -616,11 +603,11 @@ _judge_cmd_resolve() {
 _judge_env_clean() {
     env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE -u GIT_PREFIX \
         -u GIT_COMMON_DIR -u GIT_AUTHOR_DATE -u GIT_COMMITTER_DATE \
-        -u CLAUDECODE -u CLAUDE_CODE_SESSION_ID -u CLAUDE_TRANSCRIPT_PATH \
-        -u CODEX_THREAD_ID -u CODEX_TRANSCRIPT_PATH \
+        -u CLAUDECODE -u CLAUDE_CODE_SESSION_ID \
+        -u CODEX_THREAD_ID \
         -u CURSOR_AGENT \
         -u OPENCODE -u OPENCODE_SERVER -u OPENCODE_SESSION_ID \
-        -u PI_CODING_AGENT -u PI_SESSION_ID -u PI_SESSION_FILE \
+        -u PI_CODING_AGENT -u PI_SESSION_ID \
         "$@"
 }
 
@@ -1063,8 +1050,8 @@ _judge_cli_budget() {
 #   The harness path hands a sub-agent handle phrases ("the diff (`git diff`)")
 #   because a sub-agent has tools; a CLI judge gets one prompt and no repo, so
 #   the same token has to arrive as bytes. Tokens the kit cannot materialize
-#   (an issue body needs the network; a transcript needs the harness) degrade to
-#   the handle phrase, which the judge weighs as "not available to me".
+#   (for example, an issue body that needs the network) degrade to the handle
+#   phrase, which the judge weighs as "not available to me".
 _judge_cli_input() {
     local token="$1" receipt="$2" base
     case "$token" in

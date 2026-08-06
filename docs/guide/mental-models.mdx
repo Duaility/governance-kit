@@ -1,6 +1,6 @@
 ---
 title: 'Mental models'
-summary: 'The four ideas everything in Governance Kit follows from — the reconciliation loop, rule-and-test as one artifact, rule-layer steering, and durable receipts. The rest is mechanics.'
+summary: 'The four ideas everything in Governance Kit follows from — the reconciliation loop, rule-and-test as one artifact, rule-layer corrections, and durable receipts. The rest is mechanics.'
 ---
 
 # Mental models
@@ -17,7 +17,7 @@ flowchart LR
     P["Pack captures it<br/>directive + rationale + evals"]
     G{"Git hook / CI"}
     A["Agent repairs the repo<br/>using the failure as instruction"]
-    R["Repo carries the durable record<br/>constitution + receipts + accounting"]
+    R["Repo carries the durable record<br/>constitution + receipts + session identity"]
 
     H --> P --> G
     G -- "fails with why" --> A
@@ -74,16 +74,16 @@ flowchart TB
 
 The `directive {add,modify,remove}` verbs make that triple mechanical. Things that *can't* be mechanically checked are principles, not directives — they live in the constitution too, but their gate is human review. The kit is honest about that boundary.
 
-## 3. Steer at the rule layer, not the turn layer
+## 3. Promote corrections to the rule layer
 
 Per-turn prompting does not compose: the next agent on the next branch cannot read your last conversation. A directive reaches every future agent without you being in the room — **once-authored, infinitely-enforced**.
 
-<Frame caption="A per-turn correction dies with the session; a directive in CONSTITUTION.md reaches every future agent. The redirects you don't promote are still captured — as steering rows in the receipt.">
-  <img className="block dark:hidden" src="/assets/rule-layer-light.svg" alt="Two columns: the turn layer, where a prompt reaches only this agent on this branch and is lost when the session ends; and the rule layer, where one directive in CONSTITUTION.md fans out to every future agent across branches. A bottom strip notes that un-promoted corrections are recorded as steering rows in the issue's receipt." />
-  <img className="hidden dark:block" src="/assets/rule-layer-dark.svg" alt="Two columns: the turn layer, where a prompt reaches only this agent on this branch and is lost when the session ends; and the rule layer, where one directive in CONSTITUTION.md fans out to every future agent across branches. A bottom strip notes that un-promoted corrections are recorded as steering rows in the issue's receipt." />
+<Frame caption="A per-turn correction dies with the session; a directive in CONSTITUTION.md reaches every future agent. Promote durable corrections into rules, and let the receipt record the resulting session identity.">
+  <img className="block dark:hidden" src="/assets/rule-layer-light.svg" alt="Two columns: the turn layer, where a prompt reaches only this agent on this branch and is lost when the session ends; and the rule layer, where one directive in CONSTITUTION.md fans out to every future agent across branches. A bottom strip says to promote durable corrections into rules while the receipt retains session identity." />
+  <img className="hidden dark:block" src="/assets/rule-layer-dark.svg" alt="Two columns: the turn layer, where a prompt reaches only this agent on this branch and is lost when the session ends; and the rule layer, where one directive in CONSTITUTION.md fans out to every future agent across branches. A bottom strip says to promote durable corrections into rules while the receipt retains session identity." />
 </Frame>
 
-Where humans repeatedly steer is the signal for which rules are missing or misaligned — so the rules evolve, not just the prompts.
+When a correction repeats, it is a signal that a rule is missing or misaligned — so the rules evolve, not just the prompts.
 
 ## 4. Receipts beat plans; ledgers outlive sessions
 
@@ -91,7 +91,7 @@ Pre-implementation plans are the model's *promise* and get thrown away; post-imp
 
 ```mermaid
 flowchart LR
-  I["issue"] --> R["receipt"] --> C["commit"] --> K["cost"]
+  I["issue"] --> R["receipt"] --> C["commit"] --> S["session identity"]
   R -.->|"crosswalks every claim to evidence"| C
 
   classDef human fill:#3f3586,stroke:#8b7ff0,color:#eeeaff
@@ -101,7 +101,7 @@ flowchart LR
   class I human
   class R record
   class C agent
-  class K gate
+  class S gate
 ```
 
 These survive the squash merge, the runtime swap, and the team turnover.
@@ -127,7 +127,7 @@ The four models set the stance; the rest of the kit is how it's enforced.
 | **Pack** | A versioned bundle of directives, installed and pinned as a unit. |
 | **Preset** | A named directive selection a pack declares (`minimal` / `standard` / `strict`). |
 | **Evolution Log** | Append-only history in `CONSTITUTION.md` recording every governance change with date and author. |
-| **Receipt** | Per-issue attestation under `receipts/`, crosswalking claims to evidence and carrying the issue's cost and steering accounting. |
+| **Receipt** | Per-issue attestation under `receipts/`, crosswalking claims to evidence and carrying the producing session identity. |
 | **Drift** | Misalignment between things that should agree — constitution vs. test, doc vs. code, lockfile vs. tree. |
 | **System of record** | The tracked files that define how the repo works *now*. |
 
@@ -137,7 +137,7 @@ The four models set the stance; the rest of the kit is how it's enforced.
 your-repo/
 ├── CONSTITUTION.md              # desired state: directives + rationale + evolution log
 ├── AGENTS.md                    # entry point; carries the "follow the constitution" block
-├── QUALITY.md  receipts/        # the quality board + per-issue receipts (incl. accounting)
+├── QUALITY.md  receipts/        # the quality board + per-issue receipts (incl. session identity)
 ├── .governance/
 │   ├── run.sh  lib.sh           # the runner (kit-owned, version-stamped)
 │   ├── install.yaml             # init choices + side-effect receipt; pins the kit

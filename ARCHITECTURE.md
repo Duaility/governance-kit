@@ -88,8 +88,8 @@ Each pack is a directory. Three concern-scoped packs ship in-tree under
   `no-unjustified-suppressions`.
 - `governance-kit/audit` — a trustworthy record of agent work: issue → receipt
   → commit traceability (`issue-templates`, `issues-tracked`,
-  `receipt-per-issue`, `commit-issue-receipt-match`), cost + steering accounting
-  (`agent-token-accounting`, `agent-steering-accounting`), and the tamper
+  `receipt-per-issue`, `commit-issue-receipt-match`), session identity
+  (`agent-session-identity`), and the tamper
   protection that keeps those records honest (`doc-integrity`,
   `toolchain-config-protection`).
 
@@ -113,7 +113,7 @@ Every pack has:
   - `evals/test.sh` — pass/fail fixtures exercised by
     `scripts/test-packs.sh`.
   - Optional siblings: `install-assets/` (seed files), `hooks/*.sh`
-    (directive-owned hook helpers), `runtimes/*.sh` (per-runtime logic).
+    (directive-owned hook helpers), `runtimes/*.sh` (directive-local helpers).
 
 ## Directive lifecycle
 

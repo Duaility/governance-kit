@@ -16,17 +16,10 @@
 #       Individual evals mutate this baseline for their pass/fail cases.
 #
 #   install_directive <pack-dir> <directive-id>
-#       Copies `assets/dot-governance/lib.sh` into `.governance/lib.sh`, the
-#       runtime adapter registry into `.governance/runtimes/` (see
-#       `install_runtimes`), and the entire directive folder
+#       Copies `assets/dot-governance/lib.sh` into `.governance/lib.sh`, and
+#       the entire directive folder
 #       (`<pack-dir>/directives/<id>/`) into the fixture's
 #       `.governance/packs/<pack-id>/directives/<id>/`. Idempotent.
-#
-#   install_runtimes
-#       Copies `assets/dot-governance/runtimes/*.sh` into
-#       `.governance/runtimes/`, executable — the kit-level adapter registry at
-#       the same path a real install uses. Called by `install_directive`;
-#       callable on its own by an eval that needs adapters and no directive.
 #
 #   stage_all
 #       git add -A in the fixture.
@@ -54,8 +47,6 @@ EVAL_LIB_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 # ^ governance/  (not the repo root — the pack is under assets/)
 # Actually resolve the tests-bash lib.sh path directly:
 _EVAL_LIB_SH="$EVAL_LIB_ROOT/assets/dot-governance/lib.sh"
-_EVAL_RUNTIMES="$EVAL_LIB_ROOT/assets/dot-governance/runtimes"
-
 FIXTURE_DIR=""
 eval_failures=0
 eval_assertions=0
@@ -224,18 +215,6 @@ EOF
     git commit --quiet --no-verify -m "chore: baseline fixture"
 }
 
-install_runtimes() {
-    # Lay the kit-level runtime adapter registry into the fixture at the same
-    # path a real install uses (`.governance/runtimes/`), so anything that
-    # resolves an adapter by name — the accounting lane's `cost`, a
-    # `cli:<adapter>` executor's `judge` — finds it exactly where it would in a
-    # consumer repo. Idempotent.
-    [[ -d "$_EVAL_RUNTIMES" ]] || return 0
-    mkdir -p .governance/runtimes
-    cp "$_EVAL_RUNTIMES"/*.sh .governance/runtimes/ 2>/dev/null || return 0
-    chmod +x .governance/runtimes/*.sh 2>/dev/null || true
-}
-
 install_directive() {
     local pack_dir="$1" directive_id="$2"
     local pack_id
@@ -249,12 +228,11 @@ install_directive() {
     ' "$pack_dir/pack.yaml")"
     mkdir -p .governance
     cp "$_EVAL_LIB_SH" .governance/lib.sh
-    install_runtimes
     local src="$pack_dir/directives/$directive_id"
     local dest=".governance/packs/$pack_id/directives/$directive_id"
     rm -rf "$dest"
     mkdir -p "$dest"
-    # Copy the entire directive folder so siblings (lib/, hooks/, runtimes/) come
+    # Copy the entire directive folder so directive-local siblings (lib/, hooks/, runtimes/) come
     # with the directive. Skip evals/ — the fixture shouldn't run eval fixtures.
     for entry in "$src"/*; do
         [[ -e "$entry" ]] || continue

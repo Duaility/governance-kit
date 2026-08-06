@@ -46,14 +46,14 @@ Adding more prompt is the obvious fix, but it does not scale. Instruction files 
 
 Governance Kit turns repeated corrections into **repo-native invariants**. It calls that set of invariants a **constitution**: `CONSTITUTION.md` is the readable policy, while each directive carries the rationale and executable check beside it. Hooks and CI run those checks on every commit.
 
-It also keeps an audit trail. **Receipts** record what changed, what was tested, what it cost, and how often a human had to steer the agent. Reviewers and future agents can read that record without needing the old chat transcript.
+It also keeps an audit trail. **Receipts** record what changed, what was tested, and which agent session authored the work. Reviewers and future agents can read that record without needing chat history, usage data, or harness-private state.
 
 Once agents do real work, the repo can carry rules like:
 
 - catch boundary drift before anyone debates code quality
 - stop a small fix from becoming a rewrite
 - require receipts to name changed behavior, verification, and risk
-- record token cost and human steering in git
+- record the producing agent session in git
 
 ### How does the loop work?
 
@@ -65,7 +65,7 @@ flowchart LR
     P["Pack captures it<br/>directive + rationale + evals"]
     G{"Git hook / CI"}
     A["Agent repairs the repo<br/>using the failure as instruction"]
-    R["Repo carries the durable record<br/>constitution + receipts + accounting"]
+    R["Repo carries the durable record<br/>constitution + receipts + session identity"]
 
     H --> P --> G
     G -- "fails with why" --> A
@@ -161,7 +161,7 @@ Once agents do real work against your repo, Governance Kit gives you:
 
 - **Executable constitution** - `CONSTITUTION.md` is readable policy, and every directive has enforcement beside it.
 - **Agent-readable failures** - violations name the rule, the gap, and the rationale, so the next agent turn has useful context.
-- **Cost transparency** - token spend and human steering can be recorded in issue receipts, making expensive turns and repeated corrections visible review data.
+- **Session provenance** - issue receipts record which harness/session authored a change without retaining transcripts, usage, cost, or steering data.
 - **Judgment where needed** - semantic rules can require fresh-context sub-agent attestations instead of pretending grep is enough.
 - **Versioned governance packs** - teams can publish and pin reusable packs such as `acme/backend`, `acme/soc2`, or `duaility/governance-kit`.
 
@@ -175,7 +175,7 @@ The key power is the depth of invariants you can express. Start with determinist
 |---|---|---|
 | **Repo state** | "Every repo needs a README, license, security contact, and architecture note." | Cheap `check.sh` over the tree, run locally and in CI. |
 | **Change set** | "A CI config change needs a reason in the commit." "A receipt for issue #42 must mention the files this PR actually changed." | Diff-aware hooks plus CI's merge-base walk. |
-| **Ledger** | "For each agent-authored change, show the issue, receipt, token cost, and human steering count." | Receipt accounting rows, cross-checked by directives. |
+| **Ledger** | "For each agent-authored change, show the issue, receipt, and producing session." | Session identity rows, validated by directives. |
 | **Sub-agent attestation** | "Before merging a cross-layer refactor, have a fresh reader compare the diff to the architecture map." | Hook fails with a fresh-context sub-agent prompt; agent records a PASS/REFUTED section; hook verifies presence. |
 
 The failures that hurt are rarely mechanical ("forgot the formatter") — they're semantic, and no single enforcement style catches both. Governance kit matches each rule to a surface: cheap deterministic checks for the mechanical, [fresh-context attestation](kit/references/JUDGE.md) for the judgment calls.
@@ -201,7 +201,7 @@ Three concern packs ship in-tree and install with `governance init` at your chos
 |---|---|---|
 | `governance-kit/foundation` | Required docs, internal link integrity, repo hygiene, managed-tree integrity | minimal |
 | `governance-kit/commits` | Conventional Commits + issue suffix, TODO and suppression discipline | standard–strict |
-| `governance-kit/audit` | The agent audit chain — receipts, cost, steering, record integrity | standard |
+| `governance-kit/audit` | The agent audit chain — receipts, session identity, record integrity | standard |
 
 Full catalog: [DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md). The anatomy of a directive folder and how to write one: [DIRECTIVE_AUTHORING.md](kit/references/DIRECTIVE_AUTHORING.md).
 
@@ -228,8 +228,7 @@ Full catalog: [DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md). The
 | `audit` | `issues-tracked` | `QUALITY.md` exists at repo root with `## Open` and `## Resolved` sections. | standard |
 | `audit` | `receipt-per-issue` | Every `receipts/*.md` has a unique `issue-<N>` filename token, required narrative/audit sections, and checked items that crosswalk into the receipt's evidence. | standard |
 | `audit` | `commit-issue-receipt-match` | Every non-merge commit adds or updates a `receipts/issue-<N>.md` — the touched receipt path is the commit's issue anchor (file-first). | standard |
-| `audit` | `agent-token-accounting` | Every agent commit's token cost lands as a row in the issue's receipt; a commit-time check reconciles the receipt's recorded cumulative against the runtime endpoint. | standard |
-| `audit` | `agent-steering-accounting` | Human-steering events (interrupts, corrections) are recorded by a fresh-context sub-agent handed the session transcript (a `subagent:` attestation — no in-hook `claude -p` call); `check.sh` gates the `## Steering` verdict's presence and validates the ledger shape. **`always_install: true`** — records operator-intent text in the receipt; weigh leakage before a public repo. | standard |
+| `audit` | `agent-session-identity` | **`always_install: true`** — each agent-authored commit records its harness and session identifier in the issue receipt. It reads only explicit identity signals and never touches transcripts, usage, cost, or steering data. | standard |
 | `audit` | `doc-integrity` | **`always_install: true`** — system-of-record documents are tamper-proof: receipts freeze once on the trunk, frozen sections (`QUALITY.md` Resolved, the Evolution Log) keep their baseline lines verbatim. Branch-authored content stays editable until it merges. | standard |
 | `audit` | `toolchain-config-protection` | A commit changing lint / format / type-check / CI / hook config carries a `governance: allow-toolchain-config <reason>` body line. | standard |
 
@@ -253,7 +252,7 @@ Reproduce: clone this repo and run `bash .governance/run.sh`. The dogfood setup:
 - keep repeating the same architectural or process corrections to coding agents
 - switch between Claude Code, Codex, Cursor, OpenCode, or human edits in the same repo
 - have watched an agent rewrite stable code, revive a deleted fallback, or move logic into the wrong layer
-- want every agent-authored change to carry a price tag and a steering record
+- want every agent-authored change to carry a durable harness/session identity
 - want organization-specific rules packaged as reusable, versioned packs
 - want semantic checks that admit when they need independent judgment instead of pretending grep is enough
 
@@ -282,7 +281,7 @@ Reproduce: clone this repo and run `bash .governance/run.sh`. The dogfood setup:
 
 |  | Governs | Blocks a bad commit | Rationale travels with the rule | Agent audit trail |
 |---|---|:---:|:---:|:---:|
-| **governance kit** | Repo state — docs, commits, receipts | Yes | Yes — constitution + evolution log | Yes — issue → receipt → commit → cost |
+| **governance kit** | Repo state — docs, commits, receipts | Yes | Yes — constitution + evolution log | Yes — issue → receipt → commit → session identity |
 | pre-commit · husky · lefthook | Hook execution | Yes | No | No |
 | [spec-kit](https://github.com/github/spec-kit) | One feature's spec → implementation | No | Per-spec | No |
 | Agent instruction files alone | What agents are told, not what they do | No | No | No |

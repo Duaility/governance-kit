@@ -56,10 +56,10 @@ claude
 | Preset | What you get |
 |---|---|
 | `minimal` | Foundation only: required docs, repo hygiene, managed-tree integrity, resolving internal links. |
-| `standard` | `minimal` + Conventional-Commit message format + the full [agent audit chain](/concepts/audit-chain): receipts, issue anchors, token and steering accounting, doc integrity, toolchain-config protection. |
+| `standard` | `minimal` + Conventional-Commit message format + the full [agent audit chain](/concepts/audit-chain): receipts, issue anchors, session identity, doc integrity, and toolchain-config protection. |
 | `strict` | `standard` + TODO and suppression discipline. |
 
-`standard` is the intended default for agent-heavy repos — it is the preset that turns on the issue → receipt → commit → cost chain.
+`standard` is the intended default for agent-heavy repos — it is the preset that turns on the issue → receipt → commit → session-identity chain.
 
 ## 3. Watch a gate fire
 
@@ -88,7 +88,7 @@ bash .governance/run.sh internal-doc-links  # one directive
     What a directive is made of and how amendments stay in lockstep.
   </Card>
   <Card title="The audit chain" href="/concepts/audit-chain" icon="link">
-    issue → receipt → commit → cost, made mechanical.
+    issue → receipt → commit → session identity, made mechanical.
   </Card>
   <Card title="Verbs" href="/reference/verbs" icon="terminal">
     Every lifecycle operation, end to end.

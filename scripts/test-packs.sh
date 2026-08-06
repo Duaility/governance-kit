@@ -164,6 +164,12 @@ fresh_tmp="$(mktemp -d)"
     for var in $(git rev-parse --local-env-vars 2>/dev/null || true); do
         unset "$var"
     done
+    # This contract is a plain fixture, not an agent-authored commit. Keep
+    # inherited harness identity out so the session-identity directive no-ops.
+    unset GOVERNANCE_HARNESS GOVERNANCE_SESSION_ID AGENT_NAME AGENT_SESSION_ID \
+        CLAUDECODE CLAUDE_CODE_SESSION_ID CODEX_THREAD_ID PI_CODING_AGENT \
+        PI_SESSION_ID CURSOR_AGENT CURSOR_SESSION_ID OPENCODE OPENCODE_SERVER \
+        OPENCODE_SESSION_ID
     git init --quiet --initial-branch=main .
     git config user.email eval@example.com
     git config user.name "Eval Harness"
@@ -363,7 +369,7 @@ EOF
     # Format-rejection ping: confirm the commit-msg dispatcher fires on a
     # malformed subject. The bundled commit-message-format directive rejects a
     # subject with no Conventional-Commits shape / no `(#N)` anchor; the
-    # accounting directives no-op here (no agent runtime in this contract).
+    # session-identity no-ops here (no agent runtime in this contract).
     printf 'feat: missing issue\n' > bad-msg.txt
     .githooks/commit-msg bad-msg.txt && exit 1
     rm bad-msg.txt

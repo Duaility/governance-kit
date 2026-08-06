@@ -165,33 +165,6 @@ def test_inventory_status_hints() -> None:
         assert "enable_governance_script" not in files
 
 
-def test_inventory_carries_the_runtime_adapter_registry() -> None:
-    # issue #355: each `.governance/runtimes/<harness>.sh` is a managed kit file
-    # like run.sh/lib.sh, so `kit update` re-syncs it — and a repo installed
-    # before the registry existed picks it up as an `add` on its next update.
-    with tempfile.TemporaryDirectory() as tmp:
-        root = make_repo(tmp, manifest=BASE_MANIFEST + f'kit_version: "{OLDER}"\n')
-        files = {f["key"]: f for f in kit_plan(root)["files"]}
-        adapters = [k for k in files if k.startswith("runtimes/")]
-        assert "runtimes/manual.sh" in adapters, adapters
-        for key in adapters:
-            assert files[key]["status"] == "add", files[key]
-            assert files[key]["dest"] == f".governance/{key}"
-
-
-def test_apply_adds_the_runtime_registry_to_a_pre_registry_install() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        root = make_git_repo(Path(tmp), manifest=STALE_MANIFEST, files=STALE_FILES)
-        rc, report = kit_apply(root)
-        assert rc == 0 and report["result"] == "applied", report
-        added = [d for d in report["added"] if d.startswith(".governance/runtimes/")]
-        assert added, report
-        for dest in added:
-            path = root / dest
-            assert path.is_file() and os.access(path, os.X_OK), dest
-            assert KITVERB.read_marker(path) == {"state": "versioned", "version": KIT_VERSION}
-
-
 def test_inventory_status_add_when_dest_missing() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = make_repo(tmp, manifest=BASE_MANIFEST + f'kit_version: "{OLDER}"\n')  # no files

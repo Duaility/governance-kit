@@ -49,8 +49,8 @@ is load-bearing, not trivia.
 ### Sub-agent judgment (attest)
 
 The independent-auditor pattern — a section a fresh-context sub-agent (or a
-detached CLI judge) must populate against ground truth (the diff, the linked
-issue, the session transcript) the hook itself cannot read. Since issue #325
+detached CLI judge) must populate against ground truth (the diff and linked
+issue) the hook itself cannot read. Since issue #325
 the task is declared once in the directive's `directive.yaml` `judge:`
 block and the commit-time orchestrator **batches** every section sharing a
 `group` label into one judge invocation. Since issue #355 the block also
@@ -68,7 +68,7 @@ shows when to reach for it.
 | `require_attestation` | `require_attestation <file> <section> <why> <inputs> <check-1> [...]` | The original per-directive gate. Records a `violation` when `<file>` lacks a well-formed `## <section>`: absent → `<why>` plus the `attestation_prompt` instruction; present but carrying no `PASS`/`REFUTED` token → a "fill in the verdict" message. Returns `0` on a well-formed section, `1` otherwise. Purely mechanical: presence + a verdict token, **never** the verdict's truth. Still the fallback when a directive can't declare a `judge:` block. | 0.10.0 |
 | `judge_attest` | `judge_attest <receipt>` | The declaration-driven gate. Reads the sibling `directive.yaml`'s `judge:` block (section, group, inputs, checks, cmd, and — since #355 — a three-valued `gate`: `record`, `verdict`, or `verdict-contestable`) and runs the gate it declares: `gate: record` is presence + a `PASS`/`REFUTED` token, `gate: verdict`/`gate: verdict-contestable` is the adjudication gate (append-only log, latest round `PASS`, fresh stamp; `verdict-contestable` additionally lets a `CONTESTED` latest round ride through with a stderr warning). Returns `0` immediately when the declaration has no `section:` key — a schedule-only declaration the commit lane ignores. When the section is pending it registers into the shared ledger so `attestation_remediation` can batch it. Returns `0`/`1` like `require_attestation`. | 0.11.0 |
 | `attestation_remediation` | `attestation_remediation [<ledger>]` | The run-level orchestrator. Reads the pending-attestation ledger and emits **one** grouped remediation instruction per `group` label present (a single sub-agent handed the union of that group's sections' inputs, demuxed by `DIRECTIVE:`-tagged blocks), plus one solo sub-agent per section declaring no `group`. For `gate: verdict` sections it renders the escalation ladder — spawn via `cmd.attest`, then an explicit escalation round via the same `cmd.attest`, then a terminal STALLED instruction — plus the exact round-line format and the `_adjudication_stamp` invocation. Invoked once by `run.sh` and the pre-commit dispatcher; silent no-op when nothing is pending. | 0.11.0 |
-| `resolve_judge_input` | `resolve_judge_input <token> <receipt>` | Map a typed input token (`diff`, `receipt`, `issue`, `transcript`, `layer-map`) to the concrete handle phrase the sub-agent is handed; unknown tokens pass through verbatim. | 0.11.0 |
+| `resolve_judge_input` | `resolve_judge_input <token> <receipt>` | Map a typed input token (`diff`, `receipt`, `issue`, `layer-map`) to the concrete handle phrase the sub-agent is handed; unknown tokens pass through verbatim. Chat transcripts and harness-private session files are not supported inputs. | 0.11.0 |
 
 Operator knobs these read: `JUDGE_ROUNDS`, through the standard `conf_get`
 ladder (env `GOVERNANCE_<KEY>` > user overlay > pack `defaults.conf`) — this

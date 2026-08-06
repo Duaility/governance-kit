@@ -17,13 +17,13 @@ Adding more prompt is the obvious fix, and it does not scale: instruction files 
 
 Two things stop scaling at agent throughput:
 
-1. **Steering.** Your guidance has to reach the *next* agent, on the *next* branch, without you in the room. Per-turn prompting doesn't compose — the next agent can't read your last conversation.
+1. **Rule promotion.** Your guidance has to reach the *next* agent, on the *next* branch, without you in the room. Per-turn prompting doesn't compose — the next agent can't read your last conversation.
 2. **Visibility.** When agents ship the diffs, you need a readable trail, not a stack of PRs and ephemeral chat transcripts.
 
 Governance Kit answers both with repo-native artifacts:
 
 - **A constitution** — `CONSTITUTION.md`, a versioned set of directives every agent reads and every commit is checked against.
-- **Receipts and ledgers** — per-issue receipts (with cost and steering accounting) and the `QUALITY.md` board, recording what agents were told, what they did, and what it cost.
+- **Receipts and provenance** — per-issue receipts (with producing session identity) and the `QUALITY.md` board, recording what agents changed and how it was verified.
 
 ## How does the loop work?
 
@@ -50,7 +50,7 @@ The real power is the depth of invariant you can express. Start with determinist
 |---|---|---|
 | **Repo state** | "Every repo needs a README, a license, a security contact, an architecture note." | Cheap `check.sh` over the tree, locally and in CI. |
 | **Change set** | "A CI-config change needs a reason in the commit." "A receipt for issue #42 must name the files this PR changed." | Diff-aware hooks plus CI's merge-base walk. |
-| **Ledger** | "For each agent-authored change, show the issue, receipt, token cost, and steering count." | Receipt accounting rows, cross-checked by directives. |
+| **Ledger** | "For each agent-authored change, show the issue, receipt, and producing session." | Session identity rows, cross-checked by directives. |
 | **Sub-agent attestation** | "Before merging a cross-layer refactor, have a fresh reader compare the diff to the architecture map." | The hook fails with a fresh-context sub-agent prompt; the agent records a PASS/REFUTED section; the hook verifies it is there. |
 
 The failures that hurt are rarely mechanical ("forgot the formatter") — they're semantic, and no single enforcement style catches both. Governance Kit matches each rule to a surface: cheap deterministic checks for the mechanical, [fresh-context attestation](https://github.com/Duaility/governance-kit/blob/main/kit/references/JUDGE.md) for the judgment calls.

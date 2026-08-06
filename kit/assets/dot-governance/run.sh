@@ -2,7 +2,7 @@
 # governance-kit:managed kit-version=0.13.0
 # Governance test runner. Discovers every directive under ./packs/<owner>/<name>/.
 # Directives are folder-shaped — each directive is `directives/<id>/check.sh`.
-# Anything the directive needs (lib/, hooks/, runtimes/) lives in the same folder.
+# Anything the directive needs (lib/, hooks/, directive-local runtimes/) lives in the same folder.
 # Exits 0 if all directive checks pass, 1 if any fails.
 #
 # Usage:

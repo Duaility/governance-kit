@@ -2,7 +2,7 @@
 category: AgentDiscipline
 recommended: true
 always_install: true
-summary: "System-of-record documents are integrity-protected against the default-branch baseline: receipts are immutable once on the trunk (frozen-files), the legacy COSTS.md/STEERING.md ledgers are sealed in place (frozen-files), opted-in append-only files may only grow, and frozen sections (e.g. resolved issues, the evolution log) keep their baseline lines verbatim."
+summary: "System-of-record documents are integrity-protected against the default-branch baseline: receipts (including session identity rows) are immutable once on the trunk, historical ledgers are sealed in place, opted-in append-only files may only grow, and frozen sections keep their baseline lines verbatim."
 surface: change-set
 hook: commit-msg
 judge:
