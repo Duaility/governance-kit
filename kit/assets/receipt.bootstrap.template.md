@@ -4,7 +4,7 @@ Closes [#<N>](https://github.com/<owner>/<repo>/issues/<N>).
 
 ## Checklist
 
-- [x] Install `governance-kit/core` (preset `<preset>`)
+- [x] Install the bundled governance-kit packs (preset `<preset>`)
 - [x] Seed `CONSTITUTION.md` with the picked directives
 - [x] Inject the Compliance snippet into `AGENTS.md`
 - [x] Install the test runner at `.governance/run.sh`
@@ -14,7 +14,7 @@ Closes [#<N>](https://github.com/<owner>/<repo>/issues/<N>).
 
 ## What changed
 
-- **Installed `governance-kit/core` (preset `<preset>`).** Directives:
+- **Installed the bundled governance-kit packs (preset `<preset>`).** Directives:
   `<comma-separated directive ids>`. Plus any additional packs the
   operator selected: `<list or "none">`.
 - **Seeded `CONSTITUTION.md`** with the picked directives and a starter
@@ -49,9 +49,8 @@ Closes [#<N>](https://github.com/<owner>/<repo>/issues/<N>).
   installed directives pass on the install commit.
 - CI on the first PR confirms the same suite runs green in the
   enforced layer.
-- Install commit carries its accounting row in this receipt — one v5
-  `### Costs` row (17 columns, `cost-usd` blank unless the runtime
-  reported a figure of its own) written by the pre-commit hook and
-  reconciled against the frozen staged-tree endpoint — when the runtime
-  was detected, or the `governance: allow-agent-token-accounting
-  unsupported-runtime: <reason>` body waiver when it wasn't.
+- When an agent runtime was detected, the install commit carries one
+  `date | harness | session` row under `## Session` → `### Identifiers`,
+  written by the pre-commit hook. No transcript, usage, cost, or steering
+  data is collected. A legitimate out-of-band commit may use the
+  `governance: allow-agent-session-identity <reason>` body waiver.

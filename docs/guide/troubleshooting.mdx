@@ -54,7 +54,7 @@ Commit-policing directives run in two modes: the hook validates the *pending* co
 |---|---|---|
 | `commit-issue-receipt-match` | The commit touches no `receipts/issue-<N>.md` | Add or update the issue's receipt in the same commit — the receipt path is the anchor |
 | `receipt-per-issue` | A checked box doesn't crosswalk | Restate the claim under `## What changed` or `## Verification` |
-| `agent-token-accounting` | The staged cost row is missing or doesn't match the frozen token endpoint | Commit through the hook path so the `pre-commit` writer records the row — don't hand-write it |
+| `agent-session-identity` | The staged session row is missing or does not match the active runtime identity | Commit through the hook path so the `pre-commit` writer records the row — do not hand-write it; human commits intentionally no-op |
 | `doc-integrity` | A trunk-frozen record was edited | Revert the edit, or carry the directive's path-scoped waiver in the commit body if the change is legitimate |
 
 ## Still stuck

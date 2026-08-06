@@ -150,16 +150,6 @@ def managed_runtime_files(root: str | Path) -> list[str]:
     ci = _manifest_scalar(text, "ci_workflow")
     if ci:
         candidates.append(ci)
-    # The runtime adapter registry (issue #355) — every adapter on disk under
-    # `<tests_dir>/runtimes/`. Enumerated from DISK rather than from the shipped
-    # kit so the recorded set always matches what the repo actually carries: a
-    # repo that predates the registry records none, and one that has it records
-    # exactly its adapters, whichever kit laid them down.
-    runtimes_dir = root / tests_dir / "runtimes"
-    if runtimes_dir.is_dir():
-        candidates.extend(
-            f"{tests_dir}/runtimes/{p.name}" for p in sorted(runtimes_dir.glob("*.sh"))
-        )
     # Scheduled-lane generated workflows (issue #259) — one per lane created via
     # `governance schedule`; enumerated straight from disk (see
     # `_schedule_managed_files`), so absent when no lane has been created.

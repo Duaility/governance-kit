@@ -58,11 +58,13 @@ bash scripts/release.sh <kit|PACK> <X.Y.Z> [--dry-run] [--push]
    an axis emits a minimal section (the curated historical entries already cover
    pre-tag changes).
 6. **Commit + tag.** `chore(release): <axis> v<old> → v<new>`, made through the
-   hook path so the accounting row attaches, then an annotated tag
+   hook path so session provenance attaches when a runtime supplies it, then an annotated tag
    `kit/vX.Y.Z` / `<pack>/vX.Y.Z`. A release commit is mechanical — it has no
    feature issue and touches no receipt — so `release.sh` writes in-body
    `governance: allow-commit-message-format` and `allow-commit-issue-receipt-match`
-   waivers; the accounting directives still apply and are stamped normally.
+   waivers; the release also carries a reasoned
+   `governance: allow-agent-session-identity` waiver because it has no feature
+   receipt to anchor. Feature commits still receive session rows normally.
 7. **Publish.** `--push` pushes the branch and tag; otherwise the script prints
    the two `git push` commands. Pushing the tag triggers
    [`release.yml`](../../.github/workflows/release.yml), which lifts the matching

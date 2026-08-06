@@ -32,7 +32,6 @@ from typing import Any
 import digestlib
 from applylib import (
     bash_lib,
-    kit_runtime_adapters,
     load_decisions,
     refuse,
     regen_hooks_step,
@@ -215,16 +214,6 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
         for fn in ("run.sh", "lib.sh", "schedule.sh"):
             _copy_stamp(KIT_ASSETS / "dot-governance" / fn, root / ".governance" / fn)
             (root / ".governance" / fn).chmod(0o755)
-        # The runtime adapter registry (issue #355) — same treatment as run.sh /
-        # lib.sh: copied, stamped, executable, and digested by
-        # `managed-tree-integrity`. It is unconditional (not gated on which
-        # directives were selected) because "which harness is running" is a
-        # property of the repo, and the accounting and executor lanes both look
-        # it up by name at the same fixed path.
-        for fn in kit_runtime_adapters():
-            dest = root / ".governance" / "runtimes" / fn
-            _copy_stamp(KIT_ASSETS / "dot-governance" / "runtimes" / fn, dest)
-            dest.chmod(0o755)
         _copy_stamp(KIT_ASSETS / "governance.yml", root / ".github" / "workflows" / "governance.yml")
 
         # No scheduled-lane workflow is seeded here (unlike the retired sweep

@@ -1,6 +1,6 @@
 ---
 title: 'Limitations'
-summary: 'Honest constraints — what the commit path can and cannot enforce, what the accounting depends on, and the V0 stability posture.'
+summary: 'Honest constraints — what the commit path can and cannot enforce, what session provenance depends on, and the V0 stability posture.'
 ---
 
 # Limitations
@@ -18,11 +18,11 @@ Commit-path checks must be **deterministic, fast, and offline** — same repo st
 
 `SKIP_GOVERNANCE=1` and `--no-verify` exist, on purpose, for local hotfixes. The contract is CI: every directive re-runs on every PR. If your threat model requires that no non-compliant commit can ever be *created* locally, Governance Kit does not provide that — it guarantees non-compliant work cannot *merge*.
 
-## The accounting depends on runtime cooperation
+## Session provenance depends on explicit runtime signals
 
-- Cost rows are written by a `pre-commit` populator reading **the runtime's usage data and transcript**; steering rows are written by a fresh-context sub-agent handed the transcript (a `judge:` attestation, no in-hook model call). Runtimes that don't expose usage data need a per-runtime adapter under the token directive's `runtimes/`; without one the populator no-ops rather than inventing numbers, and the checks validate whatever rows exist.
-- Per-commit token attribution needs the commit to go through the hook. A commit made with `--no-verify` has no frozen endpoint to reconcile against, so its tokens roll into the next accounted row — session totals stay correct, but that one commit's slice is not separately recoverable.
-- Steering accounting records operator-intent text in the receipt. If that text can contain sensitive content, weigh the leakage before working in a public repo — the directive is `always_install` and should not simply be switched off.
+- `agent-session-identity` records only a harness/session pair supplied explicitly by the runtime environment or a kit-owned identity sidecar. It never reads chat transcripts, usage files, session databases, or harness-private paths.
+- A commit made with `--no-verify` may have no stamped session row; CI can validate the receipt shape but cannot reconstruct an identity that was never supplied.
+- Human commits and runtimes with no session signal are intentional no-ops. If a deployment needs stronger provenance, it must arrange for its harness to export a stable session identifier; the kit remains harness-agnostic.
 
 ## One issue, one PR, one receipt
 

@@ -117,7 +117,7 @@ func TestGovernanceDirectives(t *testing.T) {
 
 ### husky
 
-If `package.json` has `husky` configured, **do not** hand-write a one-liner like `bash .governance/run.sh` into `.husky/pre-commit`. That shim runs every directive's `check.sh` regardless of `hook:` field and never invokes directive-owned populator hooks (`hooks/<kind>.sh`), which silently breaks `agent-token-accounting` / `agent-steering-accounting` — the validators demand ledger rows that nothing populates. Instead, generate the same per-hook dispatchers used by Path A into `.husky/`:
+If `package.json` has `husky` configured, **do not** hand-write a one-liner like `bash .governance/run.sh` into `.husky/pre-commit`. That shim runs every directive's `check.sh` regardless of `hook:` field and never invokes directive-owned hook populators (`hooks/<kind>.sh`), which can silently skip session-identity stamping. Instead, generate the same per-hook dispatchers used by Path A into `.husky/`:
 
 ```bash
 # from inside the bootstrapping clone

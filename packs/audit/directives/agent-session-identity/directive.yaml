@@ -1,0 +1,11 @@
+# agent-session-identity — record the active agent session in each issue receipt.
+category: AgentDiscipline
+recommended: true
+always_install: true
+summary: Each agent-authored commit records its harness and session identifier in the issue receipt; no transcript, token, cost, or steering data is read.
+surface: change-set
+hook: commit-msg
+reads:
+  - receipts/*.md
+writes:
+  - receipts/*.md

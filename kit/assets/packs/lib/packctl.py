@@ -20,8 +20,8 @@ HOOKS = {"pre-commit", "commit-msg", "prepare-commit-msg", "post-commit", "none"
 # "sweep" by the scheduled-triggers redesign) is no longer a `surface` value.
 # There is exactly one semantic-judgment primitive — a rubric-framed model
 # judgment declared once in a directive's `judge:` block (see
-# JUDGE.md) and executed through a runtime adapter's `judge`
-# verb. A scheduled run is just that same declaration re-adjudicated off the
+# JUDGE.md) and executed directly through the declared judge command. A
+# scheduled run is just that same declaration re-adjudicated off the
 # commit path by `.governance/schedule.sh`: no second engine, no vendor
 # transport, no `triage.sh` contract, no `engine:`/`model_tier:` scalar
 # fields. A directive opts into the scheduled lane by carrying `schedule` in

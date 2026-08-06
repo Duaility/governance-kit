@@ -174,18 +174,6 @@ def _inventory(root: Path, manifest: dict[str, Any], assets_root: Path, stamp_ve
     ]
     if ci_workflow:
         pairs.append((str(assets_root / "governance.yml"), ci_workflow, "ci_workflow"))
-    # The runtime adapter registry (issue #355): one managed file per adapter,
-    # tracked exactly like run.sh/lib.sh. Enumerated from the SOURCE tree, so a
-    # repo installed before the registry existed gets `add` rows on its next
-    # update, and a downgrade to a kit that shipped fewer adapters simply lists
-    # fewer pairs (the extra files on disk become unmanaged, never clobbered).
-    from applylib import kit_runtime_adapters  # lazy: keeps import order flat
-    for name in kit_runtime_adapters(assets_root):
-        pairs.append((
-            str(assets_root / "dot-governance" / "runtimes" / name),
-            f"{tests_dir}/runtimes/{name}",
-            f"runtimes/{name}",
-        ))
     # enable-governance.sh is no longer a managed kit asset (issue #267): the
     # update verb does not re-sync it; a legacy install that still carries one
     # simply stops being re-stamped (it becomes an inert user file).

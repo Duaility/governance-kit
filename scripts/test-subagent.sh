@@ -209,8 +209,8 @@ assert_eq "a lane the flow map does not name prints nothing" "" \
     "$(lib "_judge_cmd_resolve '$Y/tightcmd.yaml' attest")"
 
 # ── _judge_emit_verdict ─────────────────────────────────────────────────
-# The grammar filter used to be copy-pasted into every runtime adapter; it lives
-# in lib.sh once now (issue #355). Same contract, same DIRECTIVE: re-arm.
+# The grammar filter is centralized in lib.sh (issue #355). Same contract,
+# same DIRECTIVE: re-arm.
 printf '── _judge_emit_verdict (the grammar filter) ─────────\n'
 
 ev() { lib "_judge_emit_verdict"; }
@@ -388,7 +388,7 @@ assert_eq "a missing ledger is silent" "" "$(lib "attestation_remediation '$WORK
 
 {
     printf 'bundled\tattest\treceipts/issue-1-a.md\tAudit\tthe diff (`git diff`)%sthis receipt\tfirst check%ssecond check\n' "$US" "$US"
-    printf 'bundled\tattest\treceipts/issue-1-a.md\tSteering\tthe session transcript\tevery event recorded\n'
+    printf 'bundled\tattest\treceipts/issue-1-a.md\tAudit\tthe issue\tevery event recorded\n'
     printf -- '-\tattest\treceipts/issue-1-a.md\tLayer boundaries\tthe layer map\tno layer violation\n'
     printf 'other\tattest\treceipts/issue-2-b.md\tAudit\tanother input\tanother check\n'
 } > "$led"
@@ -398,9 +398,9 @@ assert_contains "one batched spawn per group label" \
 assert_contains "a second label is a second spawn, never merged" \
     "Spawn ONE fresh-context sub-agent for group \`other\`" "$out"
 assert_contains "inputs are unioned within the group, in first-seen order" \
-    'these inputs: the diff (`git diff`), this receipt, the session transcript.' "$out"
+    'these inputs: the diff (`git diff`), this receipt, the issue.' "$out"
 assert_lacks "a group never inherits another group's inputs" \
-    'the session transcript, another input' "$out"
+    'the issue, another input' "$out"
 assert_contains "each grouped section gets its own bullet" \
     "In \`receipts/issue-1-a.md\`, write the '## Audit' section: (1) first check; (2) second check" "$out"
 assert_contains "an unlabeled row gets a spawn of its own" \

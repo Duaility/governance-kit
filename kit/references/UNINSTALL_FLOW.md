@@ -112,7 +112,7 @@ Ask the user one `AskUserQuestion` with three mutually exclusive options:
 | Mode | Intent | Leaves untouched |
 |---|---|---|
 | `dry-run` | Print the plan, change nothing. | Everything. |
-| `soft` (default) | Remove managed surface (constitution, tests, workflow, managed hooks, manifest, AGENTS.md block). | Pack-seeded `install-assets/` docs (`QUALITY.md`, others; a legacy pre-#201 install may also carry `COSTS.md`). Backup `.bak` files. |
+| `soft` (default) | Remove managed surface (constitution, tests, workflow, managed hooks, manifest, AGENTS.md block). | Pack-seeded `install-assets/` docs (`QUALITY.md`, others; a legacy pre-session-identity install may also carry `COSTS.md`). Backup `.bak` files. |
 | `hard` | Remove **everything** governance-kit touched, including seeded docs, `.bak` backups from overwrite-collision resolution, and an AGENTS.md stub if manifest records it as kit-created. | Uncommitted work in the working tree. |
 
 Forced overrides:
@@ -175,24 +175,12 @@ subsequent runs):
 5. **Path B.** Remove only the governance entries (`.governance/run.sh` invocations) from the husky / `pre-commit` config, using the manifest's `path_b.entries`.
 6. **Seeded docs.** Soft: preserve + report as orphaned. Hard: delete every path the manifest lists under `install_assets_seeded`.
 7. **Backups.** Soft: preserve `*.pre-governance.bak`. Hard: delete them.
-8. **`.governance/` last.** Remove the directory recursively (manifest pair, runtime, packs, configs go with it).
+8. **`.governance/` last.** Remove the directory recursively (manifest pair, runtime scripts, packs, configs go with it).
 
 All deletes are plain `rm` against tracked paths. The engine never runs `git clean`, `git reset --hard`, or stash, and never commits — same discipline as `init`. `--mode dry-run` reports the would-be actions and writes nothing.
 
 **Leave changes unstaged.** The user reviews the diff and commits intentionally. The pre-commit hook is also gone now, so `git diff` is the only guard rail — the desired end state of an uninstall.
 
-### Step 5b — Reverse emitter wiring (if recorded)
-
-If `.governance/install.yaml` lists `emitters_wired: [<harness>, …]`
-(issue #355 — see
-[INIT_FLOW.md](INIT_FLOW.md#step-6b--wire-the-accounting-emitter-offered-optional)),
-offer to remove the emitter config line from each listed harness's own
-settings before reporting. This is agent-driven, not part of
-`uninstall-apply` — the harness config the line lives in is not one of the
-engine's artifact classes, and it commonly lives outside this repo's tracked
-tree. Remove exactly the wired line; leave the rest of the operator's harness
-settings untouched. Skip silently when the field is absent or empty. Fold the
-result into Step 6's report (`Files deleted` / `Files preserved`).
 
 ### Step 6 — Report
 
@@ -204,7 +192,6 @@ Print a concise summary:
 - `Files deleted:` list.
 - `Files preserved:` seeded docs, user-authored backups, unmarked hooks.
 - `Hooks restored:` `<name>.userhook` → `<name>` pairs, or `none`.
-- `Emitters unwired:` harnesses whose emitter config line Step 5b removed, or `none`.
 - `AGENTS.md:` `directive block stripped` | `stub deleted (hard mode)` | `left untouched (no marker)` | `skipped — non-block content would have changed`.
 - `Git config:` `core.hooksPath unset` | `left as-is — pointed at <path>`.
 - `Collisions:` per-file resolution, or `none`.

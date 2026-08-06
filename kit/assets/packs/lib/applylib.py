@@ -25,24 +25,6 @@ from typing import Any
 LIB_DIR = Path(__file__).resolve().parent
 KIT_ASSETS = LIB_DIR.parents[1]  # kit/assets
 
-# The kit-level runtime adapter registry (issue #355). One file per harness at
-# `<tests_dir>/runtimes/<name>.sh`, answering the accounting lane's two verbs —
-# `resolve` and `emit` (session identity). Judging is not an adapter concern:
-# each directive's `judge.cmd` names its own judge CLI, run by lib.sh. These
-# are ordinary kit-managed runtime files, not seed-once assets: `init` lays them
-# down stamped, `kit update` re-syncs them, `managed-tree-integrity` digests
-# them. Enumerated from the shipped tree so adding an adapter is one file drop.
-RUNTIMES_SUBDIR = "runtimes"
-
-
-def kit_runtime_adapters(assets_root: Path | None = None) -> list[str]:
-    """Filenames of the runtime adapters shipped in `dot-governance/runtimes/`,
-    sorted. Empty when the kit being applied predates the registry."""
-    src = (assets_root or KIT_ASSETS) / "dot-governance" / RUNTIMES_SUBDIR
-    if not src.is_dir():
-        return []
-    return sorted(p.name for p in src.glob("*.sh") if p.is_file())
-
 # Where each hook strategy lands its dispatchers — kept in sync with
 # hooks.sh `generate_hooks_for_strategy`.
 HOOK_DIR_FOR_STRATEGY = {

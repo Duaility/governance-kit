@@ -32,7 +32,7 @@ A directive is a self-contained folder. The id *is* the folder name:
 ├── install-assets/      # optional: files seeded at init (e.g. QUALITY.md)
 ├── lib/                 # optional: shared bash / stdlib Python
 ├── hooks/<kind>.sh      # optional: side-effect scripts wired into dispatchers
-└── runtimes/<name>.sh   # optional: per-runtime helpers
+└── runtimes/<name>.sh   # optional: directive-local helpers
 ```
 
 Self-containment is a design invariant: relocating a directive is one `git mv`, and the hook generator reads `directive.yaml` at install time rather than any pack-wide registry.

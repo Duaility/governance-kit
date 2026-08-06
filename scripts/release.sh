@@ -22,8 +22,9 @@
 # touch them. The script: validates a clean tree on `main` with a green suite,
 # bumps the one source of truth, re-derives every stamp, regenerates the
 # CHANGELOG.md section from the Conventional Commits since the last matching
-# tag, makes the `chore(release)` commit (through the hook path, so accounting
-# trailers attach), and creates the prefixed annotated tag `<axis>/vX.Y.Z`.
+# tag, makes the `chore(release)` commit (through the hook path, so session
+# provenance is recorded when a runtime supplies it), and creates the prefixed
+# annotated tag `<axis>/vX.Y.Z`.
 # Pushing the tag (`--push`, or `git push --tags` later) triggers release.yml.
 #
 # Escape hatch: RELEASE_SKIP_SUITE=1 bypasses the green-suite preflight (use
@@ -227,8 +228,8 @@ git add -A
 # CONSTITUTION.md, so doc-integrity has nothing legitimate to flag on it —
 # pre-waiving it is as sound as the other two, and it also neutralizes the macOS
 # frozen-section grep that OOMs on the Evolution Log's huge single-line entries
-# and false-reports a frozen edit. These are waived in-body; the accounting
-# directives still apply and are stamped by the runtime populator like any other
+# and false-reports a frozen edit. These are waived in-body; the session identity
+# directive still applies and is stamped by the runtime populator like any other
 # agent commit. No toolchain-config waiver is needed: since issue #256 the kit
 # release touches only kit/assets/ source templates, never the guarded
 # .github/workflows/ or .githooks/ consumed config.
@@ -236,6 +237,7 @@ commit_args=(
     -m "chore(release): ${AXIS} v${CURRENT} → v${VERSION}"
     -m "governance: allow-commit-message-format release commits are mechanical version bumps, not tied to a feature issue"
     -m "governance: allow-commit-issue-receipt-match release commits carry no receipt"
+    -m "governance: allow-agent-session-identity release commits have no feature receipt to anchor provenance"
     -m "governance: allow-doc-integrity CONSTITUTION.md release commits re-stamp managed files only and never edit CONSTITUTION.md"
 )
 git commit "${commit_args[@]}"

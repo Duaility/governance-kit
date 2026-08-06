@@ -144,17 +144,17 @@ has_receipt_waiver() {
         | grep -qE 'governance:[[:space:]]*allow-receipt-per-issue[[:space:]]+[^[:space:]]'
 }
 
-# Accounting-only stub: a receipt whose only level-2 (`## `) heading is
-# `## Accounting` — what the agent-token/steering pre-commit hooks create
-# before the agent writes the narrative (issue #201). `### Costs`/`### Steering`
-# are level-3 and don't count. A stub is exempt from the shape rules.
-is_accounting_stub() {
+# Session-only stub: a receipt whose only level-2 (`## `) heading is `## Session`
+# — what the agent-session-identity pre-commit hook creates before the agent
+# writes the narrative. The historical `## Accounting` form remains accepted
+# so receipts written by older kit releases stay grandfathered.
+is_receipt_stub() {
     local file="$1"
     [[ -f "$file" ]] || return 1
     local h2
     h2="$(grep -E '^##[[:space:]]+' "$file" 2>/dev/null \
         | sed -E 's/^##[[:space:]]+//; s/[[:space:]]+$//')"
-    [[ "$h2" == "Accounting" ]]
+    [[ "$h2" == "Session" || "$h2" == "Accounting" ]]
 }
 
 # Build the set of receipts ADDED in the current change set — these owe a
@@ -254,10 +254,10 @@ for f in "${receipt_files[@]}"; do
     [[ "$issue_ref" =~ ^[0-9]+$ ]] || issue_ref="<N>"
     # Slug policy: a receipt ADDED in this change set must carry a kebab-case
     # slug — `issue-<N>-<slug>.md`. The bare `issue-<N>.md` form is accepted only
-    # for accounting-only stubs (the hooks create them slugless; the agent adds a
-    # slug when fleshing out the narrative) and for pre-existing receipts on HEAD,
+    # for historical accounting-only stubs (the old hooks created them slugless;
+    # the agent adds a slug when fleshing out the narrative) and for pre-existing receipts on HEAD,
     # which are grandfathered. Same forward-only change-set scope as rules 4–7.
-    if receipt_in_scope "$f" && ! is_accounting_stub "$f"; then
+    if receipt_in_scope "$f" && ! is_receipt_stub "$f"; then
         fname_re='^issue-([0-9]+)-[a-z0-9]+(-[a-z0-9]+)*\.md$'
         fname_msg="$f — a newly added receipt filename must match 'issue-<N>-<slug>.md' with a kebab-case slug (lowercase letters, digits, hyphens) — e.g. receipts/issue-63-replace-plans.md"
     else
@@ -283,14 +283,13 @@ for f in "${receipt_files[@]}"; do
         violation "$fname_msg"
     fi
 
-    # Accounting-only stub: the agent-token/steering pre-commit hooks create
-    # receipts/issue-<N>.md carrying just a `## Accounting` section when a
-    # commit's first accounted event fires before the agent has fleshed out
-    # the narrative (issue #201). Such a stub is exempt from the shape /
-    # crosswalk / Decisions / Verification rules until the agent adds a
-    # narrative section; the Accounting tables themselves are validated by the
-    # accounting directives. Filename + duplicate checks above still apply.
-    if is_accounting_stub "$f"; then
+    # Session-only stub: the identity hook creates receipts/issue-<N>.md with
+    # only a `## Session` section when a commit's first agent identity fires
+    # before the agent has fleshed out the narrative. Such a stub is exempt
+    # from the shape / crosswalk / Decisions / Verification rules until the
+    # agent adds a narrative section. The historical `## Accounting` form is
+    # also retained for receipts written by older kit releases.
+    if is_receipt_stub "$f"; then
         continue
     fi
 
@@ -377,7 +376,7 @@ done
 coverage_anchors=()
 for r in "${inscope_receipts[@]:-}"; do
     [[ -z "$r" ]] && continue
-    is_accounting_stub "$r" && continue   # a stub names nothing
+    is_receipt_stub "$r" && continue   # a stub names nothing
     coverage_anchors+=("$r")
 done
 

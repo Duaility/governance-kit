@@ -35,7 +35,7 @@ flowchart LR
     P["Pack captures it<br/>directive + rationale + evals"]
     G{"Git hook / CI"}
     A["Agent repairs the repo<br/>using the failure as instruction"]
-    R["Repo carries the durable record<br/>constitution + receipts + accounting"]
+    R["Repo carries the durable record<br/>constitution + receipts + session identity"]
 
     H --> P --> G
     G -- "fails with why" --> A
