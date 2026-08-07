@@ -35,10 +35,8 @@
 # shipped docs and docstrings — "`npx skills` installed the skill", "the kit
 # used to need `uv` on PATH" — are not violations.
 #
-# Waivers: a path-glob exemption list in the sibling `defaults.conf` (empty by
-# default), layered with the overlay
-# `.governance/conf/duaility/governance-kit/no-package-manager.conf` — a bare
-# line EXEMPTS a path, `!<pattern>` un-exempts a default one.
+# Waivers: the manifest's tunable `RULES` list (empty by default), layered with
+# the overlay `.governance/conf/duaility/governance-kit/no-package-manager.conf`.
 set -u
 source "$(dirname "$0")/../../../../../lib.sh"
 directive_start "no-package-manager"
@@ -47,15 +45,12 @@ require_git
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT" || exit 1
 
-DEFAULTS="$(dirname "$0")/defaults.conf"
-[[ -f "$DEFAULTS" ]] || { violation "broken install: $DEFAULTS missing (waiver list unavailable)"; directive_end; }
-
 # ── Exemptions ───────────────────────────────────────────────────
 EXEMPT=()
 while IFS= read -r p; do
     [[ -z "$p" ]] && continue
     EXEMPT+=("$p")
-done < <(conf_list no-package-manager "$DEFAULTS" 2>/dev/null || true)
+done < <(conf_list no-package-manager "$(dirname "$0")/directive.yaml" RULES 2>/dev/null || true)
 
 is_exempt() {
     local f="$1" base p

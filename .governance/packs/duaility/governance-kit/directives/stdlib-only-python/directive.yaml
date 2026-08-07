@@ -11,3 +11,85 @@ recommended: false
 summary: Every tracked .py file this repo ships (kit/**/*.py, skill/*.py) imports only the Python standard library.
 surface: repo-state
 hook: pre-commit
+config:
+  - name: RULES
+    type: list
+    doc: Python root modules allowed by the shipped-tooling standard-library scan.
+    default:
+      - __future__
+      - abc
+      - argparse
+      - base64
+      - binascii
+      - bisect
+      - collections
+      - contextlib
+      - copy
+      - csv
+      - ctypes
+      - dataclasses
+      - datetime
+      - difflib
+      - enum
+      - errno
+      - fnmatch
+      - functools
+      - getpass
+      - glob
+      - gzip
+      - hashlib
+      - heapq
+      - html
+      - http
+      - importlib
+      - inspect
+      - io
+      - ipaddress
+      - itertools
+      - json
+      - keyword
+      - locale
+      - logging
+      - math
+      - operator
+      - os
+      - pathlib
+      - pickle
+      - platform
+      - pprint
+      - queue
+      - random
+      - re
+      - secrets
+      - selectors
+      - shlex
+      - shutil
+      - signal
+      - socket
+      - sqlite3
+      - ssl
+      - stat
+      - statistics
+      - string
+      - struct
+      - subprocess
+      - sys
+      - tarfile
+      - tempfile
+      - textwrap
+      - threading
+      - time
+      - tokenize
+      - traceback
+      - types
+      - typing
+      - unicodedata
+      - urllib
+      - uuid
+      - venv
+      - warnings
+      - weakref
+      - xml
+      - zipfile
+      - zlib
+    tunable: true

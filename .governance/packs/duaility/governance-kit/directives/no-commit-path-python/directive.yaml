@@ -10,3 +10,9 @@ recommended: false
 summary: The source commit path this repo authors (kit/assets/dot-governance runtime, packs/*/directives/* checks and hook scripts, .githooks/*) invokes no python.
 surface: repo-state
 hook: pre-commit
+config:
+  - name: RULES
+    type: list
+    doc: Path globs exempted from the commit-path Python scan.
+    default: []
+    tunable: true

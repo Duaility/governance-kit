@@ -2,7 +2,20 @@
 category: ArchitecturalShape
 recommended: false
 summary: "No backward-compat shims or legacy fallback paths in agent-authored changes."
+surface: change-set
 hook: none
+triggers: [schedule]
+config:
+  - name: SCHEDULE_CMD
+    type: scalar
+    doc: Consumer-selected judge command used for scheduled adjudication.
+    default: claude -p --output-format text --model opus
+    tunable: true
+  - name: SCHEDULE_CRON
+    type: scalar
+    doc: Consumer-selected cadence; empty disables scheduled enrollment.
+    default: ""
+    tunable: true
 judge:
   inputs: [range-diff]
   checks:
@@ -11,4 +24,3 @@ judge:
     - "Callers of changed behavior are migrated to the new path in this same change, not left calling through a compatibility shim."
     - "No code is retained with no stated reason (a Chesterton's-fence keep with no comment explaining why)."
     - "Any fallback that is retained names, in a code comment, the external contract it exists for and until when it applies."
-  group: kit-architecture

@@ -38,9 +38,8 @@
 # — that is how the kit's own engines under `kit/assets/packs/lib/` reference
 # each other (`import kityaml`, `from packctl import scalar`).
 #
-# The stdlib allowlist is the sibling `defaults.conf`, layered with the overlay
-# `.governance/conf/duaility/governance-kit/stdlib-only-python.conf` — a bare
-# line ADDS an allowed root module, `!<module>` REMOVES a default one.
+# The stdlib allowlist is the manifest's tunable `RULES` list, layered with the
+# overlay `.governance/conf/duaility/governance-kit/stdlib-only-python.conf`.
 set -u
 source "$(dirname "$0")/../../../../../lib.sh"
 directive_start "stdlib-only-python"
@@ -49,15 +48,12 @@ require_git
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT" || exit 1
 
-DEFAULTS="$(dirname "$0")/defaults.conf"
-[[ -f "$DEFAULTS" ]] || { violation "broken install: $DEFAULTS missing (stdlib allowlist unavailable)"; directive_end; }
-
 # ── Effective stdlib allowlist ──────────────────────────────────
 ALLOW=$'\n'
 while IFS= read -r m; do
     [[ -z "$m" ]] && continue
     ALLOW+="$m"$'\n'
-done < <(conf_list stdlib-only-python "$DEFAULTS" 2>/dev/null || true)
+done < <(conf_list stdlib-only-python "$(dirname "$0")/directive.yaml" RULES 2>/dev/null || true)
 
 is_allowed() {
     case "$ALLOW" in
