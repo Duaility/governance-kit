@@ -8,8 +8,8 @@
 # amend this script (or `governance directive remove` to drop the directive
 # entirely). Threshold tunables — MAX_FILE_SIZE_MB and FILE_SIZE_LIMIT — default
 # in the pack-owned manifest beside this script and are overridden
-# per-repo in `.governance/conf/governance-kit/foundation/repo-hygiene.conf` (or
-# the matching GOVERNANCE_* env vars, which win); they are applied below.
+# per-repo in `.governance/conf/governance-kit/foundation/repo-hygiene.conf`;
+# they are applied below.
 set -u
 source "$(dirname "$0")/../../../../../lib.sh"
 directive_start "repo-hygiene"
@@ -51,7 +51,7 @@ done < <(git ls-files)
 _artifacts=()
 while IFS= read -r entry; do [[ -n "$entry" ]] && _artifacts+=("$entry"); done \
     < <(conf_list repo-hygiene "$MANIFEST" ARTIFACT_PATTERNS)
-for entry in "${_artifacts[@]}"; do
+for entry in ${_artifacts[@]+"${_artifacts[@]}"}; do
     IFS='|' read -r pattern label <<<"$entry"
     while IFS= read -r f; do
         [[ -z "$f" ]] && continue
@@ -63,7 +63,7 @@ done
 _dbg=()
 while IFS= read -r entry; do [[ -n "$entry" ]] && _dbg+=("$entry"); done \
     < <(conf_list repo-hygiene "$MANIFEST" DEBUG_PATTERNS)
-for entry in "${_dbg[@]}"; do
+for entry in ${_dbg[@]+"${_dbg[@]}"}; do
     IFS='|' read -r label pattern pathspec <<<"$entry"
     # shellcheck disable=SC2206
     _pathspec_args=($pathspec)

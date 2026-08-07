@@ -1,6 +1,17 @@
-category: Compliance
-recommended: false
-summary: Every tracked source file carries the required license header (an at-rest, sweep-style check with no commit-time hook).
+category: Foundation
+recommended: true
+summary: Source files carry license headers.
 surface: repo-state
 hook: none
 triggers: [schedule]
+config:
+  - name: SCHEDULE_CMD
+    type: scalar
+    doc: Consumer-selected scheduled judge command.
+    default: claude -p --output-format text --model opus
+    tunable: true
+  - name: SCHEDULE_CRON
+    type: scalar
+    doc: Consumer-selected cron cadence; empty disables enrollment.
+    default: ""
+    tunable: true

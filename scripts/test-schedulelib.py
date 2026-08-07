@@ -35,6 +35,7 @@ def install(
     evidence: str | None = None,
     triggers: str = "[schedule]",
     staleness: int | None = None,
+    cron_tunable: bool = True,
 ) -> None:
     path = root / ".governance" / "packs" / "acme" / "demo" / "directives" / directive_id
     path.mkdir(parents=True)
@@ -43,7 +44,7 @@ def install(
     config += "    type: scalar\n"
     config += "    doc: Consumer-selected cadence.\n"
     config += f'    default: "{cron}"\n'
-    config += "    tunable: true\n"
+    config += f"    tunable: {'true' if cron_tunable else 'false'}\n"
     if evidence:
         config += "  - name: SCHEDULE_EVIDENCE\n"
         config += "    type: scalar\n"
@@ -114,11 +115,22 @@ def test_apply_reconciles_legacy_lane_workflows() -> None:
         install(root, "audit", cron="0 3 * * *")
         legacy = root / ".github" / "workflows" / "governance-schedule-nightly.yml"
         legacy.parent.mkdir(parents=True)
-        legacy.write_text("legacy\n")
+        legacy.write_text("# governance-kit:managed kit-version=0.13.0\nlegacy\n")
         result = workflowlib.apply(root)
         assert result["result"] == "applied"
         assert not legacy.exists()
         assert (root / ".github" / "workflows" / "governance-schedule.yml").exists()
+
+
+def test_apply_preserves_unmarked_schedule_workflow() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = root_at(Path(tmp))
+        install(root, "audit", cron="0 3 * * *")
+        extra = root / ".github" / "workflows" / "governance-schedule-extra.yml"
+        extra.parent.mkdir(parents=True)
+        extra.write_text("name: hand-authored\n")
+        workflowlib.apply(root)
+        assert extra.exists()
 
 
 def test_apply_removes_workflow_when_all_crons_are_empty() -> None:
@@ -141,6 +153,30 @@ def test_invalid_cron_is_an_error() -> None:
         install(root, "audit", cron="nightly")
         result = workflowlib.plan(root)
         assert result["errors"] and "five space-separated cron fields" in result["errors"][0]
+
+
+def test_non_tunable_cron_overlay_is_ignored() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = root_at(Path(tmp))
+        install(root, "audit", cron="", cron_tunable=False)
+        conf = root / ".governance" / "conf" / "acme" / "demo"
+        conf.mkdir(parents=True)
+        (conf / "audit.conf").write_text("SCHEDULE_CRON=0 3 * * *\n")
+        result = workflowlib.plan(root)
+        assert result["groups"] == []
+        assert any("not enrolled" in warning for warning in result["warnings"])
+
+
+def test_overlay_inline_comment_is_not_part_of_cron() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = root_at(Path(tmp))
+        install(root, "audit", cron="", cron_tunable=True)
+        conf = root / ".governance" / "conf" / "acme" / "demo"
+        conf.mkdir(parents=True)
+        (conf / "audit.conf").write_text("SCHEDULE_CRON=0 3 * * * # nightly\n")
+        result = workflowlib.plan(root)
+        assert result["errors"] == []
+        assert [group["cron"] for group in result["groups"]] == ["0 3 * * *"]
 
 
 if __name__ == "__main__":

@@ -41,11 +41,15 @@ SWEEP_ASSET_RELPATHS=".github/workflows/governance-sweep.yml .governance/sweep.s
 # verb-run time (`governance workflow generate`), not at kit-release time, so
 # its marker legitimately tracks the kit version current when it was
 # generated rather than the manifest's pin — the same seed-time rationale as
-# the legacy sweep pair above (issue #263). The prefixed lane glob is retained
-# for migration installs. The digest check still guards their content fully.
+# the legacy sweep pair above (issue #263). Marked legacy prefixed workflows
+# remain covered during migration; unmarked hand-authored files are outside
+# the generated namespace.
 _mti_is_schedule_workflow() {
     case "$1" in
-        .github/workflows/governance-schedule*.yml) return 0 ;;
+        .github/workflows/governance-schedule.yml) return 0 ;;
+        .github/workflows/governance-schedule-*.yml)
+            [[ -n "$(_mti_marker_version "$1")" ]] && return 0
+            ;;
         *) return 1 ;;
     esac
 }

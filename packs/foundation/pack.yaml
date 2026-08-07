@@ -13,6 +13,8 @@
 # pack-level identity and the presets that select directives by id. Presets are
 # per-pack; `governance init` unions each pack's preset across the installed
 # packs (see kit/references/INIT_FLOW.md).
+# RELEASE REMINDER: if these directives begin requiring a newer kit runtime,
+# raise min_governance_kit in the release commit that first ships that runtime.
 
 id: governance-kit/foundation
 name: Foundation governance directives

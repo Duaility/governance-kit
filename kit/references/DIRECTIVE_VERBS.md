@@ -48,7 +48,7 @@ A commit that touches the directive folder without the matching constitution edi
 - **Aliases a user might type:** "remove directive X", "retire directive X", "drop the directive about X".
 - **Authoritative flow:** [DIRECTIVE_AMEND_FLOW.md](DIRECTIVE_AMEND_FLOW.md) — the removal branch at the end of Step 5.
 - **Mechanics:**
-  1. Resolve the owning pack (from `--pack`, the default `<owner>/<repo>`, or by scanning `.governance/packs/*/*/directives/<directive-id>/`) and delete `.governance/packs/<pack-owner>/<pack-name>/directives/<directive-id>/`, plus the directive's `.governance/conf/<directive-id>.conf` overlay if present.
+  1. Resolve the owning pack (from `--pack`, the default `<owner>/<repo>`, or by scanning `.governance/packs/*/*/directives/<directive-id>/`) and delete `.governance/packs/<pack-owner>/<pack-name>/directives/<directive-id>/`, plus the directive's `.governance/conf/<pack-owner>/<pack-name>/<directive-id>.conf` overlay if present.
   2. If that was the pack's last directive AND the pack is repo-local (`source: local` in the lockfile), also remove the pack's `pack.yaml` and the now-empty `<owner>/<name>/` directory, plus its lockfile entry via `packverb lock-remove .governance/packs.lock <pack-id>`.
   3. Remove the directive's **Directives** subsection from `CONSTITUTION.md`.
   4. Append an **Evolution Log** entry recording the removal date and reason.

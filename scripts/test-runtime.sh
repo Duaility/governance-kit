@@ -659,7 +659,10 @@ assert_eq "conf_file absent → no output" "" "$output"
 
 # The manifest registry is the sole source of defaults and config docs.
 cat > "$conf_repo/directive.yaml" <<'EOF'
-config:
+# a column-zero comment before the registry
+config: # inline header comment
+
+# comments and blank lines are legal inside the registry
   - name: FRESHNESS_DAYS
     type: scalar
     doc: Maximum age accepted by the directive.
@@ -670,6 +673,16 @@ config:
     doc: Fixed author-owned value.
     default: 55 # fixed value with an inline YAML comment
     tunable: false
+  - name: FLOW_VALUES
+    type: list
+    doc: Flow-style list used to exercise the runtime reader.
+    default: [one, "two # literal"]
+    tunable: true
+  - name: BOOL_VALUE
+    type: scalar
+    doc: Boolean spelling accepted by YAML.
+    default: 1
+    tunable: Yes
 EOF
 
 # conf_get: a declared tunable overlay wins over the manifest default.
@@ -682,7 +695,7 @@ assert_eq "conf_get ignores environment values" "30" "$output"
 
 # Fixed entries ignore overlay rows.
 cat > "$conf_repo/.governance/conf/sample.conf" <<'EOF'
-FRESHNESS_DAYS=30
+FRESHNESS_DAYS=30 # inline overlay comment
 DEF_ONLY=99
 frozen-files receipts/*.md
 append-only COSTS.md
@@ -690,6 +703,20 @@ NOTAKEY here
 EOF
 output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_get sample DEF_ONLY ./directive.yaml)
 assert_eq "conf_get fixed value ignores overlay and inline YAML comment" "55" "$output"
+
+# The reader normalizes YAML boolean spellings and supports flow-style lists.
+printf 'FRESHNESS_DAYS=30\nDEF_ONLY=99\n' > "$conf_repo/.governance/conf/sample.conf"
+output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_get sample BOOL_VALUE ./directive.yaml)
+assert_eq "conf_get accepts YAML Yes for tunability" "1" "$output"
+output=$(cd "$conf_repo"; set +u; source "$LIB_SH"; conf_list sample ./directive.yaml FLOW_VALUES | tr '\n' '|')
+assert_eq "conf_list reads flow-style list defaults" "one|two # literal|" "$output"
+cat > "$conf_repo/.governance/conf/sample.conf" <<'EOF'
+FRESHNESS_DAYS=30
+DEF_ONLY=99
+frozen-files receipts/*.md
+append-only COSTS.md
+NOTAKEY here
+EOF
 
 # conf_get fail-loud: an undeclared key → non-zero, no stdout
 set +e

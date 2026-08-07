@@ -72,7 +72,7 @@ validate() {
         esac
     done
 
-    violation "$label — commit touches no $RECEIPTS_DIR/*.md (every commit must add or update its issue's receipt; use 'governance: allow-commit-issue-receipt-match <reason>' in the body for a deliberate exception such as a release commit)"
+    violation "$label — commit touches no $RECEIPTS_DIR/$ISSUE_RECEIPT_GLOB (every commit must add or update its issue's receipt; use 'governance: allow-commit-issue-receipt-match <reason>' in the body for a deliberate exception such as a release commit)"
 }
 
 # ──────────────────────────────────────────────────────────────

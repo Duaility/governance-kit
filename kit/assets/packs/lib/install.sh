@@ -128,7 +128,7 @@ install_directive_folder() {
     mkdir -p "$(dirname "$dest")"
     copy_tree_without_evals "$src" "$dest"
     # A directive ships check.sh, the commit/CI-lane pass/fail test — except a
-    # schedule-only discovery directive (a `judge:` block with no `section:`,
+    # schedule-only discovery directive (`hook: none`, `triggers: [schedule]`,
     # issue #355), which ships no executable at all: it is judged only by the
     # at-rest scheduled driver (`.governance/schedule.sh`).
     # chmod it if it came across; its absence is not an error here (packctl.py
@@ -357,7 +357,7 @@ write_installed_manifest() {
         if (( ${#install_assets[@]} > 0 )); then
             printf 'install_assets_seeded:\n'
             local asset
-            for asset in "${install_assets[@]}"; do
+            for asset in ${install_assets[@]+"${install_assets[@]}"}; do
                 printf '  - %s\n' "$asset"
             done
         else
@@ -367,7 +367,7 @@ write_installed_manifest() {
         if (( ${#collisions[@]} > 0 )); then
             printf 'collisions:\n'
             local entry path resolution extra
-            for entry in "${collisions[@]}"; do
+            for entry in ${collisions[@]+"${collisions[@]}"}; do
                 path="${entry%%:*}"
                 local rest="${entry#*:}"
                 resolution="${rest%%:*}"
@@ -392,7 +392,7 @@ write_installed_manifest() {
             if (( ${#path_b_entries[@]} > 0 )); then
                 printf '  entries:\n'
                 local pentry pfile pfp
-                for pentry in "${path_b_entries[@]}"; do
+                for pentry in ${path_b_entries[@]+"${path_b_entries[@]}"}; do
                     pfile="${pentry%%:*}"
                     pfp="${pentry#*:}"
                     printf '    - file: %s\n' "$pfile"

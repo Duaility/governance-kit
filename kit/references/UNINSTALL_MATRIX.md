@@ -19,7 +19,7 @@ Legend:
 | `.governance/run.sh` | Step 5 | manifest: `tests_dir: .governance` OR byte match against shipped `assets/dot-governance/run.sh` | delete | delete |
 | `.governance/lib.sh` | Step 5 | manifest OR byte match against shipped `assets/dot-governance/lib.sh` | delete | delete |
 | `.governance/packs/<pack-id>/directives/<id>/` | Step 3 (`install_directive_folder`) | lockfile: directive listed under `packs[*].directives[*]` | delete recursively | delete recursively |
-| `.governance/conf/<id>.conf` | Step 3 (seeded from the generic conf stub) | inside `.governance/`; deterministic name from the lockfile directive list | delete with the `.governance/` tree | same |
+| `.governance/conf/<owner>/<pack>/<id>.conf` | Step 3 (seeded from the generic conf stub) | inside `.governance/`; pack-qualified deterministic path from the lockfile directive list | delete with the `.governance/` tree | same |
 | `.github/workflows/governance.yml` | Step 7 | manifest: `ci_workflow: .github/workflows/governance.yml` OR filename match | delete | delete |
 | `scripts/enable-governance.sh` (legacy) | pre-#267 install | manifest: `enable_governance_script: scripts/enable-governance.sh` | delete; `rmdir scripts/` only if empty (it often is not) | same |
 | `.governance/install.yaml` | Step 3 (`write_installed_manifest`) | file exists | delete **last** (after it has been read); `rmdir .governance/` if empty | same |

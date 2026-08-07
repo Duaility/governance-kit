@@ -28,7 +28,8 @@ install_assets_seeded:           # files seeded by directives' install-assets/
 # NOTE: agent-session-identity creates no standalone ledger or harness
 # configuration; it adds a session row to the issue receipt at commit time.
 # NOTE: per-directive config overlays seeded from the generic conf stub are
-# NOT listed here. They live at the deterministic path .governance/conf/<id>.conf
+# NOT listed here. They live at the deterministic path
+# .governance/conf/<owner>/<pack>/<id>.conf
 # inside the .governance/ tree (which both uninstall modes delete wholesale), so
 # the path itself is the ledger; the apply engines report them under conf_seeded.
 collisions: []                   # empty list when Step 6 resolved nothing

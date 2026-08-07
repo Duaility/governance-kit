@@ -137,11 +137,11 @@ The skill never hand-executes `cp` / `rm` / lockfile edits / hook regen.
   for add/update it installs the approved directive folders (`install.sh`
   `install_directive_folder` + `install_directive_assets`), records seeded files
   in `install_assets_seeded`, seeds each freshly-**added** configurable
-  directive's user overlay `.governance/conf/<id>.conf` from the generic conf
+  directive's user overlay `.governance/conf/<owner>/<pack>/<id>.conf` from the generic conf
   stub (never on update — an existing overlay is sacrosanct; the seeded paths are reported under
   `conf_seeded`, not the ledger), regenerates the hook dispatcher, and upserts
   the lockfile pin **last**; for remove it deletes the directive folders **and
-  their `.governance/conf/<id>.conf` overlays**, strips each CONSTITUTION.md
+  their `.governance/conf/<owner>/<pack>/<id>.conf` overlays**, strips each CONSTITUTION.md
   subsection (`docsurgery`), drops the empty pack root, regenerates hooks, and
   prunes the lock entry **first**. The engine lives in
   `packapply.py`. `--decisions {"<directive-id>": "skip"}` holds individual
@@ -170,7 +170,7 @@ clean -fd .governance/packs` restores a clean tree if a late step fails.
 4. **Apply.** `packverb pack-apply add <root> <ref>` installs the approved
    directive folders, lays down any `install-assets/` and records them in
    `install_assets_seeded`, seeds each configurable directive's
-   `.governance/conf/<id>.conf` overlay from the generic conf stub (augment-only; reported under `conf_seeded`),
+   `.governance/conf/<owner>/<pack>/<id>.conf` overlay from the generic conf stub (augment-only; reported under `conf_seeded`),
    regenerates the hook dispatcher (so new `hook:` declarations and
    `hooks/<kind>.sh` populators are picked up by the runtime-discovery loop),
    and upserts the lockfile pin with the resolved SHA.
@@ -194,11 +194,11 @@ Default target: every lockfile entry. With a `<pack-id>` argument, update only t
    pack's SHA is unchanged, `pack-apply` reports `up-to-date` and writes nothing.
    When the plan flags `config_drift` on an updated directive (its manifest
    `config:` changed), tell the user the shipped defaults or tunability moved and that
-   they should reconcile their `.governance/conf/<id>.conf` overlay by hand —
+   they should reconcile their `.governance/conf/<owner>/<pack>/<id>.conf` overlay by hand —
    `pack update` refreshes `directive.yaml` but never rewrites the overlay.
 3. **Apply.** `packverb pack-apply update <root> [<pack-id>]` overwrites the
    drifted directive folders (refreshing their config registry
-   while leaving every `.governance/conf/<id>.conf` overlay untouched),
+   while leaving every `.governance/conf/<owner>/<pack>/<id>.conf` overlay untouched),
    regenerates the hook dispatcher, and upserts the new SHA into the lockfile.
 
 ## `pack remove <pack-id>`
@@ -209,7 +209,7 @@ Works on installed (`source: gh`) and repo-local (`source: local`) packs.
    lockfile, lists the directive folders attributed to the pack, and flags which
    of their CONSTITUTION.md subsections are present. Preview the deletions.
 2. **Apply.** On confirmation, `packverb pack-apply remove <root> <pack-id>`
-   deletes each directive folder **and its `.governance/conf/<id>.conf` overlay**
+   deletes each directive folder **and its `.governance/conf/<owner>/<pack>/<id>.conf` overlay**
    (pruning an emptied `.governance/conf/`), strips its CONSTITUTION.md subsection
    (`docsurgery`, exact-heading-matched so a prefix id never aliases), drops the
    now-empty `<owner>/<name>/` pack root, regenerates the hook dispatcher so

@@ -45,9 +45,9 @@ config:
     tunable: false
   - name: SCHEDULE_CMD
     type: scalar
-    doc: Fixed judge command used by the scheduled lane.
+    doc: Consumer-selected judge command used by the scheduled lane.
     default: claude -p --output-format text --model opus
-    tunable: false
+    tunable: true
   - name: SCHEDULE_CRON
     type: scalar
     doc: Consumer-selected cadence; empty disables scheduled enrollment.
@@ -60,14 +60,15 @@ config:
     tunable: true
 ```
 
-`ATTEST_SECTION`, `ATTEST_CMD`, and `SCHEDULE_CMD` are fixed because they name
-artifact and execution contracts. A directive without `ATTEST_SECTION` has no
+`ATTEST_SECTION` and `ATTEST_CMD` are fixed because they name the live artifact
+and execution contracts. `SCHEDULE_CMD` is tunable so a consumer can select a
+harness available in its environment. A directive without `ATTEST_SECTION` has no
 live attestation placement. `JUDGE_ROUNDS` may be tunable according to the
 pack's contract. Only `tunable: true` entries accept rows from
 `.governance/conf/<owner>/<pack>/<id>.conf`; environment variables are not a
 configuration tier.
 
-A judge with a `schedule` trigger must declare a non-empty fixed command. A
+A judge with a `schedule` trigger must declare a non-empty command. A
 non-empty `SCHEDULE_CRON` enrolls it in `workflow generate`; an empty value is
 eligible but disabled. At runtime a missing command in an invalid or legacy
 install is reported un-adjudicated; the environment is not a parallel

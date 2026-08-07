@@ -11,10 +11,9 @@ name: Governance schedule
 # scheduled driver. Mechanical check.sh members fail the job directly; judge
 # results are recorded in receipts or the schedule digest issue.
 #
-# To turn judge execution on, configure the repository variable
-# GOVERNANCE_SCHEDULE_ENABLED=true and provide ANTHROPIC_API_KEY for the
-# bundled claude-based SCHEDULE_CMD declarations. Missing credentials are
-# reported honestly; they never become a guessed PASS.
+# Provide the credentials required by each directive's configured
+# SCHEDULE_CMD. Missing credentials are reported honestly; they never become
+# a guessed PASS. A non-empty SCHEDULE_CRON is the only enrollment switch.
 
 on:
   schedule:
@@ -35,26 +34,26 @@ permissions:
   issues: write
 
 concurrency:
-  group: governance-schedule
+  group: governance-schedule-${{ github.event.schedule || github.run_id }}
   cancel-in-progress: false
 
 jobs:
   schedule:
     runs-on: ubuntu-latest
+    # There is intentionally no schedule-wide invocation budget. Keep the
+    # workflow bounded by GitHub's normal job timeout instead of silently
+    # truncating a directive's independent judgment work.
+    timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@93cb6afe18208431cddfb8368fd83d5badbf9bfd  # v5.0.1
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5.0.1
         with:
           fetch-depth: 0
 
       - name: Install harness CLI
         env:
-          SCHEDULE_ENABLED: ${{ vars.GOVERNANCE_SCHEDULE_ENABLED }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          if [ "${SCHEDULE_ENABLED:-}" != "true" ]; then
-            echo "governance schedule: no GOVERNANCE_SCHEDULE_ENABLED=true repository variable — judge members will be reported un-adjudicated, while mechanical members still run"
-          fi
           if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
             echo "governance schedule: no ANTHROPIC_API_KEY secret — judge members will skip honestly; mechanical members still run and can still fail this job"
           fi

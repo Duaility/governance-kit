@@ -326,17 +326,26 @@ def validate_pack_dir_with_warnings(pack_dir: Path) -> tuple[list[str], list[str
             warnings.extend(cmd_warnings)
             if not isinstance(triggers, list):
                 errors.append(f"{pack_dir}/{directive_id}: a judge declaration requires explicit triggers")
+            commit_triggers = set(triggers or []) & TRIGGER_HOOK_VALUES if isinstance(triggers, list) else set()
+            if not commit_triggers and hook in TRIGGER_HOOK_VALUES and triggers is None:
+                commit_triggers = {hook}
             section = config_entry(config, "ATTEST_SECTION")
             if section and (section.get("type") != "scalar" or section.get("tunable") is not False or not scalar(section.get("default"))):
                 errors.append(
                     f"{pack_dir}/{directive_id}: ATTEST_SECTION must be a non-empty fixed scalar"
                 )
-            if scalar(judge.get("gate") or "record") in {"verdict", "verdict-contestable"} and not section:
+            if section and not commit_triggers:
                 errors.append(
-                    f"{pack_dir}/{directive_id}: judge.gate {scalar(judge.get('gate'))!r} "
-                    "requires a fixed ATTEST_SECTION config entry"
+                    f"{pack_dir}/{directive_id}: ATTEST_SECTION is only valid with an explicit git-hook trigger; "
+                    "schedule-only judges must omit it"
                 )
-            if section:
+            gate = scalar(judge.get("gate") or "record")
+            if gate in {"verdict", "verdict-contestable"} and (not section or not commit_triggers):
+                errors.append(
+                    f"{pack_dir}/{directive_id}: judge.gate {gate!r} requires a fixed ATTEST_SECTION "
+                    "and a git-hook trigger"
+                )
+            if section and commit_triggers:
                 attest_cmd = config_entry(config, "ATTEST_CMD")
                 if not attest_cmd or attest_cmd.get("type") != "scalar" or attest_cmd.get("tunable") is not False or not scalar(attest_cmd.get("default")):
                     errors.append(
@@ -344,9 +353,9 @@ def validate_pack_dir_with_warnings(pack_dir: Path) -> tuple[list[str], list[str
                     )
             if isinstance(triggers, list) and "schedule" in triggers:
                 schedule_cmd = config_entry(config, "SCHEDULE_CMD")
-                if not schedule_cmd or schedule_cmd.get("type") != "scalar" or schedule_cmd.get("tunable") is not False or not scalar(schedule_cmd.get("default")):
+                if not schedule_cmd or schedule_cmd.get("type") != "scalar" or not scalar(schedule_cmd.get("default")):
                     errors.append(
-                        f"{pack_dir}/{directive_id}: a schedule trigger requires a non-empty fixed SCHEDULE_CMD scalar"
+                        f"{pack_dir}/{directive_id}: a schedule trigger requires a non-empty SCHEDULE_CMD scalar"
                     )
         for field in DIRECTIVE_FIELDS:
             if field not in directive or directive.get(field) in (None, ""):

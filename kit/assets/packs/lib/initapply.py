@@ -179,7 +179,7 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
         all_dids, seeded, conf_seeded = _install_directives(root, packs, report)
         report["seeded_assets"] = seeded
         # Each configurable directive (one carrying a `config:` block) seeds a
-        # generic-stub overlay at `.governance/conf/<id>.conf` (augment-only) via
+        # generic-stub overlay at `.governance/conf/<owner>/<pack>/<id>.conf` (augment-only) via
         # seed_directive_conf, inside _install_directives.
         report["conf_seeded"] = conf_seeded
 

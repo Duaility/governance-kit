@@ -37,7 +37,7 @@ EOF
 chmod +x "$bindir/judge-pass"
 
 install_judge() {
-    local id="$1" command="$2" evidence="${3:-range}"
+    local id="$1" command="$2" evidence="${3:-range}" staleness="${4:-}"
     local dir="$repo/.governance/packs/acme/audit/directives/$id"
     mkdir -p "$dir/evals"
     cat > "$dir/directive.yaml" <<EOF
@@ -58,6 +58,17 @@ config:
     doc: Evidence mode used by this directive.
     default: $evidence
     tunable: false
+EOF
+    if [[ -n "$staleness" ]]; then
+        cat >> "$dir/directive.yaml" <<EOF
+  - name: SCHEDULE_STALENESS_DAYS
+    type: scalar
+    doc: Advisory maximum age for the judged range.
+    default: $staleness
+    tunable: false
+EOF
+    fi
+    cat >> "$dir/directive.yaml" <<'EOF'
 judge:
   inputs: [range-diff]
   checks:
@@ -101,6 +112,75 @@ set -e
 assert_eq "missing fixed command remains an honest non-failure" "0" "$rc"
 assert_contains "environment judge command is ignored" "1 un-adjudicated" "$output"
 assert_contains "commits evidence is resolved per directive" "per-member evidence" "$output"
+
+printf '── invalid evidence values fail loudly ────────────────\n'
+install_judge bad-evidence judge-pass invalid
+set +e
+output="$(cd "$repo" && PATH="$bindir:$PATH" bash .governance/schedule.sh run --lane nightly --range "$base..$head" --no-gh bad-evidence 2>&1)"
+rc=$?
+set -e
+assert_eq "invalid SCHEDULE_EVIDENCE exits 2" "2" "$rc"
+assert_contains "invalid evidence names the accepted values" "expected \`range\` or \`commits\`" "$output"
+
+printf '── staleness advisories remain visible on clean runs ─────\n'
+install_judge stale-warning judge-pass range 0
+set +e
+output="$(cd "$repo" && PATH="$bindir:$PATH" bash .governance/schedule.sh run --lane nightly --range "$base..$head" --no-gh stale-warning 2>&1)"
+rc=$?
+set -e
+assert_eq "stale advisory run exits cleanly" "0" "$rc"
+assert_contains "clean run prints stale advisory" "stale members (advisory)" "$output"
+
+printf '── clean runs advance a durable resume marker ──────────\n'
+install_judge clean-state judge-pass range
+fake_gh="$WORK/fake-gh"
+cat > "$fake_gh" <<'EOF'
+#!/usr/bin/env bash
+set -u
+state="${FAKE_GH_STATE:?}"
+case "${1:-}" in
+    label) exit 0 ;;
+    issue)
+        case "${2:-}" in
+            list)
+                if [[ "$*" == *"--json body"* ]] && [[ -f "$state" ]]; then
+                    cat "$state"
+                elif [[ "$*" == *"--json number,title"* ]] && [[ -f "$state" ]]; then
+                    printf '123\n'
+                fi
+                exit 0
+                ;;
+            create|edit)
+                body_file=""
+                while [[ $# -gt 0 ]]; do
+                    [[ "$1" == "--body-file" ]] && body_file="${2:-}" && shift
+                    shift
+                done
+                [[ -n "$body_file" && -f "$body_file" ]] && cp "$body_file" "$state"
+                printf 'https://example.invalid/issue/123\n'
+                exit 0
+                ;;
+        esac
+        ;;
+esac
+exit 0
+EOF
+chmod +x "$fake_gh"
+ln -s "$fake_gh" "$WORK/gh"
+state_file="$WORK/schedule-state"
+set +e
+output="$(cd "$repo" && PATH="$WORK:$bindir:$PATH" FAKE_GH_STATE="$state_file" bash .governance/schedule.sh run --lane clean --range "$base..$head" clean-state 2>&1)"
+rc=$?
+set -e
+assert_eq "first clean run exits cleanly" "0" "$rc"
+assert_contains "first clean run still reports no findings" "no new findings" "$output"
+assert_contains "first clean run writes state marker" "governance-schedule-state:clean:end=" "$(cat "$state_file")"
+set +e
+output="$(cd "$repo" && PATH="$WORK:$bindir:$PATH" FAKE_GH_STATE="$state_file" bash .governance/schedule.sh run --lane clean clean-state 2>&1)"
+rc=$?
+set -e
+assert_eq "second clean run exits cleanly" "0" "$rc"
+assert_contains "second clean run still has no findings" "no new findings" "$output"
 
 printf '── mechanical facts still fail the lane ────────────────\n'
 mech="$repo/.governance/packs/acme/audit/directives/mechanical"

@@ -63,7 +63,7 @@ done < <(conf_list toolchain-config-protection "$(dirname "$0")/directive.yaml" 
 is_protected() {
     local f="$1" base p
     base="${f##*/}"
-    for p in "${PATTERNS[@]}"; do
+    for p in ${PATTERNS[@]+"${PATTERNS[@]}"}; do
         case "$p" in
             */)   [[ "$f" == "$p"* ]] && return 0 ;;   # directory prefix
             */*)  [[ "$f" == $p ]]   && return 0 ;;    # full-path glob

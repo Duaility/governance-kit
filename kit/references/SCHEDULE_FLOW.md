@@ -56,7 +56,8 @@ file, records the path in `.governance/install.yaml`, and refreshes the
 There is no schedule-wide budget. Every scheduled judge invocation runs unless
 its own command is unavailable; the runtime reports unavailable judgments as
 un-adjudicated and never guesses a verdict. The CLI's own per-call timeout and
-the workflow's normal job controls remain in force.
+the generated workflow's 30-minute job timeout remain in force. A timeout is
+reported by GitHub as a failed job; it is not a hidden per-directive budget.
 
 ## Per-directive evidence and independent judges
 

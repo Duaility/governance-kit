@@ -12,10 +12,10 @@ each in-scope directive to its **pinned** pristine source in one call:
     `copy_tree_without_evals`, and replace/insert its CONSTITUTION.md subsection
     via docsurgery from the pinned `constitution.md`. The folder includes the
     pack-owned `directive.yaml config:` (typed defaults + docs, issue #366), so
-    restore refreshes that; the user-owned `.governance/conf/<id>.conf` is never
+    restore refreshes that; the user-owned `.governance/conf/<owner>/<pack>/<id>.conf` is never
     touched.
   * `drop` (only under `--all --drop-handauthored`) — delete the directive folder
-    and its user conf, and strip its CONSTITUTION.md subsection.
+    and its pack-qualified user conf, and strip its CONSTITUTION.md subsection.
   * `skip` — byte-identical to pinned; nothing to do.
 
 Then it regenerates the hook dispatcher, appends one Evolution Log entry per
@@ -108,7 +108,8 @@ def cmd_reset_apply(args: argparse.Namespace) -> int:
                 report["constitution_changed"].append(f"{d['id']}:{action}")
         elif d["kind"] == "drop":
             shutil.rmtree(root / d["dest"], ignore_errors=True)
-            (root / ".governance" / "conf" / f"{d['id']}.conf").unlink(missing_ok=True)
+            user_conf = d.get("user_conf", f".governance/conf/{d['pack_id']}/{d['id']}.conf")
+            (root / user_conf).unlink(missing_ok=True)
             report["dropped"].append(d["id"])
             if const_text:
                 const_text, removed = strip_directive_subsection(const_text, d["id"])

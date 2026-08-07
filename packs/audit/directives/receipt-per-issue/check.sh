@@ -252,7 +252,7 @@ coverage_exempt() {
 seen_nums=()
 seen_files=()
 inscope_receipts=()
-for f in "${receipt_files[@]}"; do
+for f in ${receipt_files[@]+"${receipt_files[@]}"}; do
     if has_receipt_waiver "$f"; then
         continue
     fi
@@ -276,7 +276,7 @@ for f in "${receipt_files[@]}"; do
     if [[ "$base" =~ $fname_re ]]; then
         num="${BASH_REMATCH[1]}"
         dup_of=""
-        for i in "${!seen_nums[@]}"; do
+        for i in ${seen_nums[@]+"${!seen_nums[@]}"}; do
             if [[ "${seen_nums[$i]}" == "$num" ]]; then
                 dup_of="${seen_files[$i]}"
                 break
@@ -303,7 +303,7 @@ for f in "${receipt_files[@]}"; do
     fi
 
     has_all_sections=1
-    for section in "${required_sections[@]}"; do
+    for section in ${required_sections[@]+"${required_sections[@]}"}; do
         if ! grep -qE "^##[[:space:]]+${section}\b" "$f"; then
             violation "$f — receipt is missing a '## ${section}' section"
             has_all_sections=0
@@ -316,7 +316,7 @@ for f in "${receipt_files[@]}"; do
     # writes "None".
     if receipt_in_scope "$f"; then
         inscope_receipts+=("$f")
-        for section in "${new_receipt_sections[@]}"; do
+        for section in ${new_receipt_sections[@]+"${new_receipt_sections[@]}"}; do
             grep -qE "^##[[:space:]]+${section}\b" "$f" \
                 || violation "$f — newly added receipt is missing a '## ${section}' section"
         done
@@ -394,7 +394,7 @@ if [[ ${#coverage_anchors[@]} -gt 0 ]]; then
     # Combined, normalized prose of every anchor receipt (whole file body —
     # any section may name a changed file).
     coverage_evidence=""
-    for r in "${coverage_anchors[@]}"; do
+    for r in ${coverage_anchors[@]+"${coverage_anchors[@]}"}; do
         coverage_evidence+="$(normalize "$(cat "$r" 2>/dev/null)")"$'\n'
     done
 

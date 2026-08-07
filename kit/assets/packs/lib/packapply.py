@@ -123,7 +123,7 @@ def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str
             report["added" if d["status"] == "add" else "updated"].append(d["dest"])
             seeded.extend(r for r in _install_asset_rels(pack_dir, did) if not (root / r).exists())
             # Per-directive user conf is seeded only on a fresh add — never on
-            # update, where an existing `.governance/conf/<id>.conf` is
+            # update, where an existing `.governance/conf/<owner>/<pack>/<id>.conf` is
             # user-owned and a deleted one must not be resurrected.
             # seed_directive_conf is augment-only as a second guard.
             # Every self-contained config registry gets one generic overlay.

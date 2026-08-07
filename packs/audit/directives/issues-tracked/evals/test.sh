@@ -26,6 +26,13 @@ stage_all
 commit_quiet "docs: add quality tracker"
 EVAL_LABEL="$EVAL_ID" expect_pass "$CHECK"
 
+# A configured heading is a token, not a prefix: `## Opened` must not satisfy
+# the required `## Open` section.
+sed -i.bak 's/^## Open$/## Opened/' QUALITY.md && rm -f QUALITY.md.bak
+stage_all
+commit_quiet "docs: reject open-prefix heading"
+EVAL_LABEL="$EVAL_ID open-prefix-heading" expect_fail "$CHECK"
+
 # fail — missing one of the required sections
 cat > QUALITY.md <<'EOF'
 # Quality tracker

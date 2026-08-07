@@ -106,6 +106,7 @@ def compute_reset_plan(root: Path, scope: str, target: str | None,
                     directives.append({
                         "id": did, "pack_id": pid, "kind": "drop",
                         "dest": f".governance/packs/{pid}/directives/{did}",
+                        "user_conf": f".governance/conf/{pid}/{did}.conf",
                     })
 
     ctx = _manifest_context(root)

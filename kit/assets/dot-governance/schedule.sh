@@ -13,7 +13,7 @@
 #   schedule (at rest, no session)   this driver: the same declaration, replayed
 #                                    through the same lib.sh prompt builder and
 #                                    the schedule judge resolution ladder below —
-#                                    the directive's author-fixed `SCHEDULE_CMD`.
+#                                    the directive's configured `SCHEDULE_CMD`.
 #
 # A cadence is a directive-owned cron group: the generated workflow names its
 # members and the runtime keeps state partitioned by a stable cadence id. Every
@@ -58,7 +58,7 @@
 #                               optional: with no gh the digest goes to stderr.
 #
 # Schedule judge resolution ladder (per directive, checked in this order):
-#   1. the directive's fixed `SCHEDULE_CMD` config.
+#   1. the directive's configured `SCHEDULE_CMD` value (the overlay may tune it).
 #   2. nothing resolves → the directive is skipped with one honest log line and
 #      reported un-adjudicated in the digest, never guessed.
 #
@@ -68,7 +68,7 @@ set -u
 
 usage() {
     cat >&2 <<'EOF'
-governance schedule — at-rest adjudication of a named lane's members.
+governance schedule — at-rest adjudication of a generated cadence's members.
 
   bash .governance/run.sh --scheduled --lane <name> \
       [--range A..B] [--dry-run] [--no-gh] \
@@ -132,7 +132,15 @@ _schedule_issue_bodies() {
 # _schedule_last_end_sha — the resume point recorded by this lane's previous
 #   digest. The marker is lane-scoped for the same reason the label is.
 _schedule_last_end_sha() {
-    _schedule_issue_bodies all 1 \
+    # A clean run has no digest issue, so its resume marker lives in the
+    # lane's stable state issue. Fall back to the digest marker for one-time
+    # upgrades from older generated workflows.
+    local marker
+    marker="$(_schedule_issue_bodies all 100 \
+        | sed -n "s/.*governance-schedule-state:$LANE:end=\([0-9a-f]\{7,40\}\).*/\1/p" \
+        | head -n 1)"
+    [[ -n "$marker" ]] && { printf '%s' "$marker"; return 0; }
+    _schedule_issue_bodies all 100 \
         | sed -n "s/.*governance-schedule:$LANE:end=\([0-9a-f]\{7,40\}\).*/\1/p" \
         | head -n 1
 }
@@ -140,10 +148,14 @@ _schedule_last_end_sha() {
 # _schedule_open_pairs — `<directive>|<file>` pairs already reported in an OPEN
 #   digest of this lane, so an unfixed finding does not multiply daily.
 _schedule_open_pairs() {
-    _schedule_issue_bodies open 20 \
-        | sed -n 's/.*<!-- finding: \([^|]*\) | \([^>]*\) -->.*/\1|\2/p' \
-        | sed 's/[[:space:]]*|[[:space:]]*/|/; s/[[:space:]]*$//' \
-        | sort -u
+    {
+        _schedule_issue_bodies open 20 \
+            | sed -n 's/.*<!-- finding: \([^|]*\) | \([^>]*\) -->.*/\1|\2/p' \
+            | sed 's/[[:space:]]*|[[:space:]]*/|/; s/[[:space:]]*$//'
+        _schedule_issue_bodies open 20 \
+            | sed -n 's/.*<!-- unadjudicated: \([^>]*\) -->.*/\1|unadjudicated/p' \
+            | sed 's/[[:space:]]*$//'
+    } | sort -u
 }
 
 # _schedule_ensure_label — idempotently create this lane's digest label; 0 iff
@@ -156,6 +168,29 @@ _schedule_ensure_label() {
         --color 5319E7 2>&1)" && return 0
     case "$err" in *"already exists"*) return 0 ;; esac
     return 1
+}
+
+_schedule_state_body() {
+    printf 'Governance schedule state for lane `%s`.' "$LANE"
+    printf '\n\n<!-- governance-schedule-state:%s:end=%s -->\n' "$LANE" "$HEAD_SHA"
+}
+
+# Advance the clean-run resume marker without manufacturing a finding digest.
+# The issue is deliberately separate from digest issues so open findings retain
+# their normal lifecycle while every successful cadence still advances state.
+_schedule_update_state() {
+    _schedule_gh_write_ok || return 0
+    _schedule_ensure_label || return 0
+    local title="Governance schedule[$LANE] state" number
+    _schedule_state_body > "$WORK/state"
+    number="$(gh issue list --label "$LABEL" --state all --limit 100 \
+        --json number,title --jq ".[] | select(.title == \"$title\") | .number" \
+        2>/dev/null | head -n 1)"
+    if [[ -n "$number" ]]; then
+        gh issue edit "$number" --body-file "$WORK/state" >/dev/null 2>&1 || true
+    else
+        gh issue create --label "$LABEL" --title "$title" --body-file "$WORK/state" >/dev/null 2>&1 || true
+    fi
 }
 
 # ── Directive discovery ─────────────────────────────────────────────────────
@@ -188,6 +223,21 @@ _schedule_lib_call() {
 # _schedule_cmd_label <cmd> → the first word of a judge cmd, for honest logging.
 _schedule_cmd_label() { printf '%s' "${1%% *}"; }
 
+_schedule_evidence() {
+    local value="$1" surface="$2"
+    if [[ -z "$value" ]]; then
+        [[ "$surface" == "change-set" ]] && value=commits || value=range
+    fi
+    case "$value" in
+        range | commits) printf '%s' "$value" ;;
+        *)
+            printf 'governance schedule: invalid SCHEDULE_EVIDENCE `%s` — expected `range` or `commits`\n' \
+                "$value" >&2
+            return 2
+            ;;
+    esac
+}
+
 # ── Judging ─────────────────────────────────────────────────────────────────
 
 # _schedule_record_call — record one judge invocation for the digest footer.
@@ -211,13 +261,21 @@ _schedule_reason() {
     printf '%s' "${r%"${r##*[![:space:]]}"}"
 }
 
-# _schedule_unadj <row-index> <text>
+# _schedule_unadj <row-index> <directive-id> <text>
 #   Record work that was NOT judged, under the directive it belonged to. Every
 #   path that skips a judgment goes through here: a digest that stays silent
 #   about what it could not adjudicate reads as a clean bill, which is the one
 #   thing this lane must never produce.
 _schedule_unadj() {
-    printf -- '  - %s\n' "$2" >> "$WORK/u.$1"
+    local idx="$1" id="$2" text="$3" key="$2|unadjudicated"
+    if grep -qxF "$key" "$WORK/pairs" 2>/dev/null || \
+        grep -qxF "$key" "$WORK/unadj-pairs" 2>/dev/null; then
+        DUP=$((DUP + 1))
+        return 0
+    fi
+    printf -- '  - %s\n' "$text" >> "$WORK/u.$idx"
+    printf -- '<!-- unadjudicated: %s -->\n' "$id" >> "$WORK/markers"
+    printf '%s\n' "$key" >> "$WORK/unadj-pairs"
     UNADJ=$((UNADJ + 1))
 }
 
@@ -305,7 +363,7 @@ _schedule_flush_rounds() {
             printf "%s${RS}%s${RS}%s${RS}%s${RS}%s${RS}%s\n" \
                 "$idx" "$id" "$receipt" "$section" "$next" "$verdict" >> "$WORK/rounds.done"
         else
-            _schedule_unadj "$idx" "$receipt (the round could not be written)"
+            _schedule_unadj "$idx" "$id" "$receipt (the round could not be written)"
         fi
     done < "$WORK/rounds"
     : > "$WORK/rounds"
@@ -315,7 +373,7 @@ _schedule_flush_rounds() {
     if [[ -z "$stamp" ]]; then
         while IFS="$RS" read -r idx id receipt section next verdict; do
             [[ -n "$idx" ]] || continue
-            _schedule_unadj "$idx" "$receipt (no adjudication stamp could be computed — the round cannot be trusted)"
+            _schedule_unadj "$idx" "$id" "$receipt (no adjudication stamp could be computed — the round cannot be trusted)"
         done < "$WORK/rounds.done"
         return 0
     fi
@@ -388,7 +446,7 @@ _schedule_consume() {
     case "$verdict" in
         PASS | REFUTED) ;;
         *)
-            _schedule_unadj "$idx" "$subject (cmd:$label answered outside the verdict grammar)"
+            _schedule_unadj "$idx" "$id" "$subject (cmd:$label answered outside the verdict grammar)"
             return 0
             ;;
     esac
@@ -429,7 +487,7 @@ _schedule_run_one() {
     _schedule_record_call
     _judge_prompt "$abs" "$section" "$checks" "$yaml" "$RANGE" schedule > "$WORK/prompt"
     if ! _schedule_lib_call "$dir0" _judge_cmd_run "$cmd" < "$WORK/prompt" > "$WORK/out"; then
-        _schedule_unadj "$idx" "$(_schedule_subject "$lane" "$receipt") (cmd:$(_schedule_cmd_label "$cmd") rendered no verdict)"
+        _schedule_unadj "$idx" "$id" "$(_schedule_subject "$lane" "$receipt") (cmd:$(_schedule_cmd_label "$cmd") rendered no verdict)"
         return 0
     fi
     _schedule_consume "$lane" "$idx" "$id" "$section" "$receipt" "$abs" "$WORK/out" "$cmd"
@@ -544,7 +602,7 @@ _schedule_mech_at_commit() {
 _schedule_render_digest() {
     printf 'Automated scheduled adjudication (lane `%s`). Nothing here blocked a commit,\n' "$LANE"
     printf 'a push or a PR: these are candidates for the issue → agent → PR loop, judged\n'
-    printf 'at rest by each directive'"'"'s fixed `SCHEDULE_CMD`.\n\n'
+    printf 'at rest by each directive'"'"'s configured `SCHEDULE_CMD`.\n\n'
     if [[ -s "$WORK/sections" ]]; then
         cat "$WORK/sections"
     else
@@ -555,7 +613,7 @@ _schedule_render_digest() {
     printf -- '- lane: `%s`\n' "$LANE"
     printf -- '- commit range: `%s`\n' "$FULL_RANGE"
     printf -- '- evidence: per member (`SCHEDULE_EVIDENCE`, else derived from `surface`)\n'
-    printf -- '- judge: per-directive fixed `SCHEDULE_CMD`\n'
+    printf -- '- judge: per-directive configured `SCHEDULE_CMD`\n'
     printf -- '- judge directives in this lane: %s\n' "$DIRS"
     printf -- '- mechanical directives in this lane: %s (failed: %s)\n' "$MECH" "$MECH_FAIL"
     printf -- '- judge calls made: %s\n' "$JUDGED"
@@ -655,6 +713,7 @@ cmd_run() {
     : > "$WORK/sections"
     : > "$WORK/markers"
     : > "$WORK/pairs"
+    : > "$WORK/unadj-pairs"
     : > "$WORK/rows"
     : > "$WORK/mech"
     : > "$WORK/rows.range"
@@ -674,11 +733,10 @@ cmd_run() {
     #   judge members  → one RS row per directive in $WORK/rows
     #     <idx> ␞ id ␞ dir ␞ yaml ␞ section ␞ cmd ␞ checks-US ␞ summary
     #   mechanical ones → `<id> ␞ <dir>` in $WORK/mech
-    # `section` is also the judge lane selector — present = attest, absent =
-    # discovery. A judge member that resolves no cmd keeps its row (with an
-    # empty cmd) and is reported un-adjudicated: it was NAMED by the lane, so
-    # silently dropping it would let the digest read as a clean bill.
-    local yaml dir id full_id hook triggers cmd section checks c summary tok hit evidence surface staleness
+    # The effective hook trigger selects the lane; ATTEST_SECTION only names
+    # where a live attestation is recorded. A judge member that resolves no cmd
+    # keeps its row (with an empty cmd) and is reported un-adjudicated.
+    local yaml dir id full_id hook triggers cmd section checks c summary tok hit evidence surface staleness attest_lane
     while IFS= read -r yaml; do
         [[ -n "$yaml" ]] || continue
         dir="$(dirname "$yaml")"
@@ -726,7 +784,7 @@ cmd_run() {
             MECH=$((MECH + 1))
             surface="$(_yaml_top_list "$yaml" surface)"
             evidence="$( _schedule_lib_call "$dir" conf_get "$id" SCHEDULE_EVIDENCE "$yaml" 2>/dev/null )" || evidence=""
-            [[ -n "$evidence" ]] || { [[ "$surface" == "change-set" ]] && evidence=commits || evidence=range; }
+            evidence="$(_schedule_evidence "$evidence" "$surface")" || return 2
             printf "%s${RS}%s\n" "$id" "$dir" >> "$WORK/mech"
             printf "%s${RS}%s\n" "$id" "$dir" >> "$WORK/mech.$evidence"
             continue
@@ -735,10 +793,17 @@ cmd_run() {
         # Command choice is author-owned. The environment is not a parallel
         # config channel.
         cmd="$(_schedule_lib_call "$dir" _judge_cmd_resolve "$yaml" schedule 2>/dev/null)"
-        section="$( _schedule_lib_call "$dir" conf_get "$id" ATTEST_SECTION "$yaml" 2>/dev/null )" || section=""
+        attest_lane=0
+        case " $triggers " in
+            *" pre-commit "*|*" commit-msg "*|*" prepare-commit-msg "*|*" post-commit "*|*" pre-push "*) attest_lane=1 ;;
+        esac
+        section=""
+        if [[ "$attest_lane" -eq 1 ]]; then
+            section="$( _schedule_lib_call "$dir" conf_get "$id" ATTEST_SECTION "$yaml" 2>/dev/null )" || section=""
+        fi
         surface="$(_yaml_top_list "$yaml" surface)"
         evidence="$( _schedule_lib_call "$dir" conf_get "$id" SCHEDULE_EVIDENCE "$yaml" 2>/dev/null )" || evidence=""
-        [[ -n "$evidence" ]] || { [[ "$surface" == "change-set" ]] && evidence=commits || evidence=range; }
+        evidence="$(_schedule_evidence "$evidence" "$surface")" || return 2
         staleness="$( _schedule_lib_call "$dir" conf_get "$id" SCHEDULE_STALENESS_DAYS "$yaml" 2>/dev/null )" || staleness=""
         DIRS=$((DIRS + 1))
         checks=""
@@ -755,7 +820,7 @@ cmd_run() {
         if [[ "$staleness" =~ ^[0-9]+$ ]]; then
             oldest_epoch="$(git log -1 --format=%ct "${FULL_RANGE%%..*}" 2>/dev/null)" || oldest_epoch=""
             now_epoch="$(date +%s)"
-            if [[ "$oldest_epoch" =~ ^[0-9]+$ ]] && (( (now_epoch - oldest_epoch) / 86400 > staleness )); then
+            if [[ "$oldest_epoch" =~ ^[0-9]+$ ]] && (( (now_epoch - oldest_epoch) / 86400 >= staleness )); then
                 printf '%s (declared maximum %s day(s))\n' "${full_id:-$id}" "$staleness" >> "$WORK/stale"
             fi
         fi
@@ -764,7 +829,7 @@ cmd_run() {
         if [[ -z "$cmd" ]]; then
             printf 'governance schedule: %s resolved no schedule judge (`SCHEDULE_CMD` is empty) — reported un-adjudicated, never guessed\n' \
                 "${full_id:-$id}" >&2
-            _schedule_unadj "$DIRS" "no schedule judge resolved for this lane — declare fixed \`SCHEDULE_CMD\` config"
+            _schedule_unadj "$DIRS" "$id" "no schedule judge resolved for this lane — declare a non-empty \`SCHEDULE_CMD\` config"
         fi
     done < <(_schedule_directive_yamls)
 
@@ -849,6 +914,11 @@ cmd_run() {
         return "$rc"
     fi
     if [[ ! -s "$WORK/sections" ]]; then
+        if [[ -s "$WORK/stale" ]]; then
+            printf 'governance schedule[%s]: stale members (advisory):\n' "$LANE" >&2
+            sed 's/^/  - /' "$WORK/stale" >&2
+        fi
+        _schedule_update_state
         printf 'governance schedule[%s]: no new findings — no digest filed\n' "$LANE" >&2
         return "$rc"
     fi
@@ -871,6 +941,7 @@ cmd_run() {
     # shellcheck disable=SC2086
     if out="$(gh issue create $label_args --title "$title" --body-file "$WORK/body" 2>&1)"; then
         printf '%s\n' "$out"
+        _schedule_update_state
         return "$rc"
     fi
     printf 'governance schedule: `gh issue create` failed: %s\n' "$out" >&2

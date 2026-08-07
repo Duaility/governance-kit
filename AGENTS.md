@@ -201,7 +201,7 @@ Edits to source files flow to both runtimes live.
 - [kit/references/PACK_AUTHORING.md](kit/references/PACK_AUTHORING.md) — writing a third-party pack.
 - [kit/references/DIRECTIVE_AUTHORING.md](kit/references/DIRECTIVE_AUTHORING.md) — the craft guide for writing a good directive check.
 - [kit/references/LIB_API.md](kit/references/LIB_API.md) — the canonical `lib.sh` helper API every `check.sh` can call, and the version-floor obligation.
-- [kit/references/SCHEDULE_FLOW.md](kit/references/SCHEDULE_FLOW.md) — the off-commit-path judge lane (explicit `schedule` trigger, issues #142, #355), consumer-defined into named lanes via `governance schedule`.
+- [kit/references/SCHEDULE_FLOW.md](kit/references/SCHEDULE_FLOW.md) — the off-commit-path judge lane (explicit `schedule` trigger, issues #142, #355), compiled into one workflow via `governance workflow generate`.
 - [kit/references/JUDGE.md](kit/references/JUDGE.md) — the shared judge declaration: a directive gates a section a fresh-context sub-agent must populate, via the remediation loop (issue #272).
 - [kit/references/NATIVE_TESTS.md](kit/references/NATIVE_TESTS.md) — porting bash directives to pytest / jest / go test, husky / pre-commit.com snippets.
 - [kit/references/VERSIONING.md](kit/references/VERSIONING.md) — the two version axes (kit vs pack), the semver policy, the tag scheme, and the release procedure.

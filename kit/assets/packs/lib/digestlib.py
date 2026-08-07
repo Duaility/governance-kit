@@ -102,8 +102,9 @@ def _schedule_managed_files(root: Path) -> list[str]:
     Unlike the retired sweep lane's fixed asset pair, the generated schedule
     workflow is a consumer-owned artifact created explicitly via
     `governance workflow generate` (`workflowlib.apply`). The current output is
-    `.github/workflows/governance-schedule.yml`; the prefixed lane files are
-    still included so a migration can detect and reconcile them. `schedule.sh`
+    `.github/workflows/governance-schedule.yml`; a legacy prefixed file is
+    included only when its managed marker proves that the kit created it.
+    `schedule.sh`
     itself (the at-rest engine, replacing `.governance/sweep.sh`) needs no
     special case any more — it now lives in `<tests_dir>/schedule.sh`, next to
     run.sh/lib.sh, and is added to the static candidates list in
@@ -111,11 +112,18 @@ def _schedule_managed_files(root: Path) -> list[str]:
     workflows_dir = Path(root) / ".github" / "workflows"
     if not workflows_dir.is_dir():
         return []
-    return sorted(
-        f".github/workflows/{p.name}"
-        for p in workflows_dir.glob("governance-schedule*.yml")
-        if p.is_file()
-    )
+    current = workflows_dir / "governance-schedule.yml"
+    paths = [current] if current.is_file() else []
+    for path in workflows_dir.glob("governance-schedule-*.yml"):
+        if not path.is_file():
+            continue
+        try:
+            head = "\n".join(path.read_text(errors="replace").splitlines()[:8])
+        except OSError:
+            continue
+        if "governance-kit:managed" in head:
+            paths.append(path)
+    return sorted(f".github/workflows/{p.name}" for p in paths)
 
 
 def managed_runtime_files(root: str | Path) -> list[str]:
@@ -124,8 +132,9 @@ def managed_runtime_files(root: str | Path) -> list[str]:
     generated schedule-lane workflows). Order-stable (sorted).
 
     Scope = the **trust-chain** artifacts CI actually executes: `run.sh`,
-    `lib.sh`, `schedule.sh`, the CI workflow, and every generated
-    `governance-schedule-<lane>.yml`. Deliberately *excluded* (issue #267):
+    `lib.sh`, `schedule.sh`, the CI workflow, the current generated
+    `governance-schedule.yml`, and any kit-marked legacy lane workflows.
+    Deliberately *excluded* (issue #267):
 
       * the `.githooks/*` (or `.husky/` / `.governance/hooks/`) dispatchers —
         local-only convenience plumbing. CI enforcement (`bash .governance/run.sh`)
@@ -149,9 +158,9 @@ def managed_runtime_files(root: str | Path) -> list[str]:
     ci = _manifest_scalar(text, "ci_workflow")
     if ci:
         candidates.append(ci)
-    # The single generated schedule workflow (and any legacy prefixed files)
-    # is enumerated straight from disk (see `_schedule_managed_files`), so it
-    # is absent when no cadence has been configured.
+    # The single generated schedule workflow (and marked legacy files) is
+    # enumerated straight from disk (see `_schedule_managed_files`), so it is
+    # absent when no cadence has been configured.
     candidates.extend(_schedule_managed_files(root))
     # Only digest what actually exists; dedupe; sort for stability.
     present = sorted({c for c in candidates if (root / c).is_file()})

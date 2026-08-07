@@ -5,8 +5,9 @@
 #
 # What is protected ships as standard rules in the sibling manifest config,
 # layered with the user overlay `.governance/conf/governance-kit/audit/doc-integrity.conf` (bare lines
-# add rules, `!<rule>` drops a default). If the effective rule set is empty the
-# directive is a no-op. Each rule is `<mode> <path> [arg]`:
+# add rules, `!<rule>` drops an optional default). The receipts frozen-files
+# rule is a cross-pack invariant and is always restored after overlay parsing.
+# Each rule is `<mode> <path> [arg]`:
 #
 #   frozen-files    <glob>             Every file matching <glob> that exists at
 #                                      the baseline is immutable; new files may be
@@ -51,9 +52,13 @@ ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT" || exit 1
 
 # Effective rule set = manifest RULES default layered with the user overlay
-# (.governance/conf/governance-kit/audit/doc-integrity.conf): bare lines add rules, `!<rule>` drops a
-# default. Empty effective set → nothing to protect, no-op.
+# (.governance/conf/governance-kit/audit/doc-integrity.conf): bare lines add rules, `!<rule>` drops an
+# optional default. Receipts are always protected because commit traceability
+# and session identity depend on the shared receipts convention.
 RULES="$(conf_list doc-integrity "$(dirname "$0")/directive.yaml" RULES)"
+if ! printf '%s\n' "$RULES" | grep -qxF 'frozen-files receipts/*.md'; then
+    RULES="${RULES}${RULES:+$'\n'}frozen-files receipts/*.md"
+fi
 if [[ -z "$RULES" ]]; then
     directive_end   # nothing opted in
 fi

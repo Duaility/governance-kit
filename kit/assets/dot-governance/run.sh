@@ -13,7 +13,7 @@
 #                                        # one scheduled lane, at rest
 #
 # `--scheduled` is the at-rest mode a generated schedule workflow invokes: the
-# named lane's members are re-run (mechanical `check.sh` members) and
+# generated cadence's members are re-run (mechanical `check.sh` members) and
 # re-adjudicated (judge members) over the commits since that lane's last run.
 # This file recognizes the flag and nothing more — every other option belongs
 # to the engine, `schedule.sh`, which it delegates to whole. run.sh stays the
@@ -80,7 +80,7 @@ fi
 if [[ $# -gt 0 ]]; then
     filter="$1"
     filtered=()
-    for f in "${check_files[@]}"; do
+    for f in ${check_files[@]+"${check_files[@]}"}; do
         # $f = $PACKS_DIR/<owner>/<pack>/directives/<id>/check.sh
         dir="$(dirname "$f")"                       # .../directives/<id>
         id="$(basename "$dir")"
@@ -101,7 +101,7 @@ fi
 
 fail_count=0
 pass_count=0
-for check in "${check_files[@]}"; do
+for check in ${check_files[@]+"${check_files[@]}"}; do
     if bash "$check"; then
         pass_count=$((pass_count + 1))
     else

@@ -52,7 +52,7 @@ directive_end() {
     fi
     printf "%s✗ %s%s (%d violation%s)\n" "$C_RED" "$_DIRECTIVE_NAME" "$C_RESET" \
         "$_VIOLATION_COUNT" "$([[ $_VIOLATION_COUNT -eq 1 ]] || echo s)"
-    for v in "${_VIOLATIONS[@]}"; do
+    for v in ${_VIOLATIONS[@]+"${_VIOLATIONS[@]}"}; do
         printf "    %s\n" "$v"
     done
     # Surface the directive's rationale at the moment of violation. The
@@ -216,9 +216,8 @@ require_attestation() {
 #     checks:
 #       - "every '- [x]' item is realized in the diff"
 #       - "the '## Checklist' mirrors the issue's checklist"
-#     section: Audit                    # the receipt section the verdict lands in
-#     cmd:                              # WHO judges, per lane (issue #355)
-#       schedule: claude -p --output-format text --model opus
+#   # Live placement and execution settings belong in typed `config:` entries
+#   # such as ATTEST_SECTION, ATTEST_CMD, and SCHEDULE_CMD.
 #
 # The commit-mode consumer (attest) is two pieces, and `require_attestation`
 # above stays exactly as the per-directive presence+verdict gate:
@@ -235,9 +234,9 @@ require_attestation() {
 
 # _judge_yaml <directive.yaml> <key>
 #   Print the value(s) of `judge.<key>`. List keys (inputs, checks) print one
-#   item per line; scalar keys (section, gate) print a
-#   single line; absent → nothing; a map (`cmd: { … }`, or a `cmd:` block) prints
-#   nothing (read it with `_judge_cmd_resolve`). Pure POSIX awk over the block
+#   item per line; the semantic scalar key (gate) prints a single line; absent
+#   → nothing. Placement and command settings are typed `config:` entries, not
+#   fields in this block. Pure POSIX awk over the block
 #   shape above — flow `[a, b]` lists, block `- a` lists, bare/quoted scalars.
 #   The commit path runs bash + git only: no python, no PyYAML (issue #355).
 _judge_yaml() {
@@ -1296,7 +1295,7 @@ attestation_remediation() {
     for idx in $pending_idx; do
         union=""; seen="$NL"
         IFS="$_JUDGE_US" read -ra parts <<< "${R_INPUTS[$idx]}"
-        for ip in "${parts[@]}"; do
+        for ip in ${parts[@]+"${parts[@]}"}; do
             [[ -n "$ip" ]] || continue
             case "$seen" in *"$NL$ip$NL"*) continue ;; esac
             seen="$seen$ip$NL"
@@ -1383,7 +1382,8 @@ _conf_pack_qualifier() {
 # treat a missing conf as "nothing opted in" and no-op. When the caller is an
 # installed check.sh the path is pack-qualified
 # (`.governance/conf/<owner>/<pack>/<id>.conf`); otherwise it falls back to the
-# bare `.governance/conf/<id>.conf` for direct-invocation contexts.
+# a bare `.governance/conf/<id>.conf` only for direct-invocation test contexts
+# where no installed pack identity is available.
 conf_file() {
     local id="$1" root pack_q
     root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
@@ -1396,6 +1396,37 @@ conf_file() {
     fi
     [[ -f "$f" ]] || return 1
     printf '%s\n' "$f"
+}
+
+# _conf_strip_comment <line>
+# Remove a comment only when `#` starts a token (at the beginning of a line or
+# after whitespace). Hashes inside quoted values remain data. Every overlay
+# reader uses this helper so scalar and list semantics cannot drift.
+_conf_strip_comment() {
+    local raw="$1" quote="" i c prev
+    for ((i = 0; i < ${#raw}; i++)); do
+        c="${raw:i:1}"
+        if [[ "$c" == "\"" || "$c" == "'" ]]; then
+            if [[ -n "$quote" && "$quote" == "$c" ]]; then
+                quote=""
+            elif [[ -z "$quote" ]]; then
+                quote="$c"
+            fi
+            continue
+        fi
+        if [[ "$c" == '#' && -z "$quote" ]]; then
+            if (( i == 0 )); then
+                printf '%s' ""
+                return 0
+            fi
+            prev="${raw:i-1:1}"
+            if [[ "$prev" =~ [[:space:]] ]]; then
+                printf '%s' "${raw:0:i}"
+                return 0
+            fi
+        fi
+    done
+    printf '%s' "$raw"
 }
 
 # _directive_overlay_file <full-id> <bare-id>
@@ -1426,11 +1457,15 @@ _directive_overlay_file() {
 # Low-level overlay lookup retained for callers that already know the full id.
 # New settings use conf_get/conf_list so manifest tunability is enforced.
 _directive_overlay_get() {
-    local full="${1:-}" id="${2:-}" key="$3" f line
+    local full="${1:-}" id="${2:-}" key="$3" f line raw
     f="$(_directive_overlay_file "$full" "$id")" || return 1
-    line="$(LC_ALL=C grep -E "^[[:space:]]*${key}=" "$f" 2>/dev/null | head -n 1)"
-    [[ -n "$line" ]] || return 1
-    printf '%s\n' "$(_conf_trim "${line#*=}")"
+    while IFS= read -r raw || [[ -n "$raw" ]]; do
+        line="$(_conf_trim "$(_conf_strip_comment "$raw")")"
+        [[ "$line" == "$key="* ]] || continue
+        printf '%s\n' "$(_conf_trim "${line#*=}")"
+        return 0
+    done < "$f"
+    return 1
 }
 
 # _config_yaml <directive.yaml> <NAME> <field>
@@ -1471,9 +1506,12 @@ _config_yaml() {
     {
         line = $0; t = trim(line)
         if (!in_config) {
-            if (line == "config:") in_config = 1
+            if (scalar(line) == "config:") in_config = 1
             next
         }
+        # Blank lines and comments are legal anywhere inside the block,
+        # including at column zero. Only another top-level key ends it.
+        if (t == "" || substr(t, 1, 1) == "#") next
         if (line !~ /^[ \t]/ && t !~ /^-[ \t]+name:/) exit
         if (t ~ /^-[ \t]+name:/) {
             name = t; sub(/^-[ \t]+name:[ \t]*/, "", name); name = scalar(name)
@@ -1493,7 +1531,23 @@ _config_yaml() {
         if (key != field) next
         if (field == "default" && value == "") { in_default = 1; next }
         if (field == "default" && value == "[]") exit
-        print scalar(value); exit
+        if (field == "default" && value ~ /^\[[[:space:]]*.*\][[:space:]]*$/) {
+            value = trim(value)
+            value = substr(value, 2, length(value) - 2)
+            n = split(value, parts, ",")
+            for (i = 1; i <= n; i++) {
+                v = scalar(parts[i])
+                if (v != "") print v
+            }
+            exit
+        }
+        v = scalar(value)
+        if (field == "tunable") {
+            low = tolower(v)
+            if (low == "true" || low == "yes" || low == "on" || low == "1") v = "true"
+            else if (low == "false" || low == "no" || low == "off" || low == "0") v = "false"
+        }
+        print v; exit
     }
     ' "$1"
 }
@@ -1518,13 +1572,14 @@ conf_get() {
         return 1
     }
     tunable="$(_config_yaml "$yaml" "$key" tunable)"
-    local f line
+    local f line raw
     if [[ "$tunable" == "true" ]] && f="$(conf_file "$id")"; then
-        line="$(grep -E "^${key}=" "$f" 2>/dev/null | head -n 1)"
-        if [[ -n "$line" ]]; then
-            printf '%s\n' "${line#*=}"
+        while IFS= read -r raw || [[ -n "$raw" ]]; do
+            line="$(_conf_trim "$(_conf_strip_comment "$raw")")"
+            [[ "$line" == "$key="* ]] || continue
+            printf '%s\n' "$(_conf_trim "${line#*=}")"
             return 0
-        fi
+        done < "$f"
     fi
     _config_yaml "$yaml" "$key" default
 }
@@ -1537,7 +1592,7 @@ conf_rule_lines() {
     local f raw entry
     f="$(conf_file "$1")" || return 0
     while IFS= read -r raw || [[ -n "$raw" ]]; do
-        entry="${raw%%#*}"
+        entry="$(_conf_strip_comment "$raw")"
         entry="${entry#"${entry%%[![:space:]]*}"}"
         entry="${entry%"${entry##*[![:space:]]}"}"
         [[ -z "$entry" ]] && continue
@@ -1548,7 +1603,7 @@ conf_rule_lines() {
 
 # conf_list <directive-id> <directive.yaml> [KEY]
 # Emit the effective list for a declared list entry (KEY defaults to RULES), with the
-# user overlay (`.governance/conf/<id>.conf`) layered on top:
+# user overlay (`.governance/conf/<owner>/<pack>/<id>.conf`) layered on top:
 #   KEY+=item   → adds an item to KEY
 #   KEY-=item   → removes the matching default item from KEY
 #   bare/!item  → shorthand when the manifest declares exactly one list
@@ -1579,9 +1634,23 @@ conf_list() {
     }
     tunable="$(_config_yaml "$yaml" "$name" tunable)"
     list_count="$(awk '
-        /^config:$/ { in_config=1; next }
-        in_config && /^[^[:space:]]/ { exit }
-        in_config && /^[[:space:]]+type:[[:space:]]*list([[:space:]]*(#.*)?)?$/ { n++ }
+        function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+        function uncomment(s,   i,c,q) {
+            q=""
+            for (i=1; i<=length(s); i++) {
+                c=substr(s,i,1)
+                if (q=="" && (c=="\"" || c=="\047")) q=c
+                else if (q!="" && c==q) q=""
+                else if (q=="" && c=="#" && (i==1 || substr(s,i-1,1) ~ /[ \t]/)) return substr(s,1,i-1)
+            }
+            return s
+        }
+        { line=uncomment($0); t=trim(line)
+          if (!in_config) { if (t == "config:") in_config=1; next }
+          if (t == "" || substr(t,1,1) == "#") next
+          if (line !~ /^[ \t]/ && t !~ /^-[ \t]+name:/) exit
+          if (t ~ /^[^:]+:[ \t]*list[ \t]*$/) n++
+        }
         END { print n+0 }
     ' "$yaml")"
 
@@ -1589,9 +1658,8 @@ conf_list() {
     # QUALITY.md Resolved` overlay line matches a column-aligned default.
     if [[ "$tunable" == "true" ]] && overlay="$(conf_file "$id")"; then
         while IFS= read -r line || [[ -n "$line" ]]; do
-            line="$(_conf_trim "$line")"
+            line="$(_conf_trim "$(_conf_strip_comment "$line")")"
             [[ -z "$line" ]] && continue
-            [[ "${line:0:1}" == '#' ]] && continue
             if [[ "$line" == "$name"'+='* ]]; then
                 op=add; item="$(_conf_trim "${line#*+=}")"
             elif [[ "$line" == "$name"'-='* ]]; then

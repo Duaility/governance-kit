@@ -85,4 +85,17 @@ git rm --quiet big2.ts
 git commit --quiet --no-verify -m "chore: drop big2.ts"
 rm -f "$EVAL_CONF"
 
+# Rust debug matching must not flag a longer identifier that merely contains
+# `dbg!`, while the actual macro remains a violation.
+printf 'fn main() { mydbg!(); }\n' > helper.rs
+git add helper.rs
+git commit --quiet --no-verify -m "chore: add rust helper"
+EVAL_LABEL="$EVAL_ID rust identifier" expect_pass "$CHECK"
+printf 'fn main() { dbg!(42); }\n' > helper.rs
+git add helper.rs
+git commit --quiet --no-verify -m "chore: add rust debug"
+EVAL_LABEL="$EVAL_ID rust dbg macro" expect_fail "$CHECK"
+git rm --quiet helper.rs
+git commit --quiet --no-verify -m "chore: remove rust debug"
+
 eval_done

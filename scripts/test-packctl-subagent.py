@@ -96,11 +96,24 @@ def test_lane_behavior_lives_in_config() -> None:
     assert errors == [], errors
 
 
-def test_schedule_command_is_author_fixed() -> None:
+def test_schedule_command_can_be_consumer_selected() -> None:
     manifest = BASE.replace("tunable: false\njudge:", "tunable: true\njudge:")
     with tempfile.TemporaryDirectory() as tmp:
         errors = load_packctl().validate_pack_dir(make_pack(Path(tmp), manifest))
-    assert any("fixed SCHEDULE_CMD" in error for error in errors), errors
+    assert errors == [], errors
+
+
+def test_attest_section_is_rejected_for_schedule_only_judge() -> None:
+    extra = """  - name: ATTEST_SECTION
+    type: scalar
+    doc: Receipt section populated by attestation.
+    default: Audit
+    tunable: false
+"""
+    with tempfile.TemporaryDirectory() as tmp:
+        manifest = BASE.replace("judge:\n", extra + "judge:\n")
+        errors = load_packctl().validate_pack_dir(make_pack(Path(tmp), manifest))
+    assert any("only valid with an explicit git-hook trigger" in error for error in errors), errors
 
 
 def test_attest_execution_contract_is_fixed() -> None:
@@ -121,7 +134,8 @@ def test_attest_execution_contract_is_fixed() -> None:
     tunable: false
 """
     with tempfile.TemporaryDirectory() as tmp:
-        manifest = BASE.replace("judge:\n", extra + "judge:\n")
+        manifest = BASE.replace("hook: none\ntriggers: [schedule]", "hook: pre-commit\ntriggers: [pre-commit, schedule]")
+        manifest = manifest.replace("judge:\n", extra + "judge:\n")
         errors = load_packctl().validate_pack_dir(make_pack(Path(tmp), manifest))
     assert errors == [], errors
 

@@ -149,7 +149,7 @@ if [[ -n "$RULES" ]]; then
 
         VISITED=$'\n'
         QUEUE=()
-        for r in "${roots[@]}"; do
+        for r in ${roots[@]+"${roots[@]}"}; do
             r="$(normalize_path "$r")"
             is_tracked_md "$r" || continue
             case "$VISITED" in
@@ -184,7 +184,7 @@ if [[ -n "$RULES" ]]; then
             is_conf_excluded() {
                 [[ ${#conf_excludes[@]} -eq 0 ]] && return 1
                 local g
-                for g in "${conf_excludes[@]}"; do
+                for g in ${conf_excludes[@]+"${conf_excludes[@]}"}; do
                     [[ "$1" == $g ]] && return 0
                 done
                 return 1

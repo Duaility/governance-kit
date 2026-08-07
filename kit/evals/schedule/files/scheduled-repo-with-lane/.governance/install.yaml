@@ -12,6 +12,6 @@ install_assets_seeded:
   - .github/workflows/governance-schedule.yml
 collisions: []
 managed_digests:
-  .github/workflows/governance-schedule.yml: b1aa1862b8eaa470493030ef534e9adbd79fbd026109f0c790dc560500609f30
+  .github/workflows/governance-schedule.yml: 666a350a30f0ae6bd9be7e048f0a1c45383195ec49cbfc06aa2636679d4b122a
   .governance/lib.sh: 68d16dd51371238ef5f5367ef977de6382620582e6ee70cef19e32864346d2a9
   .governance/run.sh: fb99eae951f1adc14d1a4a9a186c21930db2786b3208c94c7d9af382bd1048e5

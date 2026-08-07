@@ -41,12 +41,27 @@ _CRON_FIELDS = 5
 _CRON_WHITESPACE_RE = re.compile(r"\s+")
 
 
+def _strip_overlay_comment(raw: str) -> str:
+    """Strip comments outside quotes, matching the Bash overlay reader."""
+    quote = ""
+    for index, char in enumerate(raw):
+        if char in "'\"":
+            if quote == char:
+                quote = ""
+            elif not quote:
+                quote = char
+            continue
+        if char == "#" and not quote and (index == 0 or raw[index - 1].isspace()):
+            return raw[:index]
+    return raw
+
+
 def _overlay_scalar(root: Path, owner: str, pack: str, directive_id: str, key: str) -> str | None:
     conf_path = root / ".governance" / "conf" / owner / pack / f"{directive_id}.conf"
     if not conf_path.is_file():
         return None
     for raw in conf_path.read_text().splitlines():
-        line = raw.split("#", 1)[0].strip()
+        line = _strip_overlay_comment(raw).strip()
         if not line or not line.startswith(f"{key}="):
             continue
         return line.split("=", 1)[1].strip()
@@ -237,10 +252,20 @@ def _generated_paths(root: Path) -> list[Path]:
     workflows = root / ".github" / "workflows"
     if not workflows.is_dir():
         return []
-    # The exact file is current; the prefixed files are legacy outputs from
-    # the old schedule-lane command and are safe to reconcile away because the
-    # governance schedule namespace is generated-only.
-    paths = [p for p in workflows.glob("governance-schedule*.yml") if p.is_file()]
+    # The exact file is current. Legacy prefixed files are reconciled only when
+    # their managed marker proves that the kit created them; hand-authored
+    # `governance-schedule-extra.yml` files remain untouched.
+    target = workflows / Path(WORKFLOW_REL).name
+    paths = [target] if target.is_file() else []
+    for path in workflows.glob("governance-schedule-*.yml"):
+        if not path.is_file():
+            continue
+        try:
+            head = "\n".join(path.read_text(errors="replace").splitlines()[:8])
+        except OSError:
+            continue
+        if "governance-kit:managed" in head:
+            paths.append(path)
     return sorted(paths)
 
 

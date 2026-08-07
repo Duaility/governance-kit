@@ -26,7 +26,7 @@ name: Agent audit-chain governance directives
 version: "0.9.0"
 # Floor 0.13.0 (#355), raised from 0.12.0 (#343). This pack's
 # directives declare `judge:` blocks resolved by kit-owned lib.sh/schedule.sh —
-# `judge_attest`, the `cmd`/three-valued-`gate` schema, and the independent
+# `judge_attest`, the typed config execution settings, three-valued `gate`, and the independent
 # remediation orchestrator. Those helpers first shipped to consumers in
 # kit/v0.13.0, so this floor moved with the release commit; a
 # feature PR cannot raise it because kit-version-consistency requires floor
