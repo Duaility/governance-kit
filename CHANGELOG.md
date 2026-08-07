@@ -22,6 +22,12 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [foundation/v0.7.0] - 2026-08-07
+
+### Added
+- unify directive configuration (#367)
+- scheduled trigger lanes replace sweep lane and repo.conf (#363)
+
 ## [kit/v0.14.0] - 2026-08-07
 
 ### Added
