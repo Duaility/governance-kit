@@ -9,3 +9,9 @@ recommended: false
 summary: Nothing this repo ships (kit/**, packs/**, skill/**, .githooks/*) invokes a package manager.
 surface: repo-state
 hook: pre-commit
+config:
+  - name: RULES
+    type: list
+    doc: Path globs exempted from the shipped package-manager scan.
+    default: []
+    tunable: true

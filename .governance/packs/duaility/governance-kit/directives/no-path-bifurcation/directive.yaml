@@ -2,7 +2,20 @@
 category: ArchitecturalShape
 recommended: false
 summary: "No bifurcated code paths — unify dual dispatch and local-vs-remote special-casing."
+surface: change-set
 hook: none
+triggers: [schedule]
+config:
+  - name: SCHEDULE_CMD
+    type: scalar
+    doc: Consumer-selected judge command used for scheduled adjudication.
+    default: claude -p --output-format text --model opus
+    tunable: true
+  - name: SCHEDULE_CRON
+    type: scalar
+    doc: Consumer-selected cadence; empty disables scheduled enrollment.
+    default: ""
+    tunable: true
 judge:
   inputs: [range-diff]
   checks:
@@ -11,4 +24,3 @@ judge:
     - "A \"local must mirror remote\" pair is not left free to quietly diverge in behavior — the two are not two hand-kept copies of the same logic."
     - "A new conditional branches on data (an input value, a config flag read at one point), not on a second, separately-maintained copy of the same logic."
     - "Any genuine environment-forced branch (a platform capability gap, a measured performance win) states its reason in the code, not left as an unexplained fork."
-  group: kit-architecture

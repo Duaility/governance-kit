@@ -55,9 +55,7 @@ cd "$ROOT" || exit 1
 
 # ── The declared layer model is the ground truth. No model → nothing to attest
 #    against → no-op (a repo that has not declared its layers pays nothing).
-DEFAULTS="$(dirname "$0")/defaults.conf"
-[[ -f "$DEFAULTS" ]] || { violation "broken install: $DEFAULTS missing (LAYER_DOC default unavailable)"; directive_end; }
-LAYER_DOC="$(conf_get layer-boundaries LAYER_DOC "$DEFAULTS")"
+LAYER_DOC="$(conf_get layer-boundaries LAYER_DOC "$(dirname "$0")/directive.yaml")"
 if [[ -z "$LAYER_DOC" || ! -f "$ROOT/$LAYER_DOC" ]]; then
     directive_end
 fi

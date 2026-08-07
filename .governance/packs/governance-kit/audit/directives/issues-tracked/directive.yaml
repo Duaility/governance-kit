@@ -4,6 +4,33 @@ recommended: true
 summary: QUALITY.md exists at repo root with Open and Resolved sections.
 surface: repo-state
 hook: pre-commit
+triggers: [pre-commit, schedule]
+config:
+  - name: QUALITY_PATH
+    type: scalar
+    doc: Path to the tracked quality system of record.
+    default: QUALITY.md
+    tunable: true
+  - name: OPEN_SECTION
+    type: scalar
+    doc: Second-level heading for unresolved quality issues.
+    default: Open
+    tunable: true
+  - name: RESOLVED_SECTION
+    type: scalar
+    doc: Second-level heading for resolved quality issues.
+    default: Resolved
+    tunable: true
+  - name: SCHEDULE_CMD
+    type: scalar
+    doc: Consumer-selected CLI command used for scheduled adjudication.
+    default: claude -p --output-format text --model opus
+    tunable: true
+  - name: SCHEDULE_CRON
+    type: scalar
+    doc: Consumer-selected cron cadence; empty disables scheduled enrollment.
+    default: ""
+    tunable: true
 judge:
   inputs: [range-diff]
   checks:
