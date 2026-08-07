@@ -22,6 +22,11 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [commits/v0.4.0] - 2026-08-07
+
+### Added
+- unify directive configuration (#367)
+
 ## [foundation/v0.7.0] - 2026-08-07
 
 ### Added
