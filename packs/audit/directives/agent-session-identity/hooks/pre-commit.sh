@@ -7,7 +7,7 @@ set -u
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 HERE="$(cd "$(dirname "$0")" && pwd)" || exit 0
 LIB="$HERE/../lib"
-GOV_LIB="$HERE/../../../../../lib.sh"
+GOV_LIB="$HERE/../../../../../../lib.sh"
 [ -f "$GOV_LIB" ] && source "$GOV_LIB"
 source "$LIB/runtime.sh"
 source "$LIB/receipt.sh"
@@ -33,7 +33,8 @@ if [ -z "$ISSUE" ]; then
     exit 1
 fi
 
-RECEIPTS_DIR="$ROOT/receipts"
+RECEIPTS_NAME="$(conf_get agent-session-identity RECEIPTS_DIR "$HERE/../directive.yaml")"
+RECEIPTS_DIR="$ROOT/$RECEIPTS_NAME"
 RECEIPT="$(receipt_resolve "$RECEIPTS_DIR" "$ISSUE")"
 session_upsert "$RECEIPT" "$(date -u +%F)" "$RUNTIME" "$SESSION_ID"
 git add "$RECEIPT"

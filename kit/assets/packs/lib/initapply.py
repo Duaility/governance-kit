@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any
 
 import digestlib
+import kityaml
 from applylib import (
     bash_lib,
     load_decisions,
@@ -161,12 +162,11 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
         would_seed_conf = []
         for pack in packs:
             for did in sorted(pack.get("directives") or []):
-                # A directive seeds an overlay iff it ships a defaults.conf
-                # (issue #210); the overlay is a generic stub, seeded once.
-                defaults = Path(pack["pack_dir"]) / "directives" / did / "defaults.conf"
+                manifest = Path(pack["pack_dir"]) / "directives" / did / "directive.yaml"
                 rel = f".governance/conf/{pack['id']}/{did}.conf"
                 dest = root / rel
-                if defaults.is_file() and not dest.exists():
+                declaration = kityaml.load(manifest) if manifest.is_file() else {}
+                if declaration.get("config") and not dest.exists():
                     would_seed_conf.append(rel)
         report.update(result="dry-run",
                       directives_installed=[d["dest"] for d in directive_inventory(packs)],
@@ -178,8 +178,8 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
     try:
         all_dids, seeded, conf_seeded = _install_directives(root, packs, report)
         report["seeded_assets"] = seeded
-        # Each configurable directive (one shipping a `defaults.conf`) seeds a
-        # generic-stub overlay at `.governance/conf/<id>.conf` (augment-only) via
+        # Each configurable directive (one carrying a `config:` block) seeds a
+        # generic-stub overlay at `.governance/conf/<owner>/<pack>/<id>.conf` (augment-only) via
         # seed_directive_conf, inside _install_directives.
         report["conf_seeded"] = conf_seeded
 
@@ -219,9 +219,9 @@ def cmd_init_apply(args: argparse.Namespace) -> int:
         # No scheduled-lane workflow is seeded here (unlike the retired sweep
         # lane, which vendored its workflow the moment a live-sweep directive
         # was selected). A schedule lane is a consumer-defined artifact — the
-        # workflow IS the config, one lane per file, named members only —
-        # created explicitly via `governance schedule` (packverb.py
-        # schedule-apply), never implied by which directives happen to be
+        # workflow is a compiled artifact with one cadence entry per distinct
+        # directive-owned cron — created explicitly via `governance workflow
+        # generate` (packverb.py workflow-apply), never implied by which directives happen to be
         # installed. `schedule.sh` itself (copied above alongside run.sh/
         # lib.sh) needs no directive to opt in; it is idle until a lane
         # workflow invokes it.

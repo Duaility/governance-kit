@@ -4,7 +4,7 @@ shape (required fields, id/directory scoping, preset references, hook/surface
 enums, check.sh/constitution.md/evals presence).
 
 Split from scripts/test-packctl.py to keep both files under the repo-hygiene
-500-line limit. judge.cmd/judge.group validation fixtures split further
+500-line limit. Judge/config separation fixtures split further
 into scripts/test-packctl-subagent.py for the same reason. Helpers
 (load_packctl, make_pack) are duplicated rather than extracted into a shared
 module — each test file in this repo stays standalone.
@@ -327,12 +327,8 @@ def test_validate_pack_dir_requires_constitution_to_reference_check_path() -> No
         assert any("constitution.md must reference" in e for e in errors)
 
 
-def test_validate_pack_dir_allows_missing_check_sh_for_section_absent_judge() -> None:
-    """issue #355 amendment 3: a schedule-only discovery directive declares a
-    `judge:` block with no `section:` — no commit-lane gate, judged only by
-    the at-rest scheduled driver — and so ships no check.sh and no `surface:`
-    field at all (a surface describes commit-lane check semantics it doesn't
-    have). Validation must allow both omissions, not flag them as missing."""
+def test_validate_pack_dir_allows_missing_check_sh_for_explicit_schedule_only_judge() -> None:
+    """A schedule-only judge still declares its evidence surface and trigger."""
     pkt = load_packctl()
     with tempfile.TemporaryDirectory() as tmp:
         pack = make_pack(
@@ -352,12 +348,19 @@ def test_validate_pack_dir_allows_missing_check_sh_for_section_absent_judge() ->
                         category: Foundation
                         recommended: true
                         summary: x
+                        surface: repo-state
                         hook: none
+                        triggers: [schedule]
+                        config:
+                          - name: SCHEDULE_CMD
+                            type: scalar
+                            doc: Fixed scheduled judge command.
+                            default: judge-cli
+                            tunable: false
                         judge:
                           inputs: [range-diff]
                           checks:
                             - no shims anywhere in tracked source
-                          cmd: { schedule: "claude -p --output-format text --model opus" }
                     """),
                     "constitution_md": "judged only by the at-rest scheduled driver, no check.sh",
                 },
@@ -365,7 +368,7 @@ def test_validate_pack_dir_allows_missing_check_sh_for_section_absent_judge() ->
         )
         errors = pkt.validate_pack_dir(pack)
         assert not any("check.sh" in e for e in errors), "\n".join(errors)
-        assert not any("surface" in e for e in errors), "\n".join(errors)
+        assert errors == [], "\n".join(errors)
 
 
 def test_validate_pack_dir_flags_missing_check_sh_without_section_absent() -> None:

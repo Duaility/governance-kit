@@ -24,7 +24,7 @@ Directives are grouped into **packs** — self-contained directories that bundle
 - **`governance-kit/commits`** — `commit-message-format`, `no-orphan-todos`, `no-unjustified-suppressions`.
 - **`governance-kit/audit`** — a trustworthy record of agent work: issue → receipt → commit traceability (`issue-templates` → `issues-tracked` → `receipt-per-issue` → `commit-issue-receipt-match`), session identity (`agent-session-identity`), and the tamper protection that keeps those records honest (`doc-integrity`, `toolchain-config-protection`).
 
-The kit also ships the off-commit-path scheduled lane (the `.governance/schedule.sh` driver, installed on every init, plus a `governance schedule create` verb a repo uses to generate named lane workflows), but bundles no schedule-only directives — those are authored in repo-local or community packs.
+The kit also ships the off-commit-path scheduled lane (the `.governance/schedule.sh` driver, installed on every init, plus `governance workflow generate`, which compiles directive-owned cron settings into one workflow), but bundles no schedule-only directives — those are authored in repo-local or community packs.
 
 `governance init` unions each pack's chosen preset across all bundled packs (see Step 3).
 
@@ -269,11 +269,10 @@ to install. The `kit_ref` / `kit_sha` / `kit_provenance` threaded through
 and how the install resolved it (issue #194).
 
 `init-apply` installs each directive folder (minus `evals/`) + its
-`install-assets/`, and for any directive shipping a `defaults.conf` seeds the
+`install-assets/`, and for any directive declaring `config:` seeds the
 user-config overlay `.governance/conf/<owner>/<pack>/<id>.conf` from the generic
-conf stub (augment-only — an existing file is preserved). For `doc-integrity` (`always_install`, on by
-default) the standard rules ship active in its `defaults.conf`, each a no-op
-until its document exists. It then assembles + writes CONSTITUTION.md,
+stub (augment-only — an existing file is preserved). Defaults and docs remain
+inside the installed `directive.yaml`. It then assembles + writes CONSTITUTION.md,
 stamps the runtime + CI workflow, generates the hooks (+ sets `core.hooksPath`
 for `githooks`), and writes the `install.yaml` v3 receipt +
 `packs.lock` v2 pin. The receipt's `--install-asset`/`--agents-md-*` ledger and the

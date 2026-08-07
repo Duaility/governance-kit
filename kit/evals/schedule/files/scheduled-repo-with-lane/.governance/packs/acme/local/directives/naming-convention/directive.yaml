@@ -3,3 +3,9 @@ recommended: true
 summary: Local naming-convention check.
 surface: repo-state
 hook: pre-commit
+config:
+  - name: SCHEDULE_CRON
+    type: scalar
+    doc: Consumer-selected cron cadence.
+    default: ""
+    tunable: true

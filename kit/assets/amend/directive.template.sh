@@ -25,17 +25,16 @@ require_git                            # remove if the directive does not touch 
 #       # compute metric and call violation if bad
 #   done < <(git ls-files -- '<pathspec>' 2>/dev/null || true)
 #
-# (d) Configurable. Ship a pack-owned `defaults.conf` next to this file — it
-#     holds the live defaults AND their docs (the only config artifact; the
-#     user overlay is seeded from a generic stub). Read through the lib.sh
-#     helpers (env GOVERNANCE_<KEY> wins, then the overlay, then defaults.conf):
-#   DEFAULTS="$(dirname "$0")/defaults.conf"
-#   LIMIT="$(conf_get <directive-name> LIMIT "$DEFAULTS")"   # scalar: ship a `LIMIT=500` row in defaults.conf
-#   # For a list-valued check, the same defaults.conf carries one item per line:
+# (d) Configurable. Declare type, docs, default, and tunability under `config:`
+#     in the sibling directive.yaml. The generic user overlay is seeded only
+#     when that registry exists; environment variables are not a config tier.
+#   MANIFEST="$(dirname "$0")/directive.yaml"
+#   LIMIT="$(conf_get <directive-name> LIMIT "$MANIFEST")"
+#   # For a list-valued entry:
 #   while IFS= read -r item; do
 #       [[ -z "$item" ]] && continue
 #       # apply $item
-#   done < <(conf_list <directive-name> "$DEFAULTS")
+#   done < <(conf_list <directive-name> "$MANIFEST" RULES)
 #   # overlay syntax: bare line adds, !item drops a default, KEY=value sets a scalar
 # ──────────────────────────────────────────────────────────────
 

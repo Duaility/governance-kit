@@ -79,6 +79,7 @@ def _write_source_pack(base: Path, pack_id: str = "acme/widgets") -> Path:
         "category: Quality\nrecommended: true\n"
         "summary: no console.log in tracked files.\n"
         "surface: change-set\nhook: pre-commit\n"
+        "config:\n  - name: LIMIT\n    type: scalar\n    doc: fixture limit.\n    default: 1\n    tunable: true\n"
     )
     (ddir / "check.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
     (ddir / "constitution.md").write_text(
@@ -87,15 +88,14 @@ def _write_source_pack(base: Path, pack_id: str = "acme/widgets") -> Path:
     )
     (ddir / "evals" / "test.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
     (ddir / "install-assets" / "WIDGETS.md").write_text("# Widgets doc\n")
-    (ddir / "defaults.conf").write_text("# fixture defaults + docs\n# KEY=value\n")
     (ddir / "check.sh").chmod(0o755)
     (ddir / "evals" / "test.sh").chmod(0o755)
     return pack
 
 
 def _write_judge_source_pack(base: Path, pack_id: str = "acme/shape", did: str = "no-shims") -> Path:
-    """A minimal valid discovery source pack (issue #355): a `judge:` block
-    with no `section:` — no commit-lane gate, no check.sh — re-adjudicated by
+    """A minimal valid discovery source pack (issue #355): an explicit
+    schedule-only `judge:` — no commit-lane gate, no check.sh — re-adjudicated by
     the scheduled lane's driver (`.governance/schedule.sh`) against the range
     diff, when a consumer explicitly wires it into a schedule workflow."""
     pack = base / "shape"
@@ -106,9 +106,12 @@ def _write_judge_source_pack(base: Path, pack_id: str = "acme/shape", did: str =
         "description: test\nauthor: acme\nsource: gh\n")
     (ddir / "directive.yaml").write_text(
         "category: ArchitecturalShape\nrecommended: false\nsummary: no shims.\n"
-        "surface: repo-state\nhook: none\n"
+        "surface: repo-state\nhook: none\ntriggers: [schedule]\n"
+        "config:\n  - name: SCHEDULE_CMD\n    type: scalar\n"
+        "    doc: Fixed scheduled judge command.\n    default: judge-cli\n"
+        "    tunable: false\n"
         "judge:\n  inputs: [range-diff]\n  checks:\n    - no shims\n"
-        "  group: shape-intent\n")
+    )
     (ddir / "constitution.md").write_text(
         f"### {did}\n\n- **Directive**: no shims.\n"
         f"- **Enforced by**: the scheduled-lane driver `.governance/schedule.sh`, "
@@ -196,7 +199,7 @@ def test_add_installs_directive_lock_and_hooks() -> None:
         assert conf.is_file()
         conf_text = conf.read_text()
         assert "no-console-log" in conf_text
-        assert ".governance/packs/acme/widgets/directives/no-console-log/defaults.conf" in conf_text
+        assert ".governance/packs/acme/widgets/directives/no-console-log/directive.yaml" in conf_text
         assert report["conf_seeded"] == [".governance/conf/acme/widgets/no-console-log.conf"]
         assert "no-console-log.conf" not in (root / ".governance/install.yaml").read_text()
         # lock upserted
@@ -208,7 +211,7 @@ def test_add_installs_directive_lock_and_hooks() -> None:
 
 def test_update_does_not_reseed_user_conf() -> None:
     """A second apply (update) must never overwrite or resurrect the user conf,
-    and the plan flags config drift when defaults.conf changes."""
+    and the plan flags config drift when the manifest registry changes."""
     with tempfile.TemporaryDirectory() as tmp:
         src = _write_source_pack(Path(tmp) / "src")
         root = _make_repo(Path(tmp) / "repo")
@@ -222,9 +225,9 @@ def test_update_does_not_reseed_user_conf() -> None:
         git(root, "add", "-A")
         git(root, "commit", "-qm", "install + customize")
 
-        # the upstream ships a new defaults.conf at a new sha
-        (src / "directives" / "no-console-log" / "defaults.conf").write_text(
-            "# fixture defaults + docs v2\n# KEY=value\n# NEWKEY=\n")
+        # the upstream ships a changed config registry at a new sha
+        manifest = src / "directives" / "no-console-log" / "directive.yaml"
+        manifest.write_text(manifest.read_text().replace("default: 1", "default: 2"))
         packplan.fetch_ref = _stub_fetch(src, "acme/widgets", "f" * 40)
 
         # plan: the directive is an update and flags config drift
@@ -240,9 +243,8 @@ def test_update_does_not_reseed_user_conf() -> None:
         assert rc == 0 and report["result"] == "applied", report
         assert conf.read_text() == "USER=tweak\n"
         assert report["conf_seeded"] == []
-        # the pack-owned defaults.conf was refreshed in the installed tree
-        installed_defaults = root / ".governance/packs/acme/widgets/directives/no-console-log/defaults.conf"
-        assert "v2" in installed_defaults.read_text()
+        installed_manifest = root / ".governance/packs/acme/widgets/directives/no-console-log/directive.yaml"
+        assert "default: 2" in installed_manifest.read_text()
 
 
 def test_add_dry_run_writes_nothing() -> None:
@@ -295,7 +297,7 @@ def test_add_judge_directive_seeds_no_schedule_lane() -> None:
     # behavior. `schedule.sh` is copied unconditionally at init time only
     # (like run.sh/lib.sh); pack add/update never touches kit runtime files,
     # and a schedule-lane workflow is only ever created explicitly via
-    # `governance schedule create` (packverb.py schedule-apply).
+    # `governance workflow generate` (packverb.py workflow-apply).
     with tempfile.TemporaryDirectory() as tmp:
         src = _write_judge_source_pack(Path(tmp) / "src")
         root = _make_repo(Path(tmp) / "repo")
@@ -305,7 +307,7 @@ def test_add_judge_directive_seeds_no_schedule_lane() -> None:
         assert rc == 0 and report["result"] == "applied", report
         assert not (root / ".governance/schedule.sh").exists()
         assert not (root / ".github/workflows/governance-sweep.yml").exists()
-        assert not list((root / ".github/workflows").glob("governance-schedule-*.yml"))
+        assert not list((root / ".github/workflows").glob("governance-schedule*.yml"))
         assert ".governance/schedule.sh" not in report["seeded_assets"]
         ledger = (root / ".governance/install.yaml").read_text()
         assert ".governance/schedule.sh" not in ledger

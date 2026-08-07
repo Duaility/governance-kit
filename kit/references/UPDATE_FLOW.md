@@ -260,11 +260,10 @@ file pairs — they are regenerated wholesale in Step 5 (`generate_hooks_for_str
 rather than copied from a static asset, so the plan reports `hook_strategy`
 instead.
 
-Per-directive configuration is **not** kit-owned and never appears here: a
-directive's pack-owned `defaults.conf` is refreshed by `governance pack update`
-(it lives in the directive folder), and the user-owned overlay
-`.governance/conf/<id>.conf` is touched by no lifecycle verb after it is seeded.
-`kit update` leaves both alone.
+Per-directive configuration is pack-owned inside `directive.yaml` and refreshes
+with `governance pack update`; the user-owned overlay
+`.governance/conf/<owner>/<pack>/<id>.conf` is touched by no lifecycle verb
+after it is seeded. `kit update` leaves both alone.
 
 **Marker shape.** The ownership marker is a `# governance-kit:managed`
 comment within the file's leading comment block: line 2 for shebang

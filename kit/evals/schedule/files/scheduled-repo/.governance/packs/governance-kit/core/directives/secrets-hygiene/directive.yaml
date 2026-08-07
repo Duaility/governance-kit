@@ -1,6 +1,17 @@
-category: Security
+category: Foundation
 recommended: true
-summary: Block credentials, tokens, and private keys in tracked files.
+summary: No credentials in tracked files.
 surface: repo-state
 hook: pre-commit
 triggers: [pre-commit, schedule]
+config:
+  - name: SCHEDULE_CMD
+    type: scalar
+    doc: Consumer-selected scheduled judge command.
+    default: claude -p --output-format text --model opus
+    tunable: true
+  - name: SCHEDULE_CRON
+    type: scalar
+    doc: Consumer-selected cron cadence; empty disables enrollment.
+    default: ""
+    tunable: true

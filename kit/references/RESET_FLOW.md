@@ -218,7 +218,7 @@ Print:
 - `Dropped:` list of hand-authored `<id>` (only under `--drop-handauthored`)
 - `Preserved:` list of hand-authored `<id>` (default behavior)
 - `Skipped:` list of `<id>` already byte-identical to pinned
-- `Cleared:` a dropped directive's `.governance/conf/<id>.conf` overlay removed (under `--drop-handauthored`)
+- `Cleared:` a dropped directive's `.governance/conf/<owner>/<pack>/<id>.conf` overlay removed (under `--drop-handauthored`)
 - `Hook dispatcher:` `regenerated` | `unchanged`
 - `Smoke test:` `pass` | `fail (exit <code>): <first failing directive>`
 - `Committed:` `<short-sha> <conventional-commit subject>` (or `would-commit:` under `--dry-run`)

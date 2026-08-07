@@ -19,7 +19,7 @@
 # lives in `lib/digest.sh` (byte-identical algorithm to
 # `kit/assets/packs/lib/digestlib.py`, pinned by `scripts/test-digestlib.py`);
 # packs.lock / install.yaml are hand-parsed below with POSIX awk. One violation
-# per unit; per-unit waivers come from the conf overlay (see defaults.conf).
+# per unit; per-unit waivers come from the tunable manifest config overlay.
 set -u
 source "$(dirname "$0")/../../../../../lib.sh"
 source "$(dirname "$0")/lib/digest.sh"
@@ -37,17 +37,19 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # their content fully.
 SWEEP_ASSET_RELPATHS=".github/workflows/governance-sweep.yml .governance/sweep.sh"
 
-# Generated schedule-lane workflows (sweep-lane successor): each
-# `.github/workflows/governance-schedule-<lane>.yml` is stamped at
-# verb-run time (`governance schedule create`), not at kit-release time, so
-# its marker legitimately tracks the kit version current when the lane was
-# created/last regenerated rather than the manifest's pin — the same
-# seed-time rationale as the legacy sweep pair above (issue #263), applied
-# per-lane via a glob since the lane name is consumer-chosen. The digest
-# check still guards their content fully.
+# Generated schedule workflow (sweep-lane successor) is stamped at
+# verb-run time (`governance workflow generate`), not at kit-release time, so
+# its marker legitimately tracks the kit version current when it was
+# generated rather than the manifest's pin — the same seed-time rationale as
+# the legacy sweep pair above (issue #263). Marked legacy prefixed workflows
+# remain covered during migration; unmarked hand-authored files are outside
+# the generated namespace.
 _mti_is_schedule_workflow() {
     case "$1" in
-        .github/workflows/governance-schedule-*.yml) return 0 ;;
+        .github/workflows/governance-schedule.yml) return 0 ;;
+        .github/workflows/governance-schedule-*.yml)
+            [[ -n "$(_mti_marker_version "$1")" ]] && return 0
+            ;;
         *) return 1 ;;
     esac
 }
@@ -58,7 +60,7 @@ _mti_is_schedule_workflow() {
 waived=()
 while IFS= read -r u; do
     [[ -n "$u" ]] && waived+=("$u")
-done < <(conf_list managed-tree-integrity "$HERE/defaults.conf")
+done < <(conf_list managed-tree-integrity "$HERE/directive.yaml" WAIVED_UNITS)
 
 _mti_is_waived() {
     local u="$1" w

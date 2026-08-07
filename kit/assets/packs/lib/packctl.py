@@ -43,14 +43,6 @@ CAPABILITY_FIELDS = ("reads", "writes")
 TRIGGER_HOOK_VALUES = {"pre-commit", "commit-msg", "prepare-commit-msg", "post-commit", "pre-push"}
 TRIGGER_VALUES = TRIGGER_HOOK_VALUES | {"none", "schedule"}
 
-# Issue #355 (cmd collapse): a directive's `judge:` block names the judge
-# COMMAND directly instead of resolving it through a tier vocabulary. `cmd` is
-# an optional map with exactly these two lanes; anything else under `cmd` is
-# an error. There is no `tiers:` vocabulary anymore — it is a forbidden key
-# (v0, no deprecation lane), not merely unrecognized. The `sweep` lane is
-# renamed `schedule` (the sweep lane's retirement, no compat alias — V0).
-JUDGE_CMD_LANES = {"attest", "schedule"}
-
 # Issue #355 amendment 3: `gate` is a three-valued scalar that now also
 # carries what used to be the separate `contest` boolean. `record` (default)
 # never blocks; `verdict` blocks on REFUTED/missing and a CONTESTED verdict
@@ -59,6 +51,13 @@ JUDGE_CMD_LANES = {"attest", "schedule"}
 # through (yesterday's `gate: verdict` + `contest: allow`). `contest` is now
 # a forbidden key — folded entirely into this one axis.
 JUDGE_GATE_VALUES = {"record", "verdict", "verdict-contestable"}
+
+# Directive configuration is declared inline in directive.yaml. Each entry is
+# a small record with one overlay-facing NAME, a scalar/list type, one-line
+# documentation, the live default, and an explicit author-fixed vs tunable
+# decision. The runtime can therefore stay a deliberately dumb awk reader:
+# packctl proves the shape before a pack can be installed.
+CONFIG_TYPES = {"scalar", "list"}
 
 # Governance-kit version — the kit (framework) axis. The single source of truth
 # is kit/assets/kit.yaml; this module reads it so packs, the release

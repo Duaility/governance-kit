@@ -132,7 +132,7 @@ EVAL_LABEL="$EVAL_ID schedule workflow waiver" expect_pass "$CHECK"
 rm -f .governance/conf/governance-kit/foundation/$EVAL_ID.conf
 
 # 8c. issue #263 — a generated schedule workflow carries its *generation-time*
-#     marker (stamped when `governance schedule create` last (re)rendered it),
+#     marker (stamped when `governance workflow generate` last (re)rendered it),
 #     not the kit-release marker, so its `kit-version=` legitimately differs
 #     from the manifest pin. That divergence must NOT be a violation (unlike a
 #     true runtime file, cf. case 1b): the digest still guards the content.

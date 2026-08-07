@@ -8,13 +8,14 @@ source "$HERE/../../../../../lib.sh"
 directive_start "agent-session-identity"
 require_git
 ROOT="$(git rev-parse --show-toplevel)"
+RECEIPTS_DIR="$(conf_get agent-session-identity RECEIPTS_DIR "$HERE/directive.yaml")"
 source "$HERE/lib/receipt.sh"
 source "$HERE/lib/runtime.sh"
 source "$HERE/lib/validate.sh"
 
 while IFS= read -r violation_text; do
     [ -z "$violation_text" ] || violation "$violation_text"
-done < <(session_validate_dir "$ROOT/receipts")
+done < <(session_validate_dir "$ROOT/$RECEIPTS_DIR")
 
 msg_has_waiver() {
     printf '%s\n' "$1" | grep -qE '^[[:space:]]*(<!--)?[[:space:]]*governance:[[:space:]]*allow-agent-session-identity[[:space:]]+.+'
@@ -29,7 +30,7 @@ if [ "$#" -gt 0 ]; then
     msg_has_waiver "$msg" && directive_end
     detect_runtime_identity || directive_end
 
-    staged="$(git diff --cached --no-renames --name-only -- 'receipts/*.md' 2>/dev/null || true)"
+    staged="$(git diff --cached --no-renames --name-only -- "$RECEIPTS_DIR/*.md" 2>/dev/null || true)"
     found=0
     while IFS= read -r rel; do
         [ -z "$rel" ] && continue

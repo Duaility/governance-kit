@@ -11,8 +11,8 @@
 #   1. test-packctl.py        — packctl.py library + CLI (preset, validation)
 #   1a. test-packctl-validate.py — validate_pack_dir structural matrix (pack/
 #                               directive shape, presets, check.sh/evals)
-#   1b. test-packctl-subagent.py — validate_pack_dir judge.cmd/judge.group
-#                               matrix (issue #355 cmd collapse + batching)
+#   1b. test-packctl-subagent.py — judge/config separation
+#                               matrix (issue #355 cmd collapse)
 #   1c. test-packctl-triggers.py — validate_pack_dir triggers:/judge-cmd-lane
 #                               matrix (scheduled-trigger redesign)
 #   2. test-packverb.py       — packverb.py (refs, capability glob, lockfile, catalog)
@@ -26,10 +26,9 @@
 #   2c. test-packverb-apply.py — packplan.py/packapply.py (pack-plan/pack-apply
 #                               add/update/remove) + docsurgery.py CONSTITUTION
 #                               subsection surgery
-#   2d. test-schedulelib.py   — schedulelib.py (governance schedule
-#                               create/list/remove: consumer-authored
-#                               schedule-lane workflow generation, replacing
-#                               the retired sweep auto-seeding)
+#   2d. test-schedulelib.py   — workflowlib.py (directive-owned cron
+#                               compilation into the single generated
+#                               schedule workflow)
 #   3. test-install-sh.sh     — install.sh helpers (copy_tree_without_evals,
 #                               install_directive_folder, install_directive_assets,
 #                               write_installed_manifest flag matrix)
@@ -38,7 +37,7 @@
 #   5. test-runtime.sh        — runtime files shipped to consumer repos
 #                               (dot-governance/run.sh + lib.sh)
 #   5a. test-subagent.sh      — lib.sh judgment surface: the awk
-#                               `judge:` reader, the batched remediation
+#                               `judge:` reader, independent remediation
 #                               instruction, and the `gate: verdict`
 #                               adjudication gate (log, stamp, ladder)
 #   5b. test-schedule.sh      — schedule.sh at-rest driver contract (adapter
@@ -97,7 +96,7 @@ run_layer "packctl: validate_pack_dir triggers/judge-cmd-lane matrix (Python)" \
     python3 "$ROOT/scripts/test-packctl-triggers.py" \
     || failed_layers+=("test-packctl-triggers.py")
 
-run_layer "packctl: validate_pack_dir judge.cmd/group matrix (Python)" \
+run_layer "packctl: judge semantics/config separation (Python)" \
     python3 "$ROOT/scripts/test-packctl-subagent.py" \
     || failed_layers+=("test-packctl-subagent.py")
 
@@ -129,7 +128,7 @@ run_layer "pack-apply: plan/apply add/update/remove + doc surgery (Python)" \
     python3 "$ROOT/scripts/test-packverb-apply.py" \
     || failed_layers+=("test-packverb-apply.py")
 
-run_layer "schedulelib: schedule create/list/remove (Python)" \
+run_layer "workflowlib: workflow generate (Python)" \
     python3 "$ROOT/scripts/test-schedulelib.py" \
     || failed_layers+=("test-schedulelib.py")
 
@@ -177,7 +176,7 @@ run_layer "pre-commit-test-gate: hook wiring (bash)" \
     bash "$ROOT/scripts/test-precommit-gate.sh" \
     || failed_layers+=("test-precommit-gate.sh")
 
-run_layer "conf-knob-doc-sync: knob <-> defaults.conf (bash)" \
+run_layer "conf-registry-sync: helper reads <-> directive.yaml (bash)" \
     bash "$ROOT/scripts/test-conf-knob-doc-sync.sh" \
     || failed_layers+=("test-conf-knob-doc-sync.sh")
 

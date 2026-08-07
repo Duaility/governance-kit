@@ -101,8 +101,12 @@ require_git
 
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT" || exit 1
+MANIFEST="$(dirname "$0")/directive.yaml"
+RECEIPTS_DIR="$(conf_get receipt-per-issue RECEIPTS_DIR "$MANIFEST")"
+RECEIPT_FILENAME_REGEX="$(conf_get receipt-per-issue RECEIPT_FILENAME_REGEX "$MANIFEST")"
+NEW_RECEIPT_FILENAME_REGEX="$(conf_get receipt-per-issue NEW_RECEIPT_FILENAME_REGEX "$MANIFEST")"
 
-if [[ ! -d "$ROOT/receipts" ]]; then
+if [[ ! -d "$ROOT/$RECEIPTS_DIR" ]]; then
     directive_end
 fi
 
@@ -110,13 +114,18 @@ receipt_files=()
 while IFS= read -r f; do
     [[ -z "$f" ]] && continue
     receipt_files+=("$f")
-done < <(git ls-files -- 'receipts/*.md' 2>/dev/null || true)
+done < <(git ls-files -- "$RECEIPTS_DIR/*.md" 2>/dev/null || true)
 
 if [[ ${#receipt_files[@]} -eq 0 ]]; then
     directive_end
 fi
 
-required_sections=("Checklist" "What changed" "Out of scope" "Verification")
+required_sections=()
+while IFS= read -r section; do [[ -n "$section" ]] && required_sections+=("$section"); done \
+    < <(conf_list receipt-per-issue "$MANIFEST" REQUIRED_SECTIONS)
+new_receipt_sections=()
+while IFS= read -r section; do [[ -n "$section" ]] && new_receipt_sections+=("$section"); done \
+    < <(conf_list receipt-per-issue "$MANIFEST" NEW_RECEIPT_SECTIONS)
 
 # Section extraction is the shared `extract_md_section` helper from lib.sh.
 
@@ -177,7 +186,7 @@ add_to_scope() {
         esac
     done
 }
-add_to_scope < <(git diff --cached --no-renames --diff-filter=A --name-only -- 'receipts/*.md' 2>/dev/null || true)
+add_to_scope < <(git diff --cached --no-renames --diff-filter=A --name-only -- "$RECEIPTS_DIR/*.md" 2>/dev/null || true)
 cs_base=""
 for candidate in origin/main origin/master main master; do
     if git rev-parse --verify "$candidate" >/dev/null 2>&1; then
@@ -191,7 +200,7 @@ done
 if [[ -n "$cs_base" ]]; then
     while IFS= read -r sha; do
         [[ -z "$sha" ]] && continue
-        add_to_scope < <(git diff-tree --no-commit-id --no-renames --name-only --diff-filter=A -r "$sha" -- 'receipts/*.md' 2>/dev/null || true)
+        add_to_scope < <(git diff-tree --no-commit-id --no-renames --name-only --diff-filter=A -r "$sha" -- "$RECEIPTS_DIR/*.md" 2>/dev/null || true)
     done < <(git log "$cs_base..HEAD" --format='%H' 2>/dev/null || true)
 fi
 
@@ -232,7 +241,7 @@ fi
 coverage_exempt() {
     local path="$1" base="${1##*/}"
     case "$path" in
-        receipts/*) return 0 ;;
+        "$RECEIPTS_DIR"/*) return 0 ;;
     esac
     case "$base" in
         COSTS.md|STEERING.md|CONSTITUTION.md) return 0 ;;
@@ -243,7 +252,7 @@ coverage_exempt() {
 seen_nums=()
 seen_files=()
 inscope_receipts=()
-for f in "${receipt_files[@]}"; do
+for f in ${receipt_files[@]+"${receipt_files[@]}"}; do
     if has_receipt_waiver "$f"; then
         continue
     fi
@@ -258,16 +267,16 @@ for f in "${receipt_files[@]}"; do
     # the agent adds a slug when fleshing out the narrative) and for pre-existing receipts on HEAD,
     # which are grandfathered. Same forward-only change-set scope as rules 4–7.
     if receipt_in_scope "$f" && ! is_receipt_stub "$f"; then
-        fname_re='^issue-([0-9]+)-[a-z0-9]+(-[a-z0-9]+)*\.md$'
+        fname_re="$NEW_RECEIPT_FILENAME_REGEX"
         fname_msg="$f — a newly added receipt filename must match 'issue-<N>-<slug>.md' with a kebab-case slug (lowercase letters, digits, hyphens) — e.g. receipts/issue-63-replace-plans.md"
     else
-        fname_re='^issue-([0-9]+)(-[a-z0-9]+(-[a-z0-9]+)*)?\.md$'
+        fname_re="$RECEIPT_FILENAME_REGEX"
         fname_msg="$f — receipt filename must match 'issue-<N>.md' or 'issue-<N>-<slug>.md' with a kebab-case slug (lowercase letters, digits, hyphens) — e.g. receipts/issue-63-replace-plans.md"
     fi
     if [[ "$base" =~ $fname_re ]]; then
         num="${BASH_REMATCH[1]}"
         dup_of=""
-        for i in "${!seen_nums[@]}"; do
+        for i in ${seen_nums[@]+"${!seen_nums[@]}"}; do
             if [[ "${seen_nums[$i]}" == "$num" ]]; then
                 dup_of="${seen_files[$i]}"
                 break
@@ -294,7 +303,7 @@ for f in "${receipt_files[@]}"; do
     fi
 
     has_all_sections=1
-    for section in "${required_sections[@]}"; do
+    for section in ${required_sections[@]+"${required_sections[@]}"}; do
         if ! grep -qE "^##[[:space:]]+${section}\b" "$f"; then
             violation "$f — receipt is missing a '## ${section}' section"
             has_all_sections=0
@@ -307,9 +316,10 @@ for f in "${receipt_files[@]}"; do
     # writes "None".
     if receipt_in_scope "$f"; then
         inscope_receipts+=("$f")
-        if ! grep -qE "^##[[:space:]]+Decisions\b" "$f"; then
-            violation "$f — newly added receipt is missing a '## Decisions' section (record off-spec decisions, forced changes, and tradeoffs; write 'None' if the work followed the spec exactly)"
-        fi
+        for section in ${new_receipt_sections[@]+"${new_receipt_sections[@]}"}; do
+            grep -qE "^##[[:space:]]+${section}\b" "$f" \
+                || violation "$f — newly added receipt is missing a '## ${section}' section"
+        done
         # Verification must carry at least one runnable command (fenced code
         # block) on newly added receipts. Only meaningful if the section
         # exists; its absence is already flagged by the required-sections loop.
@@ -324,8 +334,8 @@ for f in "${receipt_files[@]}"; do
         # issue — the substance the closed-loop crosswalk never touches. The
         # judgment task is declared once in directive.yaml's `judge:` block;
         # `judge_attest` reads it, gates the section's presence + verdict, and
-        # registers it (isolation: shared) so the run-level orchestrator batches
-        # it with any other pending shared attestation into one sub-agent. The
+        # registers it so the run-level orchestrator can request one fresh
+        # context for this pending attestation. The
         # hook never spawns anything itself; a bare/CI run with no agent simply
         # hard-fails on the missing section. On an older lib.sh (no
         # judge_attest) fall back to the per-section require_attestation gate.
@@ -384,7 +394,7 @@ if [[ ${#coverage_anchors[@]} -gt 0 ]]; then
     # Combined, normalized prose of every anchor receipt (whole file body —
     # any section may name a changed file).
     coverage_evidence=""
-    for r in "${coverage_anchors[@]}"; do
+    for r in ${coverage_anchors[@]+"${coverage_anchors[@]}"}; do
         coverage_evidence+="$(normalize "$(cat "$r" 2>/dev/null)")"$'\n'
     done
 

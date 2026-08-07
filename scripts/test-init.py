@@ -89,14 +89,14 @@ def _write_source_pack(base: Path, pack_id: str = "acme/widgets", did: str = "no
         f"id: {pack_id}\nname: Widgets\nversion: \"0.1\"\nmin_governance_kit: \"0.0.1\"\n"
         "description: test\nauthor: acme\nsource: gh\n")
     (ddir / "directive.yaml").write_text(
-        "category: Quality\nrecommended: true\nsummary: no console.log.\nsurface: change-set\nhook: pre-commit\n")
+        "category: Quality\nrecommended: true\nsummary: no console.log.\nsurface: change-set\nhook: pre-commit\n"
+        "config:\n  - name: LIMIT\n    type: scalar\n    doc: fixture limit.\n    default: 1\n    tunable: true\n")
     (ddir / "check.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
     (ddir / "constitution.md").write_text(
         f"### {did}\n\n- **Directive**: no console.log.\n"
         f"- **Enforced by**: `.governance/packs/{pack_id}/directives/{did}/check.sh`\n")
     (ddir / "evals" / "test.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
     (ddir / "install-assets" / "WIDGETS.md").write_text("# Widgets\n")
-    (ddir / "defaults.conf").write_text("# fixture defaults + docs\n# KEY=value\n")
     (ddir / "check.sh").chmod(0o755)
     (ddir / "evals" / "test.sh").chmod(0o755)
     return pack
@@ -142,10 +142,10 @@ def test_init_apply_assembles_full_install() -> None:
         root = _fresh_repo(Path(tmp) / "repo")
         rc, report = init_apply_cli(root, _decisions(src))
         assert rc == 0 and report["result"] == "applied", report
-        # directive installed minus evals; defaults.conf (live defaults + docs) ships
+        # directive installed minus evals; config lives in directive.yaml
         dest = root / ".governance/packs/acme/widgets/directives/no-console-log"
         assert (dest / "check.sh").is_file() and not (dest / "evals").exists()
-        assert (dest / "defaults.conf").is_file()
+        assert "config:" in (dest / "directive.yaml").read_text()
         # CONSTITUTION assembled
         const = (root / "CONSTITUTION.md").read_text()
         assert "Ship receipts, not promises." in const and "### no-console-log" in const
@@ -182,10 +182,10 @@ def test_init_apply_assembles_full_install() -> None:
         # per-directive overlay seeded from the generic conf stub; reported, not ledgered
         conf = root / ".governance/conf/acme/widgets/no-console-log.conf"
         assert conf.is_file() and ".governance/conf/acme/widgets/no-console-log.conf" in report["conf_seeded"]
-        # the seeded overlay is the generic stub — names the directive + points at its defaults.conf
+        # the seeded overlay points at the author-owned manifest
         conf_text = conf.read_text()
         assert "no-console-log" in conf_text
-        assert ".governance/packs/acme/widgets/directives/no-console-log/defaults.conf" in conf_text
+        assert ".governance/packs/acme/widgets/directives/no-console-log/directive.yaml" in conf_text
         assert "no-console-log.conf" not in (root / ".governance/install.yaml").read_text()
         # the deleted hardcoded special case must not resurface
         assert not (root / ".governance/integrity.conf").exists()
@@ -310,7 +310,7 @@ def test_init_apply_lays_down_schedule_runtime() -> None:
     # digested on every install exactly like run.sh/lib.sh — regardless of
     # whether any installed directive has a `judge:` block. No workflow file
     # is auto-created; a schedule-lane workflow is only created explicitly via
-    # `governance schedule create`.
+    # `governance workflow generate`.
     with tempfile.TemporaryDirectory() as tmp:
         src = _write_judge_pack(Path(tmp) / "src")
         root = _fresh_repo(Path(tmp) / "repo")
@@ -327,7 +327,7 @@ def test_init_apply_lays_down_schedule_runtime() -> None:
         # file (managed_digests), not a one-time seeded asset.
         assert ".governance/schedule.sh" not in report.get("seeded_assets", [])
         assert not (root / ".github/workflows/governance-sweep.yml").exists()
-        assert not list((root / ".github/workflows").glob("governance-schedule-*.yml"))
+        assert not list((root / ".github/workflows").glob("governance-schedule*.yml"))
         ledger = (root / ".governance/install.yaml").read_text()
         assert "\n  .governance/schedule.sh: " in ledger, ledger
 
@@ -340,7 +340,7 @@ def test_init_apply_lays_down_schedule_runtime() -> None:
         assert rc == 0, report
         assert (root / ".governance/schedule.sh").is_file()
         assert not (root / ".github/workflows/governance-sweep.yml").exists()
-        assert not list((root / ".github/workflows").glob("governance-schedule-*.yml"))
+        assert not list((root / ".github/workflows").glob("governance-schedule*.yml"))
 
 
 def test_init_apply_dry_run_writes_nothing() -> None:

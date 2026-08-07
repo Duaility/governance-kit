@@ -36,10 +36,16 @@ index($0, key "=") == 1 { print substr($0, length(key) + 2); exit }
 }
 
 _identity_fresh() {
-    local epoch now max
+    local epoch now max manifest runtime_dir
     epoch="$(identity_get epoch)"
     case "$epoch" in ''|*[!0-9]*) return 1 ;; esac
-    max="${GOVERNANCE_SESSION_IDENTITY_MAX_AGE_HOURS:-24}"
+    runtime_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    manifest="$runtime_dir/../directive.yaml"
+    if declare -F conf_get >/dev/null 2>&1 && [ -f "$manifest" ]; then
+        max="$(conf_get agent-session-identity SESSION_MAX_AGE_HOURS "$manifest" 2>/dev/null || printf '24')"
+    else
+        max=24
+    fi
     case "$max" in ''|*[!0-9]*) return 1 ;; esac
     now="$(date +%s)"
     [ $((now - epoch)) -lt $((max * 3600)) ]

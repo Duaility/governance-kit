@@ -1,0 +1,94 @@
+# governance-kit:managed kit-version=0.13.0
+name: Governance schedule
+
+# This is a compiled artifact of directive-owned scheduling. The source of
+# truth is each installed directive's SCHEDULE_CRON config entry; this one
+# workflow carries every distinct cadence and dispatches the matching members.
+# `governance workflow generate` is the only writer. Never hand-edit this file:
+# managed-tree-integrity records its digest offline.
+#
+# The same `judge:` declaration is used by the commit gate and the at-rest
+# scheduled driver. Mechanical check.sh members fail the job directly; judge
+# results are recorded in receipts or the schedule digest issue.
+#
+# Provide the credentials required by each directive's configured
+# SCHEDULE_CMD. Missing credentials are reported honestly; they never become
+# a guessed PASS. A non-empty SCHEDULE_CRON is the only enrollment switch.
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      cron:
+        description: "Run one generated cadence; leave blank to run all"
+        required: false
+        type: string
+      range:
+        description: "Explicit A..B commit range (overrides each cadence's resume point)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: governance-schedule-${{ github.event.schedule || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  schedule:
+    runs-on: ubuntu-latest
+    # There is intentionally no schedule-wide invocation budget. Keep the
+    # workflow bounded by GitHub's normal job timeout instead of silently
+    # truncating a directive's independent judgment work.
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Install harness CLI
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+            echo "governance schedule: no ANTHROPIC_API_KEY secret — judge members will skip honestly; mechanical members still run and can still fail this job"
+          fi
+          npm install -g @anthropic-ai/claude-code
+
+      - name: Run governance schedule
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          SCHEDULE_EVENT: ${{ github.event.schedule }}
+          SCHEDULE_INPUT: ${{ github.event.inputs.cron }}
+          SCHEDULE_RANGE_INPUT: ${{ github.event.inputs.range }}
+        run: |
+          run_group() {
+            local lane="$1"; shift
+            if [ -n "${SCHEDULE_RANGE_INPUT:-}" ]; then
+              bash .governance/run.sh --scheduled --lane "$lane" --range "$SCHEDULE_RANGE_INPUT" "$@"
+            else
+              bash .governance/run.sh --scheduled --lane "$lane" "$@"
+            fi
+          }
+
+          selector="${SCHEDULE_INPUT:-${SCHEDULE_EVENT:-}}"
+          status=0
+          if [ -n "$selector" ]; then
+            case "$selector" in
+              '0 3 * * *')
+                run_group cron-51c662a2b4ac governance-kit/core/license-headers governance-kit/core/secrets-hygiene || status=1
+                ;;
+              *)
+                echo "governance schedule: no generated cadence matches selector '$selector'" >&2
+                exit 2
+                ;;
+            esac
+          else
+            run_group cron-51c662a2b4ac governance-kit/core/license-headers governance-kit/core/secrets-hygiene || status=1
+          fi
+          exit "$status"

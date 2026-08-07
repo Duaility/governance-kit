@@ -77,6 +77,6 @@ bash scripts/release.sh <kit|PACK> <X.Y.Z> [--dry-run] [--push]
 - **One atomic commit + one tag per run.** No auto-push without `--push`.
 - **CHANGELOG integrity.** Released sections are frozen; only the `[Unreleased]`
   section and a freshly-prepended release section change. (When `CHANGELOG.md` is
-  enrolled in `doc-integrity` — via a rule in its `defaults.conf` or the
+  enrolled in `doc-integrity` — via a rule in its manifest config or the
   `.governance/conf/doc-integrity.conf` overlay — scope the rule to freeze tagged
   sections while leaving `[Unreleased]` mutable.)

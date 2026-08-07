@@ -107,9 +107,9 @@ def append_install_assets_seeded(manifest_path: Path, rels: list[str]) -> None:
     not duplicated. Handles both the empty (`[]`) and block-list YAML forms.
 
     Shared by every apply engine that lays down a kit-level managed asset
-    (pack-apply's install-assets, schedule-apply's generated workflow) so the
-    ledger format never drifts between callers (issue #172, and the scheduled-
-    lane redesign that replaced the sweep lane's seeding).
+    (pack-apply's install-assets and workflow generation) so the ledger format
+    never drifts between callers (issue #172, and the scheduled-lane redesign
+    that replaced the sweep lane's seeding).
     """
     if not rels or not manifest_path.is_file():
         return
@@ -143,8 +143,8 @@ def remove_install_assets_seeded(manifest_path: Path, rels: list[str]) -> None:
     """Drop `rels` from install.yaml's `install_assets_seeded` list, in place.
 
     The removal counterpart to `append_install_assets_seeded` — used by
-    `schedule-remove` to keep the ledger honest when a generated schedule
-    workflow is deleted. A no-op when the manifest or the key is absent, or
+    workflow generation to keep the ledger honest when the generated workflow
+    is deleted. A no-op when the manifest or the key is absent, or
     when none of `rels` are present.
     """
     if not rels or not manifest_path.is_file():

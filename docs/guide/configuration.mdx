@@ -1,22 +1,22 @@
 ---
 title: 'Configuration'
-summary: 'How directives are tuned — pack-owned defaults, user-owned overlays under .governance/conf/, env-tunable limits, and presets.'
+summary: 'How typed manifest config, explicitly tunable overlays, and presets work.'
 ---
 
 # Configuration
 
-Directives are tuned through two layers with a clear ownership split: the **pack owns the defaults**, the **repo owns the overlay**. Nothing is configured by editing check code.
+Directives declare typed defaults and docs in `directive.yaml`; the repo may override only settings the author marks tunable. Nothing is configured by editing check code.
 
 ## The two layers
 
 | Layer | File | Owner | When it changes |
 |---|---|---|---|
-| **Defaults** | `<directive>/defaults.conf`, vendored with the directive | The pack author | Refreshed on `governance pack update` |
+| **Registry** | `<directive>/directive.yaml` `config:` | The pack author | Refreshed on `governance pack update` |
 | **Overlay** | `.governance/conf/<owner>/<pack>/<directive-id>.conf` | You | Hand-edited, committed like any file |
 
-`defaults.conf` is the one pack-owned config artifact: the live default values (scalar `KEY=value` rows and/or list rows) **and** their documentation, together. The overlay is seeded at install from a generic stub and is yours from then on — pack updates never touch it.
+Each config entry declares `name`, `type`, `doc`, `default`, and `tunable`. The overlay is seeded from a generic stub when config exists and is yours from then on—pack updates never touch it.
 
-Checks read the merged result through the shared `lib.sh` helpers (`conf_get` for scalars, `conf_list` for lists), so every directive resolves configuration the same way: overlay first, defaults as fallback.
+Checks use shared helpers (`conf_get` for scalars, `conf_list` for lists). A tunable overlay wins; fixed entries always use the manifest default. Environment variables are not a config tier.
 
 ```
 .governance/conf/
@@ -30,9 +30,9 @@ Checks read the merged result through the shared `lib.sh` helpers (`conf_get` fo
 ## Common knobs
 
 - **Opt-in doc lists** — `internal-doc-links`' `reachable` sub-check is a no-op until you declare roots in its overlay.
-- **Rule lists** — `doc-integrity` ships standard rules in its `defaults.conf` (receipts frozen once on the trunk, frozen sections for `QUALITY.md` Resolved and the Evolution Log); the overlay adds repo-specific rules.
-- **Add / drop semantics** — list-valued overlays like `toolchain-config-protection`'s protected paths use a bare line to add a pattern and `!<pattern>` to drop one of the defaults.
-- **Env-tunable limits** — metric checks expose their thresholds as environment variables (`GOVERNANCE_<X>_LIMIT`), e.g. `repo-hygiene`'s file-size and source-length limits.
+- **Rule lists** — `doc-integrity` ships standard rules in its manifest; its tunable overlay adds repo-specific rules.
+- **Add / drop semantics** — list-valued overlays use `KEY+=<item>` and `KEY-=<item>`. Bare additions and `!<item>` removals remain shorthand when a directive declares only one list key.
+- **Tunable limits** — metric thresholds such as `repo-hygiene`'s file-size and source-length limits are scalar config entries overridden with `KEY=value` rows.
 
 ## Presets are configuration too
 
@@ -43,5 +43,5 @@ Which directives install at all is declared per pack in `pack.yaml` presets (`mi
 The lockfile, `CONSTITUTION.md`, and anything carrying the `# governance-kit:managed` marker are written only by the verbs. Overlays under `.governance/conf/` are the deliberate exception — they are *designed* to be hand-edited and committed.
 
 <Note>
-Each directive's exact knobs are documented in its own `defaults.conf` and its constitution subsection's **Exceptions** field. The [directive catalog](/reference/directive-catalog) lists which directives are configurable.
+Each directive's exact knobs, defaults, and tunability are documented in its `directive.yaml` config registry. The [directive catalog](/reference/directive-catalog) lists configurable directives.
 </Note>

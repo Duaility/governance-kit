@@ -52,9 +52,8 @@ The independent-auditor pattern — a section a fresh-context sub-agent (or a
 detached CLI judge) must populate against ground truth (the diff and linked
 issue) the hook itself cannot read. Since issue #325
 the task is declared once in the directive's `directive.yaml` `judge:`
-block and the commit-time orchestrator **batches** every section sharing a
-`group` label into one judge invocation. Since issue #355 the block also
-declares what the commit path *does* with the verdict — `gate: record`
+block and the commit-time orchestrator gives every pending section its own
+judge invocation. Since issue #355 the block also declares what the commit path *does* with the verdict — `gate: record`
 (presence) or `gate: verdict` (the verdict decides the commit, bound to the
 tree by a stamp) — and who renders it, via `cmd`.
 Full design in [JUDGE.md](JUDGE.md); the attestation
@@ -66,26 +65,14 @@ shows when to reach for it.
 | `extract_md_section` | `extract_md_section <file> <heading>` | Print the body of the `## <heading>` section (case-insensitive), stopping at the next `## `. The generic markdown-section reader. | 0.10.0 |
 | `attestation_prompt` | `attestation_prompt <section> <inputs> <check-1> [<check-2> ...]` | Print the canonical single-section fresh-context sub-agent authoring instruction. One envelope so every attestation-backed directive emits the same recognizable prompt; you supply only the section name, the `<inputs>` the sub-agent must be handed, and the numbered checks it must adjudicate. | 0.10.0 |
 | `require_attestation` | `require_attestation <file> <section> <why> <inputs> <check-1> [...]` | The original per-directive gate. Records a `violation` when `<file>` lacks a well-formed `## <section>`: absent → `<why>` plus the `attestation_prompt` instruction; present but carrying no `PASS`/`REFUTED` token → a "fill in the verdict" message. Returns `0` on a well-formed section, `1` otherwise. Purely mechanical: presence + a verdict token, **never** the verdict's truth. Still the fallback when a directive can't declare a `judge:` block. | 0.10.0 |
-| `judge_attest` | `judge_attest <receipt>` | The declaration-driven gate. Reads the sibling `directive.yaml`'s `judge:` block (section, group, inputs, checks, cmd, and — since #355 — a three-valued `gate`: `record`, `verdict`, or `verdict-contestable`) and runs the gate it declares: `gate: record` is presence + a `PASS`/`REFUTED` token, `gate: verdict`/`gate: verdict-contestable` is the adjudication gate (append-only log, latest round `PASS`, fresh stamp; `verdict-contestable` additionally lets a `CONTESTED` latest round ride through with a stderr warning). Returns `0` immediately when the declaration has no `section:` key — a schedule-only declaration the commit lane ignores. When the section is pending it registers into the shared ledger so `attestation_remediation` can batch it. Returns `0`/`1` like `require_attestation`. | 0.11.0 |
-| `attestation_remediation` | `attestation_remediation [<ledger>]` | The run-level orchestrator. Reads the pending-attestation ledger and emits **one** grouped remediation instruction per `group` label present (a single sub-agent handed the union of that group's sections' inputs, demuxed by `DIRECTIVE:`-tagged blocks), plus one solo sub-agent per section declaring no `group`. For `gate: verdict` sections it renders the escalation ladder — spawn via `cmd.attest`, then an explicit escalation round via the same `cmd.attest`, then a terminal STALLED instruction — plus the exact round-line format and the `_adjudication_stamp` invocation. Invoked once by `run.sh` and the pre-commit dispatcher; silent no-op when nothing is pending. | 0.11.0 |
+| `judge_attest` | `judge_attest <receipt>` | Reads judgment semantics (`inputs`, `checks`, `gate`) from `judge:` and live-lane placement/command/rounds from typed `config:`. Without `ATTEST_SECTION` the live lane no-ops. Pending sections enter the shared remediation ledger. | release carrying issue #366 |
+| `attestation_remediation` | `attestation_remediation [<ledger>]` | The run-level orchestrator. Reads the pending-attestation ledger and emits one independent remediation instruction per pending section. For `gate: verdict` sections it renders the escalation ladder through fixed `ATTEST_CMD`, then a terminal STALLED instruction, plus the exact round-line format and `_adjudication_stamp` invocation. Invoked once by `run.sh` and the pre-commit dispatcher; silent no-op when nothing is pending. | 0.11.0 |
 | `resolve_judge_input` | `resolve_judge_input <token> <receipt>` | Map a typed input token (`diff`, `receipt`, `issue`, `layer-map`) to the concrete handle phrase the sub-agent is handed; unknown tokens pass through verbatim. Chat transcripts and harness-private session files are not supported inputs. | 0.11.0 |
 
-Operator knobs these read: `JUDGE_ROUNDS`, through the standard `conf_get`
-ladder (env `GOVERNANCE_<KEY>` > user overlay > pack `defaults.conf`) — this
-is genuinely per-directive, so it stays on that ladder. The `group` batching
-label is **not** a `conf_get` knob: it resolves through the bespoke
-`_judge_group_resolve` helper (below) from the per-directive conf overlay's
-`JUDGE_GROUP=<label>` row (present but **empty** forces solo), falling
-through to the directive's own `judge.group` in `directive.yaml` when the
-overlay carries no row for it, and to solo when neither does — see
-[JUDGE.md](JUDGE.md#the-judge-declaration) for the full resolution rules.
-`cmd` is **not** conf-tunable either — it stays a semantic field fixed in
-`directive.yaml`. `GOVERNANCE_JUDGE_CMD` (consulted by `schedule.sh`, not a
-`lib.sh` helper) is a third, separate kind of knob again: a plain, ephemeral
-env a schedule lane's generated workflow exports, naming the judge for any
-directive in that lane that leaves `cmd.schedule` unset — the default for
-every bundled directive. See [JUDGE.md](JUDGE.md) for what each field
-changes and the author-fixed vs operator-tunable split.
+Execution settings use ordinary config entries such as `ATTEST_SECTION`,
+`ATTEST_CMD`, `SCHEDULE_CMD`, and `JUDGE_ROUNDS`. The manifest
+fixes command and artifact-contract entries; environment values never override
+or supply them.
 
 These helpers are **pure bash + awk + git** since issue #355 — the commit path
 invokes no python. Several private helpers landed with the adjudication gate and
@@ -96,13 +83,12 @@ but these are worth knowing:
 |---|---|---|---|
 | `_adjudication_stamp` | `_adjudication_stamp <receipt>` | Print the 12-hex freshness stamp binding a verdict to the tree it judged: `sha256("<git write-tree over the index minus the receipt> <sha256 of the receipt with its round lines stripped>")`, truncated. Appending round lines never moves it; changing any other byte of the receipt or any other file in the commit does. Callable standalone (`bash -c 'source .governance/lib.sh; _adjudication_stamp <path>'`) so an adjudicator can record it. | the release carrying #355 |
 | `_change_set_base` | `_change_set_base` | Print the commit the change set is measured against — the merge-base with the first resolvable default branch (`origin/main`, `origin/master`, `main`, `master`), falling back to `HEAD`. The `doc-integrity` candidate ladder, factored out. `GOVERNANCE_CHANGE_SET_BASE` overrides. | the release carrying #355 |
-| `_judge_rounds_resolve` | `_judge_rounds_resolve <id> <defaults-file> <directive.yaml>` | Resolve the adjudication round ceiling *K* through the usual `conf_get` ladder (`JUDGE_ROUNDS`), default `3`, clamped up to a floor of `2`. | the release carrying #355 |
-| `_judge_cmd_resolve` | `_judge_cmd_resolve <yaml> <lane>` | Print the `cmd` string declared for `lane` (`attest` or `schedule`) out of the directive's flattened `judge:` yaml, joining the existing restricted-yaml reader; reads `cmd:` map rows only, never a bare scalar. Returns `1` (nothing printed) when the row is absent — the normal case for `schedule` on every bundled directive. `schedule.sh` layers the ephemeral `GOVERNANCE_JUDGE_CMD` env (exported by the lane's generated workflow) on top of this as the next rung when it returns `1` for `schedule`; this helper itself knows nothing about the workflow — see [SCHEDULE_FLOW.md](SCHEDULE_FLOW.md#the-judge-resolution-ladder-scheduled). | the release carrying #355 |
+| `_judge_rounds_resolve` | `_judge_rounds_resolve <id> <directive.yaml>` | Resolve `JUDGE_ROUNDS` through the config registry, defaulting to `3` only when undeclared and clamping to a floor of `2`. | release carrying issue #366 |
+| `_judge_cmd_resolve` | `_judge_cmd_resolve <yaml> <lane>` | Resolve `ATTEST_CMD` or `SCHEDULE_CMD` through the config registry; returns `1` when absent or empty. | release carrying issue #366 |
 | `_judge_cmd_run` | `_judge_cmd_run <cmd>` | Run **one** judge round against a detached CLI: prompt on stdin, normalized verdict on stdout. `command -v` on `<cmd>`'s first word first — missing → return `2`, no output, one stderr line, never a guess. Strips harness session identity from the environment before exec'ing (`CLAUDECODE`, `CLAUDE_CODE_*`, `CODEX_*`, `CURSOR_*`, `PI_*`, `OPENCODE*`) so the spawned CLI is a fresh context, not a nested harness session. Wraps the call in `timeout`/`gtimeout ${AGENT_JUDGE_TIMEOUT:-120}` when available. Runs `bash -c "$cmd"` with the prompt on stdin; a nonzero exit returns `2`. Pipes stdout through `_judge_emit_verdict`; no well-formed `VERDICT:` line returns `2`. | the release carrying #355 |
-| `_judge_emit_verdict` | `_judge_emit_verdict` | The awk grammar filter every judge's raw output is piped through, once, instead of duplicated per adapter: CR-strip, printable-ASCII only, length cap, passes only `VERDICT:`/`REASON:`/`FINDING:`/`DIRECTIVE:` lines. A `DIRECTIVE:` line re-arms the verdict matcher (the `blk` flag) so a batched `group` invocation's answer demuxes back into one verdict per member directive. | the release carrying #355 |
-| `_judge_cli_prompt` | `_judge_cli_prompt <receipt> <section> <checks-US> <directive.yaml> [<range>] [<mode>]` | Build the whole prompt piped into `_judge_cmd_run` (or handed to the harness sub-agent instruction), from the declaration and git ground truth — never from the agent under audit's own context. `<mode>` selects the **moment**, not the judgment: `verdict` (default) is the commit lane, where a gate is waiting; `schedule` is the at-rest lane, where the answer is recorded as a round or filed as findings (the renamed `sweep` mode). `<range>` is the judged commit range the `range-diff` input token renders (falls back to `$GOVERNANCE_SCHEDULE_RANGE`, the renamed `GOVERNANCE_SWEEP_RANGE`). The batch-spec 7th arg (record-separator `\x1e`-joined members) is unchanged. One builder, one prompt shape, two moments — `schedule.sh` never builds its own prompt. | the release carrying #355 |
-| `_judge_group_resolve` | `_judge_group_resolve <full-id> <bare-id> <yaml>` | Resolve the batching `group` label for a directive: the overlay `JUDGE_GROUP=` row in `.governance/conf/<owner>/<pack>/<id>.conf` (present but **empty** forces solo), else `directive.yaml`'s own `judge.group`, else solo (`-`). Replaces the old `repo.conf` `judge-group`/`judge-solo` partition reader; there is no ambiguity case left to warn about, since resolution is per directive against its own overlay file. | the release carrying the scheduling redesign |
-| `_directive_triggers_resolve` | `_directive_triggers_resolve <full-id> <bare-id> <yaml> <hook>` | Resolve a directive's effective `triggers:` list: the overlay `TRIGGERS=` row (comma-separated) in `.governance/conf/<owner>/<pack>/<id>.conf`, else `directive.yaml`'s own `triggers:` list, else the derived `[<hook>]` (or `[]` when `<hook>` is `none`). Shared by `schedule.sh` and the `schedule-plan`/`schedule-apply` verb to decide whether a named member is eligible for the `schedule` lane. | the release carrying the scheduling redesign |
+| `_judge_emit_verdict` | `_judge_emit_verdict` | The awk grammar filter every judge's raw output is piped through: CR-strip, printable-ASCII only, length cap, passes only `VERDICT:`/`REASON:`/`FINDING:` lines. | the release carrying #355 |
+| `_judge_cli_prompt` | `_judge_cli_prompt <receipt> <section> <checks-US> <directive.yaml> [<range>] [<mode>]` | Build the whole prompt piped into `_judge_cmd_run` (or handed to the harness sub-agent instruction), from the declaration and git ground truth — never from the agent under audit's own context. `<mode>` selects the **moment**, not the judgment: `verdict` (default) is the commit lane, where a gate is waiting; `schedule` is the at-rest lane, where the answer is recorded as a round or filed as findings (the renamed `sweep` mode). `<range>` is the judged commit range the `range-diff` input token renders (falls back to `$GOVERNANCE_SCHEDULE_RANGE`, the renamed `GOVERNANCE_SWEEP_RANGE`). One builder, one prompt shape, two moments — `schedule.sh` never builds its own prompt. | the release carrying #355 |
+| `_directive_triggers_resolve` | `_directive_triggers_resolve <full-id> <bare-id> <yaml> <hook>` | Read author-owned explicit `triggers:` or derive the hook-only default. Overlays cannot change eligibility. | release carrying issue #366 |
 
 ### The `FINDING` grammar (schedule lane, issue #355)
 
@@ -125,18 +111,18 @@ anyway — no commit-path behavior changes because the grammar grew.
 
 ### Per-directive configuration
 
-Two artifacts, one writer each (issue #210): the pack-owned `defaults.conf` next
-to `check.sh` (live defaults + their docs) and the user overlay
-`.governance/conf/<owner>/<pack>/<id>.conf`. Both resolve the qualified overlay
-path from the running `check.sh` location automatically. Layout and the
-add/remove/override grammar: [PACK_AUTHORING.md](PACK_AUTHORING.md#per-directive-configuration).
+The author-owned `directive.yaml config:` registry holds typed defaults, docs,
+and tunability. The optional user overlay lives at
+`.governance/conf/<owner>/<pack>/<id>.conf`. Helpers resolve the qualified
+overlay from the running `check.sh`; only entries declared `tunable: true`
+consume it. See [PACK_AUTHORING.md](PACK_AUTHORING.md#per-directive-configuration).
 
 | Function | Signature | What it does | Since |
 |---|---|---|---|
 | `conf_file` | `conf_file <directive-id>` | Print the directive's user-overlay path and return `0` if it exists; return `1` (printing nothing) otherwise. Conf-driven directives typically treat a missing overlay as "nothing opted in" and no-op. | 0.6.0 |
-| `conf_get` | `conf_get <directive-id> <KEY> <defaults-file>` | Resolve a scalar knob. Precedence: env `GOVERNANCE_<KEY>` > the overlay's `KEY=` line > the `defaults.conf` `KEY=` row. Pass `"$(dirname "$0")/defaults.conf"` as `<defaults-file>` — the `defaults.conf` row **is** the default (there is no in-code constant), so a read knob with no row fails loud. | 0.6.0 |
+| `conf_get` | `conf_get <directive-id> <KEY> <directive.yaml>` | Resolve a declared scalar. A tunable overlay `KEY=` row wins; otherwise the manifest default is final. There is no environment tier or undeclared fallback. | release carrying issue #366 |
 | `conf_rule_lines` | `conf_rule_lines <directive-id>` | Emit the user overlay's directive-defined rule lines — trimmed, with `#` comments, blank lines, and `KEY=value` scalar lines stripped. Emits nothing when no overlay exists. | 0.6.0 |
-| `conf_list` | `conf_list <directive-id> <defaults-file>` | Emit the effective list: the `defaults.conf` items with the overlay layered on top — a bare line **adds**, `!<item>` **removes** a default (gitignore-style negation), `KEY=value` is ignored (read scalars with `conf_get`). Pass `"$(dirname "$0")/defaults.conf"`. | 0.6.0 |
+| `conf_list` | `conf_list <directive-id> <directive.yaml> [KEY]` | Emit a declared list default. For tunable entries, `KEY+=<item>` adds and `KEY-=<item>` removes; bare/`!item` shorthand is accepted only when the manifest declares one list key. `KEY` defaults to `RULES`. | release carrying issue #366 |
 
 ## Use these, don't reinvent
 
@@ -153,9 +139,9 @@ so authors routinely hand-roll what already ships. The recurring foot-guns:
   artifact match the diff / the issue / the running system," that is the
   attestation class (`require_attestation`), not a cleverer grep. A hook cannot
   read ground truth; stop trying to approximate it.
-- **Reading config** — `conf_get` / `conf_list` already implement the
-  env → overlay → `defaults.conf` precedence and the add/remove grammar. Don't
-  re-parse the conf files by hand.
+- **Reading config** — `conf_get` / `conf_list` already enforce the manifest's
+  type and tunability policy plus the list add/remove grammar. Don't re-parse
+  manifests or overlay files by hand.
 
 ## Version-floor obligation
 

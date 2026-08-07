@@ -4,6 +4,8 @@
 # no orphaned TODO/FIXME markers, and no governance waivers without a
 # justification. Nothing in this pack belongs to `minimal` — these are the
 # rules a repo opts into once it is past bootstrap.
+# RELEASE REMINDER: if these directives begin requiring a newer kit runtime,
+# raise min_governance_kit in the release commit that first ships that runtime.
 #
 # Directive metadata lives inside each directive's folder under
 # `directives/<id>/`. Presets are per-pack and unioned at init.

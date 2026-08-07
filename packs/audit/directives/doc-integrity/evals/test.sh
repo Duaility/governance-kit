@@ -11,7 +11,7 @@ fixture_init
 install_directive "$PACK_DIR" "$EVAL_ID"
 
 # Opt two documents in via the overlay (one per remaining mode). receipts/*.md
-# is already frozen by the pack-owned defaults.conf — exercising that the
+# is already frozen by the pack-owned manifest default — exercising that the
 # defaults are live without being restated here.
 mkdir -p .governance/conf
 cat > $EVAL_CONF <<'EOF'
@@ -206,6 +206,22 @@ printf '!frozen-files COSTS.md\n' >> $EVAL_CONF
 EVAL_LABEL="$EVAL_ID modeB-overlay-removes-default" expect_pass "$CHECK"
 # restore the overlay for hygiene
 sed -i.bak '/!frozen-files COSTS.md/d' $EVAL_CONF && rm -f $EVAL_CONF.bak
+reset_clean
+
+# The receipts rule is cross-pack policy: attempting to remove it from the
+# tunable RULES overlay must not make a historical receipt editable.
+git checkout --quiet main
+git checkout --quiet -b drop-receipts-rule
+printf 'after the fact\n' >> receipts/issue-7-thing.md
+git add receipts/issue-7-thing.md
+EVAL_LABEL="$EVAL_ID receipt-rule-always-frozen" expect_fail "$CHECK" "$msg"
+git reset --quiet --hard HEAD
+printf '!frozen-files receipts/*.md\n' >> $EVAL_CONF
+printf 'another edit\n' >> receipts/issue-7-thing.md
+git add receipts/issue-7-thing.md
+EVAL_LABEL="$EVAL_ID receipt-rule-cannot-be-removed" expect_fail "$CHECK" "$msg"
+git reset --quiet --hard HEAD
+sed -i.bak '/!frozen-files receipts\/\*\.md/d' $EVAL_CONF && rm -f $EVAL_CONF.bak
 reset_clean
 
 eval_done
