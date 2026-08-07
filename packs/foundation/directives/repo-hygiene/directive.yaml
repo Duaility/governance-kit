@@ -45,7 +45,7 @@ config:
       - "debugger statement|^[[:space:]]*debugger[[:space:]]*;?|*.js *.jsx *.ts *.tsx *.mjs *.cjs"
       - 'Python breakpoint|^[[:space:]]*breakpoint[[:space:]]*\(|*.py'
       - "pdb.set_trace|import pdb|*.py"
-      - 'Rust dbg! macro|[[:<:]]dbg![[:space:]]*\(|*.rs'
+      - 'Rust dbg! macro|(^|[^[:alnum:]_])dbg![[:space:]]*\(|*.rs'
       - 'fmt.Println debug|^[[:space:]]*fmt\.Println[[:space:]]*\(|*.go'
     tunable: true
   - name: SOURCE_PATTERNS

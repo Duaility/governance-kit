@@ -64,7 +64,13 @@ _dbg=()
 while IFS= read -r entry; do [[ -n "$entry" ]] && _dbg+=("$entry"); done \
     < <(conf_list repo-hygiene "$MANIFEST" DEBUG_PATTERNS)
 for entry in ${_dbg[@]+"${_dbg[@]}"}; do
-    IFS='|' read -r label pattern pathspec <<<"$entry"
+    # The regex may itself contain an alternation (`|`), so split the stable
+    # label and pathspec delimiters explicitly instead of letting `read` cut
+    # the pattern at its first alternation.
+    label="${entry%%|*}"
+    _debug_rule="${entry#*|}"
+    pathspec="${_debug_rule##*|}"
+    pattern="${_debug_rule%|*}"
     # shellcheck disable=SC2206
     _pathspec_args=($pathspec)
     while IFS=: read -r file line_no _; do

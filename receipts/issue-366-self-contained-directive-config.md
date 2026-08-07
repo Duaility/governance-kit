@@ -234,7 +234,7 @@ PASS — The transcript contains one human-steering event: the ordinal 168 corre
 
 | date | harness | session | model | input | cache-create | cache-read | output | cost-usd | source |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-08-06 | codex | 019fd69e-ee48-7c02-b0a9-9f83691f3f90 | gpt-5.6-luna | 3366687 | 0 | 149872896 | 376671 | - | session-file |
+| 2026-08-06 | codex | 019fd69e-ee48-7c02-b0a9-9f83691f3f90 | gpt-5.6-luna | 3393191 | 0 | 153488384 | 380599 | - | session-file |
 
 ### Steering
 
