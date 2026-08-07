@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# governance-kit:managed kit-version=0.13.0
+# governance-kit:managed kit-version=0.14.0
 # .governance/schedule.sh — the engine behind `run.sh --scheduled`, the at-rest
 # half of the kit's ONE judgment primitive.
 #
