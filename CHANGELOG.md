@@ -22,6 +22,11 @@ tag-based release flow and are summarised at milestone granularity.
 - `governance/assets/kit.yaml` — single source of truth for the kit version.
 - `governance/references/VERSIONING.md` — two-axis semver policy + tag scheme.
 
+## [audit/v0.11.0] - 2026-09-08
+
+### Added
+- retire six directives and simplify receipts (#370) (#371)
+
 ## [kit/v0.15.0] - 2026-09-08
 
 ### Added

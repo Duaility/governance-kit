@@ -15,7 +15,7 @@
 
 id: governance-kit/audit
 name: Governance kit
-version: "0.10.0"
+version: "0.11.0"
 # Floor 0.13.0 (#355). Directives declare judge: blocks resolved by kit-owned
 # lib.sh/schedule.sh — first shipped to consumers in kit/v0.13.0. See
 # kit/references/LIB_API.md.
