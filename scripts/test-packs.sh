@@ -261,7 +261,7 @@ EOF
 
 Fixture architecture doc for the fresh-repo install contract. The real
 bootstrap skill writes repo-specific content; this file only exists to
-satisfy `required-docs` at the expected line-count floor.
+give the fixture a realistic repo-root document set.
 
 ## Layers
 
@@ -278,7 +278,7 @@ operation on `.governance/packs/<owner>/<repo>/directives/`.
 ## Notes
 
 This fixture is deliberately terse but long enough to clear the
-`required-docs` line-count floor.
+fixture's architecture-doc floor.
 EOF
 
     cat > .gitignore <<'EOF'
@@ -304,21 +304,15 @@ EOF
     cp "$ROOT/kit/assets/dot-governance/lib.sh" .governance/lib.sh
     chmod +x .governance/run.sh
 
-    # Install the unioned `standard` preset (+ every always_install directive)
-    # across all bundled concern packs — exactly what `governance init` does
-    # after the core→concern decomposition (#192). Each pack contributes its
-    # slice; the union reproduces the old single-core standard set. One
-    # packs.lock entry per pack records its installed directives.
+    # Install every bundled directive. The kit ships one pack with no presets;
+    # init installs the full set (issue #370).
     fixture_sha="abcdef0123456789abcdef0123456789abcdef01"
     while IFS=$'\t' read -r pack_id pack_dir; do
         [[ -z "$pack_id" ]] && continue
         selected=()
         while IFS= read -r rid; do
             [[ -n "$rid" ]] && selected+=("$rid")
-        done < <(preset_resolve "$pack_dir" standard)
-        while IFS= read -r rid; do
-            [[ -n "$rid" ]] && selected+=("$rid")
-        done < <(always_install_directives "$pack_dir")
+        done < <(directives_for "$pack_dir")
 
         pack_dids=()
         pack_seen=" "
@@ -368,8 +362,7 @@ EOF
     bash -n .githooks/pre-commit .githooks/commit-msg .githooks/prepare-commit-msg .githooks/post-commit
     # Format-rejection ping: confirm the commit-msg dispatcher fires on a
     # malformed subject. The bundled commit-message-format directive rejects a
-    # subject with no Conventional-Commits shape / no `(#N)` anchor; the
-    # session-identity no-ops here (no agent runtime in this contract).
+    # subject with no Conventional-Commits shape / no `(#N)` anchor.
     printf 'feat: missing issue\n' > bad-msg.txt
     .githooks/commit-msg bad-msg.txt && exit 1
     rm bad-msg.txt
@@ -377,7 +370,7 @@ EOF
 )
 fresh_status=$?
 if [[ $fresh_status -eq 0 ]]; then
-    printf '  ✓ unioned standard preset installs into a fresh repo and runs green\n'
+    printf '  ✓ bundled pack installs into a fresh repo and runs green\n'
 else
     printf '  ✗ unioned standard fresh-repo contract failed\n'
     fail=1

@@ -18,7 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PACK_LIB = ROOT / "kit" / "assets" / "packs" / "lib"
 PACKVERB = PACK_LIB / "packverb.py"
-MTI_DIR = ROOT / "packs/foundation/directives/managed-tree-integrity"
+MTI_DIR = ROOT / "packs/audit/directives/managed-tree-integrity"
 
 
 def _load(name: str):

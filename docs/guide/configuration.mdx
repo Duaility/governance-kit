@@ -21,18 +21,15 @@ Checks use shared helpers (`conf_get` for scalars, `conf_list` for lists). A tun
 ```
 .governance/conf/
 └── governance-kit/
-    ├── foundation/
-    │   └── internal-doc-links.conf     # reachability roots (opt-in)
     └── audit/
         └── doc-integrity.conf          # extra frozen-file / append-only rules
 ```
 
 ## Common knobs
 
-- **Opt-in doc lists** — `internal-doc-links`' `reachable` sub-check is a no-op until you declare roots in its overlay.
 - **Rule lists** — `doc-integrity` ships standard rules in its manifest; its tunable overlay adds repo-specific rules.
 - **Add / drop semantics** — list-valued overlays use `KEY+=<item>` and `KEY-=<item>`. Bare additions and `!<item>` removals remain shorthand when a directive declares only one list key.
-- **Tunable limits** — metric thresholds such as `repo-hygiene`'s file-size and source-length limits are scalar config entries overridden with `KEY=value` rows.
+- **Tunable scalars** — a `KEY=value` overlay row overrides a tunable manifest default.
 
 ## Presets are configuration too
 

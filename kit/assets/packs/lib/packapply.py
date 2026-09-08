@@ -92,7 +92,7 @@ def _gate_add_update(plan: dict[str, Any], report: dict[str, Any]) -> int | None
 
 def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str],
                       report: dict[str, Any], dry_run: bool) -> int:
-    from docsurgery import upsert_directive_subsection
+    from docsurgery import strip_directive_subsection, upsert_directive_subsection
 
     manifest_path = root / ".governance" / "install.yaml"
     # (directive-id, constitution.md text) for every directive installed this run,
@@ -116,6 +116,19 @@ def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str
         seeded: list[str] = []
         for d in pack["directives"]:
             did = d["id"]
+            if d.get("status") == "remove":
+                # Upstream retirement always applies. Holding back a removal
+                # would leave a folder that is not in the rewritten lock and
+                # fail managed-tree-integrity.
+                report["removed"].append(d["dest"])
+                if d.get("constitution_present"):
+                    report["constitution_stripped"].append(did)
+                if d.get("user_conf_present"):
+                    # User-owned overlay: listed, never deleted on pack update.
+                    report["conf_orphaned"].append(d["user_conf"])
+                if not dry_run:
+                    shutil.rmtree(root / d["dest"], ignore_errors=True)
+                continue
             if decisions.get(did) == "skip":
                 report["held_back"].append(did)
                 continue
@@ -150,7 +163,8 @@ def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str
                               recovery="`git checkout -- .` and `git clean -fd .governance/packs` to restore, then re-run")
                 print(json.dumps(report, indent=2))
                 return 1
-        if not installed_dids:
+        had_remove = any(d.get("status") == "remove" for d in pack["directives"])
+        if not installed_dids and not had_remove:
             continue
         if not dry_run:
             append_install_assets_seeded(manifest_path, sorted(set(seeded)))
@@ -184,11 +198,19 @@ def _apply_add_update(root: Path, plan: dict[str, Any], decisions: dict[str, str
     # `## <owner>/<pack>` header (creating it if absent, relocating a stray copy),
     # matching init's pack-grouped placement.
     constitution = root / "CONSTITUTION.md"
-    if constitution_upserts and constitution.is_file():
+    if constitution.is_file() and (constitution_upserts or report["constitution_stripped"]):
         text = constitution.read_text()
         for pack_id, did, subsection in constitution_upserts:
             text, _action = upsert_directive_subsection(text, did, subsection, pack_id)
             report["constitution_upserted"].append(did)
+        # Strip retired ids after upserts so a same-id add in another pack
+        # cannot be clobbered by a later strip of a short heading.
+        seen_strips: set[str] = set()
+        for did in report["constitution_stripped"]:
+            if did in seen_strips:
+                continue
+            seen_strips.add(did)
+            text, _removed = strip_directive_subsection(text, did)
         if not dry_run:
             constitution.write_text(text)
 
@@ -244,10 +266,34 @@ def _apply_remove(root: Path, plan: dict[str, Any], report: dict[str, Any], dry_
     return _finish(root, plan, report, dry_run)
 
 
+def _enrolled_schedule_paths(root: Path) -> bool:
+    workflows = root / ".github" / "workflows"
+    if not workflows.is_dir():
+        return False
+    if (workflows / "governance-schedule.yml").is_file():
+        return True
+    return any(workflows.glob("governance-schedule-*.yml"))
+
+
+def _reconcile_enrolled_schedule(root: Path, report: dict[str, Any], dry_run: bool) -> None:
+    """Recompile a consumer-enrolled schedule workflow after directive membership changes.
+
+    Repos that never ran `governance workflow generate` are untouched. An enrolled
+    workflow is rewritten (or removed if no scheduled members remain) so retired
+    directives drop out of the compiled cron dispatch.
+    """
+    if not _enrolled_schedule_paths(root):
+        return
+    from workflowlib import apply as workflow_apply
+    wr = workflow_apply(root, dry_run=dry_run)
+    report["schedule_reconciled"] = wr.get("result")
+
+
 def _finish(root: Path, plan: dict[str, Any], report: dict[str, Any], dry_run: bool) -> int:
     strategy, tests_dir = plan["hook_strategy"], plan["tests_dir"]
     if dry_run:
         report.update(result="dry-run", hook_dispatcher="would-regenerate")
+        _reconcile_enrolled_schedule(root, report, dry_run=True)
         print(json.dumps(report, indent=2))
         return 0
     hooks_rc = regen_hooks_step(
@@ -255,6 +301,7 @@ def _finish(root: Path, plan: dict[str, Any], report: dict[str, Any], dry_run: b
         recovery="resolve the hook collision, `git checkout -- .` to restore, re-run")
     if hooks_rc is not None:
         return hooks_rc
+    _reconcile_enrolled_schedule(root, report, dry_run=False)
     # Re-stamp the kit-runtime managed-file digests now that hooks (a managed
     # file class) were regenerated, so `managed-tree-integrity` stays accurate
     # after a pack add/update/remove (issue #253).
@@ -272,7 +319,9 @@ def cmd_pack_apply(args: argparse.Namespace) -> int:
     report: dict[str, Any] = {
         "result": None, "mode": args.mode, "target": args.target,
         "added": [], "updated": [], "removed": [], "skipped": [], "held_back": [],
-        "constitution_stripped": [], "constitution_upserted": [], "seeded_assets": [], "conf_seeded": [], "lock": [],
+        "constitution_stripped": [], "constitution_upserted": [], "seeded_assets": [],
+        "conf_seeded": [], "conf_orphaned": [], "lock": [],
+        "schedule_reconciled": None,
         "hook_dispatcher": "unchanged", "smoke_test": None, "assumptions": [],
     }
     try:

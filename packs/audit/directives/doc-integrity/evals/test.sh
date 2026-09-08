@@ -188,24 +188,28 @@ reset_clean
 # ══════════════════════════════════════════════════════════════
 # Overlay layering — a default rule can be dropped with `!` negation
 # ══════════════════════════════════════════════════════════════
-# COSTS.md is sealed by the pack-owned defaults (frozen-files; accounting
-# moved into receipts in issue #201). Seed it on main.
+# Evolution Log is sealed by the pack-owned defaults (frozen-section).
 git checkout --quiet main
-printf '# Costs\n\nbaseline line\n' > COSTS.md
-git add COSTS.md
-git commit --quiet --no-verify -m "chore: seed COSTS (#7)"
+cat > CONSTITUTION.md <<'EOF'
+# Constitution
 
-# fail — editing the sealed ledger trips the *default* frozen-files COSTS.md rule
-git checkout --quiet -b touch-costs
-sed -i.bak 's/baseline line/rewritten line/' COSTS.md && rm -f COSTS.md.bak
-git commit --quiet --no-verify -am "chore: rewrite COSTS (#7)"
+## Evolution Log
+
+- 2026-01-01 — baseline entry
+EOF
+git add CONSTITUTION.md
+git commit --quiet --no-verify -m "chore: seed constitution (#7)"
+
+# fail — editing a frozen Evolution Log line trips the default rule
+git checkout --quiet -b touch-log
+sed -i.bak 's/baseline entry/rewritten entry/' CONSTITUTION.md && rm -f CONSTITUTION.md.bak
+git commit --quiet --no-verify -am "chore: rewrite evolution log (#7)"
 EVAL_LABEL="$EVAL_ID modeB-default-rule-active" expect_fail "$CHECK"
 
-# pass — the overlay drops that default with `!frozen-files COSTS.md`
-printf '!frozen-files COSTS.md\n' >> $EVAL_CONF
+# pass — the overlay drops that default
+printf '!frozen-section CONSTITUTION.md Evolution Log\n' >> $EVAL_CONF
 EVAL_LABEL="$EVAL_ID modeB-overlay-removes-default" expect_pass "$CHECK"
-# restore the overlay for hygiene
-sed -i.bak '/!frozen-files COSTS.md/d' $EVAL_CONF && rm -f $EVAL_CONF.bak
+sed -i.bak '/!frozen-section CONSTITUTION.md Evolution Log/d' $EVAL_CONF && rm -f $EVAL_CONF.bak
 reset_clean
 
 # The receipts rule is cross-pack policy: attempting to remove it from the

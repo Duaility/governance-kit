@@ -53,7 +53,7 @@ environment tier and no undeclared fallback. A directive that declares
 capabilities must list `.governance/conf/**` under `reads:` when it exposes a
 tunable entry.
 
-Kit-bundled packs are the three concern packs `governance-kit/{foundation,commits,audit}`, each under `packs/<concern>/`; the shared loader/install lib lives at `kit/assets/packs/lib/`. Out-of-tree community packs live in their own repos and are pulled in via `governance pack add gh:<owner>/<repo>`.
+The kit-bundled pack is `governance-kit/audit` under `packs/audit/`; the shared loader/install lib lives at `kit/assets/packs/lib/`. Out-of-tree community packs live in their own repos and are pulled in via `governance pack add gh:<owner>/<repo>`. The former `governance-kit/{foundation,commits,docs}` axes are historical — no new tags are cut.
 
 ### Directive identity (homonyms)
 
@@ -245,9 +245,9 @@ Directives with external dependencies (stdlib libraries, hook side-effect script
 At activation the bootstrap skill:
 
 1. Discovers every `pack.yaml` under its asset tree (and optional external paths).
-2. Offers pack selection (`the three bundled `governance-kit/*` packs are pre-selected and locked).
-3. Offers a preset (`minimal` / `standard` / `strict`) and per-category multi-selects for the remaining directives.
-4. Computes `always_install ∪ preset_rules ∪ user_selections` across the selected packs.
+2. Offers pack selection (`governance-kit/audit` is pre-selected and locked; install every directive it ships).
+3. Community packs may offer a preset; the bundled pack has none.
+4. Installs the bundled set plus any community-pack selection.
 5. Applies environment filters such as `requires_hook_strategy`.
 6. Copies each selected `directives/<id>/` folder (minus `evals/`) into the target's `.governance/packs/<pack-id>/directives/<id>/`, so `check.sh`, `lib/`, `hooks/`, and `runtimes/` all land as a unit.
 7. Copies optional directive-owned `install-assets/` files without overwriting in augment mode, and seeds `.governance/conf/<owner>/<pack>/<id>.conf` from the generic stub for any directive declaring `config:` (augment-only).

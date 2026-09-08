@@ -90,7 +90,30 @@ def _manifest_context(root: Path) -> dict[str, str]:
     }
 
 
-def _resolve_pack(root: Path, ref: str, with_diff: bool, from_sha: str | None) -> dict[str, Any]:
+def _installed_directive_ids(root: Path, pack_id: str, lock_ids: list[str] | None) -> set[str]:
+    """Union of lockfile ids and on-disk folders for one installed pack."""
+    known = {str(d) for d in (lock_ids or [])}
+    disk = root / ".governance" / "packs" / pack_id / "directives"
+    if disk.is_dir():
+        known.update(p.name for p in disk.iterdir() if p.is_dir())
+    return known
+
+
+def _constitution_has_subsection(root: Path, directive_id: str) -> bool:
+    constitution = root / "CONSTITUTION.md"
+    if not constitution.is_file():
+        return False
+    from docsurgery import find_subsection
+    return find_subsection(constitution.read_text(), directive_id) is not None
+
+
+def _resolve_pack(
+    root: Path,
+    ref: str,
+    with_diff: bool,
+    from_sha: str | None,
+    installed_ids: list[str] | None = None,
+) -> dict[str, Any]:
     """Fetch + validate + capability-check + classify one pack from a ref."""
     fetched = fetch_ref(ref)
     pack_dir = Path(fetched["pack_dir"])
@@ -115,8 +138,10 @@ def _resolve_pack(root: Path, ref: str, with_diff: bool, from_sha: str | None) -
         "directives": [],
     }
 
+    new_ids = list(directives_for_pack(pack_dir))
+    known_ids = _installed_directive_ids(root, pack_id, installed_ids)
     directives: list[dict[str, Any]] = []
-    for did in directives_for_pack(pack_dir):
+    for did in new_ids:
         src = pack_dir / "directives" / did
         entry["capability_violations"].extend(capability_violations(src))
         dest_rel = f".governance/packs/{pack_id}/directives/{did}"
@@ -138,6 +163,23 @@ def _resolve_pack(root: Path, ref: str, with_diff: bool, from_sha: str | None) -
         if with_diff:
             d["diff"] = _dir_diff(installed, src, dest_rel)
         directives.append(d)
+    # Directives present in the lock or on disk but gone from the fetched pack
+    # are explicit removals (issue #370). Shown in the plan before apply.
+    if entry["action"] != "skip":
+        for did in sorted(known_ids - set(new_ids)):
+            dest_rel = f".governance/packs/{pack_id}/directives/{did}"
+            user_conf = f".governance/conf/{pack_id}/{did}.conf"
+            d = {
+                "id": did,
+                "status": "remove",
+                "dest": dest_rel,
+                "user_conf": user_conf,
+                "user_conf_present": (root / user_conf).is_file(),
+                "constitution_present": _constitution_has_subsection(root, did),
+            }
+            if with_diff:
+                d["diff"] = _dir_diff(root / dest_rel, Path("/nonexistent"), dest_rel)
+            directives.append(d)
     entry["directives"] = directives
     return entry
 
@@ -157,7 +199,10 @@ def _plan_update(root: Path, pack_id: str | None, with_diff: bool) -> list[dict[
             out.append({"id": pid, "action": "skip", "source": "local",
                         "reason": "repo-local pack has no upstream to re-pin", "directives": []})
             continue
-        entry = _resolve_pack(root, scalar(pack.get("ref")), with_diff, from_sha=scalar(pack.get("sha")))
+        lock_ids = [str(d) for d in (pack.get("directives") or [])]
+        entry = _resolve_pack(
+            root, scalar(pack.get("ref")), with_diff,
+            from_sha=scalar(pack.get("sha")), installed_ids=lock_ids)
         out.append(entry)
     return out
 

@@ -87,16 +87,11 @@ kit/vX.Y.Z       # a kit (framework) release
 <pack>/vX.Y.Z    # a bundled-pack release — one axis per pack
 ```
 
-Each bundled `governance-kit/*` concern pack carries its own `pack.yaml`
-`version` and tags on its **own axis** — `foundation/vX.Y.Z`, `docs/vX.Y.Z`,
-`commits/vX.Y.Z`, `audit/vX.Y.Z` — all starting at `0.1.0` and
-stepping independently. Tag
-**lazily**: a release cuts a tag only for the pack(s) whose subtree actually
-changed since their last tag, so a `docs`-only fix ships `docs/v0.1.1`
-and touches nothing else — the three unchanged packs keep their existing tags and
-versions. This is the Go-multi-module / Changesets model: per-unit tags, cut on
-demand, never a flat bump across packs that did not change. Community packs live
-in their own repos and tag plain `vX.Y.Z`.
+The bundled pack `governance-kit/audit` carries its own `pack.yaml` `version`
+and tags on the `audit/vX.Y.Z` axis. Tag **lazily**. Community packs live in
+their own repos and tag plain `vX.Y.Z`. The retired `foundation/v*`,
+`docs/v*`, `commits/v*`, and `core/v*` axes stay as immutable history; no new
+tags are cut on those names.
 
 > The retired `core/vX.Y.Z` axis (a single tag for the old catch-all `core`
 > pack) is historical: `core/v0.4.0` and earlier stay as immutable history, but

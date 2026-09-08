@@ -79,19 +79,11 @@ The skill is a self-contained directory with frontmatter
 
 ## Directive packs
 
-Each pack is a directory. Three concern-scoped packs ship in-tree under
-`packs/<concern>/`:
+Each pack is a directory. One pack ships in-tree under `packs/audit/`:
 
-- `governance-kit/foundation` — `required-docs`, `internal-doc-links`,
-  `repo-hygiene`, `managed-tree-integrity`.
-- `governance-kit/commits` — `commit-message-format`, `no-orphan-todos`,
-  `no-unjustified-suppressions`.
-- `governance-kit/audit` — a trustworthy record of agent work: issue → receipt
-  → commit traceability (`issue-templates`, `issues-tracked`,
-  `receipt-per-issue`, `commit-issue-receipt-match`), session identity
-  (`agent-session-identity`), and the tamper
-  protection that keeps those records honest (`doc-integrity`,
-  `toolchain-config-protection`).
+- `governance-kit/audit` — managed-tree integrity, Conventional Commits with
+  a trailing `(#N)`, unique receipts associated at the completed change, and
+  frozen receipts / Evolution Log.
 
 The shared pack `lib/` (`packs.sh`, `install.sh`, `hooks.sh`, `packctl.py`,
 `packverb.py`, `eval-lib.sh`) lives at `kit/assets/packs/lib/`.

@@ -58,8 +58,9 @@
         "For SHA-drifted entries, the skill ran validation + capability-check + diff-before-exec against the already-installed directive folders before overwriting",
         "The skill processed `governance-kit/core` through the same `pack update` flow as `acme/widgets` (no `source: builtin` special-case skip — that source type was retired in #117)",
         "The skill silently skipped any `source: local` pack — there is no upstream to re-pin",
-        "On confirmation of a SHA drift, the directive folders were overwritten and the lockfile entry was upserted with the new `sha:` and `installed_at:`",
-        "The hook dispatcher was regenerated"
+        "On confirmation of a SHA drift, surviving directive folders were overwritten, directives removed upstream were deleted from disk and CONSTITUTION.md, user overlays for removed ids were listed as orphaned and left in place, and the lockfile entry was upserted with the new `sha:`, remaining `directives:`, and `installed_at:`",
+        "The hook dispatcher was regenerated",
+        "If a schedule workflow was already enrolled, it was recompiled so retired members dropped out"
       ]
     },
     {

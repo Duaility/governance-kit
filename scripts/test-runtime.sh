@@ -28,8 +28,8 @@
 #     - conf_rule_lines strips comments/blanks/KEY= and trims the rest
 #     - conf_list layers manifest list defaults with the tunable overlay,
 #       normalizing whitespace for ! removal
-#   session identity is covered by the audit directive's own eval; this suite
-#   intentionally contains no harness adapters or private-session readers.
+#   this suite intentionally contains no harness adapters or private-session
+#   readers.
 
 set -eu
 

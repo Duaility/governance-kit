@@ -18,15 +18,11 @@ falls back to the installed skill and records that provenance.
 3. A pre-commit hook (and commit-msg / prepare-commit-msg / post-commit / pre-push dispatchers when the selected directives need them) — runs `.governance/` before commits and pushes, with `SKIP_GOVERNANCE=1` and `git commit --no-verify` / `git push --no-verify` as escape hatches.
 4. A GitHub Actions workflow at `.github/workflows/governance.yml` — same tests, enforced in CI on every PR.
 
-Directives are grouped into **packs** — self-contained directories that bundle directives, their constitution snippets, and hook declarations. Three concern-scoped packs ship in-tree today, under `packs/<concern>/` (source-of-truth in this monorepo; consumers fetch via `gh:duaility/governance-kit/packs/<concern>@<rev>`):
+Directives are grouped into **packs**. One pack ships in-tree: **`governance-kit/audit`** at `packs/audit/` — managed-tree integrity, Conventional Commits with a trailing `(#N)`, unique receipts associated at the completed change, and frozen receipts / Evolution Log. Session identifiers are a harness concern. Extra rules live in community or repo-local packs.
 
-- **`governance-kit/foundation`** — `required-docs`, `internal-doc-links`, `repo-hygiene`, `managed-tree-integrity`.
-- **`governance-kit/commits`** — `commit-message-format`, `no-orphan-todos`, `no-unjustified-suppressions`.
-- **`governance-kit/audit`** — a trustworthy record of agent work: issue → receipt → commit traceability (`issue-templates` → `issues-tracked` → `receipt-per-issue` → `commit-issue-receipt-match`), session identity (`agent-session-identity`), and the tamper protection that keeps those records honest (`doc-integrity`, `toolchain-config-protection`).
+The kit also ships the off-commit-path scheduled lane (the `.governance/schedule.sh` driver, installed on every init, plus `governance workflow generate`), but bundles no schedule-only directives.
 
-The kit also ships the off-commit-path scheduled lane (the `.governance/schedule.sh` driver, installed on every init, plus `governance workflow generate`, which compiles directive-owned cron settings into one workflow), but bundles no schedule-only directives — those are authored in repo-local or community packs.
-
-`governance init` unions each pack's chosen preset across all bundled packs (see Step 3).
+`governance init` installs every directive in the bundled pack. There is no preset menu.
 
 Governance evolves: new directives get added to `CONSTITUTION.md` *and* to `.governance/` together. The constitution without the tests is just a wishlist.
 
@@ -46,7 +42,7 @@ Governance evolves: new directives get added to `CONSTITUTION.md` *and* to `.gov
 
 `init` is the most interactive verb, but its **mechanical** half follows the same
 plan/apply split as the other lifecycle verbs (issue #172). The operator owns the
-elicitation — pack/preset/directive selection (Step 3), principle inference (Step
+elicitation — pack/directive selection (Step 3), principle inference (Step
 4), hook-collision choices (Step 6), the Step-8 finding loop, and the commit
 (Step 9). Everything mechanical is one tested call.
 
@@ -145,7 +141,7 @@ Also detect hook strategy before you offer or install hook-related directives:
 - If `.husky/` exists, `package.json` references husky, or `.pre-commit-config.yaml` exists, treat the repo as using an existing hook framework.
 - Otherwise, use the repo-local `.githooks/` strategy described below.
 
-This choice is recorded as `hook_strategy:` in `.governance/install.yaml` (`githooks` | `husky` | `pre-commit`). The `required-docs` directive's `hooks` sub-check inspects that value and only enforces the `.githooks/` scaffolding when `hook_strategy` is `githooks`. Do not present `.githooks/` as universal if the repo already has a tracked hook framework.
+This choice is recorded as `hook_strategy:` in `.governance/install.yaml` (`githooks` | `husky` | `pre-commit`). Do not present `.githooks/` as universal if the repo already has a tracked hook framework.
 
 **Hook-collision survey.** As part of the survey, inspect existing hook files at:
 
@@ -161,7 +157,7 @@ Record findings for use at Step 6.
 
 Source the loader **from the resolved kit's lib** (`<lib_dir>`, Step 0) and
 enumerate packs from that kit's bundled pack root (`<assets_dir>/packs`, which
-holds the three bundled `governance-kit/*` concern packs):
+holds the two bundled `governance-kit/*` concern packs):
 
 ```sh
 source "<lib_dir>/packs.sh"
@@ -173,62 +169,33 @@ stdlib restricted-YAML parser (`kityaml.py`, issue #355), so pack manifests
 are parsed as real YAML with no package manager or third-party dependency —
 any `python3` on `PATH` is enough.
 
-Every `<root>/<pack-dir>/pack.yaml` is a pack. Pack ids are scoped (`<author>/<slug>` — e.g. `governance-kit/foundation`, `acme/widgets`); the directory name is the slug half. Directive metadata lives inside each directive's folder (`<pack-dir>/directives/<directive-id>/directive.yaml`) — the loader surfaces it via `directives_for` and `directive_field`. For each pack, build an in-memory catalog of:
+Every `<root>/<pack-dir>/pack.yaml` is a pack. Pack ids are scoped (`<author>/<slug>` — e.g. `governance-kit/audit`, `acme/widgets`); the directory name is the slug half. Directive metadata lives inside each directive's folder (`<pack-dir>/directives/<directive-id>/directive.yaml`) — the loader surfaces it via `directives_for` and `directive_field`. For each pack, build an in-memory catalog of:
 
 - pack id, name, description, version (from `pack.yaml`)
-- declared presets (`minimal`, `standard`, `strict`, plus any pack-specific ones — from `pack.yaml`)
+- optional presets (community packs only; the bundled pack has none)
 - directive list; for each directive read `category`, `recommended`, `summary`, `surface`, `hook`, `always_install` from `directives/<directive-id>/directive.yaml`. The check script is at `directives/<directive-id>/check.sh` and the Directive snippet at `directives/<directive-id>/constitution.md` — paths are implied by the folder shape, not declared.
 
 Pack manifests are validated against the built-in `KIT_VERSION` constant in the resolved kit's `<lib_dir>/packctl.py`. Packs whose `min_governance_kit` is newer than `KIT_VERSION` are rejected during discovery with a clear error.
 
 No env var or CLI flag controls pack selection in v1 — discovery is in-tree only.
 
-### Step 3 — Choose packs, preset, and customize
-
-Three nested questions. Each subsequent question's option list is computed from the prior answer.
+### Step 3 — Choose packs and customize
 
 **Q0 — "Which directive packs do you want?"** — multiselect.
 
-- The bundled `governance-kit/*` concern packs (always included, non-deselectable — present them as pre-checked with a note).
-- Every other pack discovered in Step 2, with its description from the manifest.
+- The bundled `governance-kit/audit` pack (always included, non-deselectable). Install **every** directive it ships.
+- Every other pack discovered in Step 2, with its description from the manifest. Community packs may offer their own presets; if they do, ask which preset after Q0. The bundled pack has no preset menu.
 
-**Q1 — "Which preset?"** — single-select.
+**Custom directives.** If the user describes a new directive, generate a folder under `.governance/packs/<owner>/<repo>/directives/<id>/` with `directive.yaml`, `check.sh`, and `constitution.md`, following [DIRECTIVES_CATALOG.md](DIRECTIVES_CATALOG.md), and add a matching Directives subsection to `CONSTITUTION.md`.
 
-| Preset | Intent |
-|---|---|
-| `minimal` | Smallest credible governance baseline. |
-| `standard` | Recommended default for most repos. |
-| `strict` | Broad governance coverage for teams that want more structure. |
-| `custom` | Start from a blank slate — no preselected directives beyond the always-installed set. |
+**Always installed.** Every bundled `always_install: true` directive installs. The flag is **reserved to the bundled `governance-kit/*` pack**; third-party packs declaring it are rejected at install.
 
-**Semantics across packs: union.** The preset resolves as the union of the preset's directive ids across the selected packs:
+**Install resolution.**
 
 ```
-preset_rules = ⋃ { union_preset(<preset>, <pack-dir>) : pack-dir in selected-packs }
-```
-
-A pack that does not declare the chosen preset contributes nothing for that preset — **no fallback to `recommended`**. This is deliberate: "my pack has no strict" means "strict adds nothing beyond what I already offer", not "give me everything".
-
-Use `standard` as the recommended preset. If the user does not answer and you must proceed, assume `standard` and label it in the final summary as a material assumption.
-
-**Q2..Qn — Category menus.** For each category present across the union of selected packs' directives (canonical: `Foundation`, `Security`, `SystemOfRecord`, `CommitHygiene`, `Quality`, `AgentDiscipline`; third-party packs may add more), present one `AskUserQuestion` with:
-
-- Header: the category name.
-- Options: every directive in that category from any selected pack. Pre-check based on the preset union from Q1. Each option's description is the directive's `summary` field from its manifest.
-- `multiSelect: true`.
-
-Split into multiple `AskUserQuestion` calls — the tool caps at four questions per call. Follow the same pattern today's flow does: first call for Foundation / Security / SystemOfRecord / CommitHygiene; second call for Quality / AgentDiscipline / any additional categories. Category menus with only a single directive are fine — do not pad with filler.
-
-If the user picks "Other" and describes a new directive, generate a new directive folder under `.governance/packs/<owner>/<repo>/directives/<id>/` with `directive.yaml`, `check.sh`, and `constitution.md`, following the template in [DIRECTIVES_CATALOG.md](DIRECTIVES_CATALOG.md), and add a matching Directives subsection to `CONSTITUTION.md`. The directive joins the target repo directly; it is not retrofitted into a pack (that is a pack-authoring activity, covered in [PACK_AUTHORING.md](PACK_AUTHORING.md)).
-
-**Always installed — bypass the menu.** Walk every selected pack's `always_install: true` directives and queue them for install regardless of user picks. This flag is **reserved to the bundled `governance-kit/*` packs**; third-party packs declaring it are rejected at install.
-
-**Install resolution.** The final install list is:
-
-```
-install = always_install_bundled
-       ∪ preset_rules (from Q1)
-       ∪ user_selected_rules (from Q2..Qn, which may add or remove items)
+install = every directive in governance-kit/audit
+       ∪ community-pack selection
+       ∪ user-authored custom directives
 ```
 
 If two selected packs list the same directive `id`, reject with a clear error before touching the filesystem. The target repo.s directive id namespace is still flat even though pack-installed files live under `.governance/packs/<pack-id>/directives/<id>/`, so collisions there would be silent overwrites.
@@ -306,15 +273,13 @@ The constitution's **Compliance** section is the directive; the AGENTS.md snippe
 
 The snippet is bounded by a pair of HTML marker comments — opening `<!-- governance: directives-to-follow -->` on its first line and closing `<!-- /governance: directives-to-follow -->` on its last. Both markers ship together in the template and **both** must be preserved on insert. Idempotency: grep for the opening marker before inserting; if it is already present, skip silently. Do not insert the opening without the closing or vice versa — `governance uninstall` relies on the pair to locate the exact block to strip.
 
-Three cases:
+Two cases:
 
 1. **`AGENTS.md` exists and lacks the marker.** Insert the snippet near the top of the file. The right insertion point is **after the H1 heading and the first intro paragraph (or any frontmatter), and before the first `##` heading**. Use `Edit` — preserve everything else verbatim.
 
-2. **`AGENTS.md` is missing AND the `required-docs` directive is installed.** Create a stub at `<repo-root>/AGENTS.md` containing: `# AGENTS.md`, a one-line intro, the directive snippet, and a `## What this repo is` placeholder. Tell the user the stub is intentionally minimal — they need to flesh it out (`required-docs` enforces 30–250 lines and ≥ 3 internal doc links for AGENTS.md).
+2. **`AGENTS.md` is missing.** Skip silently unless the operator explicitly asked to seed a stub (`seed_agents_stub`). The kit does not invent consumer documentation (issue #370). When seeding, write `# AGENTS.md`, a one-line intro, the directive snippet, and a `## What this repo is` placeholder.
 
-3. **`AGENTS.md` is missing AND `required-docs` was not installed.** Skip silently. Do not nag — the user opted out, and creating a file they didn't ask for is presumptuous.
-
-After injecting, run `bash .governance/run.sh` once so the user sees whether the newly-seeded AGENTS.md still needs more content.
+After injecting, continue — AGENTS.md is a routing pointer, not a quota-checked document.
 
 ### Step 5 — The test runner (installed by `init-apply`)
 
@@ -357,9 +322,8 @@ For **`githooks`** (default when no other framework is present), `init-apply`
 also runs `git config core.hooksPath .githooks` — enablement is kit-owned, so
 nothing is vendored into the repo (issue #267). Every other contributor enables
 local hooks once per fresh clone with the documented one-liner `git config
-core.hooksPath .githooks`; until they do, `required-docs` nags with the exact
-command. (Skipping it costs only local fast-feedback — CI still enforces every
-directive.) Point new contributors at it in `README.md` or `AGENTS.md`.
+core.hooksPath .githooks`. (Skipping it costs only local fast-feedback — CI still
+enforces every directive.) Point new contributors at it in `README.md` or `AGENTS.md`.
 `init-apply` does **not** create files under `.git/hooks/`; if
 `.git/hooks/pre-commit` already exists from another tool, surface it before
 proceeding (it could be a husky / pre-commit.com hook).
@@ -381,9 +345,9 @@ If the existing hook **has** the marker, overwrite silently — `governance dire
 In this path:
 - For husky: call `generate_hooks_for_strategy <repo-root> husky <version> <spec>`. The wrapper writes all five dispatchers into `.husky/` so directive-owned populator hooks (`directives/<id>/hooks/<kind>.sh`) are wired uniformly. Each generated file carries the line-2 ownership marker; existing unmarked hooks trigger the same collision flow as Path A.
 - For pre-commit.com: call `generate_hooks_for_strategy <repo-root> pre-commit <version> <spec>` to materialize dispatchers under `.governance/hooks/`, then add a `.pre-commit-config.yaml` hook block per stage that shells out to `bash .governance/hooks/<kind>`. See [NATIVE_TESTS.md](NATIVE_TESTS.md) for the per-framework snippets.
-- Record `hook_strategy: husky` or `hook_strategy: pre-commit` in `.governance/install.yaml` so `required-docs`' `hooks` sub-check transparently skips (it only enforces `.githooks/` scaffolding when `hook_strategy` is `githooks`).
+- Record `hook_strategy: husky` or `hook_strategy: pre-commit` in `.governance/install.yaml`.
 - Record each materialized hook file under `path_b.entries` with its fingerprint so `governance uninstall` and `governance reset` can recognize the kit's output.
-- Tell the user explicitly that the repo is using its existing tracked hook framework instead of `.githooks/`, and that session-identity coverage now matches Path A.
+- Tell the user explicitly that the repo is using its existing tracked hook framework instead of `.githooks/`.
 
 ### Step 7 — The CI workflow (installed by `init-apply`)
 
@@ -397,24 +361,20 @@ hook can be bypassed around. If the user later opts into native tests via
 
 Goal: make the install commit pass every installed directive on the first try, with **no `SKIP_GOVERNANCE` and no bootstrap-only waivers**. This is the step that makes "no audit gap at bootstrap" possible.
 
-1. **Stage the install output.** `git add` everything Steps 4–7 wrote: `CONSTITUTION.md`, `AGENTS.md` (if seeded/edited), `.governance/`, `.githooks/` (or the Path-B equivalent), `.github/workflows/governance.yml`, and any install-assets (`QUALITY.md`, …). The session-identity directive creates no standalone ledger or harness configuration.
+1. **Stage the install output.** `git add` everything Steps 4–7 wrote: `CONSTITUTION.md`, `AGENTS.md` (if seeded/edited), `.governance/`, `.githooks/` (or the Path-B equivalent), `.github/workflows/governance.yml`, and any install-assets.
 
-2. **Seed the bootstrap receipt.** If `commit-issue-receipt-match` is installed, create `receipts/issue-<N>-bootstrap-governance.md` from [`../assets/receipt.bootstrap.template.md`](../assets/receipt.bootstrap.template.md), substituting the bootstrap issue number `<N>` and the actual install choices. Stage it. (`<N>` is the GitHub issue the operator filed to track the adoption — surface that anchor up front in the survey if it isn't already known.)
+2. **Seed the bootstrap receipt.** Create `receipts/issue-<N>-bootstrap-governance.md` from [`../assets/receipt.bootstrap.template.md`](../assets/receipt.bootstrap.template.md), substituting the bootstrap issue number `<N>` and the actual install choices. Stage it. (`<N>` is the GitHub issue the operator filed to track the adoption — surface that anchor up front in the survey if it isn't already known.)
 
-3. **Dry-run all validators against the staged tree.** Run `bash .governance/run.sh`. Mode-B walkers (`agent-session-identity`, `commit-issue-receipt-match`) are no-ops here (no new commit yet) — they fire when Step 9's commit lands. Every other directive sees the staged tree via `git ls-files`, so file-shape findings surface now.
+3. **Dry-run all validators against the staged tree.** Run `bash .governance/run.sh`. Mode-B walkers (`receipt-per-issue` association, `commit-message-format`) are no-ops here (no new commit yet) — they fire when Step 9's commit lands. Every other directive sees the staged tree via `git ls-files`, so file-shape findings surface now.
 
 4. **Resolve each finding, prefering inline fix over bypass.** For each failing directive, take the most surgical fix:
 
    | Directive | Resolve via |
    |---|---|
-   | `repo-hygiene` (merge markers, build artefacts, large files) | Remove the offending file if safe; otherwise add `governance: allow-repo-hygiene file-size-limit <ticket-or-reason>` to the file's head. Re-stage. |
    | `secrets-hygiene` (tracked `.env`, AWS key pattern, etc.) | **Rotate first, then remove.** Add the file to `.gitignore`. The line-level waiver `governance: allow-secrets-hygiene <ticket>` is only for legacy already-leaked credentials that are queued for rotation. |
    | `pinned-dependencies` (tag-pinned actions) | SHA-pin every third-party action; re-stage the workflow file. |
    | `token-permissions` (missing `permissions:`) | Add an explicit least-privilege `permissions:` block; re-stage the workflow file. |
-   | `required-docs` (missing `LICENSE`, `SECURITY.md`, etc.) | Stub the missing file with a one-line placeholder the operator will flesh out. If they explicitly opted out of `required-docs`, this won't fire. |
-   | `issue-templates` (missing `.github/ISSUE_TEMPLATE/*.md`) | Generate the templates the directive expects; the directive's `install-assets/` carries the canonical shape. |
-   | `internal-doc-links` (`resolve` sub-check) | Fix the broken link; do not waive. The `reachable` sub-check stays off unless the repo opts in via `.governance/conf/governance-kit/foundation/internal-doc-links.conf`. |
-   | `commit-message-format`, `commit-issue-receipt-match`, `receipt-per-issue` | The bootstrap receipt + Step 9's commit subject together satisfy these. |
+   | `commit-message-format`, `receipt-per-issue` | The bootstrap receipt (outcome + verification evidence) + Step 9's commit subject together satisfy these. Intermediate commits after init do not each need a receipt edit. |
 
    If a finding can't be inline-fixed (rotating a credential, removing a load-bearing legacy artefact), **pause init and surface it to the operator** — do not paper over it with a broader waiver.
 
@@ -430,17 +390,16 @@ git commit -m "feat(governance): bootstrap governance-driven development (#<N>)"
 
 What happens on this commit:
 
-- **`hooks/pre-commit.sh` populators** fire normally. `agent-session-identity` detects only explicit harness/session signals, resolves the bootstrap issue number, and stamps one `date | harness | session` row into that issue's receipt under `## Session` → `### Identifiers`. It does not inspect chat history, usage, cost, steering, or harness-private files.
-- **`commit-msg` validators** all pass — the tree is clean (Step 8) and the receipt is in place (Step 8.2). `agent-session-identity` checks the staged receipt for a row matching the active harness/session; human commits and unnamed runtimes no-op.
+- **`hooks/pre-commit.sh` populators** fire for any installed directive that ships a `hooks/pre-commit.sh`. The bundled audit pack currently has none.
+- **`commit-msg` validators** all pass — the tree is clean (Step 8) and the receipt is in place (Step 8.2). `commit-message-format` accepts the subject `(#N)`; `receipt-per-issue` sees the staged bootstrap receipt on a direct-to-default commit.
 
-The install commit lands with an **identity-stamped session row in the bootstrap issue's receipt**. No usage, cost, steering, or transcript data is collected, and no trailers are stamped onto the message.
+The install commit lands with the bootstrap receipt. No usage, cost, steering, or transcript data is collected, and the kit stamps no session trailers onto the message — harnesses that add their own (`Claude-Session:`, `Co-Authored-By:`, …) are outside this flow.
 
-**Runtime not detected.** If `init` was invoked from a shell with no explicit harness/session signals and no kit-owned identity sidecar, the session-identity populator writes no row — and the commit-msg identity check no-ops too, so the install commit passes with **no waiver needed**. A non-agent bootstrap commit carries no session record, which is correct.
+**No agent runtime.** A human or unnamed-runtime bootstrap commit still passes: session identity is not a kit rule.
 
 Print a concise summary:
 
 - Packs selected.
-- Preset chosen and whether it was explicit or assumed.
 - Hook strategy chosen (`.githooks/`, husky, or `pre-commit`).
 - Directives installed (with file paths, grouped by pack if multiple packs were selected).
 - Directives deliberately skipped (with reasons) when that matters.
@@ -448,7 +407,7 @@ Print a concise summary:
 - **Findings resolved in Step 8** — every inline fix and every per-file/per-line waiver added, with the reason recorded against it.
 - **Findings escalated** — anything Step 8 could not inline-fix and surfaced to the operator (with the action they need to take).
 - **Resolved kit** (Step 0): the target version and how it resolved (`published-tag` / `explicit` / `cache`).
-- **Detected runtime** at commit time: the detected harness (`claude-code` / `codex` / `pi` / `grok` / `cursor-agent` / `opencode` / `manual`) or `none`. If `none`, mention the body waiver that was applied.
+- **Detected runtime** at commit time, if the harness identifies itself, or `none`.
 - **Install commit SHA** that just landed.
 - How to run locally: `bash .governance/run.sh`.
 - How to skip in an emergency: `SKIP_GOVERNANCE=1 git commit ...` or `git commit --no-verify`. (Not for the install commit — that's what Step 8 is for. Emergencies only.)
@@ -461,14 +420,13 @@ Every successful `install` run should leave the user with a summary that include
 
 - `Resolved kit:` `<version> via published-tag | explicit (--to) | cache` (Step 0). On the `cache` provenance, note upstream was not consulted.
 - `Packs:` the list of selected packs.
-- `Preset:` chosen preset and whether it was explicit or assumed.
 - `Hook strategy:` `.githooks/`, husky, or `pre-commit`.
 - `Directives installed:` file-backed list or grouped summary.
 - `Directives skipped:` only when the omission is meaningful.
 - `Hook collisions:` the resolution chosen for each pre-existing unmarked hook, or `none`.
 - `Findings resolved:` every inline fix or waiver added in Step 8, with reason.
 - `Findings escalated:` anything Step 8 could not inline-fix, with the action the operator needs to take, or `none`.
-- `Detected runtime:` the detected harness (`claude-code` / `codex` / `pi` / `grok` / `cursor-agent` / `opencode` / `manual`) or `none`. If `none` and audit-chain directives were installed, mention the unsupported-runtime waiver applied to the install commit.
+- `Detected runtime:` the harness if it identifies itself, or `none`.
 - `Install commit:` SHA of the commit Step 9 just landed.
 - `Assumptions:` any material assumptions, or `none`.
 - `Next command:` `bash .governance/run.sh`
@@ -480,16 +438,16 @@ Every successful `install` run should leave the user with a summary that include
 - **The constitution and the tests evolve together.** Never add a directive to the constitution without a test. Never add a test without a directive. If the user asks to add one in isolation, push back and do both.
 - **Packs are the extension point.** Adding a directive to a pack is a two-file edit (the `.sh` + the manifest entry); every menu, hook dispatcher, and constitution snippet flows from the manifest. Do not shadow the manifest with hand-written lists in SKILL.md.
 - **The bundled `governance-kit/*` packs are non-optional.** Users can select additional packs but cannot deselect the bundled concern packs. The `always_install: true` flag is reserved to the bundled `governance-kit/*` packs — third-party packs cannot force-install directives.
-- **Preset semantics are union, not fallback.** If a pack lacks the selected preset, it contributes nothing for that preset.
+- **The bundled pack installs in full.** There is no preset menu for `governance-kit/audit`. Community packs may still declare presets.
 - **Escape hatches are a feature, not a bug.** `SKIP_GOVERNANCE=1` exists because governance that blocks emergency hotfixes will get ripped out. CI enforces the directive even when the hook is skipped, which is the right layering.
 - **The install commit passes validators on the first try.** Step 8 dry-runs every directive against the staged tree and inline-fixes findings (or escalates them); Step 9 commits through normal hooks. `SKIP_GOVERNANCE` is not a bootstrap tool — using it on the install commit skips the populators too, which leaves the audit chain unsatisfiable for that commit forever. Inline-fix is the contract; bypass is the emergency exit.
-- **No bootstrap exemption in directive `check.sh` files.** If a directive needs an install-commit accommodation, that's a flow gap in Step 8 — fix the flow, not the directive. The session-identity waiver (`governance: allow-agent-session-identity <reason>`) is for an out-of-band agent commit, not a bootstrap workaround.
+- **No bootstrap exemption in directive `check.sh` files.** If a directive needs an install-commit accommodation, that's a flow gap in Step 8 — fix the flow, not the directive.
 - **Bash-only at bootstrap; native is post-init.** Governance is a meta-layer over the project's code, so the directive suite must not depend on the project's own toolchain. `init` only installs the bash runner. Native test wrappers (pytest / jest / go test) are an opt-in users add later via [NATIVE_TESTS.md](NATIVE_TESTS.md) — never asked at bootstrap.
 - **Respect the repo's existing hook framework.** `.githooks/` is the default only when no tracked hook framework already exists. Do not force repos off husky or `pre-commit`.
 - **Hook ownership is explicit.** Every generated hook carries a `governance-kit:managed kit-version=<v>` marker on line 2 — the same shape runtime templates use. An unmarked hook at a target path is somebody else's file — prompt before touching it.
 - **Match the enforcement surface to the real intent.** If a directive is meant to govern each substantive change, do not implement it as a repo-exists or file-count check.
 - **Reject weak proxies when they create false confidence.** A directive that says "every change must do X" but only checks "the repo contains one X somewhere" is a bad bootstrap output, not a partial success.
-- **State material assumptions explicitly.** If you had to infer the preset or hook strategy, surface that in the summary.
+- **State material assumptions explicitly.** If you had to infer the hook strategy, surface that in the summary.
 - **No invented directives.** When writing the constitution, only include directives the user selected. Governance loses authority the moment it contains directives nobody signed off on.
 
 ## References

@@ -307,7 +307,7 @@ def _corpus_files() -> list[Path]:
 
 def test_load_parity_across_shipped_corpus() -> None:
     files = _corpus_files()
-    assert len(files) >= 30, f"expected the corpus walk to find a good few files, found {len(files)}"
+    assert len(files) >= 20, f"expected the corpus walk to find a good few files, found {len(files)}"
     for path in files:
         data = KY.load(path)
         assert isinstance(data, dict), f"{path}: kityaml.load did not return a mapping"

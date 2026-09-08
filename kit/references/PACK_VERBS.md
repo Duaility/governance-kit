@@ -14,7 +14,7 @@ Every pack — kit-bundled, community-installed, or hand-authored in this repo �
 
 - **Installed packs** carry a `source:` field in `pack.yaml` and a lockfile entry with `source: gh`. The pack came from a fetched ref and `pack update` will re-pin it.
 - **Repo-local packs** have no `source:` field in `pack.yaml`. They appear in the lockfile with `source: local` (no ref/sha) so `reset` can still find their directive list. `pack update` skips them.
-- **The kit's bundled concern packs** (`governance-kit/{foundation,docs,commits,audit}`) are fetched the same way community packs are — from `gh:duaility/governance-kit/packs/<pack>@<rev>`. Their lockfile entries have `source: gh`. `pack update` re-pins them like any other community pack. (The retired `builtin` source type — phase 2 of #114, #117 — is no longer accepted by `lock-add`.)
+- **The kit's bundled pack** (`governance-kit/audit`) is fetched the same way community packs are — from `gh:duaility/governance-kit/packs/audit@<rev>`. Its lockfile entry has `source: gh`. `pack update` re-pins it like any other community pack. After a kit release that retires a previously bundled pack (issue #370: `foundation`, `commits`, `docs`), drop the leftover lock entry with `governance pack remove <id>` once audit has absorbed any moved directives. (The retired `builtin` source type — phase 2 of #114, #117 — is no longer accepted by `lock-add`.)
 
 The runner walks `.governance/packs/*/*/directives/*/check.sh` uniformly — it does not branch on installed-vs-local.
 
@@ -26,7 +26,7 @@ The runner walks `.governance/packs/*/*/directives/*/check.sh` uniformly — it 
 
 - `subpath` points at the directory containing `pack.yaml` (for monorepos).
 - `rev` can be a branch, tag, or 40-char SHA. `@main` at add-time is resolved to a concrete SHA and pinned in the lockfile.
-- **Prefer a release tag over a floating branch.** A branch like `@main` resolves to whatever the tip is at add-time and silently tracks latest on every `pack update`. Packs cut with the release tooling publish prefixed tags (`@<name>/vX.Y.Z`, e.g. `gh:duaility/governance-kit/packs/commits@commits/v0.2.0`) — a readable, immutable pin that lets a repo choose and hold a specific version. See [VERSIONING.md](VERSIONING.md#tag-scheme). Pin a tag (or a SHA) for any repo that wants a deliberate version rather than the moving tip.
+- **Prefer a release tag over a floating branch.** A branch like `@main` resolves to whatever the tip is at add-time and silently tracks latest on every `pack update`. Packs cut with the release tooling publish prefixed tags (`@<name>/vX.Y.Z`, e.g. `gh:duaility/governance-kit/packs/audit@audit/v0.10.0`) — a readable, immutable pin that lets a repo choose and hold a specific version. See [VERSIONING.md](VERSIONING.md#tag-scheme). Pin a tag (or a SHA) for any repo that wants a deliberate version rather than the moving tip.
 
 Resolve with `python packverb.py parse-ref <ref>`.
 
@@ -44,8 +44,7 @@ packs:
     sha: b33ec7a05be6c157a63b5f1a22d0102a1bf5a50c
     subpath: packs/foundation
     directives:
-      - required-docs
-      - internal-doc-links
+      - managed-tree-integrity
 
   - id: acme/soc2
     version: "0.3"
@@ -189,17 +188,27 @@ Default target: every lockfile entry. With a `<pack-id>` argument, update only t
 1. **Plan.** `packverb pack-plan update <root> [<pack-id>] --diff` reads the
    lockfile, re-fetches each `gh` entry via its stored `ref`, and classifies any
    whose SHA drifted as `update` (SHA unchanged → `skip`; `local` packs → skipped
-   with a reason). The per-directive diff is the meat of this verb.
-2. **Diff-before-exec.** Show the diffs and ask for an explicit `yes`. If every
-   pack's SHA is unchanged, `pack-apply` reports `up-to-date` and writes nothing.
-   When the plan flags `config_drift` on an updated directive (its manifest
-   `config:` changed), tell the user the shipped defaults or tunability moved and that
-   they should reconcile their `.governance/conf/<owner>/<pack>/<id>.conf` overlay by hand —
+   with a reason). Each directive is `add`, `update`, or **`remove`** (present in
+   the lock or on disk, absent from the fetched pack — issue #370). Removals
+   appear in the plan before apply, including whether a user overlay exists
+   (listed, not silently deleted). The per-directive diff is the meat of this verb.
+2. **Diff-before-exec.** Show the diffs — including full-folder deletions for
+   retired ids — and ask for an explicit `yes`. If every pack's SHA is unchanged,
+   `pack-apply` reports `up-to-date` and writes nothing. When the plan flags
+   `config_drift` on an updated directive (its manifest `config:` changed), tell
+   the user the shipped defaults or tunability moved and that they should
+   reconcile their `.governance/conf/<owner>/<pack>/<id>.conf` overlay by hand —
    `pack update` refreshes `directive.yaml` but never rewrites the overlay.
-3. **Apply.** `packverb pack-apply update <root> [<pack-id>]` overwrites the
-   drifted directive folders (refreshing their config registry
-   while leaving every `.governance/conf/<owner>/<pack>/<id>.conf` overlay untouched),
-   regenerates the hook dispatcher, and upserts the new SHA into the lockfile.
+   Overlays for **removed** ids are user-owned: the plan lists them as orphaned
+   and apply leaves the files in place. Do not invent tombstone directives.
+3. **Apply.** `packverb pack-apply update <root> [<pack-id>]` overwrites surviving
+   directive folders, **deletes retired directive folders**, strips their
+   CONSTITUTION.md subsections, regenerates the hook dispatcher from the
+   remaining tree, upserts the new SHA and remaining `directives:` / `digest:`
+   into the lockfile, and — when a schedule workflow is already enrolled —
+   recompiles (or removes) `.github/workflows/governance-schedule.yml` so retired
+   members drop out. Independent repo-local and other-pack directives are
+   untouched. Re-running an already-applied pin is `up-to-date` (idempotent).
 
 ## `pack remove <pack-id>`
 

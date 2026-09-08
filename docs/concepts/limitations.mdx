@@ -18,11 +18,9 @@ Commit-path checks must be **deterministic, fast, and offline** — same repo st
 
 `SKIP_GOVERNANCE=1` and `--no-verify` exist, on purpose, for local hotfixes. The contract is CI: every directive re-runs on every PR. If your threat model requires that no non-compliant commit can ever be *created* locally, Governance Kit does not provide that — it guarantees non-compliant work cannot *merge*.
 
-## Session provenance depends on explicit runtime signals
+## Session identifiers are a harness concern
 
-- `agent-session-identity` records only a harness/session pair supplied explicitly by the runtime environment or a kit-owned identity sidecar. It never reads chat transcripts, usage files, session databases, or harness-private paths.
-- A commit made with `--no-verify` may have no stamped session row; CI can validate the receipt shape but cannot reconstruct an identity that was never supplied.
-- Human commits and runtimes with no session signal are intentional no-ops. If a deployment needs stronger provenance, it must arrange for its harness to export a stable session identifier; the kit remains harness-agnostic.
+The kit does not stamp or require a session row on the receipt. Claude Code (and other runtimes that follow) may add a `Claude-Session:` / `Co-Authored-By:` trailer on the commit. Those trailers do not survive a squash merge; that is expected — they identify a live run, not the durable work record. The kit does not open chat transcripts, session databases, usage files, or harness-private paths.
 
 ## One issue, one PR, one receipt
 
