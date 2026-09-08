@@ -1,37 +1,14 @@
 #!/usr/bin/env bash
-# Directive: every non-merge, non-revert commit in scope adds or modifies at
-# least one `receipts/issue-<N>.md`. The touched receipt's filename **is** the
-# commit's issue anchor — the receipt is where the audit for issue N lives, so
-# the file in the diff is the authoritative commit↔issue link.
+# Directive: a completed change set adds or modifies at least one
+# receipts/issue-<N>.md. Intermediate feature-branch commits are not gated
+# (issue #370). File-first issue #293: the receipt path is the issue anchor.
 #
-# Issue #293 made this file-first. The directive used to anchor on the subject's
-# trailing `(#N)` plus body `Issue: #N` trailers and cross-check them against
-# the touched receipt's `issue-<N>` token. With the accounting trailers retired,
-# the only squash-robust anchor is the receipt path itself: it sits in the diff
-# identically before and after a squash-merge (where the subject flips to the PR
-# number), so no body trailer or HEAD-fallback is needed to recover the issue on
-# the trunk. `commit-message-format` independently requires the subject `(#N)`;
-# `receipt-per-issue` independently validates the receipt filename and shape.
-# This directive supplies the remaining link — every commit touches its issue's
-# receipt — which is what keeps the receipt a live audit artifact rather than an
-# end-of-work afterthought.
-#
-# Modes:
-#   Mode A — commit-msg hook:  bash check.sh <path-to-msg-file>
-#       Reads the pending subject (merge/revert detection) + body (waiver) and
-#       uses the staged diff for the receipt-touch check.
-#   Mode B — CI / run.sh:      bash check.sh
-#       Walks default-branch merge-base → HEAD and validates each commit against
-#       its own tree-diff. On the trunk (no new work) Mode A already handled the
-#       pending commit; re-flagging merged history is out of scope.
-#
-# Exceptions:
-#   - Merge commits (parent count > 1 in Mode B; commit-msg never sees them).
-#   - Revert commits (subject starts with `Revert "`).
-#   - Per-commit waiver: a line `governance: allow-commit-issue-receipt-match
-#     <reason>` anywhere in the commit body, for release commits and unusual
-#     cross-cutting refactors that legitimately touch no receipt. The reason is
-#     required — a bare token does not waive.
+# Mode A — commit-msg hook: bash check.sh <msg-file>
+#   Default-branch pending commit must stage a receipt (direct-to-default
+#   completion). Feature-branch pending commits skip (intermediate).
+# Mode B — CI / run.sh: bash check.sh
+#   Aggregate merge-base..HEAD must include a receipt add/modify. Per-commit
+#   receipt-touch is not required. No new work vs default → no-op.
 set -u
 source "$(dirname "$0")/../../../../../lib.sh"
 directive_start "commit-issue-receipt-match"
@@ -43,36 +20,34 @@ MANIFEST="$(dirname "$0")/directive.yaml"
 RECEIPTS_DIR="$(conf_get commit-issue-receipt-match RECEIPTS_DIR "$MANIFEST")"
 ISSUE_RECEIPT_GLOB="$(conf_get commit-issue-receipt-match ISSUE_RECEIPT_GLOB "$MANIFEST")"
 
-# Returns 0 if the commit body carries a valid waiver line.
 msg_has_waiver() {
     local msg="$1"
     printf '%s\n' "$msg" \
         | grep -qE '^[[:space:]]*(<!--)?[[:space:]]*governance:[[:space:]]*allow-commit-issue-receipt-match[[:space:]]+.+'
 }
 
-# validate <label> <subject> <body> [changed-file ...]
-validate() {
-    local label="$1" subject="$2" body="$3"
-    shift 3
-
-    # Skip merge commits.
-    [[ "$subject" == Merge\ * ]] && return 0
-    # Skip revert commits (git auto-subject).
-    [[ "$subject" == Revert\ \"* ]] && return 0
-
-    if msg_has_waiver "$body"; then
-        return 0
-    fi
-
-    # File-first anchor: the commit must add or modify at least one receipt.
+touches_receipt() {
     local f
     for f in "$@"; do
         case "$f" in
             "$RECEIPTS_DIR"/$ISSUE_RECEIPT_GLOB) return 0 ;;
         esac
     done
+    return 1
+}
 
-    violation "$label — commit touches no $RECEIPTS_DIR/$ISSUE_RECEIPT_GLOB (every commit must add or update its issue's receipt; use 'governance: allow-commit-issue-receipt-match <reason>' in the body for a deliberate exception such as a release commit)"
+resolve_cs_base() {
+    cs_base=""
+    for candidate in origin/main origin/master main master; do
+        if git rev-parse --verify "$candidate" >/dev/null 2>&1; then
+            mb=$(git merge-base HEAD "$candidate" 2>/dev/null || echo "")
+            if [[ -n "$mb" && "$mb" != "$(git rev-parse HEAD)" ]]; then
+                cs_base="$mb"
+                return 0
+            fi
+        fi
+    done
+    return 1
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -87,60 +62,68 @@ if [[ $# -gt 0 ]]; then
     subject=$(grep -vE '^[[:space:]]*($|#)' "$msg_file" | head -n1)
     body=$(cat "$msg_file")
 
+    [[ "$subject" == Merge\ * ]] && directive_end
+    [[ "$subject" == Revert\ \"* ]] && directive_end
+    if msg_has_waiver "$body"; then
+        directive_end
+    fi
+
+    # Feature / detached HEAD: this commit is intermediate. CI Mode B checks
+    # the completed change set. Direct-to-default (HEAD is main/master) has no
+    # PR boundary, so the pending commit itself is the completed change.
+    head_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+    if [[ "$head_branch" != "main" && "$head_branch" != "master" ]]; then
+        directive_end
+    fi
+
     changed=()
     while IFS= read -r f; do
         [[ -z "$f" ]] && continue
         changed+=("$f")
     done < <(git diff --cached --name-only --diff-filter=ACMR -- 2>/dev/null || true)
 
-    if [[ ${#changed[@]} -eq 0 ]]; then
-        validate "pending commit" "$subject" "$body"
-    else
-        validate "pending commit" "$subject" "$body" "${changed[@]}"
+    if [[ ${#changed[@]} -eq 0 ]] || ! touches_receipt "${changed[@]}"; then
+        violation "pending commit — completed change on the default branch touches no $RECEIPTS_DIR/$ISSUE_RECEIPT_GLOB (use 'governance: allow-commit-issue-receipt-match <reason>' for a deliberate exception such as a release commit)"
     fi
     directive_end
 fi
 
 # ──────────────────────────────────────────────────────────────
-# Mode B — CI / run.sh — walk base..HEAD
+# Mode B — CI / run.sh — aggregate base..HEAD
 # ──────────────────────────────────────────────────────────────
-base=""
-for candidate in origin/main origin/master main master; do
-    if git rev-parse --verify "$candidate" >/dev/null 2>&1; then
-        mb=$(git merge-base HEAD "$candidate" 2>/dev/null || echo "")
-        if [[ -n "$mb" && "$mb" != "$(git rev-parse HEAD)" ]]; then
-            base="$mb"
-            break
-        fi
-    fi
-done
-
-if [[ -z "$base" ]]; then
-    # No new work on this branch relative to the default — Mode A handles any
-    # pending commit. Re-flagging history already on main is out of scope.
+if ! resolve_cs_base; then
     directive_end
 fi
 
+# Waiver on any commit in the change set covers the aggregate (release
+# series, bot stacks). Merge/revert-only ranges still need a receipt if a
+# non-merge non-revert commit landed without one and without a waiver.
+range_waived=0
 while IFS= read -r sha; do
     [[ -z "$sha" ]] && continue
     parents=$(git log -1 --format=%P "$sha" 2>/dev/null || echo "")
-    # Multi-parent → merge commit; skip.
     [[ "$parents" == *' '* ]] && continue
     subject=$(git log -1 --format=%s "$sha" 2>/dev/null || echo "")
     [[ "$subject" == Revert\ \"* ]] && continue
     body=$(git log -1 --format=%B "$sha" 2>/dev/null || echo "")
-
-    changed=()
-    while IFS= read -r f; do
-        [[ -z "$f" ]] && continue
-        changed+=("$f")
-    done < <(git diff-tree --no-commit-id --name-only --diff-filter=ACMR -r "$sha" 2>/dev/null || true)
-
-    if [[ ${#changed[@]} -eq 0 ]]; then
-        validate "$sha" "$subject" "$body"
-    else
-        validate "$sha" "$subject" "$body" "${changed[@]}"
+    if msg_has_waiver "$body"; then
+        range_waived=1
+        break
     fi
-done < <(git log "$base..HEAD" --format='%H')
+done < <(git log "$cs_base..HEAD" --format='%H')
+
+if [[ "$range_waived" -eq 1 ]]; then
+    directive_end
+fi
+
+changed=()
+while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
+    changed+=("$f")
+done < <(git diff --name-only --diff-filter=ACMR "$cs_base"..HEAD -- 2>/dev/null || true)
+
+if [[ ${#changed[@]} -eq 0 ]] || ! touches_receipt "${changed[@]}"; then
+    violation "change set $cs_base..HEAD — completed change touches no $RECEIPTS_DIR/$ISSUE_RECEIPT_GLOB (intermediate commits need not each edit a receipt; the aggregate must. Waiver: 'governance: allow-commit-issue-receipt-match <reason>')"
+fi
 
 directive_end

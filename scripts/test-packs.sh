@@ -261,7 +261,7 @@ EOF
 
 Fixture architecture doc for the fresh-repo install contract. The real
 bootstrap skill writes repo-specific content; this file only exists to
-satisfy `required-docs` at the expected line-count floor.
+give the fixture a realistic repo-root document set.
 
 ## Layers
 
@@ -278,7 +278,7 @@ operation on `.governance/packs/<owner>/<repo>/directives/`.
 ## Notes
 
 This fixture is deliberately terse but long enough to clear the
-`required-docs` line-count floor.
+fixture's architecture-doc floor.
 EOF
 
     cat > .gitignore <<'EOF'

@@ -68,7 +68,7 @@ These are user-owned after the copy — bootstrap does not overwrite them in aug
 
 | Path | Seeded by | Ownership evidence | Soft | Hard |
 |---|---|---|---|---|
-| `QUALITY.md` | `issues-tracked` directive | manifest: `install_assets_seeded: [QUALITY.md, …]` | preserve; list as orphaned in the report | delete |
+| `QUALITY.md` | legacy `issues-tracked` seed (directive retired, issue #370) | manifest: `install_assets_seeded: [QUALITY.md, …]` | preserve; list as orphaned in the report | delete |
 | `COSTS.md` (legacy, pre-session-identity installs only) | legacy install manifest | manifest: `install_assets_seeded: […, COSTS.md]` | preserve; list as orphaned in the report | delete |
 | any future `install-assets/<file>` | any future directive | manifest | preserve | delete |
 

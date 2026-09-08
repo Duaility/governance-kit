@@ -23,7 +23,7 @@ Two things stop scaling at agent throughput:
 Governance Kit answers both with repo-native artifacts:
 
 - **A constitution** — `CONSTITUTION.md`, a versioned set of directives every agent reads and every commit is checked against.
-- **Receipts and provenance** — per-issue receipts (with producing session identity) and the `QUALITY.md` board, recording what agents changed and how it was verified.
+- **Receipts and provenance** — per-issue receipts (with producing session identity), recording what agents changed and how it was verified.
 
 ## How does the loop work?
 
@@ -48,8 +48,8 @@ The real power is the depth of invariant you can express. Start with determinist
 
 | Depth | What you can say | How it runs |
 |---|---|---|
-| **Repo state** | "Every repo needs a README, a license, a security contact, an architecture note." | Cheap `check.sh` over the tree, locally and in CI. |
-| **Change set** | "A CI-config change needs a reason in the commit." "A receipt for issue #42 must name the files this PR changed." | Diff-aware hooks plus CI's merge-base walk. |
+| **Repo state** | "The vendored governance tree matches the digests recorded at install time." | Cheap `check.sh` over the tree, locally and in CI. |
+| **Change set** | "A CI-config change needs a reason in the commit." "A completed change for issue #42 records its outcome and verification evidence." | Diff-aware hooks plus CI's merge-base walk. |
 | **Ledger** | "For each agent-authored change, show the issue, receipt, and producing session." | Session identity rows, cross-checked by directives. |
 | **Sub-agent attestation** | "Before merging a cross-layer refactor, have a fresh reader compare the diff to the architecture map." | The hook fails with a fresh-context sub-agent prompt; the agent records a PASS/REFUTED section; the hook verifies it is there. |
 
@@ -60,7 +60,7 @@ The failures that hurt are rarely mechanical ("forgot the formatter") — they'r
 Every directive is a self-contained folder — test, prose, metadata, and fixtures travel together:
 
 ```
-internal-doc-links/
+managed-tree-integrity/
 ├── directive.yaml    # category, summary, surface, hook
 ├── check.sh          # the executable test (pre-commit + CI)
 ├── constitution.md   # Directive / Rationale / Enforced by / Exceptions
@@ -70,17 +70,17 @@ internal-doc-links/
 The `constitution.md` carries the *why*:
 
 ```markdown
-### internal-doc-links
+### managed-tree-integrity
 
-- **Directive**: Every relative-path markdown link resolves to a real file;
-  opt in to also require every doc stay reachable from a declared root.
-- **Rationale**: A broken link rots silently — the doc still renders but lies,
-  and an agent that follows it bails.
-- **Enforced by**: .governance/packs/governance-kit/foundation/directives/internal-doc-links/check.sh
-- **Exceptions**: Line-level waiver on the broken-link line.
+- **Directive**: The vendored `.governance/` tree matches the content
+  digests recorded at install/update time.
+- **Rationale**: A trust tool whose enforcement code can be silently
+  hand-edited is self-refuting.
+- **Enforced by**: .governance/packs/governance-kit/foundation/directives/managed-tree-integrity/check.sh
+- **Exceptions**: Per-unit overlay waiver during a migration.
 ```
 
-A bare check would only confirm the links point somewhere. The rationale tells the next agent — and the next human — why a connected doc graph *matters*.
+A bare check would only confirm bytes match. The rationale tells the next agent — and the next human — why the vendored tree must not be edited by hand.
 
 ## What it is not
 

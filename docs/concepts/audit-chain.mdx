@@ -13,7 +13,7 @@ If you trust agents to ship code, you need to see what they did against each iss
 flowchart LR
     I["<b>Issue #N</b><br/>the work order"]
     R["<b>Receipt</b><br/>receipts/issue-N.md<br/>claims + session identity"]
-    C["<b>Commit</b><br/>touches the receipt —<br/>the path is the anchor"]
+    C["<b>Completed change</b><br/>PR or default-branch commit<br/>associates the receipt"]
     S["<b>Session identity</b><br/>harness + session,<br/>frozen on the trunk"]
 
     I --> R --> C --> S
@@ -26,9 +26,9 @@ Every link is enforced by a directive in the `governance-kit/audit` pack (the `s
 
 | Link | Directive | What it enforces |
 |---|---|---|
-| Issues exist & are structured | `issue-templates`, `issues-tracked` | Issue forms with handoff fields; a `QUALITY.md` board with `## Open` / `## Resolved` |
-| Work attests itself | `receipt-per-issue` | One receipt file per issue with the required sections and a crosswalked checklist |
-| Commits anchor to work | `commit-issue-receipt-match` | Every non-merge commit touches its issue's `receipts/issue-<N>.md` — the receipt path **is** the anchor |
+| Issues exist & are structured | `issue-templates` | Issue forms with handoff fields |
+| Work attests itself | `receipt-per-issue` | One receipt per issue: outcome + verification evidence at the completed change |
+| Completed changes anchor to work | `commit-issue-receipt-match` | A PR aggregate or direct-to-default commit adds or updates `receipts/issue-<N>.md` — the receipt path **is** the anchor |
 | Session provenance is explicit | `agent-session-identity` | Each recognized agent runtime adds one `date | harness | session` row under `## Session` → `### Identifiers`; identity comes only from explicit signals |
 | The record can't be rewritten | `doc-integrity` | Receipts freeze once on the trunk; frozen sections keep their baseline lines verbatim |
 
@@ -36,19 +36,19 @@ Everything homes in the receipt. There are **no usage, cost, or steering rows an
 
 ## Receipts: attestation over promise
 
-A plan says what the model *intends*; a receipt says what it *did*, in a form a reviewer can check. One receipt per issue, at `receipts/issue-<N>-<slug>.md`, with four required sections — plus an optional `## Session` section for agent provenance:
+A plan says what the model *intends*; a receipt says what it *did*, in a form a reviewer can check. One receipt per issue, at `receipts/issue-<N>.md` (optional kebab-case slug), completed at the PR or direct-to-default boundary:
 
 ```markdown
-## Checklist        # mirrors the GitHub issue's acceptance items
-## What changed     # the actual changes, by file/behavior
-## Out of scope     # explicitly not done
-## Verification     # how each claim was checked
+## What changed     # outcome and significant behavior, with the work-item reference
+## Verification     # commands/checks and their outcomes, or a durable evidence URL
+## Decisions        # optional — only when a tradeoff, deviation, or limitation exists
 ## Session          # ### Identifiers: date | harness | session
+## Audit            # independent review of outcome + evidence against the diff and issue
 ```
 
-The trust boundary: **every `- [x]` checklist item must crosswalk** — its text must appear in `## What changed` or `## Verification`. An agent cannot flip a box without writing down what it did and how that was verified. The receipt is what a reviewer reads instead of the raw diff.
+A fenced command with no outcome is not evidence, and a recorded fence or verdict is not proof that a command ran. Intermediate commits may carry a session-only stub; that stub cannot satisfy a completed change.
 
-`commit-issue-receipt-match` ties commits to receipts the other direction, and it does it **file-first**: every non-merge, non-revert commit must add or modify at least one `receipts/issue-<N>.md`, and the touched receipt's filename *is* the issue anchor. That path sits in the diff identically before and after a squash-merge — where the subject flips to the PR number — so the link survives the squash with no body trailer to recover it. (The subject's own `(#N)` is still required, separately, by `commit-message-format`.)
+`commit-issue-receipt-match` ties the **completed change** to a receipt, file-first: the aggregate PR diff (or the direct-to-default commit) must add or modify at least one `receipts/issue-<N>.md`. Intermediate feature-branch commits do not each need a receipt edit. The path sits in the aggregate diff identically before and after a squash-merge. (The subject's own `(#N)` is still required, separately, by `commit-message-format`.)
 
 ## Session identity: provenance without surveillance
 

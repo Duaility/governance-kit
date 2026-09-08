@@ -20,9 +20,9 @@ falls back to the installed skill and records that provenance.
 
 Directives are grouped into **packs** — self-contained directories that bundle directives, their constitution snippets, and hook declarations. Three concern-scoped packs ship in-tree today, under `packs/<concern>/` (source-of-truth in this monorepo; consumers fetch via `gh:duaility/governance-kit/packs/<concern>@<rev>`):
 
-- **`governance-kit/foundation`** — `required-docs`, `internal-doc-links`, `repo-hygiene`, `managed-tree-integrity`.
-- **`governance-kit/commits`** — `commit-message-format`, `no-orphan-todos`, `no-unjustified-suppressions`.
-- **`governance-kit/audit`** — a trustworthy record of agent work: issue → receipt → commit traceability (`issue-templates` → `issues-tracked` → `receipt-per-issue` → `commit-issue-receipt-match`), session identity (`agent-session-identity`), and the tamper protection that keeps those records honest (`doc-integrity`, `toolchain-config-protection`).
+- **`governance-kit/foundation`** — `managed-tree-integrity`.
+- **`governance-kit/commits`** — `commit-message-format`.
+- **`governance-kit/audit`** — a trustworthy record of agent work: issue → receipt → completed-change traceability (`issue-templates` → `receipt-per-issue` → `commit-issue-receipt-match`), session identity (`agent-session-identity`), and the tamper protection that keeps those records honest (`doc-integrity`, `toolchain-config-protection`).
 
 The kit also ships the off-commit-path scheduled lane (the `.governance/schedule.sh` driver, installed on every init, plus `governance workflow generate`, which compiles directive-owned cron settings into one workflow), but bundles no schedule-only directives — those are authored in repo-local or community packs.
 
@@ -145,7 +145,7 @@ Also detect hook strategy before you offer or install hook-related directives:
 - If `.husky/` exists, `package.json` references husky, or `.pre-commit-config.yaml` exists, treat the repo as using an existing hook framework.
 - Otherwise, use the repo-local `.githooks/` strategy described below.
 
-This choice is recorded as `hook_strategy:` in `.governance/install.yaml` (`githooks` | `husky` | `pre-commit`). The `required-docs` directive's `hooks` sub-check inspects that value and only enforces the `.githooks/` scaffolding when `hook_strategy` is `githooks`. Do not present `.githooks/` as universal if the repo already has a tracked hook framework.
+This choice is recorded as `hook_strategy:` in `.governance/install.yaml` (`githooks` | `husky` | `pre-commit`). Do not present `.githooks/` as universal if the repo already has a tracked hook framework.
 
 **Hook-collision survey.** As part of the survey, inspect existing hook files at:
 
@@ -306,15 +306,13 @@ The constitution's **Compliance** section is the directive; the AGENTS.md snippe
 
 The snippet is bounded by a pair of HTML marker comments — opening `<!-- governance: directives-to-follow -->` on its first line and closing `<!-- /governance: directives-to-follow -->` on its last. Both markers ship together in the template and **both** must be preserved on insert. Idempotency: grep for the opening marker before inserting; if it is already present, skip silently. Do not insert the opening without the closing or vice versa — `governance uninstall` relies on the pair to locate the exact block to strip.
 
-Three cases:
+Two cases:
 
 1. **`AGENTS.md` exists and lacks the marker.** Insert the snippet near the top of the file. The right insertion point is **after the H1 heading and the first intro paragraph (or any frontmatter), and before the first `##` heading**. Use `Edit` — preserve everything else verbatim.
 
-2. **`AGENTS.md` is missing AND the `required-docs` directive is installed.** Create a stub at `<repo-root>/AGENTS.md` containing: `# AGENTS.md`, a one-line intro, the directive snippet, and a `## What this repo is` placeholder. Tell the user the stub is intentionally minimal — they need to flesh it out (`required-docs` enforces 30–250 lines and ≥ 3 internal doc links for AGENTS.md).
+2. **`AGENTS.md` is missing.** Skip silently unless the operator explicitly asked to seed a stub (`seed_agents_stub`). The kit does not invent consumer documentation (issue #370). When seeding, write `# AGENTS.md`, a one-line intro, the directive snippet, and a `## What this repo is` placeholder.
 
-3. **`AGENTS.md` is missing AND `required-docs` was not installed.** Skip silently. Do not nag — the user opted out, and creating a file they didn't ask for is presumptuous.
-
-After injecting, run `bash .governance/run.sh` once so the user sees whether the newly-seeded AGENTS.md still needs more content.
+After injecting, continue — AGENTS.md is a routing pointer, not a quota-checked document.
 
 ### Step 5 — The test runner (installed by `init-apply`)
 
@@ -357,9 +355,8 @@ For **`githooks`** (default when no other framework is present), `init-apply`
 also runs `git config core.hooksPath .githooks` — enablement is kit-owned, so
 nothing is vendored into the repo (issue #267). Every other contributor enables
 local hooks once per fresh clone with the documented one-liner `git config
-core.hooksPath .githooks`; until they do, `required-docs` nags with the exact
-command. (Skipping it costs only local fast-feedback — CI still enforces every
-directive.) Point new contributors at it in `README.md` or `AGENTS.md`.
+core.hooksPath .githooks`. (Skipping it costs only local fast-feedback — CI still
+enforces every directive.) Point new contributors at it in `README.md` or `AGENTS.md`.
 `init-apply` does **not** create files under `.git/hooks/`; if
 `.git/hooks/pre-commit` already exists from another tool, surface it before
 proceeding (it could be a husky / pre-commit.com hook).
@@ -381,7 +378,7 @@ If the existing hook **has** the marker, overwrite silently — `governance dire
 In this path:
 - For husky: call `generate_hooks_for_strategy <repo-root> husky <version> <spec>`. The wrapper writes all five dispatchers into `.husky/` so directive-owned populator hooks (`directives/<id>/hooks/<kind>.sh`) are wired uniformly. Each generated file carries the line-2 ownership marker; existing unmarked hooks trigger the same collision flow as Path A.
 - For pre-commit.com: call `generate_hooks_for_strategy <repo-root> pre-commit <version> <spec>` to materialize dispatchers under `.governance/hooks/`, then add a `.pre-commit-config.yaml` hook block per stage that shells out to `bash .governance/hooks/<kind>`. See [NATIVE_TESTS.md](NATIVE_TESTS.md) for the per-framework snippets.
-- Record `hook_strategy: husky` or `hook_strategy: pre-commit` in `.governance/install.yaml` so `required-docs`' `hooks` sub-check transparently skips (it only enforces `.githooks/` scaffolding when `hook_strategy` is `githooks`).
+- Record `hook_strategy: husky` or `hook_strategy: pre-commit` in `.governance/install.yaml`.
 - Record each materialized hook file under `path_b.entries` with its fingerprint so `governance uninstall` and `governance reset` can recognize the kit's output.
 - Tell the user explicitly that the repo is using its existing tracked hook framework instead of `.githooks/`, and that session-identity coverage now matches Path A.
 
@@ -397,7 +394,7 @@ hook can be bypassed around. If the user later opts into native tests via
 
 Goal: make the install commit pass every installed directive on the first try, with **no `SKIP_GOVERNANCE` and no bootstrap-only waivers**. This is the step that makes "no audit gap at bootstrap" possible.
 
-1. **Stage the install output.** `git add` everything Steps 4–7 wrote: `CONSTITUTION.md`, `AGENTS.md` (if seeded/edited), `.governance/`, `.githooks/` (or the Path-B equivalent), `.github/workflows/governance.yml`, and any install-assets (`QUALITY.md`, …). The session-identity directive creates no standalone ledger or harness configuration.
+1. **Stage the install output.** `git add` everything Steps 4–7 wrote: `CONSTITUTION.md`, `AGENTS.md` (if seeded/edited), `.governance/`, `.githooks/` (or the Path-B equivalent), `.github/workflows/governance.yml`, and any install-assets. The session-identity directive creates no standalone ledger or harness configuration.
 
 2. **Seed the bootstrap receipt.** If `commit-issue-receipt-match` is installed, create `receipts/issue-<N>-bootstrap-governance.md` from [`../assets/receipt.bootstrap.template.md`](../assets/receipt.bootstrap.template.md), substituting the bootstrap issue number `<N>` and the actual install choices. Stage it. (`<N>` is the GitHub issue the operator filed to track the adoption — surface that anchor up front in the survey if it isn't already known.)
 
@@ -407,14 +404,11 @@ Goal: make the install commit pass every installed directive on the first try, w
 
    | Directive | Resolve via |
    |---|---|
-   | `repo-hygiene` (merge markers, build artefacts, large files) | Remove the offending file if safe; otherwise add `governance: allow-repo-hygiene file-size-limit <ticket-or-reason>` to the file's head. Re-stage. |
    | `secrets-hygiene` (tracked `.env`, AWS key pattern, etc.) | **Rotate first, then remove.** Add the file to `.gitignore`. The line-level waiver `governance: allow-secrets-hygiene <ticket>` is only for legacy already-leaked credentials that are queued for rotation. |
    | `pinned-dependencies` (tag-pinned actions) | SHA-pin every third-party action; re-stage the workflow file. |
    | `token-permissions` (missing `permissions:`) | Add an explicit least-privilege `permissions:` block; re-stage the workflow file. |
-   | `required-docs` (missing `LICENSE`, `SECURITY.md`, etc.) | Stub the missing file with a one-line placeholder the operator will flesh out. If they explicitly opted out of `required-docs`, this won't fire. |
    | `issue-templates` (missing `.github/ISSUE_TEMPLATE/*.md`) | Generate the templates the directive expects; the directive's `install-assets/` carries the canonical shape. |
-   | `internal-doc-links` (`resolve` sub-check) | Fix the broken link; do not waive. The `reachable` sub-check stays off unless the repo opts in via `.governance/conf/governance-kit/foundation/internal-doc-links.conf`. |
-   | `commit-message-format`, `commit-issue-receipt-match`, `receipt-per-issue` | The bootstrap receipt + Step 9's commit subject together satisfy these. |
+   | `commit-message-format`, `commit-issue-receipt-match`, `receipt-per-issue` | The bootstrap receipt (outcome + verification evidence) + Step 9's commit subject together satisfy these. Intermediate commits after init do not each need a receipt edit. |
 
    If a finding can't be inline-fixed (rotating a credential, removing a load-bearing legacy artefact), **pause init and surface it to the operator** — do not paper over it with a broader waiver.
 

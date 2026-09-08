@@ -3,9 +3,9 @@
 # A trustworthy record of agent work — the full chain plus the protection that
 # keeps it tamper-proof:
 #   * traceability — every unit of work is a tracked issue with a durable
-#     template (`issue-templates`), logged in `QUALITY.md` (`issues-tracked`),
-#     lands exactly one receipt (`receipt-per-issue`), and is referenced by the
-#     commit that closes it (`commit-issue-receipt-match`);
+#     template (`issue-templates`), lands exactly one receipt
+#     (`receipt-per-issue`), and is associated with the completed change
+#     (`commit-issue-receipt-match`);
 #   * provenance — every agent-authored commit records the harness/session
 #     identifier that produced it in the issue receipt (`agent-session-identity`);
 #   * integrity — those records stay honest: receipts are immutable, ledgers
@@ -43,7 +43,6 @@ presets:
   standard:
     directives:
       - issue-templates
-      - issues-tracked
       - receipt-per-issue
       - commit-issue-receipt-match
       - agent-session-identity

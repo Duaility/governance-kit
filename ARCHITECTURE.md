@@ -82,12 +82,10 @@ The skill is a self-contained directory with frontmatter
 Each pack is a directory. Three concern-scoped packs ship in-tree under
 `packs/<concern>/`:
 
-- `governance-kit/foundation` — `required-docs`, `internal-doc-links`,
-  `repo-hygiene`, `managed-tree-integrity`.
-- `governance-kit/commits` — `commit-message-format`, `no-orphan-todos`,
-  `no-unjustified-suppressions`.
+- `governance-kit/foundation` — `managed-tree-integrity`.
+- `governance-kit/commits` — `commit-message-format`.
 - `governance-kit/audit` — a trustworthy record of agent work: issue → receipt
-  → commit traceability (`issue-templates`, `issues-tracked`,
+  → completed-change traceability (`issue-templates`,
   `receipt-per-issue`, `commit-issue-receipt-match`), session identity
   (`agent-session-identity`), and the tamper
   protection that keeps those records honest (`doc-integrity`,

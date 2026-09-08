@@ -199,8 +199,8 @@ Three concern packs ship in-tree and install with `governance init` at your chos
 
 | Pack | Covers | Preset |
 |---|---|---|
-| `governance-kit/foundation` | Required docs, internal link integrity, repo hygiene, managed-tree integrity | minimal |
-| `governance-kit/commits` | Conventional Commits + issue suffix, TODO and suppression discipline | standard–strict |
+| `governance-kit/foundation` | Managed-tree integrity for the vendored install | minimal |
+| `governance-kit/commits` | Conventional Commits + issue suffix | standard |
 | `governance-kit/audit` | The agent audit chain — receipts, session identity, record integrity | standard |
 
 Full catalog: [DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md). The anatomy of a directive folder and how to write one: [DIRECTIVE_AUTHORING.md](kit/references/DIRECTIVE_AUTHORING.md).
@@ -212,22 +212,16 @@ Full catalog: [DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md). The
 
 | Pack | Directive | What it enforces | Preset |
 |---|---|---|---|
-| `foundation` | `required-docs` | `README.md`, `LICENSE`, `SECURITY.md`, `ARCHITECTURE.md` exist with non-empty bodies. | minimal |
-| `foundation` | `internal-doc-links` | Internal markdown links resolve; opt-in, every doc stays reachable from a root. | minimal |
 | `foundation` | `managed-tree-integrity` | The vendored `.governance/` tree matches the content digests recorded at install/update time — hand-edits to any check or runtime file fail the gate, offline. Subsumes the kit-version-marker check. | minimal |
-| `foundation` | `repo-hygiene` | No merge markers, oversized files, build artefacts, or debug statements. | minimal |
 | `commits` | `commit-message-format` | Conventional Commits with an issue suffix (`<type>(scope)?: <subject> (#N)`). | standard |
-| `commits` | `no-orphan-todos` | Every `TODO` / `FIXME` references an issue. | strict |
-| `commits` | `no-unjustified-suppressions` | Every lint / type-checker suppression (`@ts-ignore`, `# noqa`, …) references an issue. | strict |
 
 #### What does the audit chain enforce?
 
 | Pack | Directive | What it enforces | Preset |
 |---|---|---|---|
 | `audit` | `issue-templates` | `.github/ISSUE_TEMPLATE/` carries `config.yml` (blank issues off), `proposal.yml`, `bug.yml` with the required handoff fields. | standard |
-| `audit` | `issues-tracked` | `QUALITY.md` exists at repo root with `## Open` and `## Resolved` sections. | standard |
-| `audit` | `receipt-per-issue` | Every `receipts/*.md` has a unique `issue-<N>` filename token, required narrative/audit sections, and checked items that crosswalk into the receipt's evidence. | standard |
-| `audit` | `commit-issue-receipt-match` | Every non-merge commit adds or updates a `receipts/issue-<N>.md` — the touched receipt path is the commit's issue anchor (file-first). | standard |
+| `audit` | `receipt-per-issue` | Unique `issue-<N>` receipts; a completed change records outcome + verification evidence (a fence alone is not proof of execution). | standard |
+| `audit` | `commit-issue-receipt-match` | A completed change (PR aggregate or direct-to-default commit) adds or updates a `receipts/issue-<N>.md`. Intermediate commits do not each require a receipt edit. | standard |
 | `audit` | `agent-session-identity` | **`always_install: true`** — each agent-authored commit records its harness and session identifier in the issue receipt. It reads only explicit identity signals and never touches transcripts, usage, cost, or steering data. | standard |
 | `audit` | `doc-integrity` | **`always_install: true`** — system-of-record documents are tamper-proof: receipts freeze once on the trunk, frozen sections (`QUALITY.md` Resolved, the Evolution Log) keep their baseline lines verbatim. Branch-authored content stays editable until it merges. | standard |
 | `audit` | `toolchain-config-protection` | A commit changing lint / format / type-check / CI / hook config carries a `governance: allow-toolchain-config <reason>` body line. | standard |

@@ -39,10 +39,10 @@
     {
       "id": 3,
       "prompt": "Run governance init for this repo. It's a Go service — keep the rule set tight and skip anything stylistic.",
-      "expected_output": "A tight, foundation-leaning rule set is enabled (e.g. `required-docs`, `repo-hygiene`, `managed-tree-integrity`, `internal-doc-links`). Go-relevant directives are chosen over Python/JS-specific ones. Stylistic directives are NOT enabled. The skill's summary explains which categories were included and which were deliberately dropped.",
+      "expected_output": "A tight, foundation-leaning rule set is enabled (e.g. `managed-tree-integrity`). Go-relevant directives are chosen over Python/JS-specific ones. Stylistic directives are NOT enabled. The skill's summary explains which categories were included and which were deliberately dropped.",
       "files": ["files/go-service-repo/"],
       "assertions": [
-        "Foundation directive folders exist under `.governance/packs/governance-kit/foundation/directives/` (e.g. `required-docs/check.sh`, `repo-hygiene/check.sh`)",
+        "Foundation directive folders exist under `.governance/packs/governance-kit/foundation/directives/` (e.g. `managed-tree-integrity/check.sh`)",
         "No directive folders targeting Python-only or JS-only patterns (e.g., `no-pdb`, `no-console-log`) were installed",
         "The skill's summary explicitly names the enabled categories (or equivalent preset-derived directive set) and stylistic directives as deliberately excluded",
         "`.governance/packs.lock` reflects the tight selection across the bundled packs",

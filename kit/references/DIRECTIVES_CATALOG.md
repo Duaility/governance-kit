@@ -8,9 +8,9 @@ Three concern-scoped packs ship in-tree, each at `packs/<concern>/`:
 
 | Pack | Location | Concern | Default? |
 |---|---|---|---|
-| `governance-kit/foundation` | `packs/foundation/` | Repo scaffolding, internal doc-link health, working-tree hygiene + kit coherence. | Always present (bundled). |
-| `governance-kit/commits`    | `packs/commits/`    | Commit-message & in-source marker hygiene. | Always present (bundled). |
-| `governance-kit/audit`      | `packs/audit/`      | A trustworthy record of agent work — issue → receipt → commit traceability, session provenance, and tamper-proof record integrity. | Always present (bundled). |
+| `governance-kit/foundation` | `packs/foundation/` | Kit coherence — vendored `.governance/` matches install/update digests. | Always present (bundled). |
+| `governance-kit/commits`    | `packs/commits/`    | Commit-message format with a trailing GitHub issue reference. | Always present (bundled). |
+| `governance-kit/audit`      | `packs/audit/`      | A trustworthy record of agent work — issue → receipt → completed-change traceability, session provenance, and tamper-proof record integrity. | Always present (bundled). |
 
 Presets are **per-pack** and unioned at init: each pack ships `minimal`/`standard`/`strict` blocks covering its slice, and `governance init` unions the chosen preset across all three (see [the preset table](#presets-per-pack-unioned-at-init)). Community packs live in their own repos and install via `governance pack add gh:<owner>/<repo>`. For authoring a **third-party pack**, see [PACK_AUTHORING.md](PACK_AUTHORING.md).
 
@@ -18,41 +18,33 @@ Most directives are **synchronous** — enforced by `check.sh` at a git hook and
 
 The **Standards** column records the external standard a directive implements (OpenSSF Scorecard checks, CWE entries, …) so coverage and gaps are visible. It is advisory metadata (`standards:` in `directive.yaml`); empty cells are not failures, they are the roadmap.
 
-Several directives are **consolidated** — one directive rolling up multiple sub-checks over a shared surface: `required-docs`, `repo-hygiene`, and `internal-doc-links`. Each sub-check is independently waivable, and a whole sub-check can be carved out for your repo with `governance directive modify`.
-
 ---
 
 ## `governance-kit/foundation`
 
-Repo scaffolding, internal doc-link health, working-tree hygiene, and managed-tree integrity — the documents a governed repo needs, an internal link graph that resolves, a clean working tree, and a vendored `.governance/` tree that matches the digests recorded at install/update time (so it is never silently hand-edited).
+Kit coherence — a vendored `.governance/` tree that matches the digests recorded at install/update time (so it is never silently hand-edited). Document inventories, internal link graphs, and working-tree hygiene are not bundled (issue #370).
 
 | Directive | Standards | What it checks |
 |---|---|---|
-| `required-docs` | — | Rolled-up presence check for repo-root docs and local-hook scaffolding. Sub-checks (all enabled): `constitution` (`CONSTITUTION.md` ≥ 10 lines); `agents` (`AGENTS.md` at repo root, 30–250 lines, ≥ 3 internal links, **and a link to `CONSTITUTION.md`**); `readme` (`README.md`/`.rst` with heading + ≥ 30 words); `license` (`LICENSE`/variants, non-empty); `security` (`SECURITY.md` with contact); `architecture` (`ARCHITECTURE.md` ≥ 20 lines); `ci-workflow` (≥ 1 non-governance workflow); `env-example` (every key in local `.env` is declared in `.env.example`); `hooks` (`.githooks/pre-commit` tracked + executable, `core.hooksPath=.githooks`; no-ops on non-`githooks` strategies). Scalars configurable via `.governance/conf/governance-kit/foundation/required-docs.conf`. To carve out a sub-check, use `governance directive modify`. |
-| `internal-doc-links` | — | Rolled-up health of the internal markdown link graph. **`resolve`** (always on): every relative-path link target in a tracked `.md` resolves to an existing file. **`reachable`** (opt-in): every tracked `.md` is reachable from an entry-point doc declared in `.governance/conf/governance-kit/foundation/internal-doc-links.conf` (`root <path>` / `exclude <glob>` lines) — no-op when that config is absent. Immutable historical ledgers (`receipts/`, `plans/`) are excluded — their links describe a past state and can't be repaired without violating append-only. Waivers: `resolve` — `<!-- governance: allow-internal-doc-links <reason> -->` on the broken-link line; `reachable` — a configured `exclude <glob>`, or `governance: allow-internal-doc-links reachable <reason>` in the orphan's first 10 lines. |
 | `managed-tree-integrity` | — | The vendored `.governance/` tree matches the content digests recorded at apply time, so it changes only through the install/update verbs — never by hand. For every `packs.lock` pack entry with a `digest:` map, each vendored directive folder matches its recorded `sha256` (and no unrecorded directive folder appears); for every file in `install.yaml`'s `managed_digests:` map (`run.sh`, `lib.sh`, the CI workflow, and the generated `.github/workflows/governance-schedule.yml`, plus legacy prefixed workflows on pre-redesign installs), the file matches its recorded `sha256`. The local-only hook dispatchers (`.githooks/*` etc.) are **not** digested — they sit outside the CI trust chain, are intentionally bypassable, and are regenerated by the verbs (issue #267). Also asserts each managed file's `# governance-kit:managed kit-version=<v>` marker equals the manifest's `kit_version` (subsuming the former `kit-version-sync`). Works **offline in any repo** — it compares recorded digests, not upstream pack git objects. No-op for a pack/manifest with no recorded digests (pre-#253 installs gain coverage on their next `pack update` / `update`). Per-unit waiver via `.governance/conf/<owner>/<pack>/managed-tree-integrity.conf`. |
-| `repo-hygiene` | — | **`always_install: true`.** Rolled-up hygiene greps. Sub-checks: merge markers, large files, build artifacts, debug statements, and source-file size. Thresholds and pattern lists are declared in `directive.yaml`; tunable entries use `.governance/conf/governance-kit/foundation/repo-hygiene.conf`. |
 
 ## `governance-kit/commits`
 
-Commit-message and in-source marker hygiene — the rules a repo opts into past bootstrap.
+Commit-message format — the rule a repo opts into past bootstrap. TODO/FIXME and suppression-to-ticket checks are not bundled (issue #370).
 
 | Directive | Standards | What it checks |
 |---|---|---|
 | `commit-message-format` | — | Commit subjects match `<type>(scope)?!?: subject (#123)` — Conventional Commits prefix **plus** a trailing GitHub issue reference. Default types live in the manifest's tunable `TYPES` list; the overlay can add a type or remove one with `!<type>`. Installs a `commit-msg` hook. |
-| `no-orphan-todos` | — | Every `TODO` / `FIXME` on a line references `#123` or `ABC-123`. |
-| `no-unjustified-suppressions` | — | Every lint / type-checker suppression — `eslint-disable*`, `@ts-ignore`, `@ts-expect-error`, `# noqa`, `# type: ignore`, `# pylint: disable`, `# pyright: ignore`, `#[allow(...)]`, `nolint`, `@SuppressWarnings` — references `#123` or `ABC-123` on the same line. Markdown is not scanned. Line waiver: `governance: allow-no-unjustified-suppressions <reason>`. |
 
 ## `governance-kit/audit`
 
-A trustworthy record of agent work, for repos where every tree-change is produced through an agent runtime (Codex, Claude Code, Cursor, …). Three linked layers — **traceability** (every unit of work is a tracked issue with exactly one receipt, and every commit matches its receipt), **session provenance** (each agent commit records the explicit harness/session identity it was given), and **integrity** (those records stay tamper-proof — receipts immutable, frozen sections verbatim, toolchain config un-gameable). The `standard` preset bundles the full chain; `agent-session-identity` and `doc-integrity` are mandatory.
+A trustworthy record of agent work, for repos where every tree-change is produced through an agent runtime (Codex, Claude Code, Cursor, …). Three linked layers — **traceability** (every unit of work is a tracked issue with exactly one receipt, associated at the completed-change boundary), **session provenance** (each agent commit records the explicit harness/session identity it was given), and **integrity** (those records stay tamper-proof — receipts immutable, frozen sections verbatim, toolchain config un-gameable). The `standard` preset bundles the chain; `agent-session-identity` and `doc-integrity` are mandatory.
 
 | Directive | Standards | What it checks |
 |---|---|---|
-| `receipt-per-issue` | — | Every tracked `receipts/*.md` carries a unique `issue-<N>` token in its filename; a receipt **added in the change set** must also carry a kebab-case slug (`issue-<N>-<slug>.md`), while session-only stubs and pre-existing (grandfathered) receipts may use the bare `issue-<N>.md` form. Each receipt also includes `## Checklist`, `## What changed`, `## Out of scope`, `## Verification`. The `## Checklist` mirrors the GitHub issue's checklist; each `- [x]` item's text must appear (case-insensitive substring) in `## What changed` or `## Verification`. **Only on receipts added in the current change set:** a `## Decisions` section (write "None" when the work followed the spec); at least one fenced code block in `## Verification`; **file coverage** — every changed file (added/modified/renamed) must be named in some added receipt, exempting receipts and the historical `COSTS.md`/`STEERING.md`/`CONSTITUTION.md` ledgers (scope-creep guard, #272); and a `## Audit` section carrying a `PASS`/`REFUTED` verdict from a fresh-context sub-agent that checked the receipt against the diff and the issue (#272, built on the shared `require_attestation` lib.sh infra; needs kit ≥ 0.9.0). Session-only stubs (a receipt whose only `## ` heading is `## Session` — created on demand by the session-identity hook) are exempt from the shape / crosswalk / Decisions / Verification / Audit / coverage rules until the agent adds narrative. Historical `## Accounting` stubs remain grandfathered for existing repositories only. Waiver: `governance: allow-receipt-per-issue <reason>` exempts a whole receipt. |
-| `commit-issue-receipt-match` | — | Every non-merge, non-revert commit adds or updates a `receipts/issue-<N>.md`; the touched receipt path **is** the issue anchor (file-first, #293 — survives squash natively, no body trailer). `commit-msg` hook (Mode A) + CI merge-base→HEAD walk (Mode B). Per-commit waiver: `governance: allow-commit-issue-receipt-match <reason>`. |
+| `receipt-per-issue` | — | Every tracked `receipts/*.md` carries a unique `issue-<N>` token; a kebab-case slug is optional. At the **completed-change** boundary (PR aggregate `base..HEAD`, or a commit directly on the default branch) a non-stub receipt added in the change set must include `## What changed` (outcome and significant behavior) and `## Verification` (a fenced command **plus** its outcome, or a durable `http(s)` evidence URL). A fence alone is not evidence; the check records that evidence was written, not that a command ran. `## Decisions` is optional. Independent review (`## Audit`) remains required on those receipts. Session-only stubs are valid on intermediate commits and cannot satisfy a completed change. Historical receipts outside the change set are grandfathered. Waiver: `governance: allow-receipt-per-issue <reason>`. |
+| `commit-issue-receipt-match` | — | A **completed change** adds or updates a `receipts/issue-<N>.md`; the receipt path **is** the issue anchor (file-first, #293 — survives squash natively). Intermediate feature-branch commits do not each require a receipt edit. Mode A (`commit-msg`) gates only direct-to-default pending commits; Mode B (CI) checks the aggregate `base..HEAD` diff. Waiver: `governance: allow-commit-issue-receipt-match <reason>`. |
 | `issue-templates` | — | `.github/ISSUE_TEMPLATE/` contains proposal + bug issue forms plus config; blank issues disabled; proposal requires Context / Decision / Scope / Acceptance criteria / Validation / Open questions; bug requires the core defect-report fields. Ships the templates under `install-assets/`. |
-| `issues-tracked` | — | `QUALITY.md` exists at repo root with `Open` and `Resolved` sections. Ships `install-assets/QUALITY.md`. |
 | `agent-session-identity` | — | **`always_install: true`.** At commit time, the pre-commit hook detects only explicit runtime identity signals and records one `date | harness | session` row under `## Session` → `### Identifiers` in the issue receipt. It never opens transcripts, session databases, usage files, or harness-private paths; human commits and unnamed runtimes are safe no-ops. `check.sh` validates table shape and requires the active runtime/session row in the commit-message lane. |
 | `doc-integrity` | — | **`always_install: true` — standard rules ship in the manifest's tunable `RULES` list.** Makes system-of-record documents append-only relative to the change-set baseline. The overlay may add rules or remove defaults with `!<rule>`. Modes: `frozen-files`, `append-only`, and `frozen-section`. `commit-msg` hook + CI merge-base→HEAD walk. |
 | `toolchain-config-protection` | — | A commit modifying toolchain config must carry a `governance: allow-toolchain-config <reason>` line. Protected paths live in the manifest's tunable list config; merge/revert commits are skipped. |
@@ -71,11 +63,11 @@ Each pack declares only the preset tiers it contributes to; `governance init` un
 
 | Preset | Directives (unioned across all bundled packs) |
 |---|---|
-| `minimal`  | `required-docs`, `internal-doc-links`, `repo-hygiene`, `managed-tree-integrity` |
-| `standard` | *minimal* + `commit-message-format`, `issue-templates`, `issues-tracked`, `receipt-per-issue`, `commit-issue-receipt-match`, `agent-session-identity`, `toolchain-config-protection`, `doc-integrity` |
-| `strict`   | *standard* + `no-orphan-todos`, `no-unjustified-suppressions` |
+| `minimal`  | `managed-tree-integrity` |
+| `standard` | *minimal* + `commit-message-format`, `issue-templates`, `receipt-per-issue`, `commit-issue-receipt-match`, `agent-session-identity`, `toolchain-config-protection`, `doc-integrity` |
+| `strict`   | *standard* (no extra bundled directives; the preset name is retained) |
 
-`repo-hygiene`, `doc-integrity`, and `agent-session-identity` are `always_install: true` — they install regardless of preset selection. `always_install: true` is reserved to the `governance-kit/*` bundled packs. Session provenance is mandatory in this kit's model because every commit is agent-authored.
+`doc-integrity` and `agent-session-identity` are `always_install: true` — they install regardless of preset selection. `always_install: true` is reserved to the `governance-kit/*` bundled packs. Session provenance is mandatory in this kit's model because every commit is agent-authored. `minimal` / `standard` / `strict` stay as the preset interface even where the bundled tiers currently resolve to the same extra set (issue #370).
 
 ---
 

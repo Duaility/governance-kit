@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# governance: allow-repo-hygiene file-size-limit pack-plan/apply add/update/remove plus retirement (#370)
 """Contract tests for packplan.py / packapply.py — the deterministic
 `pack-plan` / `pack-apply` pair for `governance pack {add,update,remove}` (#172).
 
@@ -15,6 +16,7 @@ import argparse
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -404,6 +406,72 @@ def test_update_replaces_constitution_subsection_in_place() -> None:
         # still grouped under its pack header after the update
         assert text.index("## acme/widgets") < text.index("### no-console-log")
         assert report["constitution_upserted"] == ["no-console-log"]
+
+
+def _add_source_directive(pack: Path, pack_id: str, did: str) -> None:
+    ddir = pack / "directives" / did
+    (ddir / "evals").mkdir(parents=True)
+    (ddir / "directive.yaml").write_text(
+        "category: Quality\nrecommended: true\n"
+        f"summary: {did}.\nsurface: repo-state\nhook: pre-commit\n"
+        "config:\n  - name: LIMIT\n    type: scalar\n    doc: fixture.\n"
+        "    default: 1\n    tunable: true\n"
+    )
+    (ddir / "check.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
+    (ddir / "check.sh").chmod(0o755)
+    (ddir / "constitution.md").write_text(
+        f"### {did}\n\n- **Directive**: {did}.\n"
+        f"- **Enforced by**: `.governance/packs/{pack_id}/directives/{did}/check.sh`\n"
+    )
+    (ddir / "evals" / "test.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
+    (ddir / "evals" / "test.sh").chmod(0o755)
+
+
+def test_update_retires_removed_upstream_directive() -> None:
+    """Issue #370: pack update deletes ids that disappeared upstream."""
+    with tempfile.TemporaryDirectory() as tmp:
+        src = _write_source_pack(Path(tmp) / "src")
+        _add_source_directive(src, "acme/widgets", "stale-rule")
+        root = _make_repo(Path(tmp) / "repo", constitution=_CONST_SKELETON)
+        packplan.fetch_ref = _stub_fetch(src, "acme/widgets", "a" * 40)
+        rc, report = _capture(lambda: packapply.cmd_pack_apply(
+            _ns(mode="add", root=str(root), target="gh:acme/widgets")))
+        assert rc == 0, report
+        conf = root / ".governance/conf/acme/widgets/stale-rule.conf"
+        assert conf.is_file()
+        conf.write_text("LIMIT=9\n")
+        git(root, "add", "-A")
+        git(root, "commit", "-qm", "install + customize")
+
+        shutil.rmtree(src / "directives" / "stale-rule")
+        packplan.fetch_ref = _stub_fetch(src, "acme/widgets", "b" * 40)
+        plan = packplan.compute_pack_plan(root, "update", None, with_diff=True)
+        statuses = {d["id"]: d["status"] for d in plan["packs"][0]["directives"]}
+        assert statuses.get("stale-rule") == "remove", statuses
+        assert statuses.get("no-console-log") == "update", statuses
+        assert any(d.get("user_conf_present") for d in plan["packs"][0]["directives"]
+                   if d["id"] == "stale-rule")
+        rc, report = _capture(lambda: packapply.cmd_pack_apply(
+            _ns(mode="update", root=str(root), target=None)))
+        assert rc == 0 and report["result"] == "applied", report
+        dest = root / ".governance/packs/acme/widgets/directives/stale-rule"
+        assert not dest.exists()
+        assert ".governance/packs/acme/widgets/directives/stale-rule" in report["removed"]
+        const = (root / "CONSTITUTION.md").read_text()
+        assert "### stale-rule" not in const
+        assert "### no-console-log" in const
+        assert "stale-rule" in report["constitution_stripped"]
+        # Overlay is user-owned: left in place, listed as orphaned.
+        assert conf.is_file() and conf.read_text() == "LIMIT=9\n"
+        assert ".governance/conf/acme/widgets/stale-rule.conf" in report["conf_orphaned"]
+        lock = (root / ".governance/packs.lock").read_text()
+        assert "stale-rule" not in lock
+        assert "no-console-log" in lock
+        git(root, "add", "-A")
+        git(root, "commit", "-qm", "applied update")
+        rc2, report2 = _capture(lambda: packapply.cmd_pack_apply(
+            _ns(mode="update", root=str(root), target=None)))
+        assert rc2 == 0 and report2["result"] == "up-to-date", report2
 
 
 # --- pack-apply: remove (offline, via CLI) ----------------------------------
