@@ -14,7 +14,7 @@ axes relate, the tag scheme consumers pin against, and the release procedure.
 | Axis | Question it answers | Source of truth | Derived copies (never hand-edit) |
 |---|---|---|---|
 | **Kit** | What version of the *framework* is this? (run.sh, lib.sh, hook generators, engines, schemas) | [`kit/assets/kit.yaml`](../assets/kit.yaml) `version` | `.governance/install.yaml` `kit_version`; the `# governance-kit:managed kit-version=<v>` markers stamped into every managed runtime file |
-| **Pack** | What version of this *directive content* is this? | each pack's `pack.yaml` `version` (the bundled concern packs live under [`packs/`](../../packs), e.g. [`packs/foundation/pack.yaml`](../../packs/foundation/pack.yaml)) | the consumer's `.governance/packs.lock` entry, written at `pack add`/`pack update` time |
+| **Pack** | What version of this *directive content* is this? | each pack's `pack.yaml` `version` (the bundled concern pack lives under [`packs/`](../../packs), e.g. [`packs/audit/pack.yaml`](../../packs/audit/pack.yaml)) | the consumer's `.governance/packs.lock` entry, written at `pack add`/`pack update` time |
 
 The published **skill** (`skill/`) is *not* on the kit axis (issue #198): it is
 a fetch-only installer carrying no kit code and no kit version, and its
