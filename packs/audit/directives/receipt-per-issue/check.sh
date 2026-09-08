@@ -5,7 +5,8 @@
 # Always: filename issue-<N>[ -slug].md; unique issue numbers.
 # Completed-change only (PR CI / direct-to-default pending commit):
 #   non-stub receipts added in the change set need ## What changed, ## Verification
-#   with recorded evidence, and ## Audit. Session stubs fail this boundary.
+#   with recorded evidence, and ## Audit. Historical session/accounting stubs
+#   fail this boundary.
 # Intermediate feature-branch commits: uniqueness/filename only.
 set -u
 source "$(dirname "$0")/../../../../../lib.sh"

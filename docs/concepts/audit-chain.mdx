@@ -1,25 +1,25 @@
 ---
 title: 'The audit chain'
-summary: 'issue → receipt → commit → session identity, turned into mechanical directives over git-native, tamper-evident artifacts built for agent-authored commits.'
+summary: 'issue → commit subject → receipt → completed change, turned into mechanical directives over git-native, tamper-evident artifacts built for agent-authored commits.'
 ---
 
 # The audit chain
 
-If you trust agents to ship code, you need to see what they did against each issue and which run authored the change. The audit chain turns that into mechanical directives over git-native, tamper-evident artifacts without retaining chat history or harness-private state.
+If you trust agents to ship code, you need to see what they did against each issue. The audit chain turns that into mechanical directives over git-native, tamper-evident artifacts without retaining chat history or harness-private state.
 
 ## The chain
 
 ```mermaid
 flowchart LR
     I["<b>Issue #N</b><br/>the work order"]
-    R["<b>Receipt</b><br/>receipts/issue-N.md<br/>claims + session identity"]
+    M["<b>Commit subject</b><br/>type: subject (#N)"]
+    R["<b>Receipt</b><br/>receipts/issue-N.md<br/>outcome + evidence"]
     C["<b>Completed change</b><br/>PR or default-branch commit<br/>associates the receipt"]
-    S["<b>Session identity</b><br/>harness + session,<br/>frozen on the trunk"]
 
-    I --> R --> C --> S
+    I --> M --> R --> C
 
     classDef chain fill:#0d4f86,stroke:#0d4f86,color:#ffffff
-    class I,R,C,S chain
+    class I,M,R,C chain
 ```
 
 Every link is enforced by a directive in the `governance-kit/audit` pack (the `standard` preset); breaking any link fails the next push:
@@ -27,12 +27,12 @@ Every link is enforced by a directive in the `governance-kit/audit` pack (the `s
 | Link | Directive | What it enforces |
 |---|---|---|
 | Issues exist & are structured | `issue-templates` | Issue forms with handoff fields |
+| Every commit names the issue | `commit-message-format` | Conventional Commits subject with a trailing `(#N)` |
 | Work attests itself | `receipt-per-issue` | One receipt per issue: outcome + verification evidence at the completed change |
 | Completed changes anchor to work | `commit-issue-receipt-match` | A PR aggregate or direct-to-default commit adds or updates `receipts/issue-<N>.md` — the receipt path **is** the anchor |
-| Session provenance is explicit | `agent-session-identity` | Each recognized agent runtime adds one `date | harness | session` row under `## Session` → `### Identifiers`; identity comes only from explicit signals |
 | The record can't be rewritten | `doc-integrity` | Receipts freeze once on the trunk; frozen sections keep their baseline lines verbatim |
 
-Everything homes in the receipt. There are **no usage, cost, or steering rows and no accounting commit trailers**. The session row lives only in `receipts/issue-<N>.md`, which `doc-integrity` freezes on the trunk.
+Everything homes in the receipt. There are **no usage, cost, or steering rows and no kit-owned session trailers**. Harnesses that stamp their own session on the commit (Claude Code's `Claude-Session:`, and equivalents) are outside this pack.
 
 ## Receipts: attestation over promise
 
@@ -42,32 +42,12 @@ A plan says what the model *intends*; a receipt says what it *did*, in a form a 
 ## What changed     # outcome and significant behavior, with the work-item reference
 ## Verification     # commands/checks and their outcomes, or a durable evidence URL
 ## Decisions        # optional — only when a tradeoff, deviation, or limitation exists
-## Session          # ### Identifiers: date | harness | session
 ## Audit            # independent review of outcome + evidence against the diff and issue
 ```
 
-A fenced command with no outcome is not evidence, and a recorded fence or verdict is not proof that a command ran. Intermediate commits may carry a session-only stub; that stub cannot satisfy a completed change.
+A fenced command with no outcome is not evidence, and a recorded fence or verdict is not proof that a command ran. Historical session-only or accounting-only stubs cannot satisfy a completed change.
 
 `commit-issue-receipt-match` ties the **completed change** to a receipt, file-first: the aggregate PR diff (or the direct-to-default commit) must add or modify at least one `receipts/issue-<N>.md`. Intermediate feature-branch commits do not each need a receipt edit. The path sits in the aggregate diff identically before and after a squash-merge. (The subject's own `(#N)` is still required, separately, by `commit-message-format`.)
-
-## Session identity: provenance without surveillance
-
-`agent-session-identity` records one row for each recognized runtime/session
-pair that authored the change, under `## Session` → `### Identifiers`:
-
-```
-| date | harness | session |
-```
-
-The hook reads only explicit environment signals or a fresh kit-owned identity
-sidecar. It never opens a transcript, session database, usage file, or
-harness-private path. Human commits are a no-op; a runtime that cannot name its
-session records `-` rather than guessing.
-
-The directive is `always_install: true` because provenance is useful even when
-the rest of the audit chain is selected minimally. It records an identifier,
-not conversation contents or operator intent, so the receipt remains suitable
-for public repositories.
 
 ## doc-integrity: the record cannot be quietly rewritten
 
@@ -75,17 +55,17 @@ An audit trail you can edit is not an audit trail. `doc-integrity` makes system-
 
 | Rule | Semantics |
 |---|---|
-| `frozen-files <glob>` | Once a matching file is on the trunk, it is immutable. New files are fine. (Receipts — including their session identity rows — and sealed legacy ledgers.) |
+| `frozen-files <glob>` | Once a matching file is on the trunk, it is immutable. New files are fine. (Receipts and sealed legacy ledgers.) |
 | `append-only <file>` | The trunk version must remain a byte-prefix of the current version. |
 | `frozen-section <file> <heading>` | Lines under the heading survive verbatim; the rest of the file is free. (`QUALITY.md` Resolved, the Evolution Log.) |
 
-Everything is measured against the *trunk baseline* — branch-authored content stays editable until it merges, then freezes. This is the directive that makes receipt-homed provenance trustworthy: once a receipt lands on the trunk, its session identity cannot be rewritten. Exceptions are path-scoped waivers in the commit body.
+Everything is measured against the *trunk baseline* — branch-authored content stays editable until it merges, then freezes. Once a receipt lands on the trunk, its outcome and evidence cannot be rewritten. Exceptions are path-scoped waivers in the commit body.
 
 ## Reading the record
 
 The payoff is that oversight becomes *reading*, not *re-deriving*:
 
-- A receipt's `### Identifiers` row answers "which run authored this issue?" with grep.
+- `git log` answers "which issue did this commit belong to?" via the trailing `(#N)`.
 - `receipts/` answers "what exactly landed for issue #N, and how was it verified?"
 
-Next: [Limitations](/concepts/limitations) — the honest edges of what the commit path and session provenance can enforce.
+Next: [Limitations](/concepts/limitations) — the honest edges of what the commit path can enforce.

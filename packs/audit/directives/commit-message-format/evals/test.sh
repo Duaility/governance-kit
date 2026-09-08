@@ -4,8 +4,8 @@ EVAL_ID="commit-message-format"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
 [[ -f "$ROOT/kit/assets/packs/lib/eval-lib.sh" ]] || { echo "eval: ROOT misresolved to $ROOT — refusing to run with broken eval-lib.sh path" >&2; exit 1; }
 source "$ROOT/kit/assets/packs/lib/eval-lib.sh"
-PACK_DIR="$ROOT/packs/commits"
-CHECK=".governance/packs/governance-kit/commits/directives/$EVAL_ID/check.sh"
+PACK_DIR="$ROOT/packs/audit"
+CHECK=".governance/packs/governance-kit/audit/directives/$EVAL_ID/check.sh"
 
 fixture_init
 install_directive "$PACK_DIR" "$EVAL_ID"

@@ -20,9 +20,6 @@ bash .governance/run.sh
 Expected: exit 0 after the install commit lands. CI on the first PR confirms
 the same suite. This recorded command is not itself proof of execution.
 
-When an agent runtime was detected, the install commit carries one
-`date | harness | session` row under `## Session` → `### Identifiers`.
-
 ## Audit
 
 - Record a fresh-context PASS/REFUTED verdict against the install diff and issue #<N>.

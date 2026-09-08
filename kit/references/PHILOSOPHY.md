@@ -16,17 +16,17 @@ A few tenets fall out of that.
 
 **3. Receipts beat plans.** Pre-implementation plans are the model's promise; post-implementation receipts are the model's attestation. Plans are private to the runtime and get thrown away. Receipts are durable, reviewable, and crosswalk every claim ("I did X") to evidence ("here is where X is verifiable in the diff or the verification steps").
 
-**4. Receipts outlive sessions.** Durable files in the repo — `CONSTITUTION.md`, `QUALITY.md`, and the per-issue `receipts/` (which carry the session identity under each receipt's `## Session` section) — are the system of record. Historical `COSTS.md`/`STEERING.md` files are inert legacy artifacts; new commits record no usage, cost, or steering data. Not chat history, not harness-private state. Receipts survive the squash merge, the runtime swap, and team turnover.
+**4. Receipts outlive sessions.** Durable files in the repo — `CONSTITUTION.md`, `QUALITY.md`, and the per-issue `receipts/` — are the system of record. Historical `COSTS.md`/`STEERING.md` files are inert legacy artifacts; new commits record no usage, cost, or steering data. Not chat history, not harness-private state. Session identifiers, when present, are a harness trailer on the commit (Claude Code's `Claude-Session:`, and equivalents). Receipts survive the squash merge, the runtime swap, and team turnover.
 
-**5. Verify, do not trust — and make verification cheap.** The agent is treated as a moderately untrusted author whose work crosswalks back to an issue, evidence, and session provenance. This is not pessimism about agents; it is the same posture mature teams already take with humans (CI, review, audit trails). GDD's job is to make that posture *cheap enough to apply at agent throughput*, because human review bandwidth does not scale with agent commit volume.
+**5. Verify, do not trust — and make verification cheap.** The agent is treated as a moderately untrusted author whose work crosswalks back to an issue and evidence. This is not pessimism about agents; it is the same posture mature teams already take with humans (CI, review, audit trails). GDD's job is to make that posture *cheap enough to apply at agent throughput*, because human review bandwidth does not scale with agent commit volume.
 
-**6. Keep provenance minimal.** A session identifier is enough to connect an agent-authored change to the run that produced it. The kit does not retain conversation contents or infer operator intent from private runtime state.
+**6. Keep provenance minimal.** The kit does not retain conversation contents or infer operator intent from private runtime state. Harnesses that stamp a session trailer on the commit already connect a SHA to a run; the kit does not duplicate that on the receipt.
 
 **7. Rules accumulate with rationale.** Every directive amendment lands with its reason in the evolution log, blameable to the commit that introduced it. Six months from now, you should be able to answer *why* a rule exists, not just *that* it does. Institutional memory beats tribal knowledge.
 
 ## What this commits us to
 
-Every change flows through an issue, produces a receipt, anchors to that receipt, and records session provenance when an agent runtime provides it. The chain is mechanically enforced — break any link and the next push fails.
+Every change flows through an issue, produces a receipt, and anchors to that receipt. The chain is mechanically enforced — break any link and the next push fails.
 
 ## What this rejects
 

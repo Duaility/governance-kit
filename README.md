@@ -65,7 +65,7 @@ flowchart LR
     P["Pack captures it<br/>directive + rationale + evals"]
     G{"Git hook / CI"}
     A["Agent repairs the repo<br/>using the failure as instruction"]
-    R["Repo carries the durable record<br/>constitution + receipts + session identity"]
+    R["Repo carries the durable record<br/>constitution + receipts"]
 
     H --> P --> G
     G -- "fails with why" --> A
@@ -195,13 +195,12 @@ Bundled packs cover foundation, commits, and the agent audit chain. Custom packs
 
 ### What ships with it?
 
-Three concern packs ship in-tree and install with `governance init` at your chosen preset (`minimal` / `standard` / `strict`):
+Two concern packs ship in-tree and install with `governance init` at your chosen preset (`minimal` / `standard` / `strict`):
 
 | Pack | Covers | Preset |
 |---|---|---|
 | `governance-kit/foundation` | Managed-tree integrity for the vendored install | minimal |
-| `governance-kit/commits` | Conventional Commits + issue suffix | standard |
-| `governance-kit/audit` | The agent audit chain — receipts, session identity, record integrity | standard |
+| `governance-kit/audit` | The agent audit chain — commit format, receipts, record integrity | standard |
 
 Full catalog: [DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md). The anatomy of a directive folder and how to write one: [DIRECTIVE_AUTHORING.md](kit/references/DIRECTIVE_AUTHORING.md).
 
@@ -213,16 +212,15 @@ Full catalog: [DIRECTIVES_CATALOG.md](kit/references/DIRECTIVES_CATALOG.md). The
 | Pack | Directive | What it enforces | Preset |
 |---|---|---|---|
 | `foundation` | `managed-tree-integrity` | The vendored `.governance/` tree matches the content digests recorded at install/update time — hand-edits to any check or runtime file fail the gate, offline. Subsumes the kit-version-marker check. | minimal |
-| `commits` | `commit-message-format` | Conventional Commits with an issue suffix (`<type>(scope)?: <subject> (#N)`). | standard |
 
 #### What does the audit chain enforce?
 
 | Pack | Directive | What it enforces | Preset |
 |---|---|---|---|
 | `audit` | `issue-templates` | `.github/ISSUE_TEMPLATE/` carries `config.yml` (blank issues off), `proposal.yml`, `bug.yml` with the required handoff fields. | standard |
+| `audit` | `commit-message-format` | Conventional Commits with an issue suffix (`<type>(scope)?: <subject> (#N)`). | standard |
 | `audit` | `receipt-per-issue` | Unique `issue-<N>` receipts; a completed change records outcome + verification evidence (a fence alone is not proof of execution). | standard |
 | `audit` | `commit-issue-receipt-match` | A completed change (PR aggregate or direct-to-default commit) adds or updates a `receipts/issue-<N>.md`. Intermediate commits do not each require a receipt edit. | standard |
-| `audit` | `agent-session-identity` | **`always_install: true`** — each agent-authored commit records its harness and session identifier in the issue receipt. It reads only explicit identity signals and never touches transcripts, usage, cost, or steering data. | standard |
 | `audit` | `doc-integrity` | **`always_install: true`** — system-of-record documents are tamper-proof: receipts freeze once on the trunk, frozen sections (`QUALITY.md` Resolved, the Evolution Log) keep their baseline lines verbatim. Branch-authored content stays editable until it merges. | standard |
 | `audit` | `toolchain-config-protection` | A commit changing lint / format / type-check / CI / hook config carries a `governance: allow-toolchain-config <reason>` body line. | standard |
 
@@ -246,7 +244,7 @@ Reproduce: clone this repo and run `bash .governance/run.sh`. The dogfood setup:
 - keep repeating the same architectural or process corrections to coding agents
 - switch between Claude Code, Codex, Cursor, OpenCode, or human edits in the same repo
 - have watched an agent rewrite stable code, revive a deleted fallback, or move logic into the wrong layer
-- want every agent-authored change to carry a durable harness/session identity
+- want every agent-authored change to carry a durable issue receipt
 - want organization-specific rules packaged as reusable, versioned packs
 - want semantic checks that admit when they need independent judgment instead of pretending grep is enough
 
@@ -275,7 +273,7 @@ Reproduce: clone this repo and run `bash .governance/run.sh`. The dogfood setup:
 
 |  | Governs | Blocks a bad commit | Rationale travels with the rule | Agent audit trail |
 |---|---|:---:|:---:|:---:|
-| **governance kit** | Repo state — docs, commits, receipts | Yes | Yes — constitution + evolution log | Yes — issue → receipt → commit → session identity |
+| **governance kit** | Repo state — commits, receipts | Yes | Yes — constitution + evolution log | Yes — issue → receipt → completed change |
 | pre-commit · husky · lefthook | Hook execution | Yes | No | No |
 | [spec-kit](https://github.com/github/spec-kit) | One feature's spec → implementation | No | Per-spec | No |
 | Agent instruction files alone | What agents are told, not what they do | No | No | No |

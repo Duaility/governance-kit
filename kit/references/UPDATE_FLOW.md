@@ -453,16 +453,12 @@ Append the issue anchor the repo's `commit-message-format` directive
 requires (`(#N)`). If the user did not name an issue, ask for it as a
 blocking input — same discipline as every other writer in this skill.
 
-**Export `AGENT_ISSUE='#N'` for the commit.** This subject is delivered
-via a HEREDOC (below), not a `-m "<subject>"` flag — so the subject never
-lands in `git`'s argv. The `agent-session-identity` pre-commit hook infers the
-issue anchor by walking
-that argv for a `(#N)` token; with a HEREDOC there is nothing to walk, and
-they block the commit asking for `AGENT_ISSUE`. (This is *not* a regex
-mismatch with `commit-message-format` — that directive and the hooks accept
-the identical `(#N)` shape, including subjects like `… (+packs) (#N)`; the
-gap is purely that argv-based inference can't see a HEREDOC subject.) So
-prefix the commit:
+**Export `AGENT_ISSUE='#N'` for the commit** if a remaining consumer hook
+still infers the issue from git's argv (historical session-identity
+populators). The kit no longer ships that populator; `commit-message-format`
+reads the message file and accepts a HEREDOC subject with the same `(#N)`
+shape, including `… (+packs) (#N)`. Prefix the commit when an older vendored
+tree is still installed:
 
 ```sh
 AGENT_ISSUE='#N' git commit -F - <<'EOF'

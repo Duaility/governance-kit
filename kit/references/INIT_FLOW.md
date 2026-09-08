@@ -18,11 +18,10 @@ falls back to the installed skill and records that provenance.
 3. A pre-commit hook (and commit-msg / prepare-commit-msg / post-commit / pre-push dispatchers when the selected directives need them) — runs `.governance/` before commits and pushes, with `SKIP_GOVERNANCE=1` and `git commit --no-verify` / `git push --no-verify` as escape hatches.
 4. A GitHub Actions workflow at `.github/workflows/governance.yml` — same tests, enforced in CI on every PR.
 
-Directives are grouped into **packs** — self-contained directories that bundle directives, their constitution snippets, and hook declarations. Three concern-scoped packs ship in-tree today, under `packs/<concern>/` (source-of-truth in this monorepo; consumers fetch via `gh:duaility/governance-kit/packs/<concern>@<rev>`):
+Directives are grouped into **packs** — self-contained directories that bundle directives, their constitution snippets, and hook declarations. Two concern-scoped packs ship in-tree today, under `packs/<concern>/` (source-of-truth in this monorepo; consumers fetch via `gh:duaility/governance-kit/packs/<concern>@<rev>`):
 
 - **`governance-kit/foundation`** — `managed-tree-integrity`.
-- **`governance-kit/commits`** — `commit-message-format`.
-- **`governance-kit/audit`** — a trustworthy record of agent work: issue → receipt → completed-change traceability (`issue-templates` → `receipt-per-issue` → `commit-issue-receipt-match`), session identity (`agent-session-identity`), and the tamper protection that keeps those records honest (`doc-integrity`, `toolchain-config-protection`).
+- **`governance-kit/audit`** — a trustworthy record of agent work: issue → Conventional Commits subject → receipt → completed-change traceability (`issue-templates` → `commit-message-format` → `receipt-per-issue` → `commit-issue-receipt-match`), and the tamper protection that keeps those records honest (`doc-integrity`, `toolchain-config-protection`). Session identifiers are a harness concern, not a bundled directive.
 
 The kit also ships the off-commit-path scheduled lane (the `.governance/schedule.sh` driver, installed on every init, plus `governance workflow generate`, which compiles directive-owned cron settings into one workflow), but bundles no schedule-only directives — those are authored in repo-local or community packs.
 
@@ -161,7 +160,7 @@ Record findings for use at Step 6.
 
 Source the loader **from the resolved kit's lib** (`<lib_dir>`, Step 0) and
 enumerate packs from that kit's bundled pack root (`<assets_dir>/packs`, which
-holds the three bundled `governance-kit/*` concern packs):
+holds the two bundled `governance-kit/*` concern packs):
 
 ```sh
 source "<lib_dir>/packs.sh"
@@ -380,7 +379,7 @@ In this path:
 - For pre-commit.com: call `generate_hooks_for_strategy <repo-root> pre-commit <version> <spec>` to materialize dispatchers under `.governance/hooks/`, then add a `.pre-commit-config.yaml` hook block per stage that shells out to `bash .governance/hooks/<kind>`. See [NATIVE_TESTS.md](NATIVE_TESTS.md) for the per-framework snippets.
 - Record `hook_strategy: husky` or `hook_strategy: pre-commit` in `.governance/install.yaml`.
 - Record each materialized hook file under `path_b.entries` with its fingerprint so `governance uninstall` and `governance reset` can recognize the kit's output.
-- Tell the user explicitly that the repo is using its existing tracked hook framework instead of `.githooks/`, and that session-identity coverage now matches Path A.
+- Tell the user explicitly that the repo is using its existing tracked hook framework instead of `.githooks/`.
 
 ### Step 7 — The CI workflow (installed by `init-apply`)
 
@@ -394,11 +393,11 @@ hook can be bypassed around. If the user later opts into native tests via
 
 Goal: make the install commit pass every installed directive on the first try, with **no `SKIP_GOVERNANCE` and no bootstrap-only waivers**. This is the step that makes "no audit gap at bootstrap" possible.
 
-1. **Stage the install output.** `git add` everything Steps 4–7 wrote: `CONSTITUTION.md`, `AGENTS.md` (if seeded/edited), `.governance/`, `.githooks/` (or the Path-B equivalent), `.github/workflows/governance.yml`, and any install-assets. The session-identity directive creates no standalone ledger or harness configuration.
+1. **Stage the install output.** `git add` everything Steps 4–7 wrote: `CONSTITUTION.md`, `AGENTS.md` (if seeded/edited), `.governance/`, `.githooks/` (or the Path-B equivalent), `.github/workflows/governance.yml`, and any install-assets.
 
 2. **Seed the bootstrap receipt.** If `commit-issue-receipt-match` is installed, create `receipts/issue-<N>-bootstrap-governance.md` from [`../assets/receipt.bootstrap.template.md`](../assets/receipt.bootstrap.template.md), substituting the bootstrap issue number `<N>` and the actual install choices. Stage it. (`<N>` is the GitHub issue the operator filed to track the adoption — surface that anchor up front in the survey if it isn't already known.)
 
-3. **Dry-run all validators against the staged tree.** Run `bash .governance/run.sh`. Mode-B walkers (`agent-session-identity`, `commit-issue-receipt-match`) are no-ops here (no new commit yet) — they fire when Step 9's commit lands. Every other directive sees the staged tree via `git ls-files`, so file-shape findings surface now.
+3. **Dry-run all validators against the staged tree.** Run `bash .governance/run.sh`. Mode-B walkers (`commit-issue-receipt-match`, `commit-message-format`) are no-ops here (no new commit yet) — they fire when Step 9's commit lands. Every other directive sees the staged tree via `git ls-files`, so file-shape findings surface now.
 
 4. **Resolve each finding, prefering inline fix over bypass.** For each failing directive, take the most surgical fix:
 
@@ -424,12 +423,12 @@ git commit -m "feat(governance): bootstrap governance-driven development (#<N>)"
 
 What happens on this commit:
 
-- **`hooks/pre-commit.sh` populators** fire normally. `agent-session-identity` detects only explicit harness/session signals, resolves the bootstrap issue number, and stamps one `date | harness | session` row into that issue's receipt under `## Session` → `### Identifiers`. It does not inspect chat history, usage, cost, steering, or harness-private files.
-- **`commit-msg` validators** all pass — the tree is clean (Step 8) and the receipt is in place (Step 8.2). `agent-session-identity` checks the staged receipt for a row matching the active harness/session; human commits and unnamed runtimes no-op.
+- **`hooks/pre-commit.sh` populators** fire for any installed directive that ships a `hooks/pre-commit.sh`. The bundled audit pack currently has none.
+- **`commit-msg` validators** all pass — the tree is clean (Step 8) and the receipt is in place (Step 8.2). `commit-message-format` accepts the subject `(#N)`; `commit-issue-receipt-match` sees the staged bootstrap receipt on a direct-to-default commit.
 
-The install commit lands with an **identity-stamped session row in the bootstrap issue's receipt**. No usage, cost, steering, or transcript data is collected, and no trailers are stamped onto the message.
+The install commit lands with the bootstrap receipt. No usage, cost, steering, or transcript data is collected, and the kit stamps no session trailers onto the message — harnesses that add their own (`Claude-Session:`, `Co-Authored-By:`, …) are outside this flow.
 
-**Runtime not detected.** If `init` was invoked from a shell with no explicit harness/session signals and no kit-owned identity sidecar, the session-identity populator writes no row — and the commit-msg identity check no-ops too, so the install commit passes with **no waiver needed**. A non-agent bootstrap commit carries no session record, which is correct.
+**No agent runtime.** A human or unnamed-runtime bootstrap commit still passes: session identity is not a kit rule.
 
 Print a concise summary:
 
@@ -442,7 +441,7 @@ Print a concise summary:
 - **Findings resolved in Step 8** — every inline fix and every per-file/per-line waiver added, with the reason recorded against it.
 - **Findings escalated** — anything Step 8 could not inline-fix and surfaced to the operator (with the action they need to take).
 - **Resolved kit** (Step 0): the target version and how it resolved (`published-tag` / `explicit` / `cache`).
-- **Detected runtime** at commit time: the detected harness (`claude-code` / `codex` / `pi` / `grok` / `cursor-agent` / `opencode` / `manual`) or `none`. If `none`, mention the body waiver that was applied.
+- **Detected runtime** at commit time, if the harness identifies itself, or `none`.
 - **Install commit SHA** that just landed.
 - How to run locally: `bash .governance/run.sh`.
 - How to skip in an emergency: `SKIP_GOVERNANCE=1 git commit ...` or `git commit --no-verify`. (Not for the install commit — that's what Step 8 is for. Emergencies only.)
@@ -462,7 +461,7 @@ Every successful `install` run should leave the user with a summary that include
 - `Hook collisions:` the resolution chosen for each pre-existing unmarked hook, or `none`.
 - `Findings resolved:` every inline fix or waiver added in Step 8, with reason.
 - `Findings escalated:` anything Step 8 could not inline-fix, with the action the operator needs to take, or `none`.
-- `Detected runtime:` the detected harness (`claude-code` / `codex` / `pi` / `grok` / `cursor-agent` / `opencode` / `manual`) or `none`. If `none` and audit-chain directives were installed, mention the unsupported-runtime waiver applied to the install commit.
+- `Detected runtime:` the harness if it identifies itself, or `none`.
 - `Install commit:` SHA of the commit Step 9 just landed.
 - `Assumptions:` any material assumptions, or `none`.
 - `Next command:` `bash .governance/run.sh`
@@ -477,7 +476,7 @@ Every successful `install` run should leave the user with a summary that include
 - **Preset semantics are union, not fallback.** If a pack lacks the selected preset, it contributes nothing for that preset.
 - **Escape hatches are a feature, not a bug.** `SKIP_GOVERNANCE=1` exists because governance that blocks emergency hotfixes will get ripped out. CI enforces the directive even when the hook is skipped, which is the right layering.
 - **The install commit passes validators on the first try.** Step 8 dry-runs every directive against the staged tree and inline-fixes findings (or escalates them); Step 9 commits through normal hooks. `SKIP_GOVERNANCE` is not a bootstrap tool — using it on the install commit skips the populators too, which leaves the audit chain unsatisfiable for that commit forever. Inline-fix is the contract; bypass is the emergency exit.
-- **No bootstrap exemption in directive `check.sh` files.** If a directive needs an install-commit accommodation, that's a flow gap in Step 8 — fix the flow, not the directive. The session-identity waiver (`governance: allow-agent-session-identity <reason>`) is for an out-of-band agent commit, not a bootstrap workaround.
+- **No bootstrap exemption in directive `check.sh` files.** If a directive needs an install-commit accommodation, that's a flow gap in Step 8 — fix the flow, not the directive.
 - **Bash-only at bootstrap; native is post-init.** Governance is a meta-layer over the project's code, so the directive suite must not depend on the project's own toolchain. `init` only installs the bash runner. Native test wrappers (pytest / jest / go test) are an opt-in users add later via [NATIVE_TESTS.md](NATIVE_TESTS.md) — never asked at bootstrap.
 - **Respect the repo's existing hook framework.** `.githooks/` is the default only when no tracked hook framework already exists. Do not force repos off husky or `pre-commit`.
 - **Hook ownership is explicit.** Every generated hook carries a `governance-kit:managed kit-version=<v>` marker on line 2 — the same shape runtime templates use. An unmarked hook at a target path is somebody else's file — prompt before touching it.

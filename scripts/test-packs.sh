@@ -368,8 +368,7 @@ EOF
     bash -n .githooks/pre-commit .githooks/commit-msg .githooks/prepare-commit-msg .githooks/post-commit
     # Format-rejection ping: confirm the commit-msg dispatcher fires on a
     # malformed subject. The bundled commit-message-format directive rejects a
-    # subject with no Conventional-Commits shape / no `(#N)` anchor; the
-    # session-identity no-ops here (no agent runtime in this contract).
+    # subject with no Conventional-Commits shape / no `(#N)` anchor.
     printf 'feat: missing issue\n' > bad-msg.txt
     .githooks/commit-msg bad-msg.txt && exit 1
     rm bad-msg.txt
