@@ -61,7 +61,7 @@ bash scripts/release.sh <kit|PACK> <X.Y.Z> [--dry-run] [--push]
    hook path, then an annotated tag `kit/vX.Y.Z` / `<pack>/vX.Y.Z`. A release
    commit is mechanical — it has no feature issue and touches no receipt — so
    `release.sh` writes in-body `governance: allow-commit-message-format` and
-   `allow-commit-issue-receipt-match` waivers. Harnesses may still add their
+   `allow-receipt-per-issue` waivers. Harnesses may still add their
    own session trailer; the kit does not.
 7. **Publish.** `--push` pushes the branch and tag; otherwise the script prints
    the two `git push` commands. Pushing the tag triggers

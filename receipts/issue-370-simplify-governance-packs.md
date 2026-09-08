@@ -10,11 +10,12 @@
 - [x] Fresh-install and existing-install lifecycle behavior, documentation, regression coverage
 - [x] Retire `agent-session-identity`; session identifiers are a harness concern
 - [x] Fold `commit-message-format` into `governance-kit/audit` and delete the one-directive `governance-kit/commits` pack
-- [ ] Post-release dogfood update — separate PR after `scripts/release.sh` publishes pack tags (`governance pack remove governance-kit/commits` once audit carries the moved directive)
+- [x] One bundled pack, no presets; fold `commit-issue-receipt-match` into `receipt-per-issue`; drop `issue-templates` and `toolchain-config-protection`; absorb `managed-tree-integrity`
+- [ ] Post-release dogfood update — separate PR after `scripts/release.sh` publishes pack tags (`governance pack remove` leftover `foundation` / `commits` lock entries)
 
 ## What changed
 
-Retired bundled directives from pack source (not the consumed `.governance/` tree): `internal-doc-links`, `repo-hygiene`, `required-docs` (`packs/foundation`), `no-orphan-todos`, `no-unjustified-suppressions` (`packs/commits`), `issues-tracked` and `agent-session-identity` (`packs/audit`). Moved `commit-message-format` from `packs/commits` into `packs/audit` and deleted the `governance-kit/commits` pack. Updated `packs/*/pack.yaml` presets so foundation minimal is `managed-tree-integrity` only and audit standard is the remaining audit-chain set (including `commit-message-format`). Session identifiers are a harness trailer (Claude Code's `Claude-Session:`, and equivalents); the kit no longer stamps or requires a receipt `## Session` table.
+Retired bundled directives from pack source (not the consumed `.governance/` tree): `internal-doc-links`, `repo-hygiene`, `required-docs` (`packs/foundation`), `no-orphan-todos`, `no-unjustified-suppressions` (`packs/commits`), `issues-tracked` and `agent-session-identity` (`packs/audit`). Moved `commit-message-format` from `packs/commits` into `packs/audit` and deleted the `governance-kit/commits` pack. Folded `commit-issue-receipt-match` into `receipt-per-issue` (association + shape, one waiver token). Dropped bundled `issue-templates` and `toolchain-config-protection`. Moved `managed-tree-integrity` into `packs/audit` and deleted `packs/foundation`. The bundled pack has no presets — init installs all four primitives. Slimmed `doc-integrity` defaults to receipts + Evolution Log. Session identifiers are a harness trailer; the kit no longer stamps or requires a receipt `## Session` table.
 
 Simplified `receipt-per-issue` (`packs/audit/directives/receipt-per-issue/check.sh`, `directive.yaml`, `constitution.md`, `evals/test.sh`) to unique issue association, optional slug, completed-change `## What changed` + `## Verification` evidence (fence plus outcome, or an `http(s)` URL; a fence alone is not evidence), optional `## Decisions`, required `## Audit`. Session stubs cannot satisfy a completed change. Dropped checklist, crosswalk, file inventory, mandatory empty sections, and mandatory slugs.
 
@@ -44,13 +45,14 @@ bash packs/audit/directives/commit-message-format/evals/test.sh
 python3 scripts/test-packverb-apply.py
 ```
 
-All of the above exited 0. `bash scripts/test.sh` reported every kit-internal layer passed, including 2 packs / 7 remaining bundled directives / 7 evals. `npm run docs:gen` regenerated `docs/reference/*.mdx` from `kit/references`.
+All of the above exited 0. `bash scripts/test.sh` reported every kit-internal layer passed, including 1 pack / 4 remaining bundled directives / 4 evals. `npm run docs:gen` regenerated `docs/reference/*.mdx` from `kit/references`.
 
 ## Decisions
 
 - Also retired `issues-tracked` because the operator asked to delete it after the issue text had listed it as out of scope.
 - Retired `agent-session-identity` rather than folding it into the receipt or a kit-owned trailer: Claude Code already stamps `Claude-Session:` / `Co-Authored-By:` on the commit, and other harnesses will follow. The kit does not police those trailers.
-- Folded `commit-message-format` into `governance-kit/audit` (the `(#N)` suffix is the audit-chain issue anchor) instead of keeping a one-directive commits pack. Existing installs drop the leftover pack with `governance pack remove governance-kit/commits` after the audit pack update that adds the moved directive.
+- Folded `commit-message-format` into `governance-kit/audit` (the `(#N)` suffix is the audit-chain issue anchor) instead of keeping a one-directive commits pack.
+- One pack, no presets: init installs all four primitives. `commit-issue-receipt-match` folded into `receipt-per-issue`. Dropped `issue-templates` and `toolchain-config-protection`. Absorbed `managed-tree-integrity`; deleted `packs/foundation`. Existing installs `pack remove` leftover `foundation`/`commits` lock entries after the audit update.
 - Kept `commit-issue-receipt-match` as a separate directive with documented change-set semantics rather than folding it into `receipt-per-issue`.
 - Direct-to-default completion is "HEAD is `main`/`master`" for Mode A; PR completion is a clean index plus a merge-base (CI / `run.sh` on a feature branch).
 - Verification evidence stays Markdown: fence plus an outcome token, or a durable URL. Overlays for retired ids are left in place and listed, not silently deleted.

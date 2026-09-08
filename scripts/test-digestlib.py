@@ -7,7 +7,7 @@ Covers the two correctness properties `managed-tree-integrity` depends on:
      `__pycache__/`, and `*.pyc`;
   2. parity — the digest routine the apply engines use
      (`kit/assets/packs/lib/digestlib.py`, Python) and the pure bash/awk copy
-     the directive ships (`packs/foundation/directives/managed-tree-integrity/
+     the directive ships (`packs/audit/directives/managed-tree-integrity/
      lib/digest.sh` — issue #355 moved the commit path off python) produce the
      SAME hex for the same inputs. A drift between the two would silently
      break offline verification, so it's pinned here.
@@ -31,7 +31,7 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 
 ROOT = Path(__file__).resolve().parents[1]
-DIGEST_SH = ROOT / "packs/foundation/directives/managed-tree-integrity/lib/digest.sh"
+DIGEST_SH = ROOT / "packs/audit/directives/managed-tree-integrity/lib/digest.sh"
 
 
 def _load(name: str, path: Path):
@@ -140,7 +140,7 @@ with tempfile.TemporaryDirectory() as tmp:
 # managed_digests block round-trip. `directive.parse_managed_digests` is gone
 # (issue #355 moved the directive off python) — the real consumer of the
 # written block is now check.sh's own awk parser, exercised end-to-end by
-# `packs/foundation/directives/managed-tree-integrity/evals/test.sh`. Here we
+# `packs/audit/directives/managed-tree-integrity/evals/test.sh`. Here we
 # only need to confirm the WRITER (digestlib.write_managed_digests_block, the
 # apply engines' side of the contract) round-trips faithfully, so this test
 # carries a tiny local reader — a stand-in for "a human/awk can read this

@@ -52,8 +52,7 @@ Commit-policing directives run in two modes: the hook validates the *pending* co
 
 | Failure | What it means | Fix |
 |---|---|---|
-| `commit-issue-receipt-match` | The completed change touches no `receipts/issue-<N>.md` | Add or update the issue's receipt in the PR aggregate (or the direct-to-default commit) — the receipt path is the anchor |
-| `receipt-per-issue` | A completed change's receipt is missing outcome or verification evidence | Restate the claim under `## What changed` or `## Verification` |
+| `receipt-per-issue` | No receipt in the completed change, or the receipt is missing outcome / verification evidence | Add or update `receipts/issue-<N>.md` with `## What changed` and `## Verification` |
 | `commit-message-format` | The subject is not `<type>: … (#N)` | Rewrite the subject; merge/revert commits are skipped |
 | `doc-integrity` | A trunk-frozen record was edited | Revert the edit, or carry the directive's path-scoped waiver in the commit body if the change is legitimate |
 

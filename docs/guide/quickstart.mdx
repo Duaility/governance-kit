@@ -51,15 +51,9 @@ claude
   </Step>
 </Steps>
 
-### Choosing a preset
+### What installs
 
-| Preset | What you get |
-|---|---|
-| `minimal` | Foundation only: managed-tree integrity. |
-| `standard` | `minimal` + Conventional-Commit message format + the full [agent audit chain](/concepts/audit-chain): receipts, issue anchors, doc integrity, and toolchain-config protection. |
-| `strict` | Same extra set as `standard` today; the preset name is retained. |
-
-`standard` is the intended default for agent-heavy repos — it is the preset that turns on the issue → commit subject → receipt → completed-change chain.
+`init` installs the four bundled primitives — managed-tree integrity, Conventional Commits with `(#N)`, receipts at the completed change, and frozen receipts / Evolution Log. There is no preset menu. Extra rules come from community or repo-local packs.
 
 ## 3. Watch a gate fire
 

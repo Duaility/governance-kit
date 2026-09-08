@@ -319,4 +319,53 @@ EOF
 stage_all
 EVAL_LABEL="$EVAL_ID waiver-without-reason" expect_fail "$CHECK"
 
+# Association (folded from commit-issue-receipt-match)
+msg="$(mktemp)"
+rm -f receipts/*.md
+complete_receipt receipts/issue-7-thing.md
+git add receipts/issue-7-thing.md
+printf 'feat: do a thing (#7)\n' > "$msg"
+EVAL_LABEL="$EVAL_ID default-receipt-touched" expect_pass "$CHECK" "$msg"
+
+printf 'feat: squash-merged PR (#99)\n' > "$msg"
+EVAL_LABEL="$EVAL_ID subject-number-not-cross-checked" expect_pass "$CHECK" "$msg"
+
+git reset --quiet HEAD -- receipts 2>/dev/null || true
+rm -rf receipts
+printf 'placeholder\n' > src-assoc.txt
+git add src-assoc.txt
+printf 'feat: forgot the receipt (#9)\n' > "$msg"
+EVAL_LABEL="$EVAL_ID default-no-receipt" expect_fail "$CHECK" "$msg"
+
+printf 'chore(release): cut v1.2.3\n\ngovernance: allow-receipt-per-issue release commits carry no receipt\n' > "$msg"
+EVAL_LABEL="$EVAL_ID no-receipt-waiver" expect_pass "$CHECK" "$msg"
+
+printf 'Revert "feat: do a thing (#7)"\n' > "$msg"
+EVAL_LABEL="$EVAL_ID revert-exempt" expect_pass "$CHECK" "$msg"
+
+git checkout -q -b wip-assoc
+printf 'feat: wip without receipt (#9)\n' > "$msg"
+EVAL_LABEL="$EVAL_ID intermediate-no-receipt" expect_pass "$CHECK" "$msg"
+
+git checkout -q main
+git add src-assoc.txt
+commit_quiet "chore: keep src on main"
+git checkout -q -b feature-assoc
+printf 'a\n' > a-assoc.txt
+git add a-assoc.txt
+commit_quiet "feat: first commit no receipt (#9)"
+mkdir -p receipts
+complete_receipt receipts/issue-9.md
+git add receipts/issue-9.md
+commit_quiet "docs: receipt on last commit (#9)"
+EVAL_LABEL="$EVAL_ID modeB-aggregate-receipt" expect_pass "$CHECK"
+
+git checkout -q main
+git checkout -q -b no-receipt-assoc
+printf 'b\n' > b-assoc.txt
+git add b-assoc.txt
+commit_quiet "feat: still no receipt (#9)"
+EVAL_LABEL="$EVAL_ID modeB-no-receipt" expect_fail "$CHECK"
+
+rm -f "$msg"
 eval_done

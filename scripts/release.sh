@@ -234,7 +234,7 @@ git add -A
 commit_args=(
     -m "chore(release): ${AXIS} v${CURRENT} → v${VERSION}"
     -m "governance: allow-commit-message-format release commits are mechanical version bumps, not tied to a feature issue"
-    -m "governance: allow-commit-issue-receipt-match release commits carry no receipt"
+    -m "governance: allow-receipt-per-issue release commits carry no receipt"
     -m "governance: allow-doc-integrity CONSTITUTION.md release commits re-stamp managed files only and never edit CONSTITUTION.md"
 )
 git commit "${commit_args[@]}"

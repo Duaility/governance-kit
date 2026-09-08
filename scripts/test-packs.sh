@@ -304,21 +304,15 @@ EOF
     cp "$ROOT/kit/assets/dot-governance/lib.sh" .governance/lib.sh
     chmod +x .governance/run.sh
 
-    # Install the unioned `standard` preset (+ every always_install directive)
-    # across all bundled concern packs — exactly what `governance init` does
-    # after the core→concern decomposition (#192). Each pack contributes its
-    # slice; the union reproduces the old single-core standard set. One
-    # packs.lock entry per pack records its installed directives.
+    # Install every bundled directive. The kit ships one pack with no presets;
+    # init installs the full set (issue #370).
     fixture_sha="abcdef0123456789abcdef0123456789abcdef01"
     while IFS=$'\t' read -r pack_id pack_dir; do
         [[ -z "$pack_id" ]] && continue
         selected=()
         while IFS= read -r rid; do
             [[ -n "$rid" ]] && selected+=("$rid")
-        done < <(preset_resolve "$pack_dir" standard)
-        while IFS= read -r rid; do
-            [[ -n "$rid" ]] && selected+=("$rid")
-        done < <(always_install_directives "$pack_dir")
+        done < <(directives_for "$pack_dir")
 
         pack_dids=()
         pack_seen=" "
@@ -376,7 +370,7 @@ EOF
 )
 fresh_status=$?
 if [[ $fresh_status -eq 0 ]]; then
-    printf '  ✓ unioned standard preset installs into a fresh repo and runs green\n'
+    printf '  ✓ bundled pack installs into a fresh repo and runs green\n'
 else
     printf '  ✗ unioned standard fresh-repo contract failed\n'
     fail=1

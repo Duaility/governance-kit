@@ -4,9 +4,9 @@ EVAL_ID="managed-tree-integrity"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
 [[ -f "$ROOT/kit/assets/packs/lib/eval-lib.sh" ]] || { echo "eval: ROOT misresolved to $ROOT" >&2; exit 1; }
 source "$ROOT/kit/assets/packs/lib/eval-lib.sh"
-PACK_DIR="$ROOT/packs/foundation"
-CHECK=".governance/packs/governance-kit/foundation/directives/$EVAL_ID/check.sh"
-LIBDIR=".governance/packs/governance-kit/foundation/directives/$EVAL_ID/lib"
+PACK_DIR="$ROOT/packs/audit"
+CHECK=".governance/packs/governance-kit/audit/directives/$EVAL_ID/check.sh"
+LIBDIR=".governance/packs/governance-kit/audit/directives/$EVAL_ID/lib"
 
 fixture_init
 install_directive "$PACK_DIR" "$EVAL_ID"
@@ -102,10 +102,10 @@ EVAL_LABEL="$EVAL_ID legacy no-digest skipped" expect_pass "$CHECK"
 # 7. pass — drifted runtime file waived via the conf overlay
 write_manifest "managed_digests:
   .governance/lib.sh: $LIB_D"   # lib.sh is still tampered → would fail…
-mkdir -p .governance/conf/governance-kit/foundation
-printf '.governance/lib.sh\n' > .governance/conf/governance-kit/foundation/$EVAL_ID.conf
+mkdir -p .governance/conf/governance-kit/audit
+printf '.governance/lib.sh\n' > .governance/conf/governance-kit/audit/$EVAL_ID.conf
 EVAL_LABEL="$EVAL_ID waiver" expect_pass "$CHECK"
-rm -f .governance/conf/governance-kit/foundation/$EVAL_ID.conf
+rm -f .governance/conf/governance-kit/audit/$EVAL_ID.conf
 
 # 8. schedule lane — a generated `.github/workflows/governance-schedule-<lane>.yml`
 #    is a first-class managed runtime file, stamped at verb-run time (not kit-
@@ -126,10 +126,10 @@ printf '\n# tampered schedule workflow\n' >> "$SCHEDULE_WF"
 EVAL_LABEL="$EVAL_ID schedule workflow modified" expect_fail "$CHECK"
 
 # 8b. pass — drifted schedule workflow waived via the conf overlay
-mkdir -p .governance/conf/governance-kit/foundation
-printf '%s\n' "$SCHEDULE_WF" > .governance/conf/governance-kit/foundation/$EVAL_ID.conf
+mkdir -p .governance/conf/governance-kit/audit
+printf '%s\n' "$SCHEDULE_WF" > .governance/conf/governance-kit/audit/$EVAL_ID.conf
 EVAL_LABEL="$EVAL_ID schedule workflow waiver" expect_pass "$CHECK"
-rm -f .governance/conf/governance-kit/foundation/$EVAL_ID.conf
+rm -f .governance/conf/governance-kit/audit/$EVAL_ID.conf
 
 # 8c. issue #263 — a generated schedule workflow carries its *generation-time*
 #     marker (stamped when `governance workflow generate` last (re)rendered it),

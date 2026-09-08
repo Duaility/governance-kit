@@ -26,11 +26,9 @@ Every link is enforced by a directive in the `governance-kit/audit` pack (the `s
 
 | Link | Directive | What it enforces |
 |---|---|---|
-| Issues exist & are structured | `issue-templates` | Issue forms with handoff fields |
 | Every commit names the issue | `commit-message-format` | Conventional Commits subject with a trailing `(#N)` |
-| Work attests itself | `receipt-per-issue` | One receipt per issue: outcome + verification evidence at the completed change |
-| Completed changes anchor to work | `commit-issue-receipt-match` | A PR aggregate or direct-to-default commit adds or updates `receipts/issue-<N>.md` — the receipt path **is** the anchor |
-| The record can't be rewritten | `doc-integrity` | Receipts freeze once on the trunk; frozen sections keep their baseline lines verbatim |
+| Work attests itself | `receipt-per-issue` | Unique receipt per issue; a completed change is associated with it and records outcome + verification evidence |
+| The record can't be rewritten | `doc-integrity` | Receipts freeze once on the trunk; the Evolution Log keeps baseline lines verbatim |
 
 Everything homes in the receipt. There are **no usage, cost, or steering rows and no kit-owned session trailers**. Harnesses that stamp their own session on the commit (Claude Code's `Claude-Session:`, and equivalents) are outside this pack.
 
@@ -47,7 +45,7 @@ A plan says what the model *intends*; a receipt says what it *did*, in a form a 
 
 A fenced command with no outcome is not evidence, and a recorded fence or verdict is not proof that a command ran. Historical session-only or accounting-only stubs cannot satisfy a completed change.
 
-`commit-issue-receipt-match` ties the **completed change** to a receipt, file-first: the aggregate PR diff (or the direct-to-default commit) must add or modify at least one `receipts/issue-<N>.md`. Intermediate feature-branch commits do not each need a receipt edit. The path sits in the aggregate diff identically before and after a squash-merge. (The subject's own `(#N)` is still required, separately, by `commit-message-format`.)
+`receipt-per-issue` also ties the **completed change** to a receipt, file-first: the aggregate PR diff (or the direct-to-default commit) must add or modify at least one `receipts/issue-<N>.md`. Intermediate feature-branch commits do not each need a receipt edit. The path sits in the aggregate diff identically before and after a squash-merge. (The subject's own `(#N)` is still required, separately, by `commit-message-format`.)
 
 ## doc-integrity: the record cannot be quietly rewritten
 
